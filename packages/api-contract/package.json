@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@mbs/school-config": "workspace:*",
     "@orpc/contract": "1.15.0",
     "zod": "4.5.4"
   },

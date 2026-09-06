@@ -1,7 +1,8 @@
+import { SCHOOL_KEYS } from "@mbs/school-config";
 import { z } from "zod";
 
-/** School keys are fixed organisational facts, not tenant rows. */
-export const SchoolKey = z.enum(["sma", "smp", "sd"]);
+/** The school list lives in @mbs/school-config; this is the same list as Zod. */
+export const SchoolKey = z.enum(SCHOOL_KEYS);
 export type SchoolKey = z.infer<typeof SchoolKey>;
 
 export const CycleStatus = z.enum(["DRAFT", "OPEN", "CLOSED", "ARCHIVED"]);

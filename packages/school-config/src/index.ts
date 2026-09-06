@@ -29,7 +29,7 @@ export const SCHOOLS = [
 export type School = (typeof SCHOOLS)[number];
 export type SchoolKey = School["key"];
 
-export const SCHOOL_KEYS = SCHOOLS.map((school) => school.key);
+export const SCHOOL_KEYS = SCHOOLS.map((school) => school.key) as [SchoolKey, ...SchoolKey[]];
 
 /** Resolves a request hostname to a school, or null for an unknown host. */
 export function schoolFromHostname(hostname: string): School | null {

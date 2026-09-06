@@ -12,9 +12,8 @@
   "iconLibrary": "lucide",
   "aliases": {
     "components": "@mbs/ui/components",
-    "utils": "@mbs/ui/lib/utils",
+    "utils": "cn",
     "hooks": "@mbs/ui/hooks",
-    "lib": "@mbs/ui/lib",
     "ui": "@mbs/ui/components"
   },
   "rtl": false,

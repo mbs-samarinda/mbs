@@ -5,9 +5,8 @@ import { PublicAdmissionCycle, SchoolKey } from "./schemas.ts";
 export * from "./schemas.ts";
 
 /**
- * The public contract, organised by audience: public, applicant, staff, admin.
- * Only `public` carries a procedure so far; the other three are the agreed
- * shape and stay empty until their procedures are built.
+ * The public contract, organised by audience. `applicant`, `staff` and `admin`
+ * are the agreed namespaces and get added when they carry procedures.
  */
 export const contract = {
   public: {
@@ -17,7 +16,4 @@ export const contract = {
         .output(PublicAdmissionCycle.nullable()),
     },
   },
-  applicant: {},
-  staff: {},
-  admin: {},
 };

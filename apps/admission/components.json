@@ -13,8 +13,7 @@
   "aliases": {
     "components": "@/components",
     "hooks": "@/hooks",
-    "lib": "@/lib",
-    "utils": "@mbs/ui/lib/utils",
+    "utils": "cn",
     "ui": "@mbs/ui/components"
   },
   "rtl": false,

@@ -2,9 +2,9 @@ import { z } from "zod";
 
 // The only place this application reads process.env. Startup fails loudly here
 // rather than somewhere deep in a request months later.
-// An unset variable and one set to "" mean the same thing here: fall back to
-// the default. Without this, a blank line copied from .env.example fails
-// validation instead of taking the default.
+
+// An unset variable and one set to "" mean the same thing: take the default.
+// Without this a blank line copied from .env.example fails validation.
 const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((value) => (value === "" ? undefined : value), schema);
 
@@ -16,15 +16,14 @@ const EnvSchema = z.object({
   DATABASE_URL: z.url(),
 });
 
-export type Env = z.infer<typeof EnvSchema>;
-
+// Named for what the application means, not what the variable is called, so
+// nothing downstream has to know an environment variable exists.
 export type Config = {
-  readonly env: Env["NODE_ENV"];
-  readonly logLevel: Env["LOG_LEVEL"];
+  readonly env: "development" | "test" | "production";
+  readonly logLevel: string;
   readonly port: number;
   readonly databaseUrl: string;
   readonly isProduction: boolean;
-  readonly secureCookies: boolean;
 };
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
@@ -34,15 +33,13 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid environment configuration:\n${detail}`);
   }
 
-  const env = parsed.data;
-  const isProduction = env.NODE_ENV === "production";
+  const { NODE_ENV, LOG_LEVEL, PORT, DATABASE_URL } = parsed.data;
 
   return {
-    env: env.NODE_ENV,
-    logLevel: env.LOG_LEVEL,
-    port: env.PORT,
-    databaseUrl: env.DATABASE_URL,
-    isProduction,
-    secureCookies: isProduction,
+    env: NODE_ENV,
+    logLevel: LOG_LEVEL,
+    port: PORT,
+    databaseUrl: DATABASE_URL,
+    isProduction: NODE_ENV === "production",
   };
 }

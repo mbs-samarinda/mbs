@@ -1,16 +1,10 @@
 import { getCurrentCycleProcedure } from "./modules/admission/procedures.ts";
 
-/**
- * The server router mirrors the contract's audience shape. `applicant`,
- * `staff` and `admin` are agreed namespaces with no procedures yet.
- */
+/** Mirrors the contract. Audiences appear here as they get procedures. */
 export const router = {
   public: {
     admission: {
       getCurrentCycle: getCurrentCycleProcedure,
     },
   },
-  applicant: {},
-  staff: {},
-  admin: {},
 };

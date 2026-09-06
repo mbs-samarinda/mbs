@@ -8,11 +8,11 @@ describe("loadConfig", () => {
     const config = loadConfig(valid);
     expect(config.env).toBe("development");
     expect(config.port).toBe(3001);
-    expect(config.secureCookies).toBe(false);
+    expect(config.isProduction).toBe(false);
   });
 
-  it("turns on secure cookies in production", () => {
-    expect(loadConfig({ ...valid, NODE_ENV: "production" }).secureCookies).toBe(true);
+  it("knows when it is running in production", () => {
+    expect(loadConfig({ ...valid, NODE_ENV: "production" }).isProduction).toBe(true);
   });
 
   it("refuses to start without a database url", () => {
