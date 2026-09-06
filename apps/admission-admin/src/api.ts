@@ -1,4 +1,6 @@
-import { contract } from "@mbs/api-contract";
+// Type-only: the contract carries every Zod schema, and none of it belongs
+// in the browser bundle. Nothing here uses it at runtime.
+import type { contract } from "@mbs/api-contract";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
