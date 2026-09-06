@@ -1,7 +1,14 @@
 import { schema, type Database } from "@mbs/db";
-import { and, eq, ne } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
-/** Reads the one non-archived cycle a school is joined to, if any. */
+/**
+ * Reads the cycle a school is currently showing to the public.
+ *
+ * Only OPEN and CLOSED cycles qualify: a DRAFT is next year's cycle being
+ * prepared and must not leak, and an ARCHIVED one is finished. Nothing stops a
+ * school from having two qualifying cycles, so the newest registration window
+ * wins rather than whichever row Postgres happens to return first.
+ */
 export async function findCurrentCycleForSchool(db: Database, schoolKey: string) {
   const rows = await db
     .select({
@@ -21,7 +28,13 @@ export async function findCurrentCycleForSchool(db: Database, schoolKey: string)
       eq(schema.schoolAdmissionSettings.admissionCycleId, schema.admissionCycles.id),
     )
     .innerJoin(schema.schools, eq(schema.schools.id, schema.schoolAdmissionSettings.schoolId))
-    .where(and(eq(schema.schools.key, schoolKey), ne(schema.admissionCycles.status, "ARCHIVED")))
+    .where(
+      and(
+        eq(schema.schools.key, schoolKey),
+        inArray(schema.admissionCycles.status, ["OPEN", "CLOSED"]),
+      ),
+    )
+    .orderBy(desc(schema.admissionCycles.registrationOpenAt))
     .limit(1);
 
   return rows[0] ?? null;

@@ -34,7 +34,10 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Database 
     postgres: {
       client: "postgres",
       connection: {
-        connectionString: env("DATABASE_URL"),
+        // No connectionString on purpose. The API exports DATABASE_URL for the
+        // core database, and knex lets a connection string override the fields
+        // below — which would aim Strapi at the core database and let it run
+        // its own migrations there. Strapi connects by field only.
         host: env("DATABASE_HOST", "localhost"),
         port: env.int("DATABASE_PORT", 5432),
         database: env("DATABASE_NAME", "strapi"),

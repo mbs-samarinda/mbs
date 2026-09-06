@@ -49,10 +49,11 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
 
-      # Migrations run against the real database before the tests that need it,
-      # the same way deployment runs them once before starting containers.
-      - run: pnpm db:migrate
       - run: pnpm test
+
+      # Migrations run once against the real database before the tests that use
+      # it, the same way deployment runs them before starting containers.
+      - run: pnpm db:migrate
       - run: pnpm --filter @mbs/api test:integration
 
       # Builds the applications that produce artifacts. The API has no build

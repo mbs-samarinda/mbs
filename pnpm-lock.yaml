@@ -252,18 +252,9 @@ importers:
 
   apps/profile:
     dependencies:
-      '@mbs/api-contract':
-        specifier: workspace:*
-        version: link:../../packages/api-contract
       '@mbs/school-config':
         specifier: workspace:*
         version: link:../../packages/school-config
-      '@orpc/client':
-        specifier: 1.15.0
-        version: 1.15.0(@opentelemetry/api@1.9.0)
-      '@orpc/contract':
-        specifier: 1.15.0
-        version: 1.15.0(@opentelemetry/api@1.9.0)
       next:
         specifier: 16.3.4
         version: 16.3.4(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.0)(@types/node@24.13.3)(babel-plugin-macros@3.1.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -273,9 +264,6 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
-      zod:
-        specifier: 4.5.4
-        version: 4.5.4
     devDependencies:
       '@mbs/typescript-config':
         specifier: workspace:*

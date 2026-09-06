@@ -18,17 +18,15 @@ out which one is stale and fix that one in the same change.
 
 ```bash
 pnpm install
-docker compose up -d          # PostgreSQL, with the core and CMS databases
-pnpm db:migrate               # needs DATABASE_URL, see apps/api/.env.example
-pnpm dev                      # every app at once
+docker compose up -d                    # PostgreSQL, core and CMS databases
+cp apps/api/.env.example apps/api/.env  # then fill in DATABASE_URL
+DATABASE_URL=postgres://mbs:mbs_local_dev@localhost:5432/mbs_core pnpm db:migrate
+pnpm dev                                # every app at once
 ```
 
-Copy the `.env.example` next to each app to `.env` and fill it in. Local
-database URL:
-
-```
-postgres://mbs:mbs_local_dev@localhost:5432/mbs_core
-```
+Each app reads the `.env` beside it. Only the API needs one today: copy its
+`.env.example` and set `DATABASE_URL`. Every other value there has a working
+default.
 
 ## What is where
 

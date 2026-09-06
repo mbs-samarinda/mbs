@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "format": "oxfmt apps packages",
-    "format:check": "oxfmt --check apps packages",
+    "format": "oxfmt --ignore-path .gitignore --ignore-path .oxfmtignore apps packages",
+    "format:check": "oxfmt --check --ignore-path .gitignore --ignore-path .oxfmtignore apps packages",
     "lint": "oxlint apps packages",
     "typecheck": "turbo typecheck",
     "test": "turbo test",

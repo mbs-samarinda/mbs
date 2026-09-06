@@ -7,7 +7,7 @@ describe("loadConfig", () => {
   it("applies defaults when only the required values are present", () => {
     const config = loadConfig(valid);
     expect(config.env).toBe("development");
-    expect(config.port).toBe(3000);
+    expect(config.port).toBe(3001);
     expect(config.secureCookies).toBe(false);
   });
 
@@ -17,5 +17,11 @@ describe("loadConfig", () => {
 
   it("refuses to start without a database url", () => {
     expect(() => loadConfig({})).toThrow(/DATABASE_URL/);
+  });
+
+  it("treats a blank value as unset so the default still applies", () => {
+    const config = loadConfig({ ...valid, PORT: "", LOG_LEVEL: "" });
+    expect(config.port).toBe(3001);
+    expect(config.logLevel).toBe("info");
   });
 });
