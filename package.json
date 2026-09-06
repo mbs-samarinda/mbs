@@ -26,5 +26,29 @@
     "node": ">=24.0.0",
     "pnpm": ">=11.0.0"
   },
-  "packageManager": "pnpm@11.20.0"
+  "packageManager": "pnpm@11.20.0",
+  "intent": {
+    "skills": [
+      "@tanstack/router-core#router-core",
+      "@tanstack/router-core#router-core/auth-and-guards",
+      "@tanstack/router-core#router-core/code-splitting",
+      "@tanstack/router-core#router-core/data-loading",
+      "@tanstack/router-core#router-core/navigation",
+      "@tanstack/router-core#router-core/not-found-and-errors",
+      "@tanstack/router-core#router-core/path-params",
+      "@tanstack/router-core#router-core/search-params",
+      "@tanstack/router-core#router-core/type-safety",
+      "@tanstack/router-plugin#router-plugin",
+      "@tanstack/react-table#getting-started",
+      "@tanstack/react-table#create-table-hook",
+      "@tanstack/react-table#table-state",
+      "@tanstack/react-table#with-tanstack-query",
+      "@tanstack/table-core#core",
+      "@tanstack/table-core#client-vs-server",
+      "@tanstack/table-core#pagination",
+      "@tanstack/table-core#sorting",
+      "@tanstack/table-core#column-filtering",
+      "@tanstack/table-core#typescript"
+    ]
+  }
 }

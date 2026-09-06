@@ -120,6 +120,17 @@ cannot target it — add one when the profile site needs its first component.
 And shadcn's own setup pins TypeScript 6 while this workspace is on 7, so a
 generated component may occasionally need a small fix after `shadcn add`.
 
+## Agent skills
+
+TanStack ships its own guidance inside `node_modules`, versioned with each
+package. `AGENTS.md` tells an agent to check for a matching skill before
+editing; `package.json` records which ones are allowed.
+
+```bash
+pnpm dlx @tanstack/intent@latest list
+pnpm dlx @tanstack/intent@latest load @tanstack/router-core#router-core
+```
+
 ## Database
 
 `packages/db` owns the core schema. After changing `src/schema.ts`:
