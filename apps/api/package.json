@@ -10,8 +10,8 @@
     "test": "vitest run",
     "test:integration": "INTEGRATION=1 vitest run",
     "lint": "oxlint -c ../../.oxlintrc.json",
-    "format": "oxfmt -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore .",
-    "format:check": "oxfmt --check -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore ."
+    "format": "oxfmt -c ../../.oxfmtrc.json .",
+    "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
   },
   "dependencies": {
     "@mbs/api-contract": "workspace:*",

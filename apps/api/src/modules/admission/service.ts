@@ -1,5 +1,6 @@
 import type { PublicAdmissionCycle, SchoolKey } from "@mbs/api-contract";
 import type { Database } from "@mbs/db";
+
 import { findCurrentCycleForSchool } from "./repository.ts";
 
 /**

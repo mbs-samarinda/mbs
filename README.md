@@ -73,6 +73,11 @@ pnpm build
 pnpm gate          # all of the above, in CI's order
 ```
 
+Linting is type-aware: `oxlint-tsgolint` gives oxlint the TypeScript types, so
+it catches unsafe casts and unhandled promises that a syntax-only linter cannot.
+It also builds the module graph, so `import/no-cycle` reports circular imports
+across packages.
+
 Every check is a task in each workspace, so turbo runs them in parallel and
 caches the results. `pnpm lint` on an unchanged tree finishes in about a
 quarter of a second. To check one workspace, filter it:

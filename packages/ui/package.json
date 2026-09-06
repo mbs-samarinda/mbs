@@ -13,8 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "lint": "oxlint -c ../../.oxlintrc.json",
-    "format": "oxfmt -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore .",
-    "format:check": "oxfmt --check -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore ."
+    "format": "oxfmt -c ../../.oxfmtrc.json .",
+    "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

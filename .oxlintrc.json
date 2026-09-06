@@ -1,5 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  // Type-aware rules need oxlint-tsgolint and TypeScript 7, both installed.
+  "options": {
+    "typeAware": true
+  },
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -13,7 +17,10 @@
     // The automatic JSX runtime means React is never in scope by hand.
     "react/react-in-jsx-scope": "off",
     // Stylesheet imports have no binding and are the normal way to load CSS.
-    "import/no-unassigned-import": "off"
+    "import/no-unassigned-import": "off",
+    // Turns on multi-file analysis: oxlint builds the module graph and reports
+    // circular imports across packages, which the app/package layering forbids.
+    "import/no-cycle": "error"
   },
   "ignorePatterns": [
     "apps/cms/**",

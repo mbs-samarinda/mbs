@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
 import { buildApp } from "./app.ts";
 import { loadConfig } from "./config/env.ts";
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { loadConfig } from "./env.ts";
 
 const valid = { DATABASE_URL: "postgres://user:pass@localhost:5432/mbs_core" };

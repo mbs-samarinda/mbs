@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { schoolFromHostname, SCHOOL_KEYS } from "./index.ts";
 
 describe("schoolFromHostname", () => {

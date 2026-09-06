@@ -1,6 +1,7 @@
 import { createDatabase, type Database } from "@mbs/db";
 import { RPCHandler } from "@orpc/server/fastify";
 import Fastify, { type FastifyInstance } from "fastify";
+
 import type { Config } from "./config/env.ts";
 import { router } from "./router.ts";
 import { healthRoutes } from "./routes/health.ts";

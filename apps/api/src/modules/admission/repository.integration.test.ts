@@ -1,6 +1,7 @@
 import { createDatabase, schema } from "@mbs/db";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+
 import { findCurrentCycleForSchool } from "./repository.ts";
 
 const db = createDatabase(

@@ -1,4 +1,0 @@
-# Generated files. TanStack Router rewrites the route tree on every build and
-# Strapi owns its own metadata, so formatting them only creates churn.
-**/routeTree.gen.ts
-apps/cms/

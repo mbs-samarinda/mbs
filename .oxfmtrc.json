@@ -1,7 +1,19 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxfmt/configuration_schema.json",
-  "semicolons": true,
+  "semi": true,
   "singleQuote": false,
   "trailingComma": "all",
-  "printWidth": 100
+  "printWidth": 100,
+  "sortImports": true,
+  "sortTailwindcss": {
+    "stylesheet": "packages/ui/src/styles/globals.css",
+    "functions": [
+      "cn",
+      "cva"
+    ]
+  },
+  "ignorePatterns": [
+    "**/routeTree.gen.ts",
+    "apps/cms/**"
+  ]
 }

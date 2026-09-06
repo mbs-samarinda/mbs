@@ -5,31 +5,21 @@
  * change (fees, dates, whether a school takes part in a cycle) lives in
  * PostgreSQL instead.
  */
-export const SCHOOLS = [
-  {
-    key: "sma",
-    name: "SMA Madina Citra Insani Samarinda",
-    level: "SMA",
-    subdomain: "sma",
-  },
-  {
-    key: "smp",
-    name: "SMP IT Madina Samarinda",
-    level: "SMP",
-    subdomain: "smp",
-  },
-  {
-    key: "sd",
-    name: "SD IT Madina Samarinda",
-    level: "SD",
-    subdomain: "sd",
-  },
-] as const;
+export const SCHOOL_KEYS = ["sma", "smp", "sd"] as const;
+
+export type SchoolKey = (typeof SCHOOL_KEYS)[number];
+
+// A Record keyed by SchoolKey: adding a key without its facts, or facts for a
+// key that does not exist, is a compile error.
+const FACTS: Record<SchoolKey, { name: string; level: string; subdomain: string }> = {
+  sma: { name: "SMA Madina Citra Insani Samarinda", level: "SMA", subdomain: "sma" },
+  smp: { name: "SMP IT Madina Samarinda", level: "SMP", subdomain: "smp" },
+  sd: { name: "SD IT Madina Samarinda", level: "SD", subdomain: "sd" },
+};
+
+export const SCHOOLS = SCHOOL_KEYS.map((key) => ({ key, ...FACTS[key] }));
 
 export type School = (typeof SCHOOLS)[number];
-export type SchoolKey = School["key"];
-
-export const SCHOOL_KEYS = SCHOOLS.map((school) => school.key) as [SchoolKey, ...SchoolKey[]];
 
 /** Resolves a request hostname to a school, or null for an unknown host. */
 export function schoolFromHostname(hostname: string): School | null {

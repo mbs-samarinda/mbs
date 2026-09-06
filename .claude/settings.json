@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(jq -r '.tool_input.file_path'); pnpm exec oxlint -c .oxlintrc.json --fix --no-error-on-unmatched-pattern \"$file\" >/dev/null 2>&1; pnpm exec oxfmt -c .oxfmtrc.json --no-error-on-unmatched-pattern \"$file\" >/dev/null 2>&1; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
