@@ -55,4 +55,7 @@ jobs:
       - run: pnpm test
       - run: pnpm --filter @mbs/api test:integration
 
+      # Builds the applications that produce artifacts. The API has no build
+      # step: it runs TypeScript directly on Node, and `pnpm typecheck` above
+      # is what proves it compiles.
       - run: pnpm build

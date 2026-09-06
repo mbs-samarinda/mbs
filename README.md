@@ -104,6 +104,11 @@ Design tokens and the Tailwind entry point live in
 `packages/ui/src/styles/globals.css`. Each app's `src/styles.css` imports it and
 nothing else.
 
+Two things to know. `apps/profile` has no `components.json` yet, so the CLI
+cannot target it — add one when the profile site needs its first component.
+And shadcn's own setup pins TypeScript 6 while this workspace is on 7, so a
+generated component may occasionally need a small fix after `shadcn add`.
+
 ## Database
 
 `packages/db` owns the core schema. After changing `src/schema.ts`:
