@@ -1,0 +1,22 @@
+{
+  "name": "@mbs/api-contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@orpc/contract": "1.15.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@mbs/typescript-config": "workspace:*",
+    "typescript": "7.0.2",
+    "vitest": "^4.0.0"
+  }
+}

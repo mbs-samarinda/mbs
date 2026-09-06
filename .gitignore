@@ -1,0 +1,24 @@
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+
+# Per-machine Claude Code permissions. The tracked settings.json is shared;
+# this one is not.
+.claude/settings.local.json
+
+# Strapi generated output
+apps/cms/.strapi/
+apps/cms/.tmp/
+apps/cms/types/generated/
+apps/cms/public/uploads/*
+!apps/cms/public/uploads/.gitkeep

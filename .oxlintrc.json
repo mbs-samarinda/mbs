@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "plugins": ["typescript", "unicorn", "import", "react", "react-perf", "jsx-a11y"],
+  "env": { "browser": true, "es2024": true, "node": true },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "no-console": "warn",
+    // The automatic JSX runtime means React is never in scope by hand.
+    "react/react-in-jsx-scope": "off",
+    // Stylesheet imports have no binding and are the normal way to load CSS.
+    "import/no-unassigned-import": "off"
+  },
+  "ignorePatterns": [
+    "apps/cms/**",
+    "**/dist/**",
+    "**/.next/**",
+    "**/drizzle/**",
+    "**/routeTree.gen.ts",
+    "**/next-env.d.ts"
+  ],
+  "overrides": [
+    {
+      "files": ["apps/api/**", "packages/db/**"],
+      "rules": { "no-console": "off" }
+    }
+  ]
+}

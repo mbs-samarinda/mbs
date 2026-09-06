@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: mbs
+          POSTGRES_PASSWORD: mbs_local_dev
+          POSTGRES_DB: mbs_core
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mbs -d mbs_core"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://mbs:mbs_local_dev@localhost:5432/mbs_core
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The documented gate order. Formatting and linting run before anything
+      # slow so a trivial mistake fails in seconds.
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+      # Migrations run against the real database before the tests that need it,
+      # the same way deployment runs them once before starting containers.
+      - run: pnpm db:migrate
+      - run: pnpm test
+      - run: pnpm --filter @mbs/api test:integration
+
+      - run: pnpm build

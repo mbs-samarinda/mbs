@@ -1,0 +1,29 @@
+{
+  "name": "mbs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format": "oxfmt apps packages",
+    "format:check": "oxfmt --check apps packages",
+    "lint": "oxlint apps packages",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "db:generate": "pnpm --filter @mbs/db generate",
+    "db:migrate": "pnpm --filter @mbs/db migrate",
+    "gate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "oxfmt": "0.66.0",
+    "oxlint": "1.81.0",
+    "shadcn": "^4.21.0",
+    "turbo": "2.10.12",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "packageManager": "pnpm@11.20.0"
+}
