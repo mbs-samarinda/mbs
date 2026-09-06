@@ -127,6 +127,12 @@
       "skillPath": "skills/surgical-patch/SKILL.md",
       "computedHash": "028b9c3574142d19639d9f8eb11fbb01c58479f8f441e957d598a7215e79f95d"
     },
+    "turborepo": {
+      "source": "vercel/turborepo",
+      "sourceType": "github",
+      "skillPath": "skills/turborepo/SKILL.md",
+      "computedHash": "4289866858fc5314e10ca21584d00c48ddb7e6bc353e262283958f8e4b9bec87"
+    },
     "verify-and-stop": {
       "source": "JuliusBrussee/caveman",
       "sourceType": "github",

@@ -73,6 +73,14 @@ pnpm build
 pnpm gate          # all of the above, in CI's order
 ```
 
+Every check is a task in each workspace, so turbo runs them in parallel and
+caches the results. `pnpm lint` on an unchanged tree finishes in about a
+quarter of a second. To check one workspace, filter it:
+
+```bash
+pnpm exec turbo run lint --filter=@mbs/api
+```
+
 Tests that need a real database are named `*.integration.test.ts` and run
 separately:
 

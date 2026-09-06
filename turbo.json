@@ -1,16 +1,31 @@
 {
-  "$schema": "https://turbo.build/schema.json",
+  "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "build/**"]
+      "outputs": [
+        "dist/**",
+        "build/**",
+        ".strapi/**",
+        ".next/**",
+        "!.next/cache/**",
+        "!.next/dev/**"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      // base.json sets incremental, so tsc --noEmit still writes this.
+      "outputs": ["*.tsbuildinfo"]
     },
     "test": {
       "dependsOn": ["^build"]
+    },
+    "lint": {},
+    "format:check": {},
+    "format": {
+      // Rewrites files in place, so a cache hit would skip real work.
+      "cache": false
     },
     "dev": {
       "cache": false,

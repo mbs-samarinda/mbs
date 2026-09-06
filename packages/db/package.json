@@ -12,7 +12,10 @@
     "migrate": "drizzle-kit migrate",
     "studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "lint": "oxlint -c ../../.oxlintrc.json",
+    "format": "oxfmt -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore .",
+    "format:check": "oxfmt --check -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore ."
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

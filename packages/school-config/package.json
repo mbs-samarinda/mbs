@@ -8,7 +8,10 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "lint": "oxlint -c ../../.oxlintrc.json",
+    "format": "oxfmt -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore .",
+    "format:check": "oxfmt --check -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore ."
   },
   "devDependencies": {
     "@mbs/typescript-config": "workspace:*",

@@ -8,7 +8,10 @@
     "start": "node --env-file-if-exists=.env src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:integration": "INTEGRATION=1 vitest run"
+    "test:integration": "INTEGRATION=1 vitest run",
+    "lint": "oxlint -c ../../.oxlintrc.json",
+    "format": "oxfmt -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore .",
+    "format:check": "oxfmt --check -c ../../.oxfmtrc.json --ignore-path ../../.oxfmtignore ."
   },
   "dependencies": {
     "@mbs/api-contract": "workspace:*",

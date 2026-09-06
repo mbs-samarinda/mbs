@@ -3,16 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "format": "oxfmt --ignore-path .gitignore --ignore-path .oxfmtignore apps packages",
-    "format:check": "oxfmt --check --ignore-path .gitignore --ignore-path .oxfmtignore apps packages",
-    "lint": "oxlint apps packages",
-    "typecheck": "turbo typecheck",
-    "test": "turbo test",
-    "build": "turbo build",
-    "dev": "turbo dev",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
     "db:generate": "pnpm --filter @mbs/db generate",
     "db:migrate": "pnpm --filter @mbs/db migrate",
-    "gate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "gate": "pnpm format:check && pnpm lint && turbo run typecheck test build"
   },
   "devDependencies": {
     "oxfmt": "0.66.0",

@@ -33,6 +33,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          # --affected diffs against the base branch, which needs real history.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -47,9 +50,19 @@ jobs:
       # slow so a trivial mistake fails in seconds.
       - run: pnpm format:check
       - run: pnpm lint
-      - run: pnpm typecheck
 
-      - run: pnpm test
+      # On a pull request only the changed packages and their dependents need
+      # checking. A push to main checks everything, because --affected would
+      # compare main against itself and find nothing.
+      - if: github.event_name == 'pull_request'
+        run: pnpm exec turbo run typecheck --affected
+      - if: github.event_name != 'pull_request'
+        run: pnpm exec turbo run typecheck
+
+      - if: github.event_name == 'pull_request'
+        run: pnpm exec turbo run test --affected
+      - if: github.event_name != 'pull_request'
+        run: pnpm exec turbo run test
 
       # Migrations run once against the real database before the tests that use
       # it, the same way deployment runs them before starting containers.
@@ -57,6 +70,9 @@ jobs:
       - run: pnpm --filter @mbs/api test:integration
 
       # Builds the applications that produce artifacts. The API has no build
-      # step: it runs TypeScript directly on Node, and `pnpm typecheck` above
-      # is what proves it compiles.
-      - run: pnpm build
+      # step: it runs TypeScript directly on Node, and typecheck above is what
+      # proves it compiles.
+      - if: github.event_name == 'pull_request'
+        run: pnpm exec turbo run build --affected
+      - if: github.event_name != 'pull_request'
+        run: pnpm exec turbo run build
