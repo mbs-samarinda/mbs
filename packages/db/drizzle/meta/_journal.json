@@ -15,6 +15,20 @@
       "when": 1788798418028,
       "tag": "0001_amusing_golden_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788802662135,
+      "tag": "0002_normal_havok",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788802674103,
+      "tag": "0003_seed_school_keys",
+      "breakpoints": true
     }
   ]
 }

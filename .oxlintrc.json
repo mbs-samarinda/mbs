@@ -9,7 +9,13 @@
     "suspicious": "error",
     "perf": "warn"
   },
-  "plugins": ["typescript", "unicorn", "import", "react", "react-perf", "jsx-a11y"],
+  // react-perf is deliberately absent. It asks for useCallback/useMemo around
+  // inline props, which is exactly what the React Compiler (enabled in both
+  // Vite apps) already inserts. Every warning it produced here came from an
+  // API that cannot avoid the shape anyway: Base UI's `render={<Button />}`
+  // and TanStack Form's render props. Hand-memoizing them would be writing the
+  // workaround the compiler exists to delete.
+  "plugins": ["typescript", "unicorn", "import", "react", "jsx-a11y"],
   "env": { "browser": true, "es2024": true, "node": true },
   "rules": {
     "typescript/no-explicit-any": "error",
@@ -20,7 +26,11 @@
     "import/no-unassigned-import": "off",
     // Turns on multi-file analysis: oxlint builds the module graph and reports
     // circular imports across packages, which the app/package layering forbids.
-    "import/no-cycle": "error"
+    "import/no-cycle": "error",
+    // Not in an enabled category, so the gate stayed silent while an editor
+    // flagged it. An index key survives a reorder and hands the new row the old
+    // row's state.
+    "react/no-array-index-key": "error"
   },
   "ignorePatterns": [
     "apps/cms/**",

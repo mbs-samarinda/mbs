@@ -14,9 +14,12 @@
     "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.3",
     "@mbs/api-contract": "workspace:*",
     "@mbs/db": "workspace:*",
+    "@mbs/school-config": "workspace:*",
     "@orpc/server": "1.15.0",
+    "better-auth": "1.7.3",
     "drizzle-orm": "0.45.2",
     "fastify": "5.12.3",
     "zod": "4.5.4"

@@ -181,6 +181,12 @@
       "skillPath": "skills/migration/SKILL.md",
       "computedHash": "7348b2d21ca05bdecc1e4ec2c8b63515ccb1700c8a261fdbd458b04b7383945b"
     },
+    "pick-ui-library": {
+      "source": "emilkowalski/skill",
+      "sourceType": "github",
+      "skillPath": "skills/pick-ui-library/SKILL.md",
+      "computedHash": "f8d4d2cf4677bf54b14f35f62a741add93541bfcb67863315a40164365161b49"
+    },
     "review-animations": {
       "source": "emilkowalski/skill",
       "sourceType": "github",

@@ -16,6 +16,15 @@ export type SchoolKey = School["key"];
 
 export const SCHOOL_KEYS = SCHOOLS.map((school) => school.key);
 
+/**
+ * Narrows a string read from the database to a school key. The schools table
+ * holds the same fixed list, but its column is text, so this is where that
+ * promise is checked rather than assumed.
+ */
+export function isSchoolKey(value: string): value is SchoolKey {
+  return SCHOOLS.some((school) => school.key === value);
+}
+
 /** Resolves a request hostname to a school, or null for an unknown host. */
 export function schoolFromHostname(hostname: string): School | null {
   const label = hostname.split(".")[0]?.toLowerCase();

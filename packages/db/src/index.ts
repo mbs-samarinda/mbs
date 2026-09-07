@@ -15,3 +15,10 @@ export function createDatabase(url: string) {
 }
 
 export type Database = ReturnType<typeof createDatabase>;
+
+/**
+ * The handle inside `db.transaction(...)`. Drizzle names no type for it, and
+ * spelling the lookup out at each call site put an unreadable incantation in
+ * three files.
+ */
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];

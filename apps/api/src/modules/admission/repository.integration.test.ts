@@ -36,8 +36,11 @@ async function joinSchoolToCycle(
 }
 
 beforeEach(async () => {
+  // Not `schools`: its three rows are seeded by a migration and referenced by
+  // staff access, so wiping them would break the next suite and the API's own
+  // startup.
   await db.execute(
-    sql`truncate ${schema.schoolAdmissionSettings}, ${schema.admissionCycles}, ${schema.schools} cascade`,
+    sql`truncate ${schema.schoolAdmissionSettings}, ${schema.admissionCycles} cascade`,
   );
 });
 

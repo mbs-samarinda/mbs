@@ -14,6 +14,21 @@ const EnvSchema = z.object({
   // Matches the port both front-end dev proxies target.
   PORT: optional(z.coerce.number().int().positive().default(3001)),
   DATABASE_URL: z.url(),
+
+  BETTER_AUTH_SECRET: z.string().min(32),
+  // Where Google sends the browser back. Must be the API's own origin, since
+  // the auth routes live at /api/auth/* on this server.
+  BETTER_AUTH_URL: z.url(),
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
+  // The committee app's origin: both the post-sign-in redirect target and the
+  // one origin Better Auth trusts for cookie-authenticated requests.
+  ADMIN_APP_URL: z.url(),
+
+  // Optional. When set, that address is ensured as an active administrator with
+  // access to every school on each boot. Nothing can grant staff access before
+  // one administrator exists.
+  BOOTSTRAP_ADMIN_EMAIL: optional(z.email().optional()),
 });
 
 // Named for what the application means, not what the variable is called, so
@@ -24,6 +39,13 @@ export type Config = {
   readonly port: number;
   readonly databaseUrl: string;
   readonly isProduction: boolean;
+  readonly auth: {
+    readonly secret: string;
+    readonly baseUrl: string;
+    readonly adminAppUrl: string;
+    readonly google: { readonly clientId: string; readonly clientSecret: string };
+  };
+  readonly bootstrapAdminEmail: string | undefined;
 };
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
@@ -41,5 +63,15 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     port: PORT,
     databaseUrl: DATABASE_URL,
     isProduction: NODE_ENV === "production",
+    auth: {
+      secret: parsed.data.BETTER_AUTH_SECRET,
+      baseUrl: parsed.data.BETTER_AUTH_URL,
+      adminAppUrl: parsed.data.ADMIN_APP_URL,
+      google: {
+        clientId: parsed.data.GOOGLE_CLIENT_ID,
+        clientSecret: parsed.data.GOOGLE_CLIENT_SECRET,
+      },
+    },
+    bootstrapAdminEmail: parsed.data.BOOTSTRAP_ADMIN_EMAIL,
   };
 }

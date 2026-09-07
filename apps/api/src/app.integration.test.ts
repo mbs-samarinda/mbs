@@ -9,6 +9,11 @@ const config = loadConfig({
   NODE_ENV: "test",
   LOG_LEVEL: "error",
   DATABASE_URL: process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
+  BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-to-pass",
+  BETTER_AUTH_URL: "http://localhost:3001",
+  GOOGLE_CLIENT_ID: "test-client-id",
+  GOOGLE_CLIENT_SECRET: "test-client-secret",
+  ADMIN_APP_URL: "http://localhost:5174",
 });
 
 const app = await buildApp(config);

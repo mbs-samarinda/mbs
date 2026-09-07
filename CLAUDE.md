@@ -89,6 +89,10 @@ Check that list before changing router, table or query code.
 
 - Build what the task asks for. No speculative abstractions, no options nobody
   requested, no scaffolding for later.
+- A component with one consumer lives in that consumer's file, unexported. It
+  moves to its own file the moment a second file needs it, and not before. A
+  file per component makes every page a scavenger hunt when most of those
+  components will only ever be used once.
 - Short copy. Dense information. No decorative card or pill chrome.
 - Run `/code-review` when a coding task is done.
 - `pnpm gate` must pass before you call something finished.
