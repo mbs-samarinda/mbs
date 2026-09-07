@@ -30,6 +30,10 @@ jobs:
 
     env:
       DATABASE_URL: postgres://mbs:mbs_local_dev@localhost:5432/mbs_core
+      # Remote cache credentials. Locally these come from .turbo/config.json,
+      # which is gitignored, so CI has to be told separately.
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAMID: team_G2sXGIEvkYnFhLHzWtvo1u04
 
     steps:
       - uses: actions/checkout@v5
