@@ -15,6 +15,10 @@ coverage/
 # Per-machine Claude Code permissions. The tracked settings.json is shared;
 # this one is not.
 .claude/settings.local.json
+.codex/config.toml
+
+# Local RTK command statistics
+.rtk/
 
 # Strapi generated output
 apps/cms/.strapi/
