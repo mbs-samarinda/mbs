@@ -21,8 +21,8 @@ async function joinSchoolToCycle(
 ) {
   const [school] = await db
     .insert(schema.schools)
-    .values({ key: "sma", name: "SMA", level: "SMA" })
-    .onConflictDoUpdate({ target: schema.schools.key, set: { name: "SMA" } })
+    .values({ key: "sma" })
+    .onConflictDoUpdate({ target: schema.schools.key, set: { key: "sma" } })
     .returning();
 
   const [cycle] = await db
