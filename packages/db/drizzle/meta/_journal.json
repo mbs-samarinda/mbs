@@ -8,6 +8,13 @@
       "when": 1788671043853,
       "tag": "0000_cooing_the_renegades",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788798418028,
+      "tag": "0001_amusing_golden_guardian",
+      "breakpoints": true
     }
   ]
 }

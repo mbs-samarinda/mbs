@@ -13,10 +13,10 @@ export const cycleStatus = pgEnum("cycle_status", ["DRAFT", "OPEN", "CLOSED", "A
 
 export const schools = pgTable("schools", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // Name and level are compile-time facts in @mbs/school-config, not columns.
+  // Taking part in a cycle is school_admission_settings.is_enabled, not a
+  // property of the school.
   key: text("key").notNull().unique(),
-  name: text("name").notNull(),
-  level: text("level").notNull(),
-  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
