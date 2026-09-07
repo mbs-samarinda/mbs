@@ -8,14 +8,14 @@ describe("schoolFromHostname", () => {
   });
 
   it("ignores case", () => {
-    expect(schoolFromHostname("SMP.mbss.sch.id")?.key).toBe("smp");
+    expect(schoolFromHostname("SMK.mbss.sch.id")?.key).toBe("smk");
   });
 
   it("returns null for an unknown host", () => {
-    expect(schoolFromHostname("admission.mbss.sch.id")).toBeNull();
+    expect(schoolFromHostname("sd.mbss.sch.id")).toBeNull();
   });
 
   it("covers every school key", () => {
-    expect(SCHOOL_KEYS).toEqual(["sma", "smp", "sd"]);
+    expect(SCHOOL_KEYS).toEqual(["smp", "smk", "sma"]);
   });
 });

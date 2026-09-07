@@ -5,16 +5,16 @@
  * change (fees, dates, whether a school takes part in a cycle) lives in
  * PostgreSQL instead.
  */
-export const SCHOOL_KEYS = ["sma", "smp", "sd"] as const;
+export const SCHOOL_KEYS = ["smp", "smk", "sma"] as const;
 
 export type SchoolKey = (typeof SCHOOL_KEYS)[number];
 
 // A Record keyed by SchoolKey: adding a key without its facts, or facts for a
 // key that does not exist, is a compile error.
 const FACTS: Record<SchoolKey, { name: string; level: string; subdomain: string }> = {
-  sma: { name: "SMA Madina Citra Insani Samarinda", level: "SMA", subdomain: "sma" },
-  smp: { name: "SMP IT Madina Samarinda", level: "SMP", subdomain: "smp" },
-  sd: { name: "SD IT Madina Samarinda", level: "SD", subdomain: "sd" },
+  smp: { name: "SMP Islam Terpadu Madina", level: "SMP", subdomain: "smp" },
+  smk: { name: "SMK Terpadu Madina", level: "SMK", subdomain: "smk" },
+  sma: { name: "SMA Madina Citra Insani", level: "SMA", subdomain: "sma" },
 };
 
 export const SCHOOLS = SCHOOL_KEYS.map((key) => ({ key, ...FACTS[key] }));
