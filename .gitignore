@@ -17,6 +17,11 @@ coverage/
 .claude/settings.local.json
 .codex/config.toml
 
+# Editor config. Zed's Docker Compose server parses every YAML as one
+# document and chokes on the two-document pnpm-lock.yaml; the fix is a
+# personal preference, not a repo rule.
+.zed/
+
 # Local RTK command statistics
 .rtk/
 
