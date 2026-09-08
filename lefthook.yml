@@ -1,0 +1,37 @@
+# Lefthook's own postinstall writes these into .git/hooks, so a fresh clone
+# only needs `pnpm install` before they start firing.
+
+pre-commit:
+  # Sequential on purpose: oxfmt rewrites the staged files and oxlint has to
+  # read what it wrote.
+  commands:
+    format:
+      priority: 1
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      run: pnpm exec oxfmt -c .oxfmtrc.json {staged_files}
+      stage_fixed: true
+    lint:
+      priority: 2
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      run: pnpm exec oxlint -c .oxlintrc.json {staged_files}
+
+commit-msg:
+  commands:
+    conventional:
+      # A regex instead of commitlint: two fewer dependencies for the one rule
+      # this repository actually follows. Only the subject line is checked, so
+      # a body can say anything. Merge, revert and fixup subjects are written
+      # by git itself and cannot be reshaped.
+      run: |
+        head -1 {1} | grep -qE '^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\(.+\))?!?: .+|^(Merge|Revert|fixup!|squash!) ' || {
+          echo "Commit message must be a Conventional Commit, for example:"
+          echo "  fix(api): reject an admission without a name"
+          exit 1
+        }
+
+pre-push:
+  # No --affected: a push has no reliable base to diff against. Turbo's cache
+  # makes the full run cheap whenever nothing changed.
+  commands:
+    verify:
+      run: pnpm exec turbo run typecheck test

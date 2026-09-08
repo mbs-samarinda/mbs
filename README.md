@@ -70,8 +70,19 @@ pnpm lint
 pnpm typecheck
 pnpm test          # fast tests
 pnpm build
-pnpm gate          # all of the above, in CI's order
+pnpm gate          # all of the above, in one run
 ```
+
+Git hooks run a subset of these automatically. Lefthook installs them from
+its own postinstall, which `allowBuilds` in `pnpm-workspace.yaml` permits, so
+`pnpm install` is all a fresh clone needs. Committing formats and lints the
+staged files and checks the commit message is a Conventional Commit; pushing
+runs `typecheck` and `test`. `lefthook.yml` holds all three. To skip them once,
+`LEFTHOOK=0 git commit ...`.
+
+CI runs the same checks as five independent jobs — format and lint, typecheck,
+fast tests, database tests, build — so they finish in parallel and a slow test
+run no longer hides a formatting mistake behind it.
 
 Linting is type-aware: `oxlint-tsgolint` gives oxlint the TypeScript types, so
 it catches unsafe casts and unhandled promises that a syntax-only linter cannot.

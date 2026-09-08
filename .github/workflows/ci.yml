@@ -9,8 +9,52 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Remote cache credentials. Locally these come from .turbo/config.json,
+  # which is gitignored, so CI has to be told separately. The cache is what
+  # makes running these jobs side by side cheap: the first one to need a task
+  # does the work, the rest download the result.
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAMID: team_G2sXGIEvkYnFhLHzWtvo1u04
+  # On a pull request only the changed packages and their dependents need
+  # checking. A push to main checks everything, because --affected would
+  # compare main against itself and find nothing.
+  AFFECTED: ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+
 jobs:
-  gate:
+  # Every job below runs on its own. Nothing depends on anything else, so a
+  # slow test run no longer hides a formatting mistake behind it.
+  static:
+    name: format and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm format:check
+      - run: pnpm lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # --affected diffs against the base branch, which needs real history.
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm exec turbo run typecheck $AFFECTED
+
+  test:
+    name: test (fast)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm exec turbo run test $AFFECTED
+
+  integration:
+    name: test (database)
     runs-on: ubuntu-latest
 
     services:
@@ -28,55 +72,26 @@ jobs:
           --health-timeout 3s
           --health-retries 10
 
+    # Scoped to this job. It is the only one with a database to point at.
     env:
       DATABASE_URL: postgres://mbs:mbs_local_dev@localhost:5432/mbs_core
-      # Remote cache credentials. Locally these come from .turbo/config.json,
-      # which is gitignored, so CI has to be told separately.
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-      TURBO_TEAMID: team_G2sXGIEvkYnFhLHzWtvo1u04
 
     steps:
       - uses: actions/checkout@v5
-        with:
-          # --affected diffs against the base branch, which needs real history.
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      # The documented gate order. Formatting and linting run before anything
-      # slow so a trivial mistake fails in seconds.
-      - run: pnpm format:check
-      - run: pnpm lint
-
-      # On a pull request only the changed packages and their dependents need
-      # checking. A push to main checks everything, because --affected would
-      # compare main against itself and find nothing.
-      - if: github.event_name == 'pull_request'
-        run: pnpm exec turbo run typecheck --affected
-      - if: github.event_name != 'pull_request'
-        run: pnpm exec turbo run typecheck
-
-      - if: github.event_name == 'pull_request'
-        run: pnpm exec turbo run test --affected
-      - if: github.event_name != 'pull_request'
-        run: pnpm exec turbo run test
-
-      # Migrations run once against the real database before the tests that use
-      # it, the same way deployment runs them before starting containers.
+      - uses: ./.github/actions/setup
+      # Migrations run against the real database first, the same way deployment
+      # runs them before starting containers.
       - run: pnpm db:migrate
       - run: pnpm --filter @mbs/api test:integration
 
-      # Builds the applications that produce artifacts. The API has no build
-      # step: it runs TypeScript directly on Node, and typecheck above is what
-      # proves it compiles.
-      - if: github.event_name == 'pull_request'
-        run: pnpm exec turbo run build --affected
-      - if: github.event_name != 'pull_request'
-        run: pnpm exec turbo run build
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      # Only the applications that produce artifacts have a build task. The API
+      # runs TypeScript directly on Node, so typecheck is what proves it
+      # compiles.
+      - run: pnpm exec turbo run build $AFFECTED
