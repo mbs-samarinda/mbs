@@ -19,6 +19,7 @@ export default async function SchoolHomePage({
   return (
     <main className="mx-auto max-w-3xl p-8">
       <h1 className="text-3xl font-semibold">{school.name}</h1>
+      {/* Literal gray: this app does not import @mbs/ui, so it has no token layer. */}
       <p className="mt-2 text-sm text-gray-600">{school.level}</p>
     </main>
   );

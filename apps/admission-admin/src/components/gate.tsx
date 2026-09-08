@@ -1,10 +1,5 @@
 import { Button } from "@mbs/ui/components/button";
 
-// Solid, not a gradient through #18a698: white text measures 3.02:1 against
-// that end and the brand guide calls for dark text on it. #126e84 carries
-// white at 5.85:1 across the whole panel.
-const PANEL = { background: "#126e84" };
-
 /**
  * The screens shown before anyone reaches the queue: sign-in and the two dead
  * ends behind it. A solid brand panel says which system this is, since staff
@@ -13,8 +8,8 @@ const PANEL = { background: "#126e84" };
  * It carries the umbrella name and what the tool is for, never the brand
  * promise — the brand guide keeps that out of transactional staff screens.
  *
- * Colours are literals because the design tokens do not carry the MBSS palette
- * yet. They become tokens when the palette lands.
+ * The panel is --primary, the one brand colour that carries white text at
+ * normal size (5.85:1). Madina Teal would not: it measures 3.02:1.
  */
 export function Gate({
   title,
@@ -31,20 +26,19 @@ export function Gate({
   return (
     <main className="grid min-h-dvh md:grid-cols-2">
       {/* Below 768px this becomes a band so the action still opens above the fold. */}
-      <div
-        className="flex flex-col justify-end px-6 py-8 text-white md:px-10 md:py-12"
-        style={PANEL}
-      >
-        <p className="text-sm font-medium text-white">Madina Boarding School</p>
-        <p className="mt-1 max-w-xs text-lg leading-snug font-semibold md:mt-2 md:text-2xl">
+      <div className="flex flex-col justify-end bg-primary px-6 py-8 text-primary-foreground md:px-10 md:py-12">
+        <p className="text-sm font-medium">Madina Boarding School</p>
+        <p className="mt-1 max-w-xs text-lg leading-snug font-semibold text-balance md:mt-2 md:text-2xl">
           Ruang kerja panitia penerimaan murid baru.
         </p>
       </div>
 
       <div className="flex items-center justify-center px-6 py-12 md:py-16">
         <div className="w-full max-w-sm">
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{body}</p>
+          <h1 className="text-xl font-semibold tracking-tight text-balance text-foreground">
+            {title}
+          </h1>
+          <p className="mt-2 text-sm text-pretty text-muted-foreground">{body}</p>
           <Button size="lg" variant="outline" className="mt-6 w-full" onClick={onAction}>
             <GoogleMark />
             {actionLabel}

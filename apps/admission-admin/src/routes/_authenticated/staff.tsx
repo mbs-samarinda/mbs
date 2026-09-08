@@ -42,7 +42,7 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 
 import { api } from "../../api.ts";
 
@@ -55,6 +55,27 @@ export const Route = createFileRoute("/_authenticated/staff")({
   },
   component: StaffAccess,
 });
+
+/**
+ * Renders one layout instead of shipping both and hiding one with CSS. The
+ * table and the small-screen list are different trees, so `hidden sm:block`
+ * would build every row twice on every render.
+ */
+function useMediaQuery(query: string) {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const list = window.matchMedia(query);
+      list.addEventListener("change", onChange);
+      return () => list.removeEventListener("change", onChange);
+    },
+    [query],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
 
 /** The two refusals the service raises for a new profile are both CONFLICT. */
 function isConflict(error: unknown) {
@@ -102,14 +123,33 @@ function StaffAccess() {
     }
   };
 
+  const accessButton = (person: StaffSummary) => (
+    <Button
+      size="sm"
+      variant={person.isActive ? "outline" : "secondary"}
+      // Only the row being changed, not all of them.
+      disabled={setActive.isPending && setActive.variables?.staffId === person.id}
+      aria-label={`${person.isActive ? "Nonaktifkan" : "Aktifkan"} ${person.name}`}
+      onClick={() =>
+        person.isActive
+          ? setConfirming(person)
+          : setActive.mutate({ staffId: person.id, isActive: true })
+      }
+    >
+      {person.isActive ? "Nonaktifkan" : "Aktifkan"}
+    </Button>
+  );
+
   const rows = staff.data ?? [];
+  // Tailwind's sm breakpoint. Below it the table becomes a stacked list.
+  const wide = useMediaQuery("(min-width: 40rem)");
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Akses staf</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight text-balance">Akses staf</h1>
+          <p className="mt-1 text-sm text-pretty text-muted-foreground">
             Peran menentukan tindakan, sekolah menentukan jangkauan.
           </p>
         </div>
@@ -129,6 +169,54 @@ function StaffAccess() {
           <p role="alert" className="text-sm text-destructive">
             {staff.error.message}
           </p>
+        ) : /* Five columns do not fit a phone, and squeezing them turns the queue
+             into a horizontal scroll. Below sm the same rows render as a
+             stacked list instead. */
+        !wide ? (
+          <ul className="flex flex-col gap-2">
+            {staff.isPending ? (
+              SKELETON_ROWS.map((width) => (
+                <li key={width} aria-hidden="true" className="rounded-lg border border-border p-3">
+                  <span className="block h-3.5 rounded bg-muted" style={{ width }} />
+                  <span className="mt-2 block h-3 w-40 rounded bg-muted" />
+                  <span className="mt-3 block h-7 w-24 rounded-md bg-muted" />
+                </li>
+              ))
+            ) : rows.length === 0 ? (
+              <li className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
+                Belum ada staf selain Anda.
+              </li>
+            ) : (
+              rows.map((person) => (
+                <li
+                  key={person.id}
+                  className="flex flex-col gap-3 rounded-lg border border-border p-3"
+                >
+                  <div>
+                    <span
+                      className={`block text-sm font-medium transition-colors duration-150 ease-out ${
+                        person.isActive ? "" : "text-muted-foreground"
+                      }`}
+                    >
+                      {person.name}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {institutionalEmail(person)}
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                    <dt className="text-muted-foreground">Peran</dt>
+                    <dd>{ROLE_LABELS[person.role]}</dd>
+                    <dt className="text-muted-foreground">Sekolah</dt>
+                    <dd>{schoolsText(person)}</dd>
+                    <dt className="text-muted-foreground">Status</dt>
+                    <dd className="text-muted-foreground">{statusText(person)}</dd>
+                  </dl>
+                  <div className="flex justify-end">{accessButton(person)}</div>
+                </li>
+              ))
+            )}
+          </ul>
         ) : (
           <Table>
             <TableHeader>
@@ -177,24 +265,7 @@ function StaffAccess() {
                       <TableCell className="text-muted-foreground transition-colors duration-150 ease-out">
                         {statusText(person)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant={person.isActive ? "outline" : "secondary"}
-                          // Only the row being changed, not all of them.
-                          disabled={
-                            setActive.isPending && setActive.variables?.staffId === person.id
-                          }
-                          aria-label={`${person.isActive ? "Nonaktifkan" : "Aktifkan"} ${person.name}`}
-                          onClick={() =>
-                            person.isActive
-                              ? setConfirming(person)
-                              : setActive.mutate({ staffId: person.id, isActive: true })
-                          }
-                        >
-                          {person.isActive ? "Nonaktifkan" : "Aktifkan"}
-                        </Button>
-                      </TableCell>
+                      <TableCell className="text-right">{accessButton(person)}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -285,15 +356,22 @@ function DeactivateDialog({
   onCancel: () => void;
   onConfirm: (staff: StaffSummary) => void;
 }) {
+  // The dialog animates out after `staff` clears, so rendering straight from it
+  // empties the box mid-exit: the text vanishes, then an empty dialog shrinks
+  // away. Keeping the last person on screen lets the exit play with its content
+  // intact.
+  const [shown, setShown] = useState<StaffSummary | null>(staff);
+  if (staff !== null && staff !== shown) setShown(staff);
+
   return (
     <AlertDialog open={staff !== null} onOpenChange={(open) => !open && onCancel()}>
       <AlertDialogContent>
-        {staff ? (
+        {shown ? (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>Nonaktifkan {staff.name}?</AlertDialogTitle>
+              <AlertDialogTitle>Nonaktifkan {shown.name}?</AlertDialogTitle>
               <AlertDialogDescription>
-                Mereka langsung kehilangan akses ke {schoolsText(staff)}. Riwayat tindakan mereka
+                Mereka langsung kehilangan akses ke {schoolsText(shown)}. Riwayat tindakan mereka
                 tetap tersimpan, dan akses bisa dinyalakan lagi kapan saja.
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -307,7 +385,7 @@ function DeactivateDialog({
               <AlertDialogAction
                 disabled={pending}
                 aria-busy={pending}
-                onClick={() => onConfirm(staff)}
+                onClick={() => onConfirm(shown)}
               >
                 {pending ? "Menonaktifkan…" : "Nonaktifkan"}
               </AlertDialogAction>
@@ -468,9 +546,12 @@ function AddStaffDialog({
               {(field) => (
                 <fieldset ref={schoolsRef}>
                   {/* A legend is outside its fieldset's grid flow, so a container
-                      `gap` never applies to it. Space it explicitly instead. */}
-                  <legend className="mb-1.5 text-sm font-medium">Sekolah</legend>
-                  <div className="flex flex-wrap gap-5">
+                      `gap` never applies to it. Space it explicitly instead. The
+                      16px checkboxes carry a 44px hit overlay that reaches 14px
+                      past them, so this gap and the row gap below both clear
+                      that; otherwise the legend swallows the first tap. */}
+                  <legend className="mb-4 text-sm font-medium">Sekolah</legend>
+                  <div className="flex flex-wrap gap-x-5 gap-y-8">
                     {SCHOOLS.map((school) => (
                       <Label key={school.key} className="font-normal">
                         <Checkbox

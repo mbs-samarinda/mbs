@@ -16,12 +16,14 @@ function Home() {
   return (
     <main className="mx-auto max-w-2xl p-8">
       <h1 className="text-2xl font-semibold">Pendaftaran MBSS</h1>
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-muted-foreground">
         {cycle.isPending
           ? "Memuat…"
           : (cycle.data?.name ?? "Belum ada gelombang pendaftaran yang dibuka.")}
       </p>
-      <Button className="mt-6">Mulai</Button>
+      <Button size="touch" className="mt-6">
+        Mulai
+      </Button>
     </main>
   );
 }

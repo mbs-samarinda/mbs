@@ -17,7 +17,7 @@ function Dashboard() {
   return (
     <main className="mx-auto max-w-4xl p-8">
       <h1 className="text-2xl font-semibold">Panitia MBSS</h1>
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-muted-foreground">
         {cycle.isPending ? "Memuat…" : (cycle.data?.name ?? "Belum ada gelombang aktif.")}
       </p>
       <div className="mt-6 flex gap-2">
