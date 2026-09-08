@@ -34,3 +34,11 @@ apps/cms/public/uploads/*
 
 # Turborepo
 .turbo
+
+# Impeccable ships a compiled engine per host directory. Its launcher finds the
+# right binary for the current platform — user cache, PATH, or a checksummed
+# download — so committing a 12MB Apple Silicon build three times would add
+# 37MB of history that Linux CI and Intel Macs cannot run anyway.
+.agents/skills/*/scripts/bin/
+.claude/skills/*/scripts/bin/
+.github/skills/*/scripts/bin/

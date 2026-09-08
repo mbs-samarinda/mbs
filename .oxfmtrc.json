@@ -14,6 +14,10 @@
   },
   "ignorePatterns": [
     "**/routeTree.gen.ts",
-    "apps/cms/**"
+    "apps/cms/**",
+    "**/.agents/**",
+    "**/.claude/**",
+    "**/.codex/**",
+    "**/.github/**"
   ]
 }
