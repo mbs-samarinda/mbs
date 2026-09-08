@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/plus-jakarta-sans";
 
 @custom-variant dark (&:is(.dark *));
 @source "../../../../apps/*/src/**/*.{ts,tsx}";
@@ -34,6 +34,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -47,7 +48,11 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  --font-sans: "Geist Variable", sans-serif;
+  --font-sans: "Plus Jakarta Sans Variable", sans-serif;
+  /* Depth comes from shadow, not from a border pretending to be one. Two
+     steps only: resting controls, and surfaces that float above the page. */
+  --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.05), 0 1px 3px oklch(0 0 0 / 0.08);
+  --shadow-overlay: 0 4px 8px -3px oklch(0 0 0 / 0.06), 0 14px 28px -10px oklch(0 0 0 / 0.2);
   /* Stronger than Tailwind's default cubic-bezier(0, 0, 0.2, 1). Entrances
      start fast, so the frame the user is watching is the one that moves. */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -60,8 +65,16 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  /* #126e84 from the brand guide, in oklch. It is the dark primary rather than
+     the preferred #18a698 because it is the only guide color that carries
+     white text at normal size (5.85:1). The rest of the palette lands when a
+     surface needs it; see DESIGN.md. */
+  --primary: oklch(0.499 0.086 219.2);
+  --primary-foreground: oklch(1 0 0);
+  /* Hover darkens rather than fades. bg-primary/80 over a white page drops
+     white text to 3.89:1; that worked when primary was near-black and does not
+     now. This holds 8.10:1. */
+  --primary-hover: oklch(0.42 0.086 219.2);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -71,7 +84,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.35 0.063 219.2);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -95,8 +108,13 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  /* Dark mode is derived, not specified: the guide gives light-mode hex only.
+     Hue and chroma are the guide's; lightness rises to 0.75 so each color
+     clears 7:1 against the dark ground and against the dark text on it. Warm
+     drops to chroma 0.145 because 0.19 leaves sRGB at that lightness. */
+  --primary: oklch(0.75 0.086 219.2);
+  --primary-foreground: oklch(0.145 0 0);
+  --primary-hover: oklch(0.66 0.086 219.2);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -106,7 +124,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.9 0.06 219.2);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -154,6 +172,6 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 }
