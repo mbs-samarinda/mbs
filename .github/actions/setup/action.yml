@@ -9,7 +9,23 @@ runs:
     - uses: actions/setup-node@v5
       with:
         node-version-file: .nvmrc
-        cache: pnpm
 
+    # The tree itself, not pnpm's store. Restoring the store still leaves pnpm
+    # 30 seconds of linking to do, and every job paid it. A restored tree turns
+    # the install below into a check rather than a build.
+    - uses: actions/cache@v4
+      with:
+        path: |
+          node_modules
+          apps/*/node_modules
+          packages/*/node_modules
+        key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: node-modules-${{ runner.os }}-
+
+    # Always runs, even on an exact cache hit. The key hashes only the
+    # lockfile, so a package.json whose range was edited without regenerating
+    # the lock would hit the cache and skip the one command that catches the
+    # drift: --frozen-lockfile is what fails on a lockfile that no longer
+    # agrees with the manifests.
     - run: pnpm install --frozen-lockfile
       shell: bash
