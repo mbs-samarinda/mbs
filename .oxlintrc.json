@@ -38,7 +38,12 @@
     "**/.next/**",
     "**/drizzle/**",
     "**/routeTree.gen.ts",
-    "**/next-env.d.ts"
+    "**/next-env.d.ts",
+    "**/.agents/**",
+    "**/.claude/**",
+    "**/.codex/**",
+    "**/.github/**",
+    "**/.impeccable/**"
   ],
   "overrides": [
     {
