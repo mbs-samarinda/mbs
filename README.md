@@ -8,10 +8,16 @@ and the rules the code must preserve — live in a separate repository:
 before changing anything here. If the code and those documents disagree, work
 out which one is stale and fix that one in the same change.
 
+`PRODUCT.md` and `DESIGN.md` at the root summarise what that repository decided:
+what the product is for, and the colors, type, elevation and component rules the
+interface has to hold to. Read `DESIGN.md` before any design work — it carries
+the exact token values. Both are tool-managed summaries; the knowledge
+repository stays the authority.
+
 ## Requirements
 
 - Node 24 (see `.nvmrc`)
-- pnpm 11
+- pnpm 12 (see `packageManager` in `package.json`)
 - Docker, for the local PostgreSQL server
 
 ## Getting started
@@ -19,14 +25,25 @@ out which one is stale and fix that one in the same change.
 ```bash
 pnpm install
 docker compose up -d                    # PostgreSQL, core and CMS databases
-cp apps/api/.env.example apps/api/.env  # then fill in DATABASE_URL
+cp apps/api/.env.example apps/api/.env
+cp apps/cms/.env.example apps/cms/.env
 DATABASE_URL=postgres://mbs:mbs_local_dev@localhost:5432/mbs_core pnpm db:migrate
 pnpm dev                                # every app at once
 ```
 
-Each app reads the `.env` beside it. Only the API needs one today: copy its
-`.env.example` and set `DATABASE_URL`. Every other value there has a working
-default.
+Each app reads the `.env` beside it, and each `.env.example` is the list of what
+that app needs. Two of them want real values before anything starts:
+
+- **`apps/api`** — `DATABASE_URL`, a `BETTER_AUTH_SECRET` of at least 32
+  characters, and a Google OAuth client id and secret. Startup validates all of
+  them and fails with the list of what is missing. Set `BOOTSTRAP_ADMIN_EMAIL`
+  to your own Google address too: nothing can grant staff access before one
+  administrator exists, so without it there is no way into `admission-admin`.
+- **`apps/cms`** — Strapi's own secrets, and its own database connection.
+  Unset, Strapi quietly falls back to SQLite instead of the `mbs_cms` database
+  compose just created.
+
+The rest of each file already holds a working local default.
 
 ## What is where
 
@@ -82,7 +99,9 @@ runs `typecheck` and `test`. `lefthook.yml` holds all three. To skip them once,
 
 CI runs the same checks as five independent jobs — format and lint, typecheck,
 fast tests, database tests, build — so they finish in parallel and a slow test
-run no longer hides a formatting mistake behind it.
+run no longer hides a formatting mistake behind it. On a pull request the jobs
+run with `--affected`, checking only the changed packages and what depends on
+them; a push to `main` checks everything.
 
 Linting is type-aware: `oxlint-tsgolint` gives oxlint the TypeScript types, so
 it catches unsafe casts and unhandled promises that a syntax-only linter cannot.

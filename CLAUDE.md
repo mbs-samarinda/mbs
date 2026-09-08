@@ -7,6 +7,11 @@ disagree, work out which is stale and fix that one in the same change.
 
 `README.md` covers commands, ports and layout.
 
+`PRODUCT.md` and `DESIGN.md` at the root summarise that knowledge repository.
+`DESIGN.md` holds the actual palette, type scale, elevation rules, shapes and
+component do's and don'ts. Read it before any interface work: the skills below
+say how to think about a screen, that file says which values to use.
+
 ## Interface work comes first through the skills
 
 Anything that renders — a screen, a component, copy, tokens, spacing — starts
