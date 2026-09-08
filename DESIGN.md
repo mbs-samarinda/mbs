@@ -285,9 +285,9 @@ and on a tinted one. The dialog additionally dims the page behind it with a
 light scrim and a small backdrop blur, which remains the single sanctioned use
 of backdrop-filter.
 
-*This replaces the brand guide's flat-surfaces direction, at the project owner's
-decision. The guide has been amended to match; see `docs/brand/brand-guide.md`
-in the knowledge repository.*
+*This replaces the brand guide's flat-surfaces direction, approved by the brand
+owner. The guide has been amended to match; see `docs/brand/brand-guide.md` in
+the knowledge repository.*
 
 ### Shadow Vocabulary
 - **raised** (`0 1px 2px oklch(0 0 0 / 0.05), 0 1px 3px oklch(0 0 0 / 0.08)`):

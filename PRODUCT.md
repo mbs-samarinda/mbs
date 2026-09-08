@@ -183,8 +183,7 @@ before any visual work; the summary below is a pointer, not a substitute.
   never marketing sources.
 - Depth: two elevation steps carried by shadow (raised, overlay); borders keep
   structure, state and focus. This amended the guide's original flat direction
-  on 8 September 2026 at the project owner's decision, and still needs central
-  ratification per the guide's governance section.
+  on 8 September 2026, approved by the brand owner.
 - Deliberately unresolved, must not be invented: authoritative Yapendis logo,
   vector artwork for any mark, logo construction rules, each school's exact
   digital primary, final neutral and semantic token values, component specs.
