@@ -1,0 +1,421 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-08T00:45:22.363206Z",
+  "title": "Design System: MBSS",
+  "extensions": {
+    "colorMeta": {
+      "harbor-teal": {
+        "role": "primary",
+        "displayName": "Harbor Teal",
+        "canonical": "oklch(0.499 0.086 219.2)",
+        "sourceHex": "#126e84",
+        "tonalRamp": [
+          "oklch(0.150 0.086 219.2)",
+          "oklch(0.260 0.086 219.2)",
+          "oklch(0.370 0.086 219.2)",
+          "oklch(0.480 0.086 219.2)",
+          "oklch(0.590 0.086 219.2)",
+          "oklch(0.700 0.086 219.2)",
+          "oklch(0.820 0.086 219.2)",
+          "oklch(0.950 0.086 219.2)"
+        ]
+      },
+      "madina-teal": {
+        "role": "primary",
+        "displayName": "Madina Teal",
+        "canonical": "oklch(0.654 0.112 184.1)",
+        "sourceHex": "#18a698",
+        "tonalRamp": [
+          "oklch(0.150 0.112 184.1)",
+          "oklch(0.260 0.112 184.1)",
+          "oklch(0.370 0.112 184.1)",
+          "oklch(0.480 0.112 184.1)",
+          "oklch(0.590 0.112 184.1)",
+          "oklch(0.700 0.112 184.1)",
+          "oklch(0.820 0.112 184.1)",
+          "oklch(0.950 0.112 184.1)"
+        ],
+        "note": "Guide color; no token in code yet — nothing consumes it."
+      },
+      "shallow-teal": {
+        "role": "secondary",
+        "displayName": "Shallow Teal",
+        "canonical": "oklch(0.585 0.104 221.3)",
+        "sourceHex": "#1389a7",
+        "note": "Guide color; no token in code yet — nothing consumes it.",
+        "tonalRamp": [
+          "oklch(0.150 0.104 221.3)",
+          "oklch(0.260 0.104 221.3)",
+          "oklch(0.370 0.104 221.3)",
+          "oklch(0.480 0.104 221.3)",
+          "oklch(0.590 0.104 221.3)",
+          "oklch(0.700 0.104 221.3)",
+          "oklch(0.820 0.104 221.3)",
+          "oklch(0.950 0.104 221.3)"
+        ]
+      },
+      "ember-orange": {
+        "role": "tertiary",
+        "displayName": "Ember Orange",
+        "canonical": "oklch(0.674 0.19 42)",
+        "sourceHex": "#f26420",
+        "tonalRamp": [
+          "oklch(0.150 0.150 42)",
+          "oklch(0.260 0.150 42)",
+          "oklch(0.370 0.150 42)",
+          "oklch(0.480 0.150 42)",
+          "oklch(0.590 0.150 42)",
+          "oklch(0.700 0.150 42)",
+          "oklch(0.820 0.150 42)",
+          "oklch(0.950 0.150 42)"
+        ],
+        "note": "Guide color; no token in code yet — nothing consumes it."
+      },
+      "focus-teal": {
+        "role": "primary",
+        "displayName": "Focus Teal",
+        "canonical": "oklch(0.35 0.063 219.2)",
+        "note": "Focus rings only; darker than Harbor so it stays visible on a teal fill. Chroma capped at the sRGB limit for this lightness and hue.",
+        "tonalRamp": [
+          "oklch(0.150 0.063 219.2)",
+          "oklch(0.260 0.063 219.2)",
+          "oklch(0.370 0.063 219.2)",
+          "oklch(0.480 0.063 219.2)",
+          "oklch(0.590 0.063 219.2)",
+          "oklch(0.700 0.063 219.2)",
+          "oklch(0.820 0.063 219.2)",
+          "oklch(0.950 0.063 219.2)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(0.145 0 0)",
+        "tonalRamp": [
+          "oklch(0.150 0.000 0)",
+          "oklch(0.260 0.000 0)",
+          "oklch(0.370 0.000 0)",
+          "oklch(0.480 0.000 0)",
+          "oklch(0.590 0.000 0)",
+          "oklch(0.700 0.000 0)",
+          "oklch(0.820 0.000 0)",
+          "oklch(0.950 0.000 0)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "oklch(1 0 0)",
+        "tonalRamp": [
+          "oklch(0.150 0.000 0)",
+          "oklch(0.260 0.000 0)",
+          "oklch(0.370 0.000 0)",
+          "oklch(0.480 0.000 0)",
+          "oklch(0.590 0.000 0)",
+          "oklch(0.700 0.000 0)",
+          "oklch(0.820 0.000 0)",
+          "oklch(0.950 0.000 0)"
+        ]
+      },
+      "quiet-surface": {
+        "role": "neutral",
+        "displayName": "Quiet Surface",
+        "canonical": "oklch(0.97 0 0)",
+        "tonalRamp": [
+          "oklch(0.150 0.000 0)",
+          "oklch(0.260 0.000 0)",
+          "oklch(0.370 0.000 0)",
+          "oklch(0.480 0.000 0)",
+          "oklch(0.590 0.000 0)",
+          "oklch(0.700 0.000 0)",
+          "oklch(0.820 0.000 0)",
+          "oklch(0.950 0.000 0)"
+        ]
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "oklch(0.556 0 0)",
+        "tonalRamp": [
+          "oklch(0.150 0.000 0)",
+          "oklch(0.260 0.000 0)",
+          "oklch(0.370 0.000 0)",
+          "oklch(0.480 0.000 0)",
+          "oklch(0.590 0.000 0)",
+          "oklch(0.700 0.000 0)",
+          "oklch(0.820 0.000 0)",
+          "oklch(0.950 0.000 0)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(0.922 0 0)",
+        "tonalRamp": [
+          "oklch(0.150 0.000 0)",
+          "oklch(0.260 0.000 0)",
+          "oklch(0.370 0.000 0)",
+          "oklch(0.480 0.000 0)",
+          "oklch(0.590 0.000 0)",
+          "oklch(0.700 0.000 0)",
+          "oklch(0.820 0.000 0)",
+          "oklch(0.950 0.000 0)"
+        ]
+      },
+      "alarm-red": {
+        "role": "neutral",
+        "displayName": "Alarm Red",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "note": "Validation and destructive only; the semantic set is unresolved.",
+        "tonalRamp": [
+          "oklch(0.150 0.200 27.3)",
+          "oklch(0.260 0.200 27.3)",
+          "oklch(0.370 0.200 27.3)",
+          "oklch(0.480 0.200 27.3)",
+          "oklch(0.590 0.200 27.3)",
+          "oklch(0.700 0.200 27.3)",
+          "oklch(0.820 0.200 27.3)",
+          "oklch(0.950 0.200 27.3)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Campaign headlines and public hero statements. Never inside a form."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Public page and section headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Dialog titles, card and workspace section headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running copy and form values; 65-75ch measure on public and parent surfaces."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Form labels, buttons, navigation, column headers."
+      }
+    },
+    "shadows": [
+      {
+        "name": "raised",
+        "value": "0 1px 2px oklch(0 0 0 / 0.05), 0 1px 3px oklch(0 0 0 / 0.08)",
+        "purpose": "Resting controls: default, outline and secondary buttons."
+      },
+      {
+        "name": "overlay",
+        "value": "0 4px 8px -3px oklch(0 0 0 / 0.06), 0 14px 28px -10px oklch(0 0 0 / 0.2)",
+        "purpose": "Dialogs, alert dialogs and select menus. Replaced the hairline ring these used."
+      },
+      {
+        "name": "scrim",
+        "value": "background: rgb(0 0 0 / 0.10); backdrop-filter: blur(4px)",
+        "purpose": "The ground behind a modal; the only sanctioned backdrop-filter."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "purpose": "Default easing; stronger than Tailwind's default so entrances move in the frame the user is watching."
+      },
+      {
+        "name": "duration-enter",
+        "value": "200ms",
+        "purpose": "Overlay entrances."
+      },
+      {
+        "name": "duration-exit",
+        "value": "150ms",
+        "purpose": "Overlay exits; faster than entry."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action a screen wants. Harbor Teal fill, white label, darkens on hover.",
+      "html": "<button class=\"ds-btn-primary\">Lanjutkan</button>",
+      "css": ".ds-btn-primary { height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-lg, 10px); background: var(--primary, oklch(0.499 0.086 219.2)); color: var(--primary-foreground, #fff); font: 500 14px/1 'Plus Jakarta Sans Variable', sans-serif; box-shadow: var(--shadow-raised, 0 1px 2px oklch(0 0 0 / 0.05), 0 1px 3px oklch(0 0 0 / 0.08)); cursor: pointer; transition: background-color .15s cubic-bezier(0.23,1,0.32,1), scale .15s; } .ds-btn-primary:hover { background: var(--primary-hover, oklch(0.42 0.086 219.2)); } .ds-btn-primary:focus-visible { outline: none; border-color: var(--ring, oklch(0.35 0.063 219.2)); box-shadow: 0 0 0 2px var(--background, #fff), 0 0 0 4px var(--ring, oklch(0.35 0.063 219.2)); } .ds-btn-primary:active { scale: 0.96; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action beside a primary one. Neutral surface, hairline border.",
+      "html": "<button class=\"ds-btn-outline\">Simpan draf</button>",
+      "css": ".ds-btn-outline { height: 32px; padding: 0 10px; border: 1px solid var(--border, oklch(0.922 0 0)); border-radius: var(--radius-lg, 10px); background: var(--background, #fff); color: var(--foreground, oklch(0.145 0 0)); font: 500 14px/1 'Plus Jakarta Sans Variable', sans-serif; box-shadow: var(--shadow-raised, 0 1px 2px oklch(0 0 0 / 0.05), 0 1px 3px oklch(0 0 0 / 0.08)); cursor: pointer; transition: background-color .15s; } .ds-btn-outline:hover { background: var(--muted, oklch(0.97 0 0)); } .ds-btn-outline:focus-visible { outline: none; border-color: var(--ring, oklch(0.35 0.063 219.2)); box-shadow: 0 0 0 2px var(--background, #fff), 0 0 0 4px var(--ring, oklch(0.35 0.063 219.2)); }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Irreversible action. A tinted red surface, never a solid red slab.",
+      "html": "<button class=\"ds-btn-destructive\">Hapus dokumen</button>",
+      "css": ".ds-btn-destructive { height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-lg, 10px); background: color-mix(in oklch, var(--destructive, oklch(0.577 0.245 27.325)) 10%, transparent); color: var(--destructive, oklch(0.577 0.245 27.325)); font: 500 14px/1 'Plus Jakarta Sans Variable', sans-serif; cursor: pointer; transition: background-color .15s; } .ds-btn-destructive:hover { background: color-mix(in oklch, var(--destructive, oklch(0.577 0.245 27.325)) 20%, transparent); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Persistent label above a hairline-bordered field. Placeholders never replace labels.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field-label\" for=\"nik\">NIK anak</label><input class=\"ds-input\" id=\"nik\" inputmode=\"numeric\" placeholder=\"16 digit\" /></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; } .ds-field-label { font: 500 14px/1 'Plus Jakarta Sans Variable', sans-serif; color: var(--foreground, oklch(0.145 0 0)); } .ds-input { height: 32px; width: 100%; padding: 4px 10px; border: 1px solid var(--input, oklch(0.922 0 0)); border-radius: var(--radius-lg, 10px); background: transparent; color: var(--foreground, oklch(0.145 0 0)); font: 400 14px/1.5 'Plus Jakarta Sans Variable', sans-serif; transition: border-color .15s, box-shadow .15s; } .ds-input::placeholder { color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-input:focus-visible { outline: none; border-color: var(--ring, oklch(0.35 0.063 219.2)); box-shadow: 0 0 0 2px var(--background, #fff), 0 0 0 4px var(--ring, oklch(0.35 0.063 219.2)); }"
+    },
+    {
+      "name": "Status Row",
+      "kind": "custom",
+      "description": "The signature pattern: state is a word first, color second. Proposed for the parent application chooser and the committee queue; neither is built yet.",
+      "html": "<div class=\"ds-status-row\"><div class=\"ds-status-main\"><span class=\"ds-status-name\">Ahmad Fauzan</span><span class=\"ds-status-meta\">SMA MCI &middot; 2027-0148</span></div><span class=\"ds-status-badge\">Menunggu verifikasi</span></div>",
+      "css": ".ds-status-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px; border: 1px solid var(--border, oklch(0.922 0 0)); border-radius: var(--radius-lg, 10px); background: var(--background, #fff); } .ds-status-main { display: flex; flex-direction: column; gap: 2px; } .ds-status-name { font: 500 14px/1.2 'Plus Jakarta Sans Variable', sans-serif; color: var(--foreground, oklch(0.145 0 0)); } .ds-status-meta { font: 400 13px/1.2 'Plus Jakarta Sans Variable', sans-serif; color: var(--muted-foreground, oklch(0.556 0 0)); font-variant-numeric: tabular-nums; } .ds-status-badge { flex-shrink: 0; padding: 3px 8px; border: 1px solid color-mix(in oklch, var(--primary, oklch(0.499 0.086 219.2)) 30%, transparent); border-radius: var(--radius-sm, 6px); background: color-mix(in oklch, var(--primary, oklch(0.499 0.086 219.2)) 8%, transparent); color: var(--primary, oklch(0.499 0.086 219.2)); font: 500 13px/1.3 'Plus Jakarta Sans Variable', sans-serif; }"
+    },
+    {
+      "name": "Dialog",
+      "kind": "custom",
+      "refersTo": "dialog-content",
+      "description": "The overlay elevation: no border, one layered shadow, quiet-surface footer.",
+      "html": "<div class=\"ds-dialog\"><div class=\"ds-dialog-head\"><h2 class=\"ds-dialog-title\">Kirim pendaftaran?</h2><p class=\"ds-dialog-desc\">Setelah dikirim, data terkunci sampai panitia meminta perbaikan.</p></div><div class=\"ds-dialog-foot\"><button class=\"ds-btn-outline\">Batal</button><button class=\"ds-btn-primary\">Kirim</button></div></div>",
+      "css": ".ds-dialog { max-width: 384px; border-radius: var(--radius-xl, 14px); background: var(--popover, #fff); color: var(--popover-foreground, oklch(0.145 0 0)); box-shadow: var(--shadow-overlay, 0 4px 8px -3px oklch(0 0 0 / 0.06), 0 14px 28px -10px oklch(0 0 0 / 0.2)); } .ds-dialog-head { display: flex; flex-direction: column; gap: 8px; padding: 16px; } .ds-dialog-title { margin: 0; font: 500 16px/1 'Plus Jakarta Sans Variable', sans-serif; } .ds-dialog-desc { margin: 0; font: 400 14px/1.5 'Plus Jakarta Sans Variable', sans-serif; color: var(--muted-foreground, oklch(0.556 0 0)); } .ds-dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px; border-top: 1px solid var(--border, oklch(0.922 0 0)); border-radius: 0 0 var(--radius-xl, 14px) var(--radius-xl, 14px); background: color-mix(in oklch, var(--muted, oklch(0.97 0 0)) 50%, transparent); }"
+    },
+    {
+      "name": "Touch Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The 44px parent-facing size. Same primary treatment, sized for a thumb.",
+      "html": "<button class=\"ds-btn-touch\">Mulai pendaftaran</button>",
+      "css": ".ds-btn-touch { height: 44px; padding: 0 16px; border: 1px solid transparent; border-radius: var(--radius-xl, 14px); background: var(--primary, oklch(0.499 0.086 219.2)); color: var(--primary-foreground, #fff); font: 500 14px/1 'Plus Jakarta Sans Variable', sans-serif; box-shadow: var(--shadow-raised, 0 1px 2px oklch(0 0 0 / 0.05), 0 1px 3px oklch(0 0 0 / 0.08)); cursor: pointer; transition: background-color .15s cubic-bezier(0.23,1,0.32,1), scale .15s; } .ds-btn-touch:hover { background: var(--primary-hover, oklch(0.42 0.086 219.2)); } .ds-btn-touch:active { scale: 0.96; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Guided Registrar",
+    "overview": "A registrar is the person at the desk who has done this a thousand times and is still glad you came. They tell you where you are, what is missing, and what happens next - without ceremony, without making you feel slow, and without pretending a problem is smaller than it is. Every screen in this system is that person.\n\nThe system is Islamic and principled, warm and reassuring, capable and disciplined, aspirational, contemporary, local and human. It is not a technology company. Teal carries hierarchy, orange appears rarely and deliberately, surfaces stay flat and honest, and typography does the structural work.\n\nThe registers differ by application, not the system: parent admission calm and forgiving, committee administration dense and status-led, public profiles expressive, campaigns energetic. The family resemblance comes from typography, spacing, voice and color logic.",
+    "keyCharacteristics": [
+      "Warm authority: never bureaucratic, never salesy",
+      "Two elevations only - raised controls, floating overlays; borders carry structure, not depth",
+      "Teal for hierarchy, orange for rare warmth, neutral for everything else",
+      "One typeface across welcoming public copy and compact operational tables",
+      "Status is always legible: never color alone, never an icon alone",
+      "Bahasa Indonesia, Latin script only - no Arabic-script UI anywhere"
+    ],
+    "rules": [
+      {
+        "name": "The Rare Orange Rule",
+        "body": "Ember Orange is emphasis, never state. Never the error color, never a status fill, never a default button.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two-Teal Rule",
+        "body": "Harbor Teal acts; Madina Teal identifies. If it can be clicked it is Harbor. If it is the brand being recognised it is Madina.",
+        "section": "colors"
+      },
+      {
+        "name": "The Never-Color-Alone Rule",
+        "body": "Every status carries a word. Color, icon and position are reinforcement.",
+        "section": "colors"
+      },
+      {
+        "name": "The School-Color Containment Rule",
+        "body": "A school's primary colors its own public profile. It never recolors payment, validation or workflow state.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Family Rule",
+        "body": "Plus Jakarta Sans covers every register. No second typeface, no decorative display face, no icon font.",
+        "section": "typography"
+      },
+      {
+        "name": "The No-Shouting Rule",
+        "body": "No uppercase paragraphs, no wide letter-spacing runs, no weights below 400 for text a parent must read on a phone.",
+        "section": "typography"
+      },
+      {
+        "name": "The Latin-Only Rule",
+        "body": "Applications render no Arabic-script text: no Arabic typeface, no RTL layout, no Arabic content fields.",
+        "section": "typography"
+      },
+      {
+        "name": "The Three Questions Rule",
+        "body": "Every screen answers: where am I, what is the current state, what should I do next.",
+        "section": "layout"
+      },
+      {
+        "name": "The URL-Owns-State Rule",
+        "body": "Anything that should survive a refresh or be shared lives in the address. Never a hidden active child in the session.",
+        "section": "layout"
+      },
+      {
+        "name": "The Nothing-Is-A-Pill Rule",
+        "body": "Fully rounded shapes are reserved for genuine badges. Buttons, inputs and cards keep the radius scale.",
+        "section": "shapes"
+      },
+      {
+        "name": "The No-Emblem-Watermark Rule",
+        "body": "Detailed school emblems are never enlarged as background watermarks or fragmented into decoration.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Two-Step Rule",
+        "body": "There are exactly two elevations: raised and overlay. A third step is a design change, not a component decision.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Depth-Is-Shadow Rule",
+        "body": "A border that only fakes depth is a shadow written wrong. Borders stay for dividers, structure, selection and focus.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Nothing-Lifts-On-Hover Rule",
+        "body": "Hover changes color. Elevation describes what a surface is, not what the pointer is doing.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do put every status into words. Color is reinforcement, never the message.",
+      "Do darken on hover (Harbor Teal Deep), never fade a brand fill with opacity - bg-primary/80 drops white text to 3.89:1.",
+      "Do keep Ember Orange rare and decorative-free.",
+      "Do use tabular numerals for dates, fees and counts.",
+      "Do hold WCAG 2.2 AA in every state, and let accessibility beat exact color fidelity when the two conflict.",
+      "Do respect prefers-reduced-motion: opacity survives, everything that travels or scales stops.",
+      "Do keep committee density and parent calm as differences in spacing, not two component libraries.",
+      "Do match icon stroke to the weight of the text beside it - 1.75 next to medium (500) labels.",
+      "Do end every error with a way out: a retry, a link, or both.",
+      "Do grow the control when a target needs to be bigger; an invisible overlay extending past a control steals clicks from whatever it covers.",
+      "Do use the touch size (44px) on parent-facing surfaces and the compact scale (24-36px) for committee and CMS work."
+    ],
+    "donts": [
+      "Don't ship an Arabic typeface, RTL layout, or Arabic-script content field.",
+      "Don't use continuous motion - no shimmer, pulse, spinner or blur loop.",
+      "Don't put white text on Madina Teal or Ember Orange.",
+      "Don't invent the deferred tokens: warm neutrals, semantic colors, chart ramp, school primaries.",
+      "Don't sample a color from a compressed raster logo and call it official.",
+      "Don't let a school's color escape its profile site into workflow state.",
+      "Don't place three equal school logos in one header, or shorten an identity to just \"Madina\".",
+      "Don't add gradients, glass, or decorative pill chrome. Shadows are the two tokens and nothing else."
+    ]
+  }
+}
