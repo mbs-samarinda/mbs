@@ -10,9 +10,9 @@ import type { Database, Transaction } from "@mbs/db";
 import { isSchoolKey } from "@mbs/school-config";
 
 import { ConflictError, ForbiddenError, NotFoundError } from "../../errors.ts";
+import { appendAuditLog } from "../audit.ts";
 import { requireSchoolAccess, type StaffContext } from "../auth/authorization.ts";
 import {
-  appendAuditLog,
   countOtherActiveAdministrators,
   findLoginEmailsForStaff,
   findSchoolIdsByKeys,

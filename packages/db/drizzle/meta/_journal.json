@@ -29,6 +29,13 @@
       "when": 1788802674103,
       "tag": "0003_seed_school_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788882427732,
+      "tag": "0004_robust_logan",
+      "breakpoints": true
     }
   ]
 }

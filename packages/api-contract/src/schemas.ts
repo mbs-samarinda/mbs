@@ -26,6 +26,114 @@ export const PublicAdmissionCycle = z.object({
 });
 export type PublicAdmissionCycle = z.infer<typeof PublicAdmissionCycle>;
 
+/** The committee's view of a cycle. Global across MBSS, so it carries no school. */
+export const AdmissionCycle = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  status: CycleStatus,
+  registrationOpenAt: z.iso.datetime(),
+  registrationCloseAt: z.iso.datetime(),
+  resultPublishAt: z.iso.datetime(),
+  defaultFee: z.int().nonnegative(),
+});
+export type AdmissionCycle = z.infer<typeof AdmissionCycle>;
+
+/**
+ * Rupiah, whole. Zero is a legitimate fee for a cycle that charges nothing.
+ * The ceiling is the `integer` column's, not a business rule: without it an
+ * oversized amount passes validation and fails in Postgres, which surfaces as
+ * an opaque 500 rather than a rejected field.
+ */
+const Rupiah = z.int().nonnegative().max(2_147_483_647);
+
+const CycleFields = z.object({
+  name: z.string().trim().min(1).max(120),
+  registrationOpenAt: z.iso.datetime(),
+  registrationCloseAt: z.iso.datetime(),
+  resultPublishAt: z.iso.datetime(),
+  defaultFee: Rupiah,
+});
+
+/**
+ * Registration has to open before it closes, and a result cannot be published
+ * while registration is still open. Checked here because it is a property of
+ * the three values together, not of any one field.
+ */
+const orderedDates = (value: z.infer<typeof CycleFields>, ctx: z.RefinementCtx) => {
+  const openAt = Date.parse(value.registrationOpenAt);
+  const closeAt = Date.parse(value.registrationCloseAt);
+  const publishAt = Date.parse(value.resultPublishAt);
+
+  if (openAt >= closeAt) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["registrationCloseAt"],
+      message: "Penutupan harus setelah pembukaan.",
+    });
+  }
+  if (closeAt > publishAt) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["resultPublishAt"],
+      message: "Pengumuman tidak boleh sebelum penutupan.",
+    });
+  }
+};
+
+export const CreateCycleInput = CycleFields.superRefine(orderedDates);
+export type CreateCycleInput = z.infer<typeof CreateCycleInput>;
+
+export const UpdateCycleInput = CycleFields.extend({ cycleId: z.uuid() }).superRefine(orderedDates);
+export type UpdateCycleInput = z.infer<typeof UpdateCycleInput>;
+
+export const SetCycleStatusInput = z.object({ cycleId: z.uuid(), status: CycleStatus });
+export type SetCycleStatusInput = z.infer<typeof SetCycleStatusInput>;
+
+export const DocumentType = z.enum([
+  "KARTU_KELUARGA",
+  "AKTA_KELAHIRAN",
+  "KARTU_IDENTITAS_ANAK",
+  "IJAZAH",
+]);
+export type DocumentType = z.infer<typeof DocumentType>;
+
+/** An absent type is one the school does not collect; `required` false is optional. */
+export const DocumentRequirement = z.object({ type: DocumentType, required: z.boolean() });
+export type DocumentRequirement = z.infer<typeof DocumentRequirement>;
+
+const Instructions = z.string().trim().max(2000).nullable();
+
+export const SchoolAdmissionSetting = z.object({
+  schoolKey: SchoolKey,
+  isEnabled: z.boolean(),
+  feeOverride: Rupiah.nullable(),
+  effectiveFee: Rupiah,
+  acceptedInstructions: Instructions,
+  rejectedInstructions: Instructions,
+  documents: z.array(DocumentRequirement),
+});
+export type SchoolAdmissionSetting = z.infer<typeof SchoolAdmissionSetting>;
+
+export const CycleRef = z.object({ cycleId: z.uuid() });
+export type CycleRef = z.infer<typeof CycleRef>;
+
+/** One save for the whole per-school page, documents included. */
+export const UpsertSchoolSettingInput = z.object({
+  cycleId: z.uuid(),
+  schoolKey: SchoolKey,
+  isEnabled: z.boolean(),
+  feeOverride: Rupiah.nullable(),
+  acceptedInstructions: Instructions,
+  rejectedInstructions: Instructions,
+  documents: z
+    .array(DocumentRequirement)
+    .refine(
+      (documents) => new Set(documents.map((document) => document.type)).size === documents.length,
+      "Jenis dokumen tidak boleh diulang.",
+    ),
+});
+export type UpsertSchoolSettingInput = z.infer<typeof UpsertSchoolSettingInput>;
+
 export const StaffRole = z.enum(["ADMINISTRATOR", "STAFF", "PRINCIPAL"]);
 export type StaffRole = z.infer<typeof StaffRole>;
 

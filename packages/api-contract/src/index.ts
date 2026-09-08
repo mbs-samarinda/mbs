@@ -2,13 +2,20 @@ import { oc } from "@orpc/contract";
 import { z } from "zod";
 
 import {
+  AdmissionCycle,
+  CreateCycleInput,
   CreateStaffInput,
+  CycleRef,
   PublicAdmissionCycle,
+  SchoolAdmissionSetting,
   SchoolKey,
+  SetCycleStatusInput,
   SetStaffActiveInput,
   StaffProfile,
   StaffSummary,
+  UpdateCycleInput,
   UpdateStaffInput,
+  UpsertSchoolSettingInput,
 } from "./schemas.ts";
 
 export * from "./schemas.ts";
@@ -35,6 +42,16 @@ export const contract = {
     },
   },
   admin: {
+    cycles: {
+      list: oc.output(z.array(AdmissionCycle)),
+      create: oc.input(CreateCycleInput).output(AdmissionCycle),
+      update: oc.input(UpdateCycleInput).output(AdmissionCycle),
+      setStatus: oc.input(SetCycleStatusInput).output(AdmissionCycle),
+    },
+    schoolSettings: {
+      list: oc.input(CycleRef).output(z.array(SchoolAdmissionSetting)),
+      upsert: oc.input(UpsertSchoolSettingInput).output(SchoolAdmissionSetting),
+    },
     staff: {
       list: oc.output(z.array(StaffSummary)),
       create: oc.input(CreateStaffInput).output(StaffSummary),

@@ -57,8 +57,54 @@ export const schoolAdmissionSettings = pgTable(
     // Effective fee is feeOverride ?? cycle.defaultFee.
     feeOverride: integer("fee_override"),
     isEnabled: boolean("is_enabled").notNull().default(true),
+    // The standard next step a school tells an accepted or rejected family.
+    // Written once per cycle rather than retyped into every decision.
+    acceptedInstructions: text("accepted_instructions"),
+    rejectedInstructions: text("rejected_instructions"),
   },
   (table) => [unique().on(table.admissionCycleId, table.schoolId)],
+);
+
+// A closed list, not free text: an application's documents have to line up with
+// what was required, and a typo in a configured type would silently create a
+// requirement nothing can ever satisfy. A new document costs one migration.
+export const documentType = pgEnum("document_type", [
+  "KARTU_KELUARGA",
+  "AKTA_KELAHIRAN",
+  "KARTU_IDENTITAS_ANAK",
+  "IJAZAH",
+]);
+
+/**
+ * What one school asks for in one cycle. Three states, two columns: no row
+ * means the school does not collect that document at all, `required` false
+ * means optional, true means it blocks submission.
+ *
+ * Applications snapshot this at creation, so editing it here never changes what
+ * an existing application must provide.
+ */
+export const documentRequirements = pgTable(
+  "document_requirements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    admissionCycleId: uuid("admission_cycle_id")
+      .notNull()
+      .references(() => admissionCycles.id),
+    schoolId: uuid("school_id")
+      .notNull()
+      .references(() => schools.id),
+    type: documentType("document_type").notNull(),
+    required: boolean("required").notNull(),
+  },
+  // Named explicitly: the generated name is 71 characters and Postgres
+  // truncates identifiers at 63, so the snapshot would not match the database.
+  (table) => [
+    unique("document_requirements_cycle_school_type_unique").on(
+      table.admissionCycleId,
+      table.schoolId,
+      table.type,
+    ),
+  ],
 );
 
 export const staffRole = pgEnum("staff_role", ["ADMINISTRATOR", "STAFF", "PRINCIPAL"]);

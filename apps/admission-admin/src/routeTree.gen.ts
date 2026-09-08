@@ -14,6 +14,7 @@ import { Route as AccessDeniedRouteImport } from './routes/access-denied'
 import { Route as NoSchoolsRouteImport } from './routes/no-schools'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedCycleRouteImport } from './routes/_authenticated/cycle'
 import { Route as AuthenticatedStaffRouteImport } from './routes/_authenticated/staff'
 
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -40,6 +41,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedCycleRoute = AuthenticatedCycleRouteImport.update({
+  id: '/cycle',
+  path: '/cycle',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedStaffRoute = AuthenticatedStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
@@ -51,12 +57,14 @@ export interface FileRoutesByFullPath {
   '/access-denied': typeof AccessDeniedRoute
   '/no-schools': typeof NoSchoolsRoute
   '/sign-in': typeof SignInRoute
+  '/cycle': typeof AuthenticatedCycleRoute
   '/staff': typeof AuthenticatedStaffRoute
 }
 export interface FileRoutesByTo {
   '/access-denied': typeof AccessDeniedRoute
   '/no-schools': typeof NoSchoolsRoute
   '/sign-in': typeof SignInRoute
+  '/cycle': typeof AuthenticatedCycleRoute
   '/staff': typeof AuthenticatedStaffRoute
   '/': typeof AuthenticatedIndexRoute
 }
@@ -66,20 +74,23 @@ export interface FileRoutesById {
   '/access-denied': typeof AccessDeniedRoute
   '/no-schools': typeof NoSchoolsRoute
   '/sign-in': typeof SignInRoute
+  '/_authenticated/cycle': typeof AuthenticatedCycleRoute
   '/_authenticated/staff': typeof AuthenticatedStaffRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/access-denied' | '/no-schools' | '/sign-in' | '/staff'
+  fullPaths:
+    '/' | '/access-denied' | '/no-schools' | '/sign-in' | '/cycle' | '/staff'
   fileRoutesByTo: FileRoutesByTo
-  to: '/access-denied' | '/no-schools' | '/sign-in' | '/staff' | '/'
+  to: '/access-denied' | '/no-schools' | '/sign-in' | '/cycle' | '/staff' | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/access-denied'
     | '/no-schools'
     | '/sign-in'
+    | '/_authenticated/cycle'
     | '/_authenticated/staff'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
@@ -128,6 +139,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/cycle': {
+      id: '/_authenticated/cycle'
+      path: '/cycle'
+      fullPath: '/cycle'
+      preLoaderRoute: typeof AuthenticatedCycleRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/staff': {
       id: '/_authenticated/staff'
       path: '/staff'
@@ -139,11 +157,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedCycleRoute: typeof AuthenticatedCycleRoute
   AuthenticatedStaffRoute: typeof AuthenticatedStaffRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedCycleRoute: AuthenticatedCycleRoute,
   AuthenticatedStaffRoute: AuthenticatedStaffRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }

@@ -25,9 +25,14 @@ function Dashboard() {
         {/* The staff page is administrator-only and its route redirects anyone
             else, so the link only appears for the people it works for. */}
         {staff.role === "ADMINISTRATOR" ? (
-          <Button variant="outline" render={<Link to="/staff" />}>
-            Akses staf
-          </Button>
+          <>
+            <Button variant="outline" render={<Link to="/cycle" />}>
+              Gelombang
+            </Button>
+            <Button variant="outline" render={<Link to="/staff" />}>
+              Akses staf
+            </Button>
+          </>
         ) : null}
       </div>
     </main>

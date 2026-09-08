@@ -1,4 +1,12 @@
-import { getCurrentCycleProcedure } from "./modules/admission/procedures.ts";
+import {
+  createCycleProcedure,
+  getCurrentCycleProcedure,
+  listCyclesProcedure,
+  listSchoolSettingsProcedure,
+  setCycleStatusProcedure,
+  updateCycleProcedure,
+  upsertSchoolSettingProcedure,
+} from "./modules/admission/procedures.ts";
 import {
   createStaffProcedure,
   getMeProcedure,
@@ -20,6 +28,16 @@ export const router = {
     },
   },
   admin: {
+    cycles: {
+      list: listCyclesProcedure,
+      create: createCycleProcedure,
+      update: updateCycleProcedure,
+      setStatus: setCycleStatusProcedure,
+    },
+    schoolSettings: {
+      list: listSchoolSettingsProcedure,
+      upsert: upsertSchoolSettingProcedure,
+    },
     staff: {
       list: listStaffProcedure,
       create: createStaffProcedure,

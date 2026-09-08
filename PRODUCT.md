@@ -25,8 +25,9 @@ Other audiences, each with a different job:
   search. They browse a school profile site before applying.
 - **Staff** — most review work: inspect, request precise revisions, verify,
   manage interviews, record decisions.
-- **Administrators** — staff abilities plus cycles, school settings, staff
-  access, exports, fee waivers, within their assigned schools.
+- **Administrators** — staff abilities plus school settings, staff access,
+  exports and fee waivers within their assigned schools, and the admission
+  cycle, which is shared across MBSS and carries no school of its own.
 - **Principals** — read-only visibility into applicants and results. Not a
   hidden approval step; they cannot change records.
 - **School content editors** — maintain their school's public profile content

@@ -204,19 +204,3 @@ export async function updateStaff(
     .set({ ...values, updatedAt: sql`now()` })
     .where(eq(schema.staffUsers.id, staffId));
 }
-
-/** Append-only. There is no update or delete counterpart, by design. */
-export async function appendAuditLog(
-  db: Executor,
-  entry: {
-    actorType: string;
-    actorId: string | null;
-    action: string;
-    entityType: string;
-    entityId: string;
-    metadata?: unknown;
-    ipAddress?: string | null;
-  },
-) {
-  await db.insert(schema.auditLogs).values(entry);
-}
