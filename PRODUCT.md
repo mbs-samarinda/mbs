@@ -72,7 +72,7 @@ Four applications, one service:
 
 | App | Job |
 | --- | --- |
-| `apps/profile` (Next.js) | School profile sites, one app per subdomain |
+| `apps/profile` (Next.js) | Public profile sites: umbrella at the apex, one school per subdomain |
 | `apps/admission` (Vite) | Parent application |
 | `apps/admission-admin` (Vite) | Committee workspace |
 | `apps/cms` (Strapi) | Profile content only, own database |
@@ -80,7 +80,14 @@ Four applications, one service:
 
 Three schools, one system, each with its own identity, fees and dates: SMP
 Islam Terpadu Madina, SMK Terpadu Madina, SMA Madina Citra Insani. Hostname
-resolves the school (`schoolFromHostname`).
+resolves the owner.
+
+Public content belongs to one of four **owners**: the `mbs` Madina Boarding
+School umbrella at the apex, and the three schools. Only the three schools are
+`SchoolKey` values. The umbrella has public content but never a cycle, an
+application, a fee or staff access, so it is deliberately not a fourth
+`SchoolKey` — that would force a "not the umbrella" guard through the whole
+admission domain.
 
 Admission runs in cycles (`DRAFT`, `OPEN`, `CLOSED`, `ARCHIVED`) with
 registration open/close and a shared result publish time, plus per-school
@@ -95,16 +102,43 @@ shared publication time.
 Profile sites: each school has its own address (`sma.mbss.sch.id` and so on)
 but all belong to one product. A visitor should quickly find what the school is
 and whom it serves, its programs, values, facilities and activities, news and
-contact details, whether admission is open, and how to start. Editors compose
-pages from approved sections — hero, introduction, programs, facilities,
-gallery, statistics, FAQ, news, admission invitation, contact — choosing order,
-text, images, navigation, SEO and the school's primary color. They cannot add
-arbitrary page code, CSS, fonts or unrelated layouts, and they never maintain a
-second admission opening date: the invitation reads the current period from the
-admission service. The profile site sends a parent to the admission app; it
-never collects applications, authenticates parents, takes payment or reads
-private records. An unknown hostname must not quietly show another school's
-content.
+contact details, whether admission is open, and how to start. School pages are
+`/`, `/profil`, `/program`, `/ekstrakurikuler`, `/fasilitas`, `/berita`,
+`/pendaftaran`, `/kontak`. `program` is the academic offering and carries SMK's
+jurusan; `ekstrakurikuler` is activities. They are separate pages because they
+answer separate questions.
+
+The apex, `mbss.sch.id`, is the umbrella site: identity, the three schools, and
+the joint admission campaign. It is not a fourth school profile, so it carries
+no facilities, activities, staff or achievements — a visitor landing there is
+choosing a school. Yapendis Nurul Haq is content on it, never the identity of
+it. Its admission page reads every school's facts through
+`public.admission.getCurrentCycle`, once per school; the cycle is one shared row
+so the answers cannot disagree.
+
+`/berita` is one listing over two content types, Berita and Pengumuman, each
+with a visible type label. `Pengumuman` carries an optional `expiresAt`.
+`Pencapaian` is a record browsed by level and year rather than a feed entry, and
+may optionally point at one Berita article telling the story behind it. The name
+is `Pencapaian` and not `Prestasi` because the admission domain uses Prestasi for
+a Jalur.
+
+Editors compose pages from approved sections — hero, introduction, programs,
+facilities, gallery, statistics, FAQ, news, pencapaian, admission invitation,
+contact — choosing order, text, images, navigation, SEO and the school's primary
+color. They cannot add arbitrary page code, CSS, fonts or unrelated layouts, and
+they never maintain a second admission opening date: the invitation reads the
+current period from the admission service. Umbrella content is editable only by
+a global content administrator, never by a school editor. The profile site sends
+a parent to the admission app; it never collects applications, authenticates
+parents, takes payment or reads private records. An unknown hostname must not
+quietly show another owner's content.
+
+No contact form ships initially — WhatsApp and email carry it. That is a
+deferral, not a rejection: the two most-used pages on the previous site were
+both question forms, by a wide margin, so a form that stores the question and
+notifies the panitia is planned for the core API and the committee workspace.
+No content is migrated from the old sites; this is a fresh start.
 
 Committee journey: a dense applicant queue filtered by cycle, school and status
 with filter state in the URL, then one applicant workspace holding applicant,
@@ -154,6 +188,10 @@ decision and audit history.
   shared shadcn/ui components on Base UI and the design tokens.
 - Current state: `apps/admission` is a one-route shell. The registration flow
   is unbuilt. `apps/admission-admin` has sign-in, gate and a staff screen.
+  `apps/profile` is a one-route shell: `middleware.ts` still resolves a school
+  only, `packages/school-config` has no owner concept yet, and `apps/cms` has no
+  content types at all. The profile decisions above are agreed and documented,
+  not implemented.
 
 ## Brand Commitments
 
@@ -182,24 +220,30 @@ before any visual work; the summary below is a pointer, not a substitute.
   becomes the default for forms or daily tools.
 - Photography is authentic documentary work with consent. Applicant uploads are
   never marketing sources.
-- Depth: two elevation steps carried by shadow (raised, overlay); borders keep
-  structure, state and focus. This amended the guide's original flat direction
-  on 8 September 2026, approved by the brand owner.
+- Depth: one elevation step, carried by shadow, for surfaces that float;
+  resting controls including buttons are flat. Borders keep structure, state
+  and focus. The guide's original flat direction was amended to a two-step
+  system on 8 September 2026 and narrowed to this single step on 10 September
+  2026, both approved by the brand owner.
 - Deliberately unresolved, must not be invented: authoritative Yapendis logo,
   vector artwork for any mark, logo construction rules, each school's exact
-  digital primary, final neutral and semantic token values, component specs.
+  digital primary, final neutral token values, component specs. The semantic
+  status values were settled on 10 September 2026.
 
 **Token state:** `packages/ui/src/styles/globals.css` now ships Plus Jakarta
 Sans and one of the four guide colors: `--primary` (the dark primary,
 `#126e84`, the only one that carries white text), plus `--primary-hover` and a
 `--ring` derived from it. Madina Teal, Ember Orange and the supporting blue-teal
 have no consumers yet, so no tokens ship for them — they live in DESIGN.md until
-a surface needs them. Two elevation tokens ship: `--shadow-raised` and
+a surface needs them. All four approved status pairs now ship
+as `--<name>-surface` and `--<name>-ink`, consumed by the `Badge` variants of
+the same names: the committee queue shows form, document, payment and review
+state together, which is the consumer the other three were waiting for. One elevation token ships:
 `--shadow-overlay`.
 
 Still stock shadcn and awaiting the guide's approval: the neutral family
-(surfaces should become warm neutrals), the semantic success/warning/info
-tokens, the chart ramp, and each school's digital primary. Two things for
+(surfaces should become warm neutrals), the chart ramp, and each school's
+digital primary. Two things for
 whoever approves them: `--destructive` sits at hue 27.3 and `--warm` at 42, so
 error and warm accent read as one family — the guide says orange is never the
 error color, and that closeness works against it. And the dark-mode brand values are derived,
