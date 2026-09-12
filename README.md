@@ -38,7 +38,8 @@ that app needs. Two of them want real values before anything starts:
   characters, and a Google OAuth client id and secret. Startup validates all of
   them and fails with the list of what is missing. Set `BOOTSTRAP_ADMIN_EMAIL`
   to your own Google address too: nothing can grant staff access before one
-  administrator exists, so without it there is no way into `admission-admin`.
+  administrator exists, so nothing can grant staff access without it. The
+  committee UI that consumed this is being rebuilt; the API side still needs it.
 - **`apps/cms`** — Strapi's own secrets, and its own database connection.
   Unset, Strapi quietly falls back to SQLite instead of the `mbs_cms` database
   compose just created.

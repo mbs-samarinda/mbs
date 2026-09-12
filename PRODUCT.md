@@ -126,8 +126,8 @@ a Jalur.
 Editors compose pages from approved sections — hero, introduction, programs,
 facilities, gallery, statistics, FAQ, news, pencapaian, admission invitation,
 contact — choosing order, text, images, navigation, SEO and the school's tagline.
-Its palette is not theirs to set: approved per school, fixed in
-`@mbs/school-config`. They cannot add arbitrary page code, CSS, fonts or unrelated layouts, and
+Its palette is not theirs to set: approved per owner, fixed as a CSS custom
+property block in `apps/profile`. They cannot add arbitrary page code, CSS, fonts or unrelated layouts, and
 they never maintain a second admission opening date: the invitation reads the
 current period from the admission service. Umbrella content is editable only by
 a global content administrator, never by a school editor. The profile site sends
@@ -325,8 +325,8 @@ the ratio so the value cannot drift back.
 band — under the floor for normal text, on a design full of tinted bands. It is
 now `#6e6e6e`: 4.68:1 on the tint, 5.10:1 on white. Still awaiting the guide's
 approval: the warm-neutral family the surfaces should eventually become (what
-ships is a gray ramp) and the chart ramp. Two things for
-whoever approves them: Ember Orange at hue 42 would sit 13.5 degrees from the
+ships is a gray ramp) and the chart ramp — both wait on the brand owner, not on
+code. One thing for whoever approves them: Ember Orange at hue 42 would sit 13.5 degrees from the
 alarm ink at 28.5, so error and warm accent would read as one family, and the
 guide says orange is never the error color. Nothing ships that clash today —
 Ember Orange has no token yet — but it lands the moment one is added. Dark mode is approved for the public
@@ -334,9 +334,7 @@ profile sites as of 12 September 2026: a neutral ramp, a lighter variant of each
 school palette that carries dark text, and inverted status pairs, all recorded in
 the brand guide. It is a token swap, not a second design. The existing `.dark`
 block in `globals.css` predated that approval and carried derived values; it now
-carries the ramp, except for the `--sidebar-*` family and the deferred chart
-ramp, which are flagged in the file as still pre-approval and are consumed by
-nothing. Page and card share `#141414`, so separation comes from the
+carries the ramp. Page and card share `#141414`, so separation comes from the
 hairline rather than a lighter card, and the primary label follows paper, which
 is white on a light page and near-black on a dark one. Owner primaries are not
 in there — they arrive with the per-owner blocks. Admission, committee and CMS

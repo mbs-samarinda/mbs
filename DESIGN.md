@@ -255,12 +255,10 @@ blocks light, four dark, keyed off a `data-owner` attribute on `<html>`, plus
 `--accent-brand` and `--surface-brand` for the two roles the shared layer has
 no token for.
 
-Two groups in that block are **not** reconciled and are marked so in the file:
-the chart ramp, which is deferred, and the `--sidebar-*` family, which still
-holds pre-approval values — the sidebar ground sits about 1.09:1 against
-`#141414`, its border is translucent where the hairline is now opaque, and its
-primary is shadcn's violet at hue 264. Nothing consumes either group, so nothing
-renders wrong today. Dialogs are the other thing to know: they carry
+`--sidebar-*` and `--chart-*` used to sit unreconciled at the end of that block,
+holding pre-approval values including shadcn's violet at hue 264. They are
+deleted: nothing read them, and `shadcn add sidebar` or `chart` brings back a
+correct set the day one is installed. One thing to know: dialogs carry
 `bg-popover shadow-overlay` with no border, so on a shared ground "borders carry
 structure" does not yet apply to them.
 
@@ -268,9 +266,9 @@ structure" does not yet apply to them.
 for (the neutrals above are a gray ramp, not a warm one) and the chart ramp.
 Both wait on the brand owner, not on code. The success, warning and information
 pairs are approved values with no surface yet; they ship as tokens when one
-consumes them. `--chart-*` and `--sidebar-*` carried placeholder values and were
-deleted — nothing read them, and `shadcn add` restores a correct set when a
-chart or a sidebar actually arrives.
+consumes them. One colour is awaiting sign-off rather than deferred: the alarm
+hover tint `oklch(0.935 0.024 17.4)`, recorded as a pending amendment in the
+guide.
 
 ### Named Rules
 
@@ -488,6 +486,12 @@ ring inside a menu would sit outside the item it belongs to.
 - **Labels:** persistent, above the field, 14px medium. Never a placeholder
   standing in for a label.
 
+### Figures
+Every date, fee, count and year uses `font-variant-numeric: tabular-nums`
+(`tabular-nums` in Tailwind). Proportional digits make a column of numbers ragged
+and a changing value jump, and both show up most in the places this system cares
+about: fee lists, admission tables, fact strips, pencapaian years.
+
 ### Tables
 - **Header:** Quiet Surface, muted ink, 14px medium
 - **Rows:** hairline dividers, muted hover fill, no zebra striping
@@ -542,8 +546,9 @@ ring inside a menu would sit outside the item it belongs to.
 - **Don't** use continuous motion — no shimmer, pulse, spinner or blur loop.
   Skeletons hold layout; they do not animate forever.
 - **Don't** put white text on Madina Teal or Ember Orange.
-- **Don't** invent the deferred tokens: warm neutrals, semantic colors, chart
-  ramp.
+- **Don't** invent the deferred tokens: warm neutrals and the chart ramp. The
+  success, warning and information pairs are approved values with no surface —
+  use them from the guide, do not make new ones.
 - **Don't** sample a color from a compressed raster logo and call it official.
 - **Don't** add gradients, glass, or decorative pill chrome. Shadows are the two
   tokens above and nothing else.
