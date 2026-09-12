@@ -13,9 +13,8 @@ const queryClient = new QueryClient({
       // The default of 0 refetches on every mount and window focus. Two minutes
       // is the docs' suggested starting point.
       staleTime: 2 * 60 * 1000,
-      // The default retries three times with backoff. A refused request will be
-      // refused again, so retrying an UNAUTHORIZED only delays the redirect to
-      // the sign-in page by several seconds.
+      // The default retries three times with backoff, which only delays the
+      // outcome for a request the server has already refused on its merits.
       retry: (failureCount, error) => {
         const status =
           typeof error === "object" && error !== null && "status" in error ? error.status : null;

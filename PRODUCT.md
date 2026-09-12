@@ -188,7 +188,11 @@ decision and audit history.
   migrations in `packages/db`, used by the API alone. `packages/ui` holds the
   shared shadcn/ui components on Base UI and the design tokens.
 - Current state: `apps/admission` is a one-route shell. The registration flow
-  is unbuilt. `apps/admission-admin` has sign-in, gate and a staff screen.
+  is unbuilt. `apps/admission-admin` is a shell too: its sign-in, gate, staff
+  and cycle screens were deleted to be rebuilt, so only the router, the error
+  and not-found boundaries and one placeholder route remain. The API side was
+  left intact — `apps/api` still serves staff and admission, and the staff
+  bootstrap still runs on start, so a fresh UI has something to talk to.
   `apps/profile` is a one-route shell, but it now resolves all four owners and
   wears each one's palette; `apps/cms` has no content types at all. The rest of
   the profile decisions above are agreed and documented, not implemented.

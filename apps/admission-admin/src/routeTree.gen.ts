@@ -9,174 +9,50 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
-import { Route as AccessDeniedRouteImport } from './routes/access-denied'
-import { Route as NoSchoolsRouteImport } from './routes/no-schools'
-import { Route as SignInRouteImport } from './routes/sign-in'
-import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedCycleRouteImport } from './routes/_authenticated/cycle'
-import { Route as AuthenticatedStaffRouteImport } from './routes/_authenticated/staff'
+import { Route as IndexRouteImport } from './routes/index'
 
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AccessDeniedRoute = AccessDeniedRouteImport.update({
-  id: '/access-denied',
-  path: '/access-denied',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NoSchoolsRoute = NoSchoolsRouteImport.update({
-  id: '/no-schools',
-  path: '/no-schools',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignInRoute = SignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedCycleRoute = AuthenticatedCycleRouteImport.update({
-  id: '/cycle',
-  path: '/cycle',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedStaffRoute = AuthenticatedStaffRouteImport.update({
-  id: '/staff',
-  path: '/staff',
-  getParentRoute: () => AuthenticatedRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthenticatedIndexRoute
-  '/access-denied': typeof AccessDeniedRoute
-  '/no-schools': typeof NoSchoolsRoute
-  '/sign-in': typeof SignInRoute
-  '/cycle': typeof AuthenticatedCycleRoute
-  '/staff': typeof AuthenticatedStaffRoute
+  '/': typeof IndexRoute
 }
 export interface FileRoutesByTo {
-  '/access-denied': typeof AccessDeniedRoute
-  '/no-schools': typeof NoSchoolsRoute
-  '/sign-in': typeof SignInRoute
-  '/cycle': typeof AuthenticatedCycleRoute
-  '/staff': typeof AuthenticatedStaffRoute
-  '/': typeof AuthenticatedIndexRoute
+  '/': typeof IndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/access-denied': typeof AccessDeniedRoute
-  '/no-schools': typeof NoSchoolsRoute
-  '/sign-in': typeof SignInRoute
-  '/_authenticated/cycle': typeof AuthenticatedCycleRoute
-  '/_authenticated/staff': typeof AuthenticatedStaffRoute
-  '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/': typeof IndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    '/' | '/access-denied' | '/no-schools' | '/sign-in' | '/cycle' | '/staff'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/access-denied' | '/no-schools' | '/sign-in' | '/cycle' | '/staff' | '/'
-  id:
-    | '__root__'
-    | '/_authenticated'
-    | '/access-denied'
-    | '/no-schools'
-    | '/sign-in'
-    | '/_authenticated/cycle'
-    | '/_authenticated/staff'
-    | '/_authenticated/'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
-  AccessDeniedRoute: typeof AccessDeniedRoute
-  NoSchoolsRoute: typeof NoSchoolsRoute
-  SignInRoute: typeof SignInRoute
+  IndexRoute: typeof IndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/access-denied': {
-      id: '/access-denied'
-      path: '/access-denied'
-      fullPath: '/access-denied'
-      preLoaderRoute: typeof AccessDeniedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/no-schools': {
-      id: '/no-schools'
-      path: '/no-schools'
-      fullPath: '/no-schools'
-      preLoaderRoute: typeof NoSchoolsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sign-in': {
-      id: '/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/': {
-      id: '/_authenticated/'
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/cycle': {
-      id: '/_authenticated/cycle'
-      path: '/cycle'
-      fullPath: '/cycle'
-      preLoaderRoute: typeof AuthenticatedCycleRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/staff': {
-      id: '/_authenticated/staff'
-      path: '/staff'
-      fullPath: '/staff'
-      preLoaderRoute: typeof AuthenticatedStaffRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface AuthenticatedRouteChildren {
-  AuthenticatedCycleRoute: typeof AuthenticatedCycleRoute
-  AuthenticatedStaffRoute: typeof AuthenticatedStaffRoute
-  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
-}
-
-const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedCycleRoute: AuthenticatedCycleRoute,
-  AuthenticatedStaffRoute: AuthenticatedStaffRoute,
-  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
-}
-
-const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
-  AuthenticatedRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
-  AuthenticatedRoute: AuthenticatedRouteWithChildren,
-  AccessDeniedRoute: AccessDeniedRoute,
-  NoSchoolsRoute: NoSchoolsRoute,
-  SignInRoute: SignInRoute,
+  IndexRoute: IndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
