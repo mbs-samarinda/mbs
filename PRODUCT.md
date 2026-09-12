@@ -277,19 +277,28 @@ profile sites as of 12 September 2026: a neutral ramp, a lighter variant of each
 school palette that carries dark text, and inverted status pairs, all recorded in
 the brand guide. It is a token swap, not a second design. The existing `.dark`
 block in `globals.css` predated that approval and carried derived values; it now
-carries the ramp. Page and card share `#141414`, so separation comes from the
+carries the ramp, except for the `--sidebar-*` family and the deferred chart
+ramp, which are flagged in the file as still pre-approval and are consumed by
+nothing. Page and card share `#141414`, so separation comes from the
 hairline rather than a lighter card, and the primary label follows paper, which
 is white on a light page and near-black on a dark one. Owner primaries are not
 in there — they arrive with the per-owner blocks. Admission, committee and CMS
 stay light-only until separately approved, and no app toggles `.dark` yet.
 
-Closed: the focus pattern. `Button`, `Input`, `Select` and `Checkbox` already
-drew a solid 2px ring offset 2px from the control, which is what DESIGN.md
-specifies; `Badge`, `Textarea`, `InputGroup` and `Calendar` had kept shadcn's
-3px halo at 50% opacity, measuring 1.77:1 against a primary fill. All four now
-use the same solid ring and offset. The offset is the fix — a 2px gap in the page
-color sits between ring and fill, so the ring never needs contrast against what
-it surrounds.
+Mostly closed: the focus pattern. `Button`, `Input`, `Select` and `Checkbox`
+already drew a solid 2px ring offset 2px from the control, which is what
+DESIGN.md specifies; `Badge`, `Textarea`, `InputGroup` and `Calendar` had kept
+shadcn's 3px halo at 50% opacity, measuring 1.77:1 against a primary fill. All
+four now use a solid indicator with a 2px gap, which is what lets the ring skip
+needing contrast against the fill it surrounds.
+
+What is left is the gap itself. `ring-offset` paints it as a solid band of
+`--background`, so it only vanishes on the page ground — in a dialog footer or a
+table header it reads as a mismatched line. The calendar could not use it at all,
+since day cells abut and the band cut through a selected range, so it uses
+`outline` with a transparent offset instead. One `:focus-visible` rule in the base
+layer would give every control the transparent gap and delete the per-component
+classes; it touches every app, so it wants its own change.
 
 Still open, and the same class of problem the alarm pair turned out to be: this
 file claims all four status pairs ship as `--<name>-surface` and `--<name>-ink`

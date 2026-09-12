@@ -56,6 +56,24 @@ test.for([":root", ".dark"] as const)("alarm ink carries text on its own tints i
   }
 });
 
+test.for([":root", ".dark"] as const)("supporting text carries on every ground in %s", (block) => {
+  // The value this guards drifted once already: shadcn's #737373 measures
+  // 4.35:1 on --muted, and tinted bands are everywhere in this design.
+  const muted = token(block, "muted-foreground");
+  for (const surface of ["background", "muted", "secondary", "card"]) {
+    expect(contrast(muted, token(block, surface)), `muted on --${surface}`).toBeGreaterThanOrEqual(
+      4.5,
+    );
+  }
+});
+
+test.for([":root", ".dark"] as const)("body text carries on page and card in %s", (block) => {
+  const ink = token(block, "foreground");
+  for (const surface of ["background", "card", "muted"]) {
+    expect(contrast(ink, token(block, surface)), `ink on --${surface}`).toBeGreaterThanOrEqual(7);
+  }
+});
+
 test("the alarm ink is the guide's darker red, not the error red #e7000b", () => {
   // The two reds share a hue and differ by 0.07 in lightness, so lightness is
   // the whole of what separates them, and only the darker one carries a label

@@ -16,6 +16,16 @@ colors:
   alarm-tint: "oklch(0.971 0.013 17.4)"
   alarm-tint-hover: "oklch(0.935 0.024 17.4)"
   focus-teal: "oklch(0.35 0.063 219.2)"
+  dark-paper: "oklch(0.191 0 0)"
+  dark-quiet: "oklch(0.235 0 0)"
+  dark-ink: "oklch(0.961 0 0)"
+  dark-muted-ink: "oklch(0.741 0 0)"
+  dark-hairline: "oklch(0.341 0 0)"
+  dark-primary: "oklch(0.78 0.086 219)"
+  dark-primary-hover: "oklch(0.7 0.086 219.7)"
+  dark-focus-ring: "oklch(0.921 0.058 218.2)"
+  dark-alarm-red: "oklch(0.72 0.161 25)"
+  dark-alarm-tint: "oklch(0.26 0.059 25.1)"
   smp-green: "oklch(0.469 0.104 154.6)"
   smp-green-hover: "oklch(0.393 0.090 152.5)"
   smp-gold: "oklch(0.728 0.138 89.7)"
@@ -242,6 +252,15 @@ near-black on a dark one — the inversion falls out of the token name, and no
 `on-primary` token exists. Owner primaries are not here; they arrive as one
 custom-property block per owner in `apps/profile`.
 
+Two groups in that block are **not** reconciled and are marked so in the file:
+the chart ramp, which is deferred, and the `--sidebar-*` family, which still
+holds pre-approval values — the sidebar ground sits about 1.09:1 against
+`#141414`, its border is translucent where the hairline is now opaque, and its
+primary is shadcn's violet at hue 264. Nothing consumes either group, so nothing
+renders wrong today. Dialogs are the other thing to know: they carry
+`bg-popover shadow-overlay` with no border, so on a shared ground "borders carry
+structure" does not yet apply to them.
+
 **Unresolved, and not to be invented:** the warm-neutral family the guide calls
 for (the neutrals above are a gray ramp, not a warm one), the semantic success /
 warning / information tokens, and the chart ramp.
@@ -442,12 +461,22 @@ background watermarks or fragmented into decoration.
 - **Error:** red border and a red halo, always with an associated message —
   never the border alone
 
-This focus treatment is now the only one in `packages/ui`. Badge, textarea,
-input group and calendar had kept shadcn's 3px ring at 50% opacity, which is the
-1.77:1 halo the button rule above rejects; they use the solid ring and its offset
-like everything else. The offset is what does the work — the ring never needs
-contrast against the fill it surrounds, because a 2px gap in the page color sits
-between them.
+Badge, textarea, input group and calendar had kept shadcn's 3px ring at 50%
+opacity, which is the 1.77:1 halo the button rule above rejects. They now use the
+same solid indicator. The gap is what does the work: the ring never needs contrast
+against the fill it surrounds, because 2px of something else sits between them.
+
+Two caveats on the mechanism, both real. `ring-offset` paints that gap as a solid
+band of `--background`, so it only disappears when the control sits on the page
+ground — in a dialog footer (`bg-muted/50`) or a table header the band reads as a
+mismatched line. And the calendar cannot use it at all: day cells abut with no
+gutter, so an opaque band cuts through a selected range and over its neighbours.
+The calendar uses `outline` with `outline-offset`, whose gap is transparent.
+
+That transparency is the better mechanism, and moving every control to a single
+`:focus-visible` rule in the base layer would retire both caveats and delete the
+per-component classes. It has not been done: it changes the focus treatment of
+every app at once and wants its own change.
 - **Disabled:** muted fill at reduced opacity, cursor blocked
 - **Labels:** persistent, above the field, 14px medium. Never a placeholder
   standing in for a label.

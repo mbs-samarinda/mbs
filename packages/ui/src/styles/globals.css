@@ -151,6 +151,12 @@
      ways: the ring has to survive on a filled control, and the 2px gap in the
      page ground is what separates it from the fill. */
   --ring: oklch(0.921 0.058 218.2); /* #baefff */
+  /* Not reconciled with the ramp. The chart ramp is deferred, and the sidebar
+     tokens below still hold pre-approval values: --sidebar sits ~1.09:1 against
+     the new #141414 ground, --sidebar-border is translucent where the hairline
+     is now opaque, --sidebar-primary is shadcn's violet at hue 264 rather than
+     the brand's 219, and --sidebar-foreground disagrees with the ramp's ink.
+     Nothing consumes either group today; fix them before something does. */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

@@ -5,9 +5,10 @@
  * change (fees, dates, whether a school takes part in a cycle) lives in
  * PostgreSQL instead.
  *
- * Colors are not here either, for a different reason: an owner's palette is one
- * CSS custom property set per owner, so the stylesheet is its only home and a
- * copy in TypeScript would be a second one to keep in step.
+ * Colors are not here either, for a different reason: an owner's palette will be
+ * one CSS custom property block per owner in `apps/profile`, so the stylesheet
+ * is its only consumer and a copy in TypeScript would be a second place to keep
+ * in step. Nothing renders them yet; the approved values live in DESIGN.md.
  */
 export const SCHOOLS = [
   { key: "smp", name: "SMP Islam Terpadu Madina", level: "SMP", subdomain: "smp" },
