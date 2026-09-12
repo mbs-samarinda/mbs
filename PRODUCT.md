@@ -307,8 +307,9 @@ colour, `/about` answers 404 from Next's own document, `/favicon.ico` answers
 404 rather than the umbrella's page, `localhost` resolves to the umbrella, and
 an unknown host is refused before any page renders.
 
-One warning to act on separately: Next 16 deprecates the `middleware` file
-convention in favour of `proxy`. There is a codemod.
+The hostname-to-owner rewrite lives in `apps/profile/src/proxy.ts`. It was
+`middleware.ts` until Next 16 deprecated that convention; the codemod renamed it
+and the exported function.
 
 The alarm pair now ships as `--destructive` plus `--destructive-tint`, the
 guide's approved ink on its approved tint. Before this it was shadcn's stock red

@@ -8,7 +8,7 @@ import { ownerFromHostname } from "./owners.ts";
  * part of every cache key, so two owners can never share a cached page for the
  * same path.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const owner = ownerFromHostname(request.headers.get("host") ?? "");
   if (!owner) return new NextResponse("Unknown owner host", { status: 404 });
 
