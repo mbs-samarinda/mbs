@@ -80,7 +80,10 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* #6e6e6e. The stock #737373 measures 4.35:1 on --muted, under the floor for
+     normal text, and tinted sections are everywhere in this design. This holds
+     4.68:1 on the tint and 5.10:1 on white. */
+  --muted-foreground: oklch(0.538 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   /* The guide's approved alarm pair: ink #c10007 over tint #fef2f2, 5.87:1.
@@ -115,36 +118,39 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  /* Dark mode is derived, not specified: the guide gives light-mode hex only.
-     Hue and chroma are the guide's; lightness rises to 0.75 so each color
-     clears 7:1 against the dark ground and against the dark text on it. Warm
-     drops to chroma 0.145 because 0.19 leaves sRGB at that lightness. */
-  --primary: oklch(0.75 0.086 219.2);
-  --primary-foreground: oklch(0.145 0 0);
-  --primary-hover: oklch(0.66 0.086 219.2);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  /* Not derived: the approved dark alarm pair, ink #f97770 on tint #3c1715 at
-     5.96:1. The hover step is ours, deepened on the tint's own hue for 5.25:1.
-     Note that the rest of this block still predates the approved dark ramp —
-     the page ground is #0a0a0a here and the ramp says #141414 — so these three
-     are correct against the ramp and their neighbours are not yet. */
+  /* The approved dark ramp. Page and card share one ground, so separation comes
+     from the hairline rather than from a lighter card — borders carry structure
+     here. Nothing is pure black: the ground is #141414 so that a surface which
+     genuinely floats has somewhere to go. */
+  --background: oklch(0.191 0 0); /* #141414 paper */
+  --foreground: oklch(0.961 0 0); /* #F2F2F2 ink, 16.46:1 on paper */
+  --card: oklch(0.191 0 0);
+  --card-foreground: oklch(0.961 0 0);
+  --popover: oklch(0.191 0 0);
+  --popover-foreground: oklch(0.961 0 0);
+  /* The inversion that matters: a primary which is dark and carries white text
+     in light mode becomes light and carries near-black. The label is paper, so
+     it follows the ground rather than needing an on-primary token. 9.45:1. */
+  --primary: oklch(0.78 0.086 219); /* #74c5dd */
+  --primary-foreground: oklch(0.191 0 0);
+  --primary-hover: oklch(0.7 0.086 219.7); /* #5babc3 */
+  --secondary: oklch(0.235 0 0); /* #1E1E1E quiet */
+  --secondary-foreground: oklch(0.961 0 0);
+  --muted: oklch(0.235 0 0);
+  --muted-foreground: oklch(0.741 0 0); /* #ABABAB, 8.02:1 on paper */
+  --accent: oklch(0.235 0 0);
+  --accent-foreground: oklch(0.961 0 0);
+  /* The approved dark alarm pair, ink #f97770 on tint #3c1715 at 5.96:1. The
+     hover step is ours, deepened on the tint's own hue for 5.25:1. */
   --destructive: oklch(0.72 0.161 25);
   --destructive-tint: oklch(0.26 0.059 25.1);
   --destructive-tint-hover: oklch(0.3 0.059 25.1);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.9 0.06 219.2);
+  --border: oklch(0.341 0 0); /* #383838 hairline */
+  --input: oklch(0.341 0 0);
+  /* Lighter than its own primary, the reverse of light mode. Same reason both
+     ways: the ring has to survive on a filled control, and the 2px gap in the
+     page ground is what separates it from the fill. */
+  --ring: oklch(0.921 0.058 218.2); /* #baefff */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

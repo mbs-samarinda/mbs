@@ -251,11 +251,12 @@ the same names: the committee queue shows form, document, payment and review
 state together, which is the consumer the other three were waiting for. One elevation token ships:
 `--shadow-overlay`.
 
-The three school palettes are approved and their values live on each school in
-`@mbs/school-config`, but nothing renders them yet: `apps/profile` has no token
-layer at all, and its one page still carries a literal gray. When it gets one,
-the palette belongs there as an owner-scoped set, never in the shared component
-layer — `packages/ui` must not know that schools exist.
+Four owner palettes are approved — the three schools plus the umbrella — and
+their home is one CSS custom property block per owner, not a table in
+TypeScript: a copy in code would be a second place to keep in step. Nothing
+renders them yet. `apps/profile` has no token layer at all and its one page
+still carries a literal gray; the blocks land there, never in the shared
+component layer, so `packages/ui` never learns a school exists.
 
 The alarm pair now ships as `--destructive` plus `--destructive-tint`, the
 guide's approved ink on its approved tint. Before this it was shadcn's stock red
@@ -263,22 +264,39 @@ with the tint faked by alpha, which measured 3.99:1 resting and 3.32:1 on hover
 in the destructive button and badge. `packages/ui/test/contrast.test.ts` asserts
 the ratio so the value cannot drift back.
 
-Still stock shadcn and awaiting the guide's approval: the neutral family
-(surfaces should become warm neutrals) and the chart ramp. Two things for
+`--muted-foreground` was shadcn's `#737373`, which measures 4.35:1 on a tinted
+band — under the floor for normal text, on a design full of tinted bands. It is
+now `#6e6e6e`: 4.68:1 on the tint, 5.10:1 on white. Still awaiting the guide's
+approval: the warm-neutral family the surfaces should eventually become (what
+ships is a gray ramp) and the chart ramp. Two things for
 whoever approves them: Ember Orange at hue 42 would sit 13.5 degrees from the
 alarm ink at 28.5, so error and warm accent would read as one family, and the
 guide says orange is never the error color. Nothing ships that clash today —
-Ember Orange has no token yet — but it lands the moment one is added. And the dark-mode brand values are derived,
-not approved: the guide specifies light mode only. Hue and chroma follow the
-guide; lightness is 0.75 so each clears 7:1, and `--warm` drops to chroma 0.145
-to stay inside sRGB. Nothing in any app toggles `.dark` yet.
+Ember Orange has no token yet — but it lands the moment one is added. Dark mode is approved for the public
+profile sites as of 12 September 2026: a neutral ramp, a lighter variant of each
+school palette that carries dark text, and inverted status pairs, all recorded in
+the brand guide. It is a token swap, not a second design. The existing `.dark`
+block in `globals.css` predated that approval and carried derived values; it now
+carries the ramp. Page and card share `#141414`, so separation comes from the
+hairline rather than a lighter card, and the primary label follows paper, which
+is white on a light page and near-black on a dark one. Owner primaries are not
+in there — they arrive with the per-owner blocks. Admission, committee and CMS
+stay light-only until separately approved, and no app toggles `.dark` yet.
 
-Open accessibility item: the shared focus pattern is `focus-visible:border-ring`
-plus a `ring-ring/50` halo. On a white page that halo tops out near 2.9:1 at any
-teal, under the 3:1 minimum for a non-text indicator, so on primary-filled
-controls (default `Button`, checked `Checkbox`) the border carries the cue at
-about 1.8:1 against the fill. Fixing it properly means a ring offset in the
-components, not a token value. Deferred with the rest of the component specs.
+Closed: the focus pattern. `Button`, `Input`, `Select` and `Checkbox` already
+drew a solid 2px ring offset 2px from the control, which is what DESIGN.md
+specifies; `Badge`, `Textarea`, `InputGroup` and `Calendar` had kept shadcn's
+3px halo at 50% opacity, measuring 1.77:1 against a primary fill. All four now
+use the same solid ring and offset. The offset is the fix — a 2px gap in the page
+color sits between ring and fill, so the ring never needs contrast against what
+it surrounds.
+
+Still open, and the same class of problem the alarm pair turned out to be: this
+file claims all four status pairs ship as `--<name>-surface` and `--<name>-ink`
+with matching `Badge` variants. They do not. `globals.css` has no success,
+warning or information token, and `Badge` has no such variant — only the alarm
+pair ships, as `--destructive` and `--destructive-tint`. Either the three pairs
+get built or that sentence goes.
 
 ## Evidence on Hand
 

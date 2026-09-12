@@ -10,7 +10,7 @@ colors:
   ink: "oklch(0.145 0 0)"
   paper: "oklch(1 0 0)"
   quiet-surface: "oklch(0.97 0 0)"
-  muted-ink: "oklch(0.556 0 0)"
+  muted-ink: "oklch(0.538 0 0)"
   hairline: "oklch(0.922 0 0)"
   alarm-red: "oklch(0.509 0.209 28.5)"
   alarm-tint: "oklch(0.971 0.013 17.4)"
@@ -165,8 +165,10 @@ warm accent held in reserve.
 - **Paper** (`oklch(1 0 0)`): page and card ground.
 - **Quiet Surface** (`oklch(0.97 0 0)`): muted fills, secondary buttons, table
   headers, dialog footers.
-- **Muted Ink** (`oklch(0.556 0 0)`): supporting copy, placeholders, column
-  labels.
+- **Muted Ink** (`#6e6e6e`): supporting copy, placeholders, column labels. Was
+  shadcn's `#737373`, which measures 4.35:1 on a tinted band — under the floor for
+  normal text, and tinted bands are everywhere in this design. This holds 4.68:1
+  on the tint and 5.10:1 on white.
 - **Hairline** (`oklch(0.922 0 0)`): borders, dividers, input strokes. This is
   the system's main separation device.
 - **Alarm Red** (`#c10007`): validation and destructive actions only, always as
@@ -187,11 +189,12 @@ warm accent held in reserve.
 
 ### School palettes
 
-Approved 12 September 2026, one set per school, applied only on that school's own
-public profile site.
+Approved 12 September 2026, one set per owner, applied only on that owner's own
+public profile site. Four owners, not three: the umbrella has a palette too.
 
 | Owner | Primary (action) | Hover | Accent | Surface tint | Focus ring | White on primary |
 | --- | --- | --- | --- | --- | --- | --- |
+| MBS umbrella | `#126e84` | `#00576d` | `#f26420` | `#e7f0f3` | `#014251` | 5.85:1 |
 | SMP IT Madina | `#1A6B3F` | `#14532D` | `#C9A227` | `#E8F2EC` | `#0B3A22` | 6.52:1 |
 | SMK Terpadu Madina | `#1D63C4` | `#17509F` | `#F26A21` | `#E8F0FB` | `#0E3268` | 5.78:1 |
 | SMA MCI | `#B01C2E` | `#8E1524` | `#E8B62C` | `#FBECEE` | `#650F1A` | 6.88:1 |
@@ -202,18 +205,10 @@ stops an accent becoming a button surface; accents take dark text only and follo
 the Rare Orange Rule. Each focus ring is darker than its own primary so the ring
 survives on a filled control.
 
-The umbrella carries a fourth palette of its own — Harbor Teal `#126e84` with
-Ember Orange `#f26420` as its accent — so the owner set is four, not three.
-
-A dark ramp is approved alongside these: same hue and chroma, lightness raised
-into the 0.78 band, and the inversion that a primary carrying white text in light
-mode carries near-black in dark. None of it ships yet, and the `.dark` block here
-still holds values derived before anyone signed them off. Its alarm trio is now
-the approved pair; its neutrals are not. Reconcile the rest before any app
-consumes dark mode, rather than layering owner blocks over values that disagree.
-
 SMA's maroon replaced the guide's earlier blue / blue-violet direction on the
-school's decision; the guide was amended the same day.
+school's decision; the guide was amended the same day. Its focus ring sits at hue
+20.5 and Alarm Red at 28.5 — on that site keep the ring clearly darker and never
+let hue alone separate focus from validation.
 
 ### Dark mode
 
@@ -238,13 +233,18 @@ The focus ring is lighter than its primary here, the mirror of light mode, for t
 same reason: it must survive on a filled control. Photographs keep their outline in
 both modes and only its color flips. No pure black, and supporting text never
 lighter than `#ABABAB`. Dark mode follows the visitor's system preference with an
-explicit override; it is never forced. Its focus ring sits at hue
-20.5 and Alarm Red at 28.5 — on that site keep the ring clearly darker and never
-let hue alone separate focus from validation.
+explicit override; it is never forced.
+
+**Shipped.** `packages/ui` now carries this ramp: page and card share `#141414`,
+so separation comes from the hairline rather than a lighter card. The primary
+label is `--primary-foreground` set to paper, which is white on a light page and
+near-black on a dark one — the inversion falls out of the token name, and no
+`on-primary` token exists. Owner primaries are not here; they arrive as one
+custom-property block per owner in `apps/profile`.
 
 **Unresolved, and not to be invented:** the warm-neutral family the guide calls
-for (the neutrals above are still stock grays), the semantic success / warning /
-information tokens, and the chart ramp.
+for (the neutrals above are a gray ramp, not a warm one), the semantic success /
+warning / information tokens, and the chart ramp.
 
 ### Named Rules
 
@@ -441,6 +441,13 @@ background watermarks or fragmented into decoration.
 - **Focus:** a solid 2px Focus Teal ring, offset 2px from the field
 - **Error:** red border and a red halo, always with an associated message —
   never the border alone
+
+This focus treatment is now the only one in `packages/ui`. Badge, textarea,
+input group and calendar had kept shadcn's 3px ring at 50% opacity, which is the
+1.77:1 halo the button rule above rejects; they use the solid ring and its offset
+like everything else. The offset is what does the work — the ring never needs
+contrast against the fill it surrounds, because a 2px gap in the page color sits
+between them.
 - **Disabled:** muted fill at reduced opacity, cursor blocked
 - **Labels:** persistent, above the field, 14px medium. Never a placeholder
   standing in for a label.
