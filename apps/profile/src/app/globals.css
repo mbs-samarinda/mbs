@@ -1,5 +1,15 @@
 @import "@mbs/ui/globals.css";
 
+/* The two roles the shared layer has no token for. Registered here so
+   `bg-accent-brand` and `bg-surface-brand` resolve: without the alias the class
+   compiles to nothing and the element comes out transparent, with no build
+   error to notice. Tailwind emits a utility only where one is used, so the
+   aliases cost nothing until then. */
+@theme inline {
+  --color-accent-brand: var(--accent-brand);
+  --color-surface-brand: var(--surface-brand);
+}
+
 /* One block per owner, approved 12 September 2026, keyed off the `data-owner`
    attribute the root layout puts on <html>. Components keep using bg-primary,
    ring-ring and the rest; none of them learns an owner exists. Changing a value

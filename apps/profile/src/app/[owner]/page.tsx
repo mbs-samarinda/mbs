@@ -1,10 +1,15 @@
+import { notFound } from "next/navigation";
+
 import { OWNERS, ownerHost } from "../../owners.ts";
 
 export default async function OwnerHomePage({ params }: { params: Promise<{ owner: string }> }) {
   const { owner: key } = await params;
-  // The layout above rejected a key that is no owner's before this rendered,
-  // so the lookup is here for the name rather than as a second guard.
-  const owner = OWNERS.find((candidate) => candidate.key === key) ?? OWNERS[0];
+  // The layout above rejects a key that is no owner's before this renders, so
+  // this cannot fire. It raises rather than falling back to an owner, because
+  // substituting one would turn the failure the guard exists to stop — one
+  // owner's content under another owner's hostname — into a successful page.
+  const owner = OWNERS.find((candidate) => candidate.key === key);
+  if (!owner) notFound();
 
   return (
     <main className="mx-auto max-w-3xl p-8">

@@ -6,10 +6,20 @@ import { OWNERS } from "../../owners.ts";
 
 import "../globals.css";
 
-export const metadata: Metadata = {
-  title: "MBSS",
-  description: "Madina Boarding School Samarinda",
-};
+// Per owner, or all four sites share the umbrella's tab title and description —
+// which is the opposite of the point. The description is a placeholder until the
+// CMS owns SEO defaults; it says what the site is and nothing more.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ owner: string }>;
+}): Promise<Metadata> {
+  const { owner: key } = await params;
+  const owner = OWNERS.find((candidate) => candidate.key === key);
+  if (!owner) return { title: "MBSS" };
+
+  return { title: owner.name, description: `Situs resmi ${owner.name}.` };
+}
 
 // The root layout sits inside the segment so that `data-owner` can go on
 // <html>. It has to be that high: a dialog or a menu portals into

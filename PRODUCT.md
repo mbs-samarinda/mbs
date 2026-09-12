@@ -279,7 +279,14 @@ reads a header. Static public pages were judged worth more than a styled 404.
 
 Two roles the shared layer has no token for arrive with the blocks:
 `--accent-brand` (the Rare Orange rule; `--accent` is already the neutral hover
-fill) and `--surface-brand` for a tinted band.
+fill) and `--surface-brand` for a tinted band. Both are registered in a
+`@theme inline` block beside them, so `bg-accent-brand` and `bg-surface-brand`
+resolve — without the alias the class compiles to nothing and the element comes
+out transparent with no build error.
+
+Each owner's `<title>` and description are its own, from `generateMetadata` in
+the same layout that already resolved the owner, so the pages stay static. The
+description is a placeholder until the CMS owns SEO defaults.
 
 An owner is not a school. The umbrella has a site, a palette and content but no
 admission cycle, no staff scope and no row in the schools table, so `OWNERS`
