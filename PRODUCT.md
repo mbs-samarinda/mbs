@@ -189,10 +189,9 @@ decision and audit history.
   shared shadcn/ui components on Base UI and the design tokens.
 - Current state: `apps/admission` is a one-route shell. The registration flow
   is unbuilt. `apps/admission-admin` has sign-in, gate and a staff screen.
-  `apps/profile` is a one-route shell: `middleware.ts` still resolves a school
-  only, `packages/school-config` has no owner concept yet, and `apps/cms` has no
-  content types at all. The profile decisions above are agreed and documented,
-  not implemented.
+  `apps/profile` is a one-route shell, but it now resolves all four owners and
+  wears each one's palette; `apps/cms` has no content types at all. The rest of
+  the profile decisions above are agreed and documented, not implemented.
 
 ## Brand Commitments
 
@@ -252,11 +251,38 @@ state together, which is the consumer the other three were waiting for. One elev
 `--shadow-overlay`.
 
 Four owner palettes are approved — the three schools plus the umbrella — and
-their home is one CSS custom property block per owner, not a table in
-TypeScript: a copy in code would be a second place to keep in step. Nothing
-renders them yet. `apps/profile` has no token layer at all and its one page
-still carries a literal gray; the blocks land there, never in the shared
-component layer, so `packages/ui` never learns a school exists.
+they ship as one CSS custom property block per owner in
+`apps/profile/src/app/globals.css`, light and dark, keyed off a `data-owner`
+attribute. Not a table in TypeScript: a copy in code would be a second place to
+keep in step. `packages/ui` never learns an owner exists; components keep using
+`bg-primary` and `ring-ring`, and the cascade does the rest.
+
+`data-owner` goes on `<html>`, which is why the root layout lives inside the
+segment at `app/[owner]/layout.tsx` rather than above it. Middleware rewrites
+every path into that segment, so nothing routes higher, and a wrapper element
+further down would have been missed by portalled content — a dialog or a menu
+renders into `document.body` and would have fallen back to shared teal. Two
+roles the shared layer has no token for arrive with the blocks:
+`--accent-brand` (the Rare Orange rule; `--accent` is already the neutral hover
+fill) and `--surface-brand` for a tinted band.
+
+An owner is not a school. The umbrella has a site, a palette and content but no
+admission cycle, no staff scope and no row in the schools table, so `OWNERS`
+lives in `apps/profile` and `SCHOOLS` stays the three-school list the admission
+side means by the word. `schoolFromHostname` is gone; owner resolution replaced
+its only caller, and an unknown host resolves to nobody rather than falling
+back to the umbrella. `localhost` and `smk.localhost` resolve the same way as
+the real hosts, so the app is runnable locally.
+
+**Open, and a cost of that layout position.** Next's not-found boundary sits
+above the root layout, so a 404 on a real host renders Next's own bare document
+— no stylesheet, no `lang`, no owner color. A `not-found.tsx` inside the
+segment does not claim it; verified against the running build, which answers
+`/about` with `<html id="__next_error__">`. The two ways out are a root layout
+above the segment with `data-owner` moved to `<body>` — portals mount as
+children of `body`, so they would still inherit — or reading the owner from a
+middleware header in a root layout, which makes every page dynamic. Neither is
+done.
 
 The alarm pair now ships as `--destructive` plus `--destructive-tint`, the
 guide's approved ink on its approved tint. Before this it was shadcn's stock red

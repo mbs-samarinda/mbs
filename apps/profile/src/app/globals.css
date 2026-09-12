@@ -1,1 +1,93 @@
-@import "tailwindcss";
+@import "@mbs/ui/globals.css";
+
+/* One block per owner, approved 12 September 2026, keyed off the `data-owner`
+   attribute the root layout puts on <html>. Components keep using bg-primary,
+   ring-ring and the rest; none of them learns an owner exists. Changing a value
+   here needs the school's and the brand owner's approval.
+
+   Every primary carries white text at normal size. No accent carries white —
+   deliberate, and what stops an accent becoming a button surface by accident.
+   Each ring is darker than its own primary; the 2px gap does the separating. */
+
+/* The umbrella's primary, hover and ring are the shared palette already — that
+   is what Harbor Teal is — so this block sets only the two roles the shared
+   layer has no token for. Repeating the other three made a second copy, and it
+   disagreed in the third decimal the moment it existed. */
+[data-owner="mbs"] {
+  --accent-brand: oklch(0.674 0.19 42); /* #f26420, ink 6.24:1 */
+  --surface-brand: oklch(0.949 0.01 219.6); /* #e7f0f3 */
+}
+
+[data-owner="smp"] {
+  --primary: oklch(0.469 0.104 154.6); /* #1A6B3F, white 6.52:1 */
+  --primary-hover: oklch(0.393 0.09 152.5); /* #14532D */
+  --accent-brand: oklch(0.728 0.138 89.7); /* #C9A227, ink 8.18:1 */
+  --surface-brand: oklch(0.952 0.013 159.9); /* #E8F2EC */
+  --ring: oklch(0.31 0.066 156.3); /* #0B3A22 */
+}
+
+[data-owner="smk"] {
+  --primary: oklch(0.514 0.166 258.1); /* #1D63C4, white 5.78:1 */
+  --primary-hover: oklch(0.442 0.141 258); /* #17509F */
+  --accent-brand: oklch(0.683 0.185 44); /* #F26A21, ink 6.47:1 */
+  --surface-brand: oklch(0.952 0.017 256.3); /* #E8F0FB */
+  --ring: oklch(0.326 0.103 258.9); /* #0E3268 */
+}
+
+/* The ring sits at hue 20.5 and the shared alarm ink at 28.5. On this site keep
+   the ring clearly darker than the alarm, and never let hue alone tell a focus
+   state from a validation state. */
+[data-owner="sma"] {
+  --primary: oklch(0.49 0.181 21.8); /* #B01C2E, white 6.88:1 */
+  --primary-hover: oklch(0.419 0.154 21.6); /* #8E1524 */
+  --accent-brand: oklch(0.8 0.153 86.9); /* #E8B62C, ink 10.52:1 */
+  --surface-brand: oklch(0.955 0.016 8.2); /* #FBECEE */
+  --ring: oklch(0.332 0.118 20.5); /* #650F1A */
+}
+
+/* Dark lifts each primary into the 0.78 lightness band, so one that carried
+   white now carries the near-black page color. That comes from
+   --primary-foreground in the shared layer, which follows paper, so no owner
+   sets it. The ring inverts too: lighter than its primary here, for the same
+   reason it was darker there.
+
+   Hue holds; chroma does not always. smk's and sma's hover are more saturated
+   than the primary they hover, because the approved hexes are — #5c9eff and
+   #fb676a — so hovering there brightens and saturates. These are the approved
+   values, measured, not derived.
+
+   Selectors are same-element rather than descendant because `data-owner` and
+   the theme class both live on <html>. Nothing sets that class yet: no app
+   toggles dark mode, so these four blocks are correct and unreachable until
+   one does. */
+
+/* Same as light: the shared dark primary, hover and ring are already the
+   umbrella's approved values, so only the two brand roles are set here. */
+.dark[data-owner="mbs"] {
+  --accent-brand: oklch(0.84 0.093 42.1); /* #ffb79b */
+  --surface-brand: oklch(0.259 0.047 218.5); /* #002933, ink 13.74:1 */
+}
+
+.dark[data-owner="smp"] {
+  --primary: oklch(0.779 0.104 154.9); /* #7fcb9a, label 9.57:1 */
+  --primary-hover: oklch(0.701 0.105 154.4); /* #66b281 */
+  --accent-brand: oklch(0.84 0.138 89.6); /* #eec654 */
+  --surface-brand: oklch(0.261 0.055 154.9); /* #082c18, ink 13.56:1 */
+  --ring: oklch(0.92 0.07 154.3); /* #c1f3d0 */
+}
+
+.dark[data-owner="smk"] {
+  --primary: oklch(0.78 0.113 258.1); /* #8ab9ff, label 9.18:1 */
+  --primary-hover: oklch(0.7 0.158 258); /* #5c9eff */
+  --accent-brand: oklch(0.84 0.094 43.5); /* #ffb799 */
+  --surface-brand: oklch(0.26 0.055 257.6); /* #12243e, ink 13.92:1 */
+  --ring: oklch(0.92 0.039 257.9); /* #d5e6ff */
+}
+
+.dark[data-owner="sma"] {
+  --primary: oklch(0.78 0.128 22.1); /* #ff9592, label 8.74:1 */
+  --primary-hover: oklch(0.7 0.181 21.8); /* #fb676a */
+  --accent-brand: oklch(0.84 0.153 87.1); /* #f5c33e */
+  --surface-brand: oklch(0.261 0.055 21.6); /* #3b1818, ink 14.11:1 */
+  --ring: oklch(0.921 0.04 23.6); /* #ffdbd8 */
+}

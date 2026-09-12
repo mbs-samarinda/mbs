@@ -5,10 +5,11 @@
  * change (fees, dates, whether a school takes part in a cycle) lives in
  * PostgreSQL instead.
  *
- * Colors are not here either, for a different reason: an owner's palette will be
- * one CSS custom property block per owner in `apps/profile`, so the stylesheet
- * is its only consumer and a copy in TypeScript would be a second place to keep
- * in step. Nothing renders them yet; the approved values live in DESIGN.md.
+ * Colors are not here either, for a different reason: an owner's palette is one
+ * CSS custom property block per owner in `apps/profile`, so the stylesheet is
+ * its only consumer and a copy here would be a second place to keep in step.
+ * Nor is the owner list — the umbrella is an owner and not a school, so
+ * `OWNERS` lives beside those blocks.
  */
 export const SCHOOLS = [
   { key: "smp", name: "SMP Islam Terpadu Madina", level: "SMP", subdomain: "smp" },
@@ -28,10 +29,4 @@ export const SCHOOL_KEYS = SCHOOLS.map((school) => school.key);
  */
 export function isSchoolKey(value: string): value is SchoolKey {
   return SCHOOLS.some((school) => school.key === value);
-}
-
-/** Resolves a request hostname to a school, or null for an unknown host. */
-export function schoolFromHostname(hostname: string): School | null {
-  const label = hostname.split(".")[0]?.toLowerCase();
-  return SCHOOLS.find((school) => school.subdomain === label) ?? null;
 }

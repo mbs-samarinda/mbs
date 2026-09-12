@@ -250,7 +250,10 @@ so separation comes from the hairline rather than a lighter card. The primary
 label is `--primary-foreground` set to paper, which is white on a light page and
 near-black on a dark one — the inversion falls out of the token name, and no
 `on-primary` token exists. Owner primaries are not here; they arrive as one
-custom-property block per owner in `apps/profile`.
+custom-property block per owner in `apps/profile`, which now ships: four
+blocks light, four dark, keyed off a `data-owner` attribute on `<html>`, plus
+`--accent-brand` and `--surface-brand` for the two roles the shared layer has
+no token for.
 
 Two groups in that block are **not** reconciled and are marked so in the file:
 the chart ramp, which is deferred, and the `--sidebar-*` family, which still
