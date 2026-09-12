@@ -244,11 +244,16 @@ Sans and one of the four guide colors: `--primary` (the dark primary,
 `#126e84`, the only one that carries white text), plus `--primary-hover` and a
 `--ring` derived from it. Madina Teal, Ember Orange and the supporting blue-teal
 have no consumers yet, so no tokens ship for them — they live in DESIGN.md until
-a surface needs them. All four approved status pairs now ship
-as `--<name>-surface` and `--<name>-ink`, consumed by the `Badge` variants of
-the same names: the committee queue shows form, document, payment and review
-state together, which is the consumer the other three were waiting for. One elevation token ships:
-`--shadow-overlay`.
+a surface needs them. Of the four approved status pairs only alarm ships, as
+`--destructive` and `--destructive-tint`; success, warning and information are
+approved values with no surface yet, and `Badge` has no variant for them — its
+variants are `default`, `secondary`, `destructive`, `outline`, `ghost` and
+`link`. One elevation token ships: `--shadow-overlay`.
+
+`--sidebar-*` and `--chart-*` are gone. Nothing consumed either family, they
+still held pre-approval values, and `shadcn add sidebar` or `chart` brings back
+a correct set the day something needs one — which is cheaper than inventing a
+dark sidebar ramp nobody approved for a component nobody installed.
 
 Four owner palettes are approved — the three schools plus the umbrella — and
 they ship as one CSS custom property block per owner in
@@ -332,27 +337,17 @@ is white on a light page and near-black on a dark one. Owner primaries are not
 in there — they arrive with the per-owner blocks. Admission, committee and CMS
 stay light-only until separately approved, and no app toggles `.dark` yet.
 
-Mostly closed: the focus pattern. `Button`, `Input`, `Select` and `Checkbox`
-already drew a solid 2px ring offset 2px from the control, which is what
-DESIGN.md specifies; `Badge`, `Textarea`, `InputGroup` and `Calendar` had kept
-shadcn's 3px halo at 50% opacity, measuring 1.77:1 against a primary fill. All
-four now use a solid indicator with a 2px gap, which is what lets the ring skip
-needing contrast against the fill it surrounds.
-
-What is left is the gap itself. `ring-offset` paints it as a solid band of
-`--background`, so it only vanishes on the page ground — in a dialog footer or a
-table header it reads as a mismatched line. The calendar could not use it at all,
-since day cells abut and the band cut through a selected range, so it uses
-`outline` with a transparent offset instead. One `:focus-visible` rule in the base
-layer would give every control the transparent gap and delete the per-component
-classes; it touches every app, so it wants its own change.
-
-Still open, and the same class of problem the alarm pair turned out to be: this
-file claims all four status pairs ship as `--<name>-surface` and `--<name>-ink`
-with matching `Badge` variants. They do not. `globals.css` has no success,
-warning or information token, and `Badge` has no such variant — only the alarm
-pair ships, as `--destructive` and `--destructive-tint`. Either the three pairs
-get built or that sentence goes.
+Closed: the focus pattern. It is one rule in the base layer —
+`:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px }` — and
+every per-component copy is deleted. Eight components each carried their own,
+built on `ring-offset`, whose gap is a solid band of `--background`: it only
+vanished on the page ground and read as a mismatched line in a dialog footer or
+a table header, and the calendar could not use it at all because its day cells
+abut and the band cut through a selected range. An outline's offset is
+transparent, so one rule covers every surface and the calendar needs no
+exception. The gap is still what makes the ring legible on a filled control:
+the ring never has to out-contrast the fill, because the page sits between
+them.
 
 ## Evidence on Hand
 

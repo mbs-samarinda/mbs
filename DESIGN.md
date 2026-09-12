@@ -265,8 +265,12 @@ renders wrong today. Dialogs are the other thing to know: they carry
 structure" does not yet apply to them.
 
 **Unresolved, and not to be invented:** the warm-neutral family the guide calls
-for (the neutrals above are a gray ramp, not a warm one), the semantic success /
-warning / information tokens, and the chart ramp.
+for (the neutrals above are a gray ramp, not a warm one) and the chart ramp.
+Both wait on the brand owner, not on code. The success, warning and information
+pairs are approved values with no surface yet; they ship as tokens when one
+consumes them. `--chart-*` and `--sidebar-*` carried placeholder values and were
+deleted — nothing read them, and `shadcn add` restores a correct set when a
+chart or a sidebar actually arrives.
 
 ### Named Rules
 
@@ -464,22 +468,22 @@ background watermarks or fragmented into decoration.
 - **Error:** red border and a red halo, always with an associated message —
   never the border alone
 
-Badge, textarea, input group and calendar had kept shadcn's 3px ring at 50%
-opacity, which is the 1.77:1 halo the button rule above rejects. They now use the
-same solid indicator. The gap is what does the work: the ring never needs contrast
-against the fill it surrounds, because 2px of something else sits between them.
+This is one rule, in the base layer, and no component carries a copy:
 
-Two caveats on the mechanism, both real. `ring-offset` paints that gap as a solid
-band of `--background`, so it only disappears when the control sits on the page
-ground — in a dialog footer (`bg-muted/50`) or a table header the band reads as a
-mismatched line. And the calendar cannot use it at all: day cells abut with no
-gutter, so an opaque band cuts through a selected range and over its neighbours.
-The calendar uses `outline` with `outline-offset`, whose gap is transparent.
+```css
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px }
+```
 
-That transparency is the better mechanism, and moving every control to a single
-`:focus-visible` rule in the base layer would retire both caveats and delete the
-per-component classes. It has not been done: it changes the focus treatment of
-every app at once and wants its own change.
+The gap is what does the work — the ring never needs contrast against the fill
+it surrounds, because 2px of the page sits between them. It is an `outline`
+rather than a ring plus `ring-offset` because `ring-offset` paints that gap as a
+solid band of `--background`: it only disappeared on the page ground, read as a
+mismatched line in a dialog footer or a table header, and in the calendar cut
+straight through a selected range, since day cells abut with no gutter. An
+outline's offset is transparent, so one rule holds on every surface.
+
+Menus keep `outline-hidden` and show focus as a filled row instead; an offset
+ring inside a menu would sit outside the item it belongs to.
 - **Disabled:** muted fill at reduced opacity, cursor blocked
 - **Labels:** persistent, above the field, 14px medium. Never a placeholder
   standing in for a label.
