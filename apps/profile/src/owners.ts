@@ -14,6 +14,9 @@ type Owner = (typeof OWNERS)[number];
 
 const APEX = "mbss.sch.id";
 
+/** Carries the resolved owner from the proxy to the root layout, which has no params. */
+export const OWNER_HEADER = "x-mbss-owner";
+
 /** The public hostname an owner is served on. */
 export function ownerHost(owner: Owner): string {
   return owner.subdomain ? `${owner.subdomain}.${APEX}` : APEX;

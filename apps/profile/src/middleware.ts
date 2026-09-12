@@ -1,9 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ownerFromHostname } from "./owners.ts";
-
-/** Carries the resolved owner to the root layout, which has no params of its own. */
-export const OWNER_HEADER = "x-mbss-owner";
+import { ownerFromHostname, OWNER_HEADER } from "./owners.ts";
 
 /**
  * Turns the hostname into a route segment: sma.mbss.sch.id/foo becomes
@@ -24,5 +21,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico).*)"],
+  matcher: ["/((?!_next/|favicon\\.ico$).*)"],
 };

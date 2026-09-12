@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
-import { OWNER_HEADER } from "../middleware.ts";
-import { OWNERS } from "../owners.ts";
+import { OWNER_HEADER, OWNERS } from "../owners.ts";
 
 import "./globals.css";
 
@@ -18,10 +17,12 @@ export const metadata: Metadata = {
   description: "Madina Boarding School Samarinda",
 };
 
-// `data-owner` belongs on <body> rather than on a wrapper inside it: a dialog or
-// a menu portals into document.body, so only an ancestor that high hands it the
-// owner's palette. <body> is rendered here, and a root layout has no params, so
-// the owner arrives as a header middleware set while resolving the hostname.
+// `data-owner` goes on <html>, not on a wrapper inside the tree: a dialog or a
+// menu portals into document.body, so only an ancestor that high hands it the
+// owner's palette. It has to stay on <html> — globals.css matches the dark
+// blocks as `.dark[data-owner="smp"]`, same element, and the theme class goes
+// there too. A root layout has no params, so the owner arrives as a header
+// middleware sets while resolving the hostname.
 //
 // The cost is that reading a header makes this layout dynamic, so no page
 // prerenders as static any more. The alternative — a root layout inside the
