@@ -1,5 +1,9 @@
 import { OWNERS, ownerHost } from "../../owners.ts";
 
+export function generateStaticParams() {
+  return OWNERS.map((owner) => ({ owner: owner.key }));
+}
+
 export default async function OwnerHomePage({ params }: { params: Promise<{ owner: string }> }) {
   const { owner: key } = await params;
   // The layout above has already rejected a key that is not an owner's, so this

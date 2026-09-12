@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { ownerFromHostname } from "./owners.ts";
 
+/** Carries the resolved owner to the root layout, which has no params of its own. */
+export const OWNER_HEADER = "x-mbss-owner";
+
 /**
  * Turns the hostname into a route segment: sma.mbss.sch.id/foo becomes
  * /sma/foo internally, and the apex becomes /mbs/foo. The owner key is then
@@ -14,7 +17,10 @@ export function middleware(request: NextRequest) {
 
   const url = request.nextUrl.clone();
   url.pathname = `/${owner.key}${request.nextUrl.pathname}`;
-  return NextResponse.rewrite(url);
+
+  const headers = new Headers(request.headers);
+  headers.set(OWNER_HEADER, owner.key);
+  return NextResponse.rewrite(url, { request: { headers } });
 }
 
 export const config = {

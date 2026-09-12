@@ -257,12 +257,23 @@ attribute. Not a table in TypeScript: a copy in code would be a second place to
 keep in step. `packages/ui` never learns an owner exists; components keep using
 `bg-primary` and `ring-ring`, and the cascade does the rest.
 
-`data-owner` goes on `<html>`, which is why the root layout lives inside the
-segment at `app/[owner]/layout.tsx` rather than above it. Middleware rewrites
-every path into that segment, so nothing routes higher, and a wrapper element
-further down would have been missed by portalled content — a dialog or a menu
-renders into `document.body` and would have fallen back to shared teal. Two
-roles the shared layer has no token for arrive with the blocks:
+`data-owner` goes on `<html>` in `app/layout.tsx`. It has to be that high
+because a dialog or a menu portals into `document.body`, so a wrapper element
+further down would leave them on shared teal. A root layout has no params, so
+middleware sets the resolved owner as a header and the layout reads it.
+
+That read has a price, and it is the whole price of this arrangement: Cache
+Components will not prerender a route whose shell reads a header, so
+`export const instant = false` opts every route into blocking render and
+nothing is static any more — the four owner pages went from `○ (Static)` to
+`ƒ (Dynamic)`. What it buys is that Next's not-found boundary now sits *below*
+the root layout, so a 404 on a real host renders with the stylesheet and that
+owner's palette instead of Next's bare error document. The alternative, a root
+layout inside the `[owner]` segment, keeps the static shell and loses the
+styled 404; there is no arrangement that has both, because the owner is only
+knowable per request and the 404 boundary is only reachable from above.
+
+Two roles the shared layer has no token for arrive with the blocks:
 `--accent-brand` (the Rare Orange rule; `--accent` is already the neutral hover
 fill) and `--surface-brand` for a tinted band.
 
@@ -274,15 +285,13 @@ its only caller, and an unknown host resolves to nobody rather than falling
 back to the umbrella. `localhost` and `smk.localhost` resolve the same way as
 the real hosts, so the app is runnable locally.
 
-**Open, and a cost of that layout position.** Next's not-found boundary sits
-above the root layout, so a 404 on a real host renders Next's own bare document
-— no stylesheet, no `lang`, no owner color. A `not-found.tsx` inside the
-segment does not claim it; verified against the running build, which answers
-`/about` with `<html id="__next_error__">`. The two ways out are a root layout
-above the segment with `data-owner` moved to `<body>` — portals mount as
-children of `body`, so they would still inherit — or reading the owner from a
-middleware header in a root layout, which makes every page dynamic. Neither is
-done.
+Verified against the running build: `/` on `sma.mbss.sch.id` answers
+`<html lang="id" data-owner="sma">` with the stylesheet, `/about` answers 404
+with the same shell and the Indonesian not-found copy, `localhost` resolves to
+the umbrella, and an unknown host is refused before any page renders.
+
+One warning to act on separately: Next 16 deprecates the `middleware` file
+convention in favour of `proxy`. There is a codemod.
 
 The alarm pair now ships as `--destructive` plus `--destructive-tint`, the
 guide's approved ink on its approved tint. Before this it was shadcn's stock red
