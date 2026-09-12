@@ -125,8 +125,8 @@ a Jalur.
 
 Editors compose pages from approved sections — hero, introduction, programs,
 facilities, gallery, statistics, FAQ, news, pencapaian, admission invitation,
-contact — choosing order, text, images, navigation, SEO and the school's primary
-color. They cannot add arbitrary page code, CSS, fonts or unrelated layouts, and
+contact — choosing order, text, images, navigation, SEO, the school's tagline and
+its primary color. They cannot add arbitrary page code, CSS, fonts or unrelated layouts, and
 they never maintain a second admission opening date: the invitation reads the
 current period from the admission service. Umbrella content is editable only by
 a global content administrator, never by a school editor. The profile site sends
@@ -202,8 +202,13 @@ before any visual work; the summary below is a pointer, not a substitute.
   Haq Samarinda (legal), Madina Boarding School (public umbrella), then the
   three schools. Never label the Madina mark as the Yapendis logo. Never
   shorten an identity to just "Madina".
-- Umbrella promise: *Mencetak Generasi Qur'ani, Berprestasi & Berdaya Saing*.
-  Not for transactional forms or staff tools.
+- Umbrella promise: *Mencetak Generasi Qur'ani, Berprestasi & Berdaya Saing* —
+  umbrella surfaces only. Each school carries its own tagline instead: SMP
+  *Sekolahnya Anak Saleh, Unggul & Berkarakter*, SMK *Berakhlak Mulia Siap
+  Berkarya*, SMA *Islami Unggul Mandiri*. Never both on one surface, and neither
+  in transactional forms or staff tools. The taglines seed the CMS `Site.tagline`
+  field and an editor may reword their own; where a tagline may appear stays a
+  brand rule. The umbrella row holds the promise and is administrator-only.
 - Personality: Islamic and principled, warm and reassuring, capable and
   disciplined, aspirational, contemporary, local and human. Never luxurious,
   childish, bureaucratic, aggressively promotional or crowded.
@@ -225,10 +230,14 @@ before any visual work; the summary below is a pointer, not a substitute.
   and focus. The guide's original flat direction was amended to a two-step
   system on 8 September 2026 and narrowed to this single step on 10 September
   2026, both approved by the brand owner.
+- Each school owns an approved palette on its own profile site: SMP `#1A6B3F`,
+  SMK `#1D63C4`, SMA `#B01C2E`, each with a hover shade, one dark-text accent, a
+  surface tint and a focus ring. Approved 12 September 2026; SMA's maroon
+  replaced the guide's earlier blue direction.
 - Deliberately unresolved, must not be invented: authoritative Yapendis logo,
-  vector artwork for any mark, logo construction rules, each school's exact
-  digital primary, final neutral token values, component specs. The semantic
-  status values were settled on 10 September 2026.
+  vector artwork for any mark, logo construction rules, final neutral token
+  values, component specs. The semantic status values were settled on 10
+  September 2026.
 
 **Token state:** `packages/ui/src/styles/globals.css` now ships Plus Jakarta
 Sans and one of the four guide colors: `--primary` (the dark primary,
@@ -241,9 +250,12 @@ the same names: the committee queue shows form, document, payment and review
 state together, which is the consumer the other three were waiting for. One elevation token ships:
 `--shadow-overlay`.
 
+The three school palettes are approved but unshipped: no app consumes them yet,
+and they belong to `apps/profile` as one owner-scoped token set, never to the
+shared component layer.
+
 Still stock shadcn and awaiting the guide's approval: the neutral family
-(surfaces should become warm neutrals), the chart ramp, and each school's
-digital primary. Two things for
+(surfaces should become warm neutrals) and the chart ramp. Two things for
 whoever approves them: `--destructive` sits at hue 27.3 and `--warm` at 42, so
 error and warm accent read as one family — the guide says orange is never the
 error color, and that closeness works against it. And the dark-mode brand values are derived,

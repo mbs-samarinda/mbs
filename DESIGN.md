@@ -14,6 +14,15 @@ colors:
   hairline: "oklch(0.922 0 0)"
   alarm-red: "oklch(0.577 0.245 27.325)"
   focus-teal: "oklch(0.35 0.063 219.2)"
+  smp-green: "oklch(0.469 0.104 154.6)"
+  smp-green-hover: "oklch(0.393 0.090 152.5)"
+  smp-gold: "oklch(0.728 0.138 89.7)"
+  smk-blue: "oklch(0.514 0.166 258.1)"
+  smk-blue-hover: "oklch(0.442 0.141 258.0)"
+  smk-orange: "oklch(0.683 0.185 44.0)"
+  sma-maroon: "oklch(0.490 0.181 21.8)"
+  sma-maroon-hover: "oklch(0.419 0.154 21.6)"
+  sma-gold: "oklch(0.800 0.153 86.9)"
 typography:
   display:
     fontFamily: "Plus Jakarta Sans Variable, sans-serif"
@@ -164,11 +173,31 @@ warm accent held in reserve.
   control. Chroma is capped at the sRGB limit for that lightness and hue —
   anything higher renders as a browser-chosen approximation.
 
+### School palettes
+
+Approved 12 September 2026, one set per school, applied only on that school's own
+public profile site.
+
+| Owner | Primary (action) | Hover | Accent | Surface tint | Focus ring | White on primary |
+| --- | --- | --- | --- | --- | --- | --- |
+| SMP IT Madina | `#1A6B3F` | `#14532D` | `#C9A227` | `#E8F2EC` | `#0B3A22` | 6.52:1 |
+| SMK Terpadu Madina | `#1D63C4` | `#17509F` | `#F26A21` | `#E8F0FB` | `#0E3268` | 5.78:1 |
+| SMA MCI | `#B01C2E` | `#8E1524` | `#E8B62C` | `#FBECEE` | `#650F1A` | 6.88:1 |
+
+Every primary carries white text at normal size, so it takes over every solid
+interactive control on its own site. No accent carries white text, which is what
+stops an accent becoming a button surface; accents take dark text only and follow
+the Rare Orange Rule. Each focus ring is darker than its own primary so the ring
+survives on a filled control.
+
+SMA's maroon replaced the guide's earlier blue / blue-violet direction on the
+school's decision; the guide was amended the same day. Its focus ring sits at hue
+20.5 and Alarm Red at 27.3 — on that site keep the ring clearly darker and never
+let hue alone separate focus from validation.
+
 **Unresolved, and not to be invented:** the warm-neutral family the guide calls
 for (the neutrals above are still stock grays), the semantic success / warning /
-information tokens, the chart ramp, and each school's digital primary — SMP a
-refined green, SMK a confident blue, SMA a deeper blue or blue-violet. These
-need school approval. Do not sample them from a compressed logo.
+information tokens, and the chart ramp.
 
 ### Named Rules
 
@@ -424,7 +453,7 @@ background watermarks or fragmented into decoration.
   Skeletons hold layout; they do not animate forever.
 - **Don't** put white text on Madina Teal or Ember Orange.
 - **Don't** invent the deferred tokens: warm neutrals, semantic colors, chart
-  ramp, school primaries.
+  ramp.
 - **Don't** sample a color from a compressed raster logo and call it official.
 - **Don't** add gradients, glass, or decorative pill chrome. Shadows are the two
   tokens above and nothing else.
