@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ownerFromHostname, OWNER_HEADER } from "./owners.ts";
+import { ownerFromHostname } from "./owners.ts";
 
 /**
  * Turns the hostname into a route segment: sma.mbss.sch.id/foo becomes
@@ -14,10 +14,7 @@ export function middleware(request: NextRequest) {
 
   const url = request.nextUrl.clone();
   url.pathname = `/${owner.key}${request.nextUrl.pathname}`;
-
-  const headers = new Headers(request.headers);
-  headers.set(OWNER_HEADER, owner.key);
-  return NextResponse.rewrite(url, { request: { headers } });
+  return NextResponse.rewrite(url);
 }
 
 export const config = {

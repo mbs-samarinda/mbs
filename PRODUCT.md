@@ -257,21 +257,25 @@ attribute. Not a table in TypeScript: a copy in code would be a second place to
 keep in step. `packages/ui` never learns an owner exists; components keep using
 `bg-primary` and `ring-ring`, and the cascade does the rest.
 
-`data-owner` goes on `<html>` in `app/layout.tsx`. It has to be that high
-because a dialog or a menu portals into `document.body`, so a wrapper element
-further down would leave them on shared teal. A root layout has no params, so
-middleware sets the resolved owner as a header and the layout reads it.
+`data-owner` goes on `<html>`, set by the root layout, which lives inside the
+segment at `app/[owner]/layout.tsx`. It has to be that high because a dialog or
+a menu portals into `document.body`, so a wrapper element further down would
+leave them on shared teal, and the dark blocks match same-element as
+`.dark[data-owner="smp"]` where the theme class also sits. Narrowing the
+segment param there is also the only guard on the segment: paths the proxy
+matcher skips arrive with that path as the owner key, and without it they would
+serve the first owner's content under another owner's hostname.
 
-That read has a price, and it is the whole price of this arrangement: Cache
-Components will not prerender a route whose shell reads a header, so
-`export const instant = false` opts every route into blocking render and
-nothing is static any more — the four owner pages went from `○ (Static)` to
-`ƒ (Dynamic)`. What it buys is that Next's not-found boundary now sits *below*
-the root layout, so a 404 on a real host renders with the stylesheet and that
-owner's palette instead of Next's bare error document. The alternative, a root
-layout inside the `[owner]` segment, keeps the static shell and loses the
-styled 404; there is no arrangement that has both, because the owner is only
-knowable per request and the 404 boundary is only reachable from above.
+Every owner page prerenders as static, which is what this position buys. The
+cost is the 404: Next's not-found boundary sits above the root layout, so an
+unclaimed path answers with Next's own document — correct status, no
+stylesheet, no owner. A `not-found.tsx` in the segment does not claim it, and
+neither does one beside a `[...rest]` catch-all calling `notFound()`; both were
+built and measured against a running server and both still returned
+`<html id="__next_error__">`. The way to a styled 404 is a root layout above the
+segment reading the owner from a proxy header, which works but makes every
+route `ƒ (Dynamic)` because Cache Components will not prerender a shell that
+reads a header. Static public pages were judged worth more than a styled 404.
 
 Two roles the shared layer has no token for arrive with the blocks:
 `--accent-brand` (the Rare Orange rule; `--accent` is already the neutral hover
@@ -286,9 +290,10 @@ back to the umbrella. `localhost` and `smk.localhost` resolve the same way as
 the real hosts, so the app is runnable locally.
 
 Verified against the running build: `/` on `sma.mbss.sch.id` answers
-`<html lang="id" data-owner="sma">` with the stylesheet, `/about` answers 404
-with the same shell and the Indonesian not-found copy, `localhost` resolves to
-the umbrella, and an unknown host is refused before any page renders.
+`<html lang="id" data-owner="sma">` with the stylesheet and that school's
+colour, `/about` answers 404 from Next's own document, `/favicon.ico` answers
+404 rather than the umbrella's page, `localhost` resolves to the umbrella, and
+an unknown host is refused before any page renders.
 
 One warning to act on separately: Next 16 deprecates the `middleware` file
 convention in favour of `proxy`. There is a codemod.

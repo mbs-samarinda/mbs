@@ -1,15 +1,10 @@
-import { notFound } from "next/navigation";
-
 import { OWNERS, ownerHost } from "../../owners.ts";
 
 export default async function OwnerHomePage({ params }: { params: Promise<{ owner: string }> }) {
   const { owner: key } = await params;
-  // The only guard on the segment. Paths the middleware matcher skips —
-  // /favicon.ico, /_next — arrive here with that path as the owner key, and
-  // without this they would serve the first owner's content under another
-  // owner's hostname, which is the one failure owner resolution exists to stop.
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) notFound();
+  // The layout above rejected a key that is no owner's before this rendered,
+  // so the lookup is here for the name rather than as a second guard.
+  const owner = OWNERS.find((candidate) => candidate.key === key) ?? OWNERS[0];
 
   return (
     <main className="mx-auto max-w-3xl p-8">
