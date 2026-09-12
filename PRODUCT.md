@@ -125,8 +125,9 @@ a Jalur.
 
 Editors compose pages from approved sections — hero, introduction, programs,
 facilities, gallery, statistics, FAQ, news, pencapaian, admission invitation,
-contact — choosing order, text, images, navigation, SEO, the school's tagline and
-its primary color. They cannot add arbitrary page code, CSS, fonts or unrelated layouts, and
+contact — choosing order, text, images, navigation, SEO and the school's tagline.
+Its palette is not theirs to set: approved per school, fixed in
+`@mbs/school-config`. They cannot add arbitrary page code, CSS, fonts or unrelated layouts, and
 they never maintain a second admission opening date: the invitation reads the
 current period from the admission service. Umbrella content is editable only by
 a global content administrator, never by a school editor. The profile site sends
@@ -250,15 +251,24 @@ the same names: the committee queue shows form, document, payment and review
 state together, which is the consumer the other three were waiting for. One elevation token ships:
 `--shadow-overlay`.
 
-The three school palettes are approved but unshipped: no app consumes them yet,
-and they belong to `apps/profile` as one owner-scoped token set, never to the
-shared component layer.
+The three school palettes are approved and their values live on each school in
+`@mbs/school-config`, but nothing renders them yet: `apps/profile` has no token
+layer at all, and its one page still carries a literal gray. When it gets one,
+the palette belongs there as an owner-scoped set, never in the shared component
+layer — `packages/ui` must not know that schools exist.
+
+The alarm pair now ships as `--destructive` plus `--destructive-tint`, the
+guide's approved ink on its approved tint. Before this it was shadcn's stock red
+with the tint faked by alpha, which measured 3.99:1 resting and 3.32:1 on hover
+in the destructive button and badge. `packages/ui/test/contrast.test.ts` asserts
+the ratio so the value cannot drift back.
 
 Still stock shadcn and awaiting the guide's approval: the neutral family
 (surfaces should become warm neutrals) and the chart ramp. Two things for
-whoever approves them: `--destructive` sits at hue 27.3 and `--warm` at 42, so
-error and warm accent read as one family — the guide says orange is never the
-error color, and that closeness works against it. And the dark-mode brand values are derived,
+whoever approves them: Ember Orange at hue 42 would sit 13.5 degrees from the
+alarm ink at 28.5, so error and warm accent would read as one family, and the
+guide says orange is never the error color. Nothing ships that clash today —
+Ember Orange has no token yet — but it lands the moment one is added. And the dark-mode brand values are derived,
 not approved: the guide specifies light mode only. Hue and chroma follow the
 guide; lightness is 0.75 so each clears 7:1, and `--warm` drops to chroma 0.145
 to stay inside sRGB. Nothing in any app toggles `.dark` yet.

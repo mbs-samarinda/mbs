@@ -26,6 +26,8 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-tint: var(--destructive-tint);
+  --color-destructive-tint-hover: var(--destructive-tint-hover);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -81,7 +83,18 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  /* The guide's approved alarm pair: ink #c10007 over tint #fef2f2, 5.87:1.
+     Not the error red #e7000b, which is 4.36:1 on that tint and cannot carry
+     a label there. The tint is a token rather than bg-destructive/10, for the
+     same reason --primary-hover exists: fading the ink with alpha to build a
+     surface drops the text it has to carry (that pattern measured 3.99:1). */
+  --destructive: oklch(0.509 0.209 28.5);
+  --destructive-tint: oklch(0.971 0.013 17.4);
+  /* Derived, not in the guide, which approves one tint per status. Deepens the
+     tint on the tint's own hue, not the ink's: rotating toward 28.5 walks into
+     the warm/ember family, and nothing that reads as orange may read as error.
+     Holds 5.26:1 under the same ink. */
+  --destructive-tint-hover: oklch(0.935 0.024 17.4);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.35 0.063 219.2);
@@ -121,7 +134,14 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  /* The alarm pair derived for this ground. Inks keep the guide's ink hue 28.5
+     and tints its tint hue 17.4, so the light and dark pairs are the same two
+     hues at different lightness. The ink follows the rule above (L 0.75, chroma
+     at the sRGB limit) for 8.36:1 on the ground; the tints are surfaces, so the
+     constraint on them is the ink they carry — 6.88:1 and 5.90:1. */
+  --destructive: oklch(0.75 0.151 28.5);
+  --destructive-tint: oklch(0.25 0.05 17.4);
+  --destructive-tint-hover: oklch(0.3 0.055 17.4);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.9 0.06 219.2);

@@ -12,7 +12,9 @@ colors:
   quiet-surface: "oklch(0.97 0 0)"
   muted-ink: "oklch(0.556 0 0)"
   hairline: "oklch(0.922 0 0)"
-  alarm-red: "oklch(0.577 0.245 27.325)"
+  alarm-red: "oklch(0.509 0.209 28.5)"
+  alarm-tint: "oklch(0.971 0.013 17.4)"
+  alarm-tint-hover: "oklch(0.935 0.024 17.4)"
   focus-teal: "oklch(0.35 0.063 219.2)"
   smp-green: "oklch(0.469 0.104 154.6)"
   smp-green-hover: "oklch(0.393 0.090 152.5)"
@@ -77,6 +79,7 @@ components:
     rounded: "{rounded.lg}"
     height: "32px"
   button-destructive:
+    backgroundColor: "{colors.alarm-tint}"
     textColor: "{colors.alarm-red}"
     rounded: "{rounded.lg}"
     height: "32px"
@@ -166,8 +169,17 @@ warm accent held in reserve.
   labels.
 - **Hairline** (`oklch(0.922 0 0)`): borders, dividers, input strokes. This is
   the system's main separation device.
-- **Alarm Red** (`oklch(0.577 0.245 27.325)`): validation and destructive
-  actions only.
+- **Alarm Red** (`#c10007`): validation and destructive actions only, always as
+  ink on **Alarm Tint** (`#fef2f2`) — 5.87:1. Both ship. The error red `#e7000b`
+  is not this color: it measures 4.36:1 on the tint and cannot carry a label
+  there. The tint is a token, not `bg-destructive/10`, for the reason
+  `--primary-hover` exists — fading the ink with alpha to make a surface starves
+  the text that surface carries, and that pattern measured 3.99:1 resting and
+  3.32:1 on hover. **Alarm Tint Hover** (`oklch(0.935 0.024 17.4)`) is derived, not
+  approved: the guide gives one tint per status, and a tinted control still needs
+  somewhere to go on hover. It deepens on the tint's own hue rather than the
+  ink's, because rotating toward 28.5 walks into the warm family and nothing that
+  reads as orange may read as error. It holds 5.26:1.
 - **Focus Teal** (`oklch(0.35 0.063 219.2)`): focus rings only. Deliberately
   darker than Harbor Teal so a focus ring stays visible on a teal-filled
   control. Chroma is capped at the sRGB limit for that lightness and hue —
@@ -192,7 +204,7 @@ survives on a filled control.
 
 SMA's maroon replaced the guide's earlier blue / blue-violet direction on the
 school's decision; the guide was amended the same day. Its focus ring sits at hue
-20.5 and Alarm Red at 27.3 — on that site keep the ring clearly darker and never
+20.5 and Alarm Red at 28.5 — on that site keep the ring clearly darker and never
 let hue alone separate focus from validation.
 
 **Unresolved, and not to be invented:** the warm-neutral family the guide calls
