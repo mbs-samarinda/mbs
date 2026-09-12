@@ -134,14 +134,14 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  /* The alarm pair derived for this ground. Inks keep the guide's ink hue 28.5
-     and tints its tint hue 17.4, so the light and dark pairs are the same two
-     hues at different lightness. The ink follows the rule above (L 0.75, chroma
-     at the sRGB limit) for 8.36:1 on the ground; the tints are surfaces, so the
-     constraint on them is the ink they carry — 6.88:1 and 5.90:1. */
-  --destructive: oklch(0.75 0.151 28.5);
-  --destructive-tint: oklch(0.25 0.05 17.4);
-  --destructive-tint-hover: oklch(0.3 0.055 17.4);
+  /* Not derived: the approved dark alarm pair, ink #f97770 on tint #3c1715 at
+     5.96:1. The hover step is ours, deepened on the tint's own hue for 5.25:1.
+     Note that the rest of this block still predates the approved dark ramp —
+     the page ground is #0a0a0a here and the ramp says #141414 — so these three
+     are correct against the ramp and their neighbours are not yet. */
+  --destructive: oklch(0.72 0.161 25);
+  --destructive-tint: oklch(0.26 0.059 25.1);
+  --destructive-tint-hover: oklch(0.3 0.059 25.1);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.9 0.06 219.2);

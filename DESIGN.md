@@ -202,8 +202,43 @@ stops an accent becoming a button surface; accents take dark text only and follo
 the Rare Orange Rule. Each focus ring is darker than its own primary so the ring
 survives on a filled control.
 
+The umbrella carries a fourth palette of its own — Harbor Teal `#126e84` with
+Ember Orange `#f26420` as its accent — so the owner set is four, not three.
+
+A dark ramp is approved alongside these: same hue and chroma, lightness raised
+into the 0.78 band, and the inversion that a primary carrying white text in light
+mode carries near-black in dark. None of it ships yet, and the `.dark` block here
+still holds values derived before anyone signed them off. Its alarm trio is now
+the approved pair; its neutrals are not. Reconcile the rest before any app
+consumes dark mode, rather than layering owner blocks over values that disagree.
+
 SMA's maroon replaced the guide's earlier blue / blue-violet direction on the
-school's decision; the guide was amended the same day. Its focus ring sits at hue
+school's decision; the guide was amended the same day.
+
+### Dark mode
+
+Approved 12 September 2026 for the public profile sites. Token values change; the
+components, type scale, spacing and layout do not.
+
+| Role | Light | Dark |
+| --- | --- | --- |
+| Page and card | `#ffffff` | `#141414` |
+| Tinted band | `#f5f5f5` | `#1E1E1E` |
+| Body text | `#0a0a0a` | `#F2F2F2` (16.5:1) |
+| Supporting text | `#6e6e6e` | `#ABABAB` (8.0:1) |
+| Hairline | `#e5e5e5` | `#383838` |
+
+School primaries keep their hue and chroma and rise into the 0.78 lightness band —
+SMP `#7fcb9a`, SMK `#8ab9ff`, SMA `#ff9592`, umbrella `#74c5dd` — and carry dark
+text at 8.7:1 or better. Status pairs invert to light ink on a dark tint: success
+`#6ad895` on `#0c2b19`, warning `#fac053` on `#331f05`, information `#76cce5` on
+`#002933`, alarm `#f97770` on `#3c1715`.
+
+The focus ring is lighter than its primary here, the mirror of light mode, for the
+same reason: it must survive on a filled control. Photographs keep their outline in
+both modes and only its color flips. No pure black, and supporting text never
+lighter than `#ABABAB`. Dark mode follows the visitor's system preference with an
+explicit override; it is never forced. Its focus ring sits at hue
 20.5 and Alarm Red at 28.5 — on that site keep the ring clearly darker and never
 let hue alone separate focus from validation.
 
