@@ -32,6 +32,15 @@ npm run build
 yarn build
 ```
 
+The script runs `strapi ts:generate-types` first, and that is load-bearing — do
+not drop it. `types/generated/` is gitignored, and it is what gives
+`api::page.page` and the rest their real shapes. On a developer's machine those
+files already exist because `strapi develop` writes them on boot, so anything
+typed against them compiles locally and fails in CI, where the directory does
+not exist at all. Generating them as the first build step makes both
+environments identical. It reads the schema files only: no database connection
+is required, so it works on a fresh clone with nothing running.
+
 ## ⚙️ Deployment
 
 Strapi gives you many possible deployment options for your project including [Strapi Cloud](https://cloud.strapi.io). Browse the [deployment section of the documentation](https://docs.strapi.io/dev-docs/deployment) to find the best solution for your use case.

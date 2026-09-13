@@ -4,7 +4,7 @@
   "private": true,
   "description": "A Strapi application",
   "scripts": {
-    "build": "strapi build",
+    "build": "strapi ts:generate-types --silent && strapi build",
     "console": "strapi console",
     "dev": "strapi develop",
     "start": "strapi start",
