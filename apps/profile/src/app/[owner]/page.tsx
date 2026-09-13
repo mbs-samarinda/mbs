@@ -5,11 +5,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { getCycleFacts, isOpen, type CycleFacts } from "../../admission.ts";
+import { getCycleFacts, isOpen } from "../../admission.ts";
 import { getArticles, getPage, getSite, type Block, type Media } from "../../cms.ts";
 import { OWNERS, type Owner } from "../../owners.ts";
 import {
-  AdmissionBand,
+  AdmissionBandSection,
   Fact,
   FactStrip,
   Photo,
@@ -383,35 +383,4 @@ async function HeroFacts({ schoolKey }: { schoolKey: SchoolKey }) {
       <Fact label="Hasil diumumkan">{formatDate(facts.cycle.resultPublishAt)}</Fact>
     </FactStrip>
   );
-}
-
-function AdmissionBandSection({
-  schoolKey,
-  admissionCta,
-}: {
-  schoolKey: SchoolKey | undefined;
-  admissionCta: string;
-}) {
-  // The umbrella takes no applications of its own: its band sends a visitor to
-  // the joint campaign page, which reads every school's cycle.
-  if (!schoolKey) {
-    return <AdmissionBand facts={{ state: "none" }} admissionCta={admissionCta} />;
-  }
-
-  return (
-    <Suspense fallback={<AdmissionBand facts={null} admissionCta={admissionCta} />}>
-      <LiveAdmissionBand schoolKey={schoolKey} admissionCta={admissionCta} />
-    </Suspense>
-  );
-}
-
-async function LiveAdmissionBand({
-  schoolKey,
-  admissionCta,
-}: {
-  schoolKey: SchoolKey;
-  admissionCta: string;
-}) {
-  const facts: CycleFacts = await getCycleFacts(schoolKey);
-  return <AdmissionBand facts={facts} admissionCta={admissionCta} />;
 }

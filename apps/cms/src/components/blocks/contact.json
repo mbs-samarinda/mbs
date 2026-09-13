@@ -9,6 +9,11 @@
       "component": "shared.section-head",
       "required": true
     },
-    "showMap": { "type": "boolean", "default": true }
+    "showMap": { "type": "boolean", "default": true },
+    "items": {
+      "type": "component",
+      "repeatable": true,
+      "component": "shared.contact-card"
+    }
   }
 }

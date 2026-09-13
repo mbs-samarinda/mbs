@@ -1,0 +1,22 @@
+{
+  "collectionName": "components_shared_contact_cards",
+  "info": { "displayName": "Kartu kontak", "icon": "message" },
+  "options": {},
+  "attributes": {
+    "title": { "type": "string", "required": true },
+    "description": { "type": "text" },
+    "channelValue": {
+      "type": "string",
+      "required": true,
+      "description": "Nomor yang dibaca orang tua, misalnya 0812 0000 0000."
+    },
+    "channelHref": {
+      "type": "string",
+      "required": true,
+      "description": "Tautan kanal: https://wa.me/... untuk WhatsApp, tel:+62... untuk telepon."
+    },
+    "ctaLabel": { "type": "string", "required": true },
+    "hours": { "type": "string" },
+    "email": { "type": "string" }
+  }
+}

@@ -19,6 +19,7 @@ import { OWNERS, admissionUrl } from "../../../owners.ts";
 import {
   Fact,
   FactStrip,
+  PageHead,
   SECTION,
   SectionHeading,
   WIDTH,
@@ -127,17 +128,6 @@ function UmbrellaAdmission({ site, blocks }: { site: Site; blocks: readonly Bloc
     </>
   );
 }
-
-const PageHead = ({ heading, body }: { heading: string; body: string }) => (
-  <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
-    <div className={`${WIDTH} flex flex-col gap-3`}>
-      <h1 className="text-[32px] leading-tight font-extrabold text-balance md:text-[44px]">
-        {heading}
-      </h1>
-      <p className="max-w-[65ch] text-base text-pretty text-muted-foreground">{body}</p>
-    </div>
-  </section>
-);
 
 async function LiveStatus({
   schoolKey,

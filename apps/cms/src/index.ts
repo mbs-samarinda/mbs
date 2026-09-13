@@ -1,6 +1,7 @@
 import type { Core } from "@strapi/strapi";
 
 import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home-page";
+import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
 import { ADMISSION_SEED, type AdmissionSeed } from "./seed/pendaftaran-page";
 
 /**
@@ -30,12 +31,32 @@ const PANITIA = {
   href: "https://wa.me/628120000000",
 };
 
-const schoolSite = (ownerKey: OwnerKey, name: string, subdomain: string, tagline: string) => ({
+// Official accounts, shown on `/kontak` only. Placeholders like every other
+// handle here: no school has confirmed which accounts are theirs.
+const SOCIALS = [
+  { label: "Instagram", href: "https://instagram.com/" },
+  { label: "YouTube", href: "https://youtube.com/" },
+  { label: "Facebook", href: "https://facebook.com/" },
+];
+
+const schoolSite = (
+  ownerKey: OwnerKey,
+  name: string,
+  subdomain: string,
+  tagline: string,
+  // Read off each school's own pin in Google Maps, so this is one of the few
+  // seeded values that is not a placeholder. The map on `/kontak` hides itself
+  // when the field is empty, which is the right default: a map centred on the
+  // placeholder address would be a wrong answer rather than a missing one.
+  mapsCoordinates: string,
+) => ({
   ownerKey,
   tagline,
   admissionCta: "Mulai Pendaftaran",
   brandSubline: "Madina Boarding School",
   address: ADDRESS,
+  mapsCoordinates,
+  socials: SOCIALS,
   hours: "Senin–Jumat 07.00–15.00 WITA",
   legal: LEGAL,
   copyright: `© 2026 ${name}`,
@@ -92,6 +113,9 @@ const OWNER_SEED = [
     admissionCta: "Pendaftaran Bersama",
     brandSubline: "Samarinda",
     address: ADDRESS,
+    hours: "Senin–Jumat 07.00–15.00 WITA",
+    mapsCoordinates: "-0.4669401,117.1951261",
+    socials: SOCIALS,
     legal: LEGAL,
     copyright: "© 2026 Madina Boarding School Samarinda",
     navigation: [
@@ -125,9 +149,22 @@ const OWNER_SEED = [
     "SMP Islam Terpadu Madina",
     "smp",
     "Sekolahnya Anak Saleh, Unggul & Berkarakter",
+    "-0.4667789,117.1949594",
   ),
-  schoolSite("smk", "SMK Terpadu Madina", "smk", "Berakhlak Mulia Siap Berkarya"),
-  schoolSite("sma", "SMA Madina Citra Insani", "sma", "Islami Unggul Mandiri"),
+  schoolSite(
+    "smk",
+    "SMK Terpadu Madina",
+    "smk",
+    "Berakhlak Mulia Siap Berkarya",
+    "-0.4750085,117.2068342",
+  ),
+  schoolSite(
+    "sma",
+    "SMA Madina Citra Insani",
+    "sma",
+    "Islami Unggul Mandiri",
+    "-0.4656565,117.1953527",
+  ),
 ];
 
 /**
@@ -220,8 +257,8 @@ async function seedSites(strapi: Core.Strapi) {
  */
 async function seedPages(
   strapi: Core.Strapi,
-  slug: "home" | "pendaftaran",
-  seeds: Record<OwnerKey, HomeSeed | AdmissionSeed>,
+  slug: "home" | "pendaftaran" | "kontak",
+  seeds: Record<OwnerKey, HomeSeed | AdmissionSeed | KontakSeed>,
 ) {
   for (const ownerKey of OWNER_KEYS) {
     const seed = seeds[ownerKey];
@@ -323,5 +360,6 @@ export default {
     await seedSites(strapi);
     await seedPages(strapi, "home", HOME_SEED);
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
+    await seedPages(strapi, "kontak", KONTAK_SEED);
   },
 };

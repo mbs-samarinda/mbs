@@ -7,8 +7,10 @@
     "build": "strapi ts:generate-types --silent && strapi build",
     "console": "strapi console",
     "dev": "strapi develop",
+    "lint": "oxlint -c ../../.oxlintrc.json",
     "start": "strapi start",
     "strapi": "strapi",
+    "typecheck": "strapi ts:generate-types --silent && tsc --noEmit",
     "upgrade": "npx @strapi/upgrade latest",
     "upgrade:dry": "npx @strapi/upgrade latest --dry"
   },
