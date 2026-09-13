@@ -1,6 +1,7 @@
 import type { Core } from "@strapi/strapi";
 
-import { HOME_SEED, OWNER_KEYS, type OwnerKey } from "./seed/home-page";
+import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home-page";
+import { ADMISSION_SEED, type AdmissionSeed } from "./seed/pendaftaran-page";
 
 /**
  * What each owner's site starts with.
@@ -212,34 +213,38 @@ async function seedSites(strapi: Core.Strapi) {
 }
 
 /**
- * Gives every owner a published homepage on first start. The page map forbids
- * an empty homepage, and a `Page` row is one per route rather than something an
+ * Gives every owner a published page on first start. The page map forbids an
+ * empty homepage, and a `Page` row is one per route rather than something an
  * editor creates, so the row has to come from somewhere. Same rule as the sites:
  * create what is missing, never touch what is there.
  */
-async function seedHomePages(strapi: Core.Strapi) {
+async function seedPages(
+  strapi: Core.Strapi,
+  slug: "home" | "pendaftaran",
+  seeds: Record<OwnerKey, HomeSeed | AdmissionSeed>,
+) {
   for (const ownerKey of OWNER_KEYS) {
-    const seed = HOME_SEED[ownerKey];
+    const seed = seeds[ownerKey];
     const existing = await strapi
       .documents("api::page.page")
-      .findFirst({ filters: { ownerKey, slug: "home" }, status: "draft" });
+      .findFirst({ filters: { ownerKey, slug }, status: "draft" });
 
     if (existing) continue;
 
     try {
       await strapi
         .documents("api::page.page")
-        .create({ data: { ownerKey, slug: "home", ...seed }, status: "published" });
+        .create({ data: { ownerKey, slug, ...seed }, status: "published" });
     } catch (error) {
       // Same race as the sites, caught by the `uniqueSlugPerOwner` lifecycle on
       // `Page` rather than by a database constraint. Checked, not assumed, for
       // the reason given there.
       const winner = await strapi
         .documents("api::page.page")
-        .findFirst({ filters: { ownerKey, slug: "home" }, status: "draft" });
+        .findFirst({ filters: { ownerKey, slug }, status: "draft" });
 
       if (!winner) throw error;
-      strapi.log.info(`Home page for ${ownerKey} already created by another instance.`);
+      strapi.log.info(`Page ${slug} for ${ownerKey} already created by another instance.`);
     }
   }
 }
@@ -316,6 +321,7 @@ export default {
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     await grantPublicRead(strapi);
     await seedSites(strapi);
-    await seedHomePages(strapi);
+    await seedPages(strapi, "home", HOME_SEED);
+    await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
   },
 };

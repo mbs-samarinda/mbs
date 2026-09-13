@@ -41,6 +41,11 @@ export async function getCurrentCycle(
   const row = await findCurrentCycleForSchool(db, schoolKey);
   if (!row) return null;
 
+  // The committee's own screen reads every school's requirements for one cycle,
+  // so this reuses that query and keeps the one school's rows rather than adding
+  // a second, narrower one. Three schools' worth of rows is a handful.
+  const requirements = await listDocumentRequirements(db, row.id);
+
   return {
     id: row.id,
     name: row.name,
@@ -51,6 +56,9 @@ export async function getCurrentCycle(
     schoolKey,
     isEnabled: row.isEnabled,
     effectiveFee: row.feeOverride ?? row.defaultFee,
+    documents: requirements
+      .filter((requirement) => requirement.schoolKey === schoolKey)
+      .map(({ type, required }) => ({ type, required })),
   };
 }
 

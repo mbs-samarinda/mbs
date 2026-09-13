@@ -101,3 +101,41 @@
   --surface-brand: oklch(0.261 0.055 21.6); /* #3b1818, ink 14.11:1 */
   --ring: oklch(0.921 0.04 23.6); /* #ffdbd8 */
 }
+
+/* The FAQ disclosures, opening and closing.
+   `height` is the one property animated here that costs layout every frame,
+   which is why this is 200ms and not longer — and it is the accordion
+   exception: there is no transform that grows a box from nothing.
+
+   Written as CSS rather than utilities because `::details-content` and
+   `interpolate-size` have no Tailwind equivalent. The element is still a plain
+   <details>: where the browser does not know these (Firefox today), the panel
+   opens instantly, which is the behaviour we had before. */
+.faq-item {
+  /* Without this, `height: auto` is not an interpolable value and the
+     transition below does nothing at all. */
+  interpolate-size: allow-keywords;
+}
+
+/* `content-visibility` is discrete: without `allow-discrete` it flips at the
+   start of the close and the height animation plays against an empty box. */
+.faq-item::details-content {
+  overflow: hidden;
+  height: 0;
+  opacity: 0;
+  transition:
+    height 200ms var(--ease-out),
+    opacity 200ms var(--ease-out),
+    content-visibility 200ms allow-discrete;
+}
+
+.faq-item[open]::details-content {
+  height: auto;
+  opacity: 1;
+}
+
+/* No reduced-motion block here on purpose. The shared layer already forces
+   `transition-property: opacity, color, background-color, border-color, fill,
+   stroke !important` under `prefers-reduced-motion`, so the height transition
+   drops out and the fade survives — which is the gentler variant this would
+   have written by hand, and an `!important` rule would have beaten it anyway. */

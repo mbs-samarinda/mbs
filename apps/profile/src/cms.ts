@@ -111,6 +111,15 @@ export type Block = { readonly id: number } & (
   | { readonly kind: "achievements"; head: SectionHead; items: readonly Achievement[] }
   | { readonly kind: "news"; head: SectionHead; limit: number }
   | { readonly kind: "admission-cta"; heading: string; body: string | null }
+  | { readonly kind: "rich-text"; body: string }
+  | {
+      readonly kind: "faq";
+      head: SectionHead;
+      // Strapi gives every repeatable component row an id. It is the only
+      // stable key here: two identical questions are an editing mistake the
+      // content model does not forbid.
+      items: readonly { id: number; question: string; answer: string }[];
+    }
 );
 
 export type Page = {
@@ -160,6 +169,9 @@ const BLOCK_POPULATE: [string, string][] = [
   ["populate[blocks][on][blocks.programs][populate]", "*"],
   ["populate[blocks][on][blocks.news][populate]", "*"],
   ["populate[blocks][on][blocks.admission-cta][populate]", "*"],
+  ["populate[blocks][on][blocks.rich-text][populate]", "*"],
+  ["populate[blocks][on][blocks.faq][populate][head]", "true"],
+  ["populate[blocks][on][blocks.faq][populate][items]", "true"],
   ["populate[blocks][on][blocks.facilities][populate][head]", "true"],
   ["populate[blocks][on][blocks.facilities][populate][items][populate]", "images"],
   ["populate[blocks][on][blocks.extracurriculars][populate][head]", "true"],

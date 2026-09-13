@@ -42,3 +42,4 @@ apps/cms/public/uploads/*
 .agents/skills/*/scripts/bin/
 .claude/skills/*/scripts/bin/
 .github/skills/*/scripts/bin/
+apps/cms/.strapi-updater.json
