@@ -1,0 +1,10 @@
+{
+  "collectionName": "components_shared_contact_channels",
+  "info": { "displayName": "Kanal kontak", "icon": "phone" },
+  "options": {},
+  "attributes": {
+    "label": { "type": "string", "required": true },
+    "value": { "type": "string", "required": true },
+    "href": { "type": "string", "required": true }
+  }
+}

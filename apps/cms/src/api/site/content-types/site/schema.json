@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "sites",
+  "info": {
+    "singularName": "site",
+    "pluralName": "site-list",
+    "displayName": "Situs",
+    "description": "Satu baris per pemilik: identitas, tagline, navigasi, footer, dan kontak."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "ownerKey": {
+      "type": "enumeration",
+      "enum": ["mbs", "smp", "smk", "sma"],
+      "required": true,
+      "unique": true
+    },
+    "tagline": {
+      "type": "string",
+      "required": true,
+      "description": "Setiap pemilik punya tagline. Di mana tagline boleh tampil adalah aturan merek, bukan aturan CMS: janji payung hanya di permukaan payung, tagline sekolah hanya di situs sekolah itu, tidak pernah keduanya pada satu permukaan."
+    },
+    "brandSubline": { "type": "string" },
+    "logo": { "type": "media", "multiple": false, "allowedTypes": ["images"] },
+    "address": { "type": "text" },
+    "hours": { "type": "string" },
+    "legal": { "type": "string" },
+    "copyright": { "type": "string" },
+    "admissionCta": { "type": "string", "required": true },
+    "navigation": { "type": "component", "repeatable": true, "component": "shared.link" },
+    "headerPhone": { "type": "component", "repeatable": false, "component": "shared.link" },
+    "headerWhatsapp": { "type": "component", "repeatable": false, "component": "shared.link" },
+    "footerColumns": {
+      "type": "component",
+      "repeatable": true,
+      "component": "shared.footer-column"
+    },
+    "contacts": {
+      "type": "component",
+      "repeatable": true,
+      "component": "shared.contact-channel"
+    },
+    "seo": { "type": "component", "repeatable": false, "component": "shared.seo" }
+  }
+}

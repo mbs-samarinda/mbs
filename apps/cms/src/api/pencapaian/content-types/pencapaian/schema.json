@@ -1,0 +1,55 @@
+{
+  "kind": "collectionType",
+  "collectionName": "pencapaian",
+  "info": {
+    "singularName": "pencapaian",
+    "pluralName": "pencapaian-list",
+    "displayName": "Pencapaian",
+    "description": "Catatan prestasi, ditelusuri per tingkat dan tahun. Bukan umpan berita."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "ownerKey": {
+      "type": "enumeration",
+      "enum": ["mbs", "smp", "smk", "sma"],
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "string",
+      "required": true
+    },
+    "level": {
+      "type": "enumeration",
+      "enum": ["sekolah", "kabupaten", "provinsi", "nasional", "internasional"],
+      "required": true
+    },
+    "year": {
+      "type": "integer",
+      "required": true,
+      "min": 2000
+    },
+    "recipient": {
+      "type": "string",
+      "required": true
+    },
+    "photo": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "description": {
+      "type": "text"
+    },
+    "berita": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::berita.berita"
+    }
+  }
+}

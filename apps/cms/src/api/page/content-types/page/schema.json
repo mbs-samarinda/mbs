@@ -1,0 +1,52 @@
+{
+  "kind": "collectionType",
+  "collectionName": "pages",
+  "info": {
+    "singularName": "page",
+    "pluralName": "page-list",
+    "displayName": "Halaman",
+    "description": "Satu baris per rute yang ada. Editor menyusun bagian di dalamnya, tidak membuat rute baru."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "ownerKey": {
+      "type": "enumeration",
+      "enum": ["mbs", "smp", "smk", "sma"],
+      "required": true
+    },
+    "slug": {
+      "type": "enumeration",
+      "enum": [
+        "home",
+        "profil",
+        "program",
+        "ekstrakurikuler",
+        "fasilitas",
+        "berita",
+        "pendaftaran",
+        "kontak"
+      ],
+      "required": true
+    },
+    "title": { "type": "string", "required": true },
+    "seo": { "type": "component", "repeatable": false, "component": "shared.seo" },
+    "blocks": {
+      "type": "dynamiczone",
+      "components": [
+        "blocks.hero",
+        "blocks.rich-text",
+        "blocks.image-text",
+        "blocks.programs",
+        "blocks.facilities",
+        "blocks.extracurriculars",
+        "blocks.achievements",
+        "blocks.news",
+        "blocks.faq",
+        "blocks.admission-cta",
+        "blocks.contact"
+      ]
+    }
+  }
+}

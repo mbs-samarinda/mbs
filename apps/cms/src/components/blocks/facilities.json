@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_blocks_facilities",
+  "info": { "displayName": "Bagian fasilitas", "icon": "house" },
+  "options": {},
+  "attributes": {
+    "head": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.section-head",
+      "required": true
+    },
+    "items": { "type": "relation", "relation": "oneToMany", "target": "api::fasilitas.fasilitas" }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "collectionName": "components_shared_links",
+  "info": { "displayName": "Tautan", "icon": "link" },
+  "options": {},
+  "attributes": {
+    "label": { "type": "string", "required": true },
+    "href": { "type": "string", "required": true }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "collectionName": "components_shared_footer_columns",
+  "info": { "displayName": "Kolom footer", "icon": "layout" },
+  "options": {},
+  "attributes": {
+    "heading": { "type": "string", "required": true },
+    "links": { "type": "component", "repeatable": true, "component": "shared.link" }
+  }
+}

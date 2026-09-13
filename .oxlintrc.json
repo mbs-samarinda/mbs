@@ -33,7 +33,13 @@
     "react/no-array-index-key": "error"
   },
   "ignorePatterns": [
-    "apps/cms/**",
+    // The CMS is linted like everything else. What stays out is what Strapi
+    // writes rather than what we write: its admin bundle, the types it
+    // regenerates on every build, and the `.example` files it ships as
+    // starting points and never compiles.
+    "apps/cms/.strapi/**",
+    "apps/cms/types/**",
+    "apps/cms/src/**/*.example.*",
     "**/dist/**",
     "**/.next/**",
     "**/drizzle/**",

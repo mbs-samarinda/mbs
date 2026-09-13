@@ -1,0 +1,10 @@
+{
+  "collectionName": "components_shared_program_items",
+  "info": { "displayName": "Program", "icon": "bulletList" },
+  "options": {},
+  "attributes": {
+    "title": { "type": "string", "required": true },
+    "description": { "type": "text" },
+    "points": { "type": "text" }
+  }
+}

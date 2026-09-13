@@ -1,0 +1,8 @@
+{
+  "collectionName": "components_blocks_rich_texts",
+  "info": { "displayName": "Teks", "icon": "align-justify" },
+  "options": {},
+  "attributes": {
+    "body": { "type": "richtext", "required": true }
+  }
+}

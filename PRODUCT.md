@@ -193,9 +193,30 @@ decision and audit history.
   and not-found boundaries and one placeholder route remain. The API side was
   left intact — `apps/api` still serves staff and admission, and the staff
   bootstrap still runs on start, so a fresh UI has something to talk to.
-  `apps/profile` is a one-route shell, but it now resolves all four owners and
-  wears each one's palette; `apps/cms` has no content types at all. The rest of
-  the profile decisions above are agreed and documented, not implemented.
+  `apps/profile` resolves all four owners, wears each one's palette and now
+  serves the shared shell — switcher, header, footer — around a single
+  placeholder page. `apps/cms` holds the content model but no content: a `Site`
+  row per owner, a `Page` row per route that exists, and Berita, Pengumuman,
+  Ekstrakurikuler, Fasilitas and Pencapaian. No page reads either yet. The rest
+  of the profile decisions above are agreed and documented, not implemented.
+
+Three things about that model are decisions rather than mechanics:
+
+- **A `Page` is one row per known route**, its `slug` an enumeration of the
+  routes the profile app builds, so a page can never exist at an address with no
+  route to show it. A lifecycle rejects a second page for the same owner and
+  route; taking the create and delete buttons away from editors is a role
+  permission, and roles land with owner scope. A new page is a code change plus
+  one enum value, which is what the page map already means by a section earning
+  its own page.
+- **Only blocks that something renders exist.** Hero, text, text-and-image,
+  programs, facilities, extracurriculars, achievements, news, FAQ, admission
+  invitation and contact — the eleven the first pages draw. Gallery, statistics
+  and testimonials are modelled when a page renders them; testimonials in
+  particular have nothing to publish, by brand rule.
+- **Plural names read `berita-list`, not `beritas`.** Strapi requires a plural
+  distinct from the singular and Indonesian does not take an `-s`, so every
+  collection uses a `-list` suffix rather than a word no one would write.
 
 ## Brand Commitments
 

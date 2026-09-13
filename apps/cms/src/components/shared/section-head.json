@@ -1,0 +1,11 @@
+{
+  "collectionName": "components_shared_section_heads",
+  "info": { "displayName": "Judul bagian", "icon": "align-left" },
+  "options": {},
+  "attributes": {
+    "heading": { "type": "string", "required": true },
+    "description": { "type": "text" },
+    "linkLabel": { "type": "string" },
+    "linkHref": { "type": "string" }
+  }
+}

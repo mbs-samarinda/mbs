@@ -1,0 +1,9 @@
+{
+  "collectionName": "components_blocks_admission_ctas",
+  "info": { "displayName": "Ajakan pendaftaran", "icon": "rocket" },
+  "options": {},
+  "attributes": {
+    "heading": { "type": "string", "required": true },
+    "body": { "type": "text" }
+  }
+}

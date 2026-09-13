@@ -23,7 +23,9 @@ const deniedTypes = [
   "application/x-mach-binary",
 ];
 
-const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin => ({
+// Strapi calls this with `{ env }`; nothing here reads it, and an unused
+// parameter is an error now that the CMS is linted like the rest of the repo.
+const config = (): Core.Config.Plugin => ({
   "users-permissions": {
     config: {
       jwtManagement: "refresh",

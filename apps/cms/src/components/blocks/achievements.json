@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_blocks_achievements",
+  "info": { "displayName": "Bagian pencapaian", "icon": "medal" },
+  "options": {},
+  "attributes": {
+    "head": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.section-head",
+      "required": true
+    },
+    "items": { "type": "relation", "relation": "oneToMany", "target": "api::pencapaian.pencapaian" }
+  }
+}

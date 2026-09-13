@@ -1,0 +1,11 @@
+{
+  "collectionName": "components_blocks_image_texts",
+  "info": { "displayName": "Teks dan gambar", "icon": "landscape" },
+  "options": {},
+  "attributes": {
+    "heading": { "type": "string" },
+    "body": { "type": "richtext", "required": true },
+    "image": { "type": "media", "multiple": false, "allowedTypes": ["images"] },
+    "imageSide": { "type": "enumeration", "enum": ["awal", "akhir"], "default": "awal" }
+  }
+}

@@ -14,7 +14,9 @@
   },
   "ignorePatterns": [
     "**/routeTree.gen.ts",
-    "apps/cms/**",
+    "apps/cms/.strapi/**",
+    "apps/cms/types/**",
+    "apps/cms/src/**/*.example.*",
     "**/.agents/**",
     "**/.claude/**",
     "**/.codex/**",

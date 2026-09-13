@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    // Was CommonJS/Node, which is TypeScript's node10 resolution under its old
+    // name. TypeScript 7 removed it, so the type-aware linter refused the whole
+    // project. Node16 is the supported equivalent and still emits CommonJS
+    // here, because this package declares no `"type": "module"`.
+    "module": "Node16",
+    "moduleResolution": "Node16",
     "lib": ["ES2020"],
     "target": "ES2019",
     "strict": true,

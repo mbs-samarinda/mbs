@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_blocks_contacts",
+  "info": { "displayName": "Bagian kontak", "icon": "phone" },
+  "options": {},
+  "attributes": {
+    "head": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.section-head",
+      "required": true
+    },
+    "showMap": { "type": "boolean", "default": true }
+  }
+}

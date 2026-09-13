@@ -1,0 +1,18 @@
+{
+  "collectionName": "components_blocks_extracurriculars",
+  "info": { "displayName": "Bagian ekstrakurikuler", "icon": "star" },
+  "options": {},
+  "attributes": {
+    "head": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.section-head",
+      "required": true
+    },
+    "items": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::ekstrakurikuler.ekstrakurikuler"
+    }
+  }
+}

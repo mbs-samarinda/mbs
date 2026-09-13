@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "berita",
+  "info": {
+    "singularName": "berita",
+    "pluralName": "berita-list",
+    "displayName": "Berita",
+    "description": "Artikel berita. Tampil di listing bersama Pengumuman dengan label jenis."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "ownerKey": {
+      "type": "enumeration",
+      "enum": ["mbs", "smp", "smk", "sma"],
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "string",
+      "required": true
+    },
+    "summary": {
+      "type": "text",
+      "maxLength": 300
+    },
+    "cover": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["images"]
+    },
+    "body": {
+      "type": "richtext",
+      "required": true
+    },
+    "attribution": {
+      "type": "string"
+    },
+    "seo": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.seo"
+    }
+  }
+}
