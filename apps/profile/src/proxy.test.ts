@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { expect, test } from "vitest";
 
-import { proxy } from "./proxy.ts";
+import { config, proxy } from "./proxy.ts";
 
 const request = (host: string, path = "/") =>
   new NextRequest(`http://${host}${path}`, { headers: { host } });
@@ -9,6 +9,13 @@ const request = (host: string, path = "/") =>
 test("a known host rewrites to its owner segment", () => {
   const response = proxy(request("sma.mbss.sch.id", "/about?x=1"));
   expect(response.headers.get("x-middleware-rewrite")).toBe("http://sma.mbss.sch.id/sma/about?x=1");
+});
+
+// Next applies the matcher outside this function, so the guard has to read
+// the matcher itself: the favicon must go through the owner rewrite to reach
+// its `public/<owner>/` file.
+test("the matcher does not skip the favicon", () => {
+  expect(config.matcher.join()).not.toContain("favicon");
 });
 
 test("www redirects permanently to the bare host, path kept", () => {

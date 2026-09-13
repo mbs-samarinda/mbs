@@ -28,6 +28,9 @@ export function proxy(request: NextRequest) {
   return NextResponse.rewrite(url);
 }
 
+// `/favicon.ico` is rewritten too: each owner keeps its own icon under
+// `public/<owner>/`, so the browser's default request lands on that file
+// instead of reaching the `[owner]` route with `favicon.ico` as the key.
 export const config = {
-  matcher: ["/((?!_next/|favicon\\.ico$).*)"],
+  matcher: ["/((?!_next/).*)"],
 };
