@@ -187,11 +187,12 @@ warm accent held in reserve.
   there. The tint is a token, not `bg-destructive/10`, for the reason
   `--primary-hover` exists — fading the ink with alpha to make a surface starves
   the text that surface carries, and that pattern measured 3.99:1 resting and
-  3.32:1 on hover. **Alarm Tint Hover** (`oklch(0.935 0.024 17.4)`) is derived, not
-  approved: the guide gives one tint per status, and a tinted control still needs
-  somewhere to go on hover. It deepens on the tint's own hue rather than the
-  ink's, because rotating toward 28.5 walks into the warm family and nothing that
-  reads as orange may read as error. It holds 5.26:1.
+  3.32:1 on hover. **Alarm Tint Hover** (`#f9e4e4`) was approved 13 September 2026:
+  the guide gave one tint per status, and a tinted control still needs somewhere to
+  go on hover. It deepens on the tint's own hue rather than the ink's, because
+  rotating toward 28.5 walks into the warm family and nothing that reads as orange
+  may read as error. It holds 5.26:1, and applies to alarm alone — no other status
+  has an interactive form.
 - **Focus Teal** (`oklch(0.35 0.063 219.2)`): focus rings only. Deliberately
   darker than Harbor Teal so a focus ring stays visible on a teal-filled
   control. Chroma is capped at the sRGB limit for that lightness and hue —
@@ -262,13 +263,14 @@ correct set the day one is installed. One thing to know: dialogs carry
 `bg-popover shadow-overlay` with no border, so on a shared ground "borders carry
 structure" does not yet apply to them.
 
-**Unresolved, and not to be invented:** the warm-neutral family the guide calls
-for (the neutrals above are a gray ramp, not a warm one) and the chart ramp.
-Both wait on the brand owner, not on code. The success, warning and information
-pairs are approved values with no surface yet; they ship as tokens when one
-consumes them. One colour is awaiting sign-off rather than deferred: the alarm
-hover tint `oklch(0.935 0.024 17.4)`, recorded as a pending amendment in the
-guide.
+**Settled 13 September 2026.** The neutrals above are the approved ramp, not a
+placeholder: the warm-neutral direction was withdrawn rather than deferred,
+because the dark ramp is neutral gray and a warm light ramp beside it would be two
+systems. The chart ramp was withdrawn too — nothing in the product charts
+anything. Nothing in this palette is unapproved.
+
+The success, warning and information pairs are approved values with no surface
+yet; they ship as tokens when one consumes them. Take them from the guide.
 
 ### Named Rules
 
@@ -546,9 +548,8 @@ about: fee lists, admission tables, fact strips, pencapaian years.
 - **Don't** use continuous motion — no shimmer, pulse, spinner or blur loop.
   Skeletons hold layout; they do not animate forever.
 - **Don't** put white text on Madina Teal or Ember Orange.
-- **Don't** invent the deferred tokens: warm neutrals and the chart ramp. The
-  success, warning and information pairs are approved values with no surface —
-  use them from the guide, do not make new ones.
+- **Don't** invent a status colour. The success, warning and information pairs are
+  approved values with no surface yet — take them from the guide.
 - **Don't** sample a color from a compressed raster logo and call it official.
 - **Don't** add gradients, glass, or decorative pill chrome. Shadows are the two
   tokens above and nothing else.

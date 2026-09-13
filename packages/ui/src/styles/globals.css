@@ -67,9 +67,9 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  /* #6e6e6e. The stock #737373 measures 4.35:1 on --muted, under the floor for
-     normal text, and tinted sections are everywhere in this design. This holds
-     4.68:1 on the tint and 5.10:1 on white. */
+  /* #6e6e6e, the guide's supporting text. The stock #737373 measures 4.35:1 on
+     --muted, under the floor for normal text, and tinted sections are everywhere
+     in this design. This holds 4.68:1 on the tint and 5.10:1 on white. */
   --muted-foreground: oklch(0.538 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
@@ -80,10 +80,9 @@
      surface drops the text it has to carry (that pattern measured 3.99:1). */
   --destructive: oklch(0.509 0.209 28.5);
   --destructive-tint: oklch(0.971 0.013 17.4);
-  /* Derived, not in the guide, which approves one tint per status. Deepens the
-     tint on the tint's own hue, not the ink's: rotating toward 28.5 walks into
-     the warm/ember family, and nothing that reads as orange may read as error.
-     Holds 5.26:1 under the same ink. */
+  /* Approved 13 September 2026. Deepens the tint on the tint's own hue, not the
+     ink's: rotating toward 28.5 walks into the warm/ember family, and nothing
+     that reads as orange may read as error. Holds 5.26:1 under the same ink. */
   --destructive-tint-hover: oklch(0.935 0.024 17.4);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);

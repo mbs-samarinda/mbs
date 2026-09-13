@@ -324,9 +324,10 @@ the ratio so the value cannot drift back.
 `--muted-foreground` was shadcn's `#737373`, which measures 4.35:1 on a tinted
 band — under the floor for normal text, on a design full of tinted bands. It is
 now `#6e6e6e`: 4.68:1 on the tint, 5.10:1 on white. Still awaiting the guide's
-approval: the warm-neutral family the surfaces should eventually become (what
-ships is a gray ramp) and the chart ramp — both wait on the brand owner, not on
-code. One thing for whoever approves them: Ember Orange at hue 42 would sit 13.5 degrees from the
+Settled on 13 September 2026: the neutral ramp is the gray one already shipping,
+in both modes — the warm-neutral direction was withdrawn, since the dark ramp is
+neutral gray and a warm light ramp beside it would be two systems. The chart ramp
+was withdrawn too; nothing charts anything. One thing for whoever approves them: Ember Orange at hue 42 would sit 13.5 degrees from the
 alarm ink at 28.5, so error and warm accent would read as one family, and the
 guide says orange is never the error color. Nothing ships that clash today —
 Ember Orange has no token yet — but it lands the moment one is added. Dark mode is approved for the public
@@ -338,7 +339,9 @@ carries the ramp. Page and card share `#141414`, so separation comes from the
 hairline rather than a lighter card, and the primary label follows paper, which
 is white on a light page and near-black on a dark one. Owner primaries are not
 in there — they arrive with the per-owner blocks. Admission, committee and CMS
-stay light-only until separately approved, and no app toggles `.dark` yet.
+get it too: dark mode was extended to every MBSS application on 13 September 2026.
+No app toggles `.dark` yet — each one drives it from `prefers-color-scheme` with a
+user override when it gets there.
 
 Closed: the focus pattern. It is one rule in the base layer —
 `:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px }` — and
