@@ -4,7 +4,11 @@ import { isDatabaseClientKind } from "@strapi/database";
 import type { Core } from "@strapi/strapi";
 
 const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Database => {
-  const client = env("DATABASE_CLIENT", "sqlite");
+  // Defaults to postgres, not Strapi's usual sqlite: pg is the only driver
+  // installed, so a missing .env (CI, fresh clone) must pick the client that
+  // can actually load. Nothing connects until a query runs, which is why
+  // `strapi ts:generate-types` works with no database at all.
+  const client = env("DATABASE_CLIENT", "postgres");
 
   if (!isDatabaseClientKind(client)) {
     throw new Error(
