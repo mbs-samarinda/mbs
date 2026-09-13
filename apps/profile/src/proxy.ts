@@ -31,6 +31,10 @@ export function proxy(request: NextRequest) {
 // `/favicon.ico` is rewritten too: each owner keeps its own icon under
 // `public/<owner>/`, so the browser's default request lands on that file
 // instead of reaching the `[owner]` route with `favicon.ico` as the key.
+//
+// `api/` is excluded because those routes belong to no owner. The revalidate
+// endpoint is called by the CMS, not by a visitor, and rewriting it would bury
+// it under `/[owner]/api/...` where no route answers.
 export const config = {
-  matcher: ["/((?!_next/).*)"],
+  matcher: ["/((?!_next/|api/).*)"],
 };

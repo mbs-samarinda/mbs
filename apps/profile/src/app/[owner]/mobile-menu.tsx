@@ -13,6 +13,7 @@ import { cn } from "cn";
 import { MenuIcon, XIcon } from "lucide-react";
 
 import { NAV_LINK } from "./nav-link.ts";
+import { ThemeSelect } from "./theme.tsx";
 
 type Item = { readonly href: string; readonly label: string };
 
@@ -31,10 +32,13 @@ export function MobileMenu({
   items,
   owner,
   admissionCta,
+  cookieSuffix,
 }: {
   items: readonly Item[];
   owner: string;
   admissionCta: string;
+  /** Passed through to the theme control; see `theme-script.tsx` for why. */
+  cookieSuffix: string;
 }) {
   return (
     <Sheet>
@@ -68,8 +72,12 @@ export function MobileMenu({
             </a>
           ))}
         </nav>
-        <div className="p-4">
-          <a href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "w-full")}>
+        {/* The theme control follows the admission action rather than staying
+            in the bar: below `md` the bar holds the identity alone, and a
+            second control there is one too many at the width with least room. */}
+        <div className="flex items-center gap-2 p-4">
+          <ThemeSelect cookieSuffix={cookieSuffix} className="shrink-0" />
+          <a href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "flex-1")}>
             {admissionCta}
           </a>
         </div>

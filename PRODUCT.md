@@ -365,8 +365,15 @@ hairline rather than a lighter card, and the primary label follows paper, which
 is white on a light page and near-black on a dark one. Owner primaries are not
 in there — they arrive with the per-owner blocks. Admission, committee and CMS
 get it too: dark mode was extended to every MBSS application on 13 September 2026.
-No app toggles `.dark` yet — each one drives it from `prefers-color-scheme` with a
-user override when it gets there.
+The profile sites now drive it, and are the pattern the other three follow: the
+operating system decides on a first visit, a three-state control (Sistem /
+Terang / Gelap) overrides it, and the choice is stored in a cookie on the parent
+domain rather than in `localStorage`. That last part is what the profile needed
+and the other apps will not: four owners are four origins, `localStorage` is per
+origin, and the school switcher's whole job is moving between those hosts, so a
+per-origin store would drop the preference at every switch. An inline script
+applies the class and `color-scheme` before the first paint, because having the
+server read the cookie would make every page dynamic.
 
 Closed: the focus pattern. It is one rule in the base layer —
 `:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px }` — and
