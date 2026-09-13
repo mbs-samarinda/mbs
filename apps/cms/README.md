@@ -38,8 +38,10 @@ not drop it. `types/generated/` is gitignored, and it is what gives
 files already exist because `strapi develop` writes them on boot, so anything
 typed against them compiles locally and fails in CI, where the directory does
 not exist at all. Generating them as the first build step makes both
-environments identical. It reads the schema files only: no database connection
-is required, so it works on a fresh clone with nothing running.
+environments identical. It reads the schema files only and never queries the
+database, so it works on a fresh clone with nothing running. It does still load
+the database driver, which is why `config/database.ts` defaults to postgres:
+sqlite is not installed and a missing `.env` would otherwise crash the build.
 
 ## ⚙️ Deployment
 
