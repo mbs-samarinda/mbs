@@ -276,15 +276,15 @@ matcher skips arrive with that path as the owner key, and without it they would
 serve the first owner's content under another owner's hostname.
 
 Every owner page prerenders as static, which is what this position buys. The
-cost is the 404: Next's not-found boundary sits above the root layout, so an
-unclaimed path answers with Next's own document — correct status, no
-stylesheet, no owner. A `not-found.tsx` in the segment does not claim it, and
-neither does one beside a `[...rest]` catch-all calling `notFound()`; both were
-built and measured against a running server and both still returned
-`<html id="__next_error__">`. The way to a styled 404 is a root layout above the
-segment reading the owner from a proxy header, which works but makes every
-route `ƒ (Dynamic)` because Cache Components will not prerender a shell that
-reads a header. Static public pages were judged worth more than a styled 404.
+404 is the part it cannot cover: Next's not-found boundary sits above the root
+layout, so a `not-found.tsx` in the segment never claims an unclaimed path, and
+neither does one beside a `[...rest]` catch-all calling `notFound()` — both
+were built and measured. `app/global-not-found.tsx` (the `globalNotFound`
+experiment) answers those paths instead. It is a document of its own, outside
+the tree, so it imports the stylesheet and sets `data-owner` itself, reading
+the owner from the Host header because nothing above the segment has `params`.
+That header read makes the one `/_not-found` route dynamic (`instant = false`);
+the owner pages keep their own layout and stay `○ (Static)`.
 
 Two roles the shared layer has no token for arrive with the blocks:
 `--accent-brand` (the Rare Orange rule; `--accent` is already the neutral hover
@@ -303,11 +303,15 @@ lives in `apps/profile` and `SCHOOLS` stays the three-school list the admission
 side means by the word. `schoolFromHostname` is gone; owner resolution replaced
 its only caller, and an unknown host resolves to nobody rather than falling
 back to the umbrella. `localhost` and `smk.localhost` resolve the same way as
-the real hosts, so the app is runnable locally.
+the real hosts, so the app is runnable locally, and `PROFILE_APEX` swaps the
+domain for a staging deploy so a preview resolves owners too. A `www.` host
+answers a 308 to the bare host, so each page has one URL; metadata resolves
+against that host via `metadataBase`.
 
 Verified against the running build: `/` on `sma.mbss.sch.id` answers
 `<html lang="id" data-owner="sma">` with the stylesheet and that school's
-colour, `/about` answers 404 from Next's own document, `/favicon.ico` answers
+colour, `/about` answers 404 with the same document shell and that school's
+colour, `/favicon.ico` answers
 404 rather than the umbrella's page, `localhost` resolves to the umbrella, and
 an unknown host is refused before any page renders.
 

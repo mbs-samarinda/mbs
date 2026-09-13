@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { OWNERS } from "../../owners.ts";
+import { OWNERS, ownerHost } from "../../owners.ts";
 
 import "../globals.css";
 
@@ -18,7 +18,13 @@ export async function generateMetadata({
   const owner = OWNERS.find((candidate) => candidate.key === key);
   if (!owner) return { title: "MBSS" };
 
-  return { title: owner.name, description: `Situs resmi ${owner.name}.` };
+  return {
+    // Every relative URL in metadata (Open Graph, canonical) resolves against
+    // the owner's own host, not whichever host built the page.
+    metadataBase: new URL(`https://${ownerHost(owner)}`),
+    title: owner.name,
+    description: `Situs resmi ${owner.name}.`,
+  };
 }
 
 // The root layout sits inside the segment so that `data-owner` can go on
@@ -28,12 +34,9 @@ export async function generateMetadata({
 // `.dark[data-owner="smp"]`, where the theme class also lives.
 //
 // Being here keeps every owner page prerenderable, which reading the owner from
-// a header in a layout above would not. The cost is the 404: Next's not-found
-// boundary sits above the root layout, so an unclaimed path answers with Next's
-// own document — right status, no stylesheet, no owner. A `not-found.tsx` in
-// this segment does not claim it, nor does one beside a `[...rest]` catch-all
-// that calls `notFound()`; both were built and measured against a running
-// server, and both still returned `<html id="__next_error__">`.
+// a header in a layout above would not. Next's not-found boundary sits above
+// this layout, so an unclaimed path is answered by `app/global-not-found.tsx`
+// instead, which reads the owner from the Host header on its own.
 //
 // `params` is typed as a plain string because that is what Next generates for
 // the segment. Narrowing it here is the segment's only guard: paths the proxy

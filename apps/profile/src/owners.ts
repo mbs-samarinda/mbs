@@ -12,7 +12,9 @@ export const OWNERS = [UMBRELLA, ...SCHOOLS] as const;
 
 type Owner = (typeof OWNERS)[number];
 
-const APEX = "mbss.sch.id";
+// Overridable so a staging deploy on another domain resolves owners the same
+// way; the default is production and nothing else needs setting.
+const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
 
 /** The public hostname an owner is served on. */
 export function ownerHost(owner: Owner): string {
