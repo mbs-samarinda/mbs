@@ -20,6 +20,10 @@ env:
   # checking. A push to main checks everything, because --affected would
   # compare main against itself and find nothing.
   AFFECTED: ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+  # --affected compares against `main` by default, but a pull request checkout
+  # has no local `main`, only the remote one. Without this turbo warns and runs
+  # every package instead.
+  TURBO_SCM_BASE: origin/main
 
 jobs:
   # Every job below runs on its own. Nothing depends on anything else, so a
@@ -93,5 +97,7 @@ jobs:
       - uses: ./.github/actions/setup
       # Only the applications that produce artifacts have a build task. The API
       # runs TypeScript directly on Node, so typecheck is what proves it
-      # compiles.
-      - run: pnpm exec turbo run build $AFFECTED
+      # compiles. The profile is skipped on purpose: its pages prerender from
+      # Strapi at build time and fail without one, which is what a deployment
+      # wants and what CI cannot provide. Its typecheck still runs above.
+      - run: pnpm exec turbo run build $AFFECTED --filter=!@mbs/profile
