@@ -51,6 +51,19 @@ export function ownerUrl(owner: Owner): string {
 }
 
 /**
+ * Where an application is actually made. The profile sites only ever link here.
+ *
+ * Derived from the same apex rather than given an environment variable of its
+ * own: two variables means a staging build that sets only `PROFILE_APEX` sends
+ * parents to the production admission app, and nothing in the page would show it.
+ */
+export function admissionUrl(): string {
+  // 5173 is the admission app's own dev port, from its vite config — written
+  // here for the same reason 3002 is above: nothing puts it in the environment.
+  return APEX.endsWith("localhost") ? "http://localhost:5173/" : `https://admission.${APEX}/`;
+}
+
+/**
  * Resolves a request hostname to an owner, or null when no owner owns it. The
  * apex is the umbrella and a known school label under it is that school;
  * anything else is nobody, because showing one owner's content under another

@@ -54,3 +54,43 @@ export const getCycleFacts = cache(async (schoolKey: SchoolKey): Promise<CycleFa
 
 /** Registration is open when the committee says so, not when a date looks right. */
 export const isOpen = (cycle: PublicCycle) => cycle.status === "OPEN" && cycle.isEnabled;
+
+/**
+ * Whether any school is taking applications right now.
+ *
+ * The umbrella asks this, and it cannot read one school's answer for all three:
+ * the cycle's `status` is global, but `isEnabled` is that school's own settings
+ * row, so a school joined-but-disabled still returns a cycle. Reading the first
+ * school would disable the joint CTA while the table under it says two schools
+ * are open.
+ */
+export const anySchoolOpen = (facts: readonly CycleFacts[]) =>
+  facts.some((entry) => entry.state === "cycle" && isOpen(entry.cycle));
+
+/**
+ * What a family reads on the page for each document type the committee set.
+ *
+ * The list is closed in the database, so this map is exhaustive by type rather
+ * than a lookup with a fallback: a new document type fails to compile here
+ * instead of printing its own constant name to a parent.
+ */
+const DOCUMENT_LABEL: Record<PublicCycle["documents"][number]["type"], string> = {
+  KARTU_KELUARGA: "Kartu Keluarga",
+  AKTA_KELAHIRAN: "Akta kelahiran",
+  KARTU_IDENTITAS_ANAK: "Kartu Identitas Anak (KIA)",
+  IJAZAH: "Ijazah atau surat keterangan lulus",
+};
+
+/**
+ * Splits the committee's requirements into the two lists the page prints.
+ *
+ * A type the school does not collect has no row at all, so anything here is
+ * asked for; `required` only decides which of the two lists it lands in.
+ */
+export function splitDocuments(documents: PublicCycle["documents"]) {
+  const label = (document: PublicCycle["documents"][number]) => DOCUMENT_LABEL[document.type];
+  return {
+    required: documents.filter((document) => document.required).map(label),
+    optional: documents.filter((document) => !document.required).map(label),
+  };
+}

@@ -8,10 +8,28 @@ export type SchoolKey = z.infer<typeof SchoolKey>;
 export const CycleStatus = z.enum(["DRAFT", "OPEN", "CLOSED", "ARCHIVED"]);
 export type CycleStatus = z.infer<typeof CycleStatus>;
 
+export const DocumentType = z.enum([
+  "KARTU_KELUARGA",
+  "AKTA_KELAHIRAN",
+  "KARTU_IDENTITAS_ANAK",
+  "IJAZAH",
+]);
+export type DocumentType = z.infer<typeof DocumentType>;
+
+/** An absent type is one the school does not collect; `required` false is optional. */
+export const DocumentRequirement = z.object({ type: DocumentType, required: z.boolean() });
+export type DocumentRequirement = z.infer<typeof DocumentRequirement>;
+
 /**
  * The cycle is global across MBSS and carries no school. A school is enabled
  * for it and may override the fee, so the public view is resolved per school:
  * effective fee is `feeOverride ?? defaultFee`.
+ *
+ * `documents` is here rather than only on the committee's `SchoolAdmissionSetting`
+ * because the school's `/pendaftaran` page has to print what a family must bring,
+ * and the page map makes that an authoritative fact an editor cannot restate. It
+ * carries no instructions text: that is written for one decided application, not
+ * for a public page.
  */
 export const PublicAdmissionCycle = z.object({
   id: z.uuid(),
@@ -23,6 +41,7 @@ export const PublicAdmissionCycle = z.object({
   schoolKey: SchoolKey,
   isEnabled: z.boolean(),
   effectiveFee: z.int().nonnegative(),
+  documents: z.array(DocumentRequirement),
 });
 export type PublicAdmissionCycle = z.infer<typeof PublicAdmissionCycle>;
 
@@ -88,18 +107,6 @@ export type UpdateCycleInput = z.infer<typeof UpdateCycleInput>;
 
 export const SetCycleStatusInput = z.object({ cycleId: z.uuid(), status: CycleStatus });
 export type SetCycleStatusInput = z.infer<typeof SetCycleStatusInput>;
-
-export const DocumentType = z.enum([
-  "KARTU_KELUARGA",
-  "AKTA_KELAHIRAN",
-  "KARTU_IDENTITAS_ANAK",
-  "IJAZAH",
-]);
-export type DocumentType = z.infer<typeof DocumentType>;
-
-/** An absent type is one the school does not collect; `required` false is optional. */
-export const DocumentRequirement = z.object({ type: DocumentType, required: z.boolean() });
-export type DocumentRequirement = z.infer<typeof DocumentRequirement>;
 
 const Instructions = z.string().trim().max(2000).nullable();
 

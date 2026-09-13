@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { findCurrentCycleForSchool } from "./repository.ts";
+import { getCurrentCycle } from "./service.ts";
 
 const db = createDatabase(
   process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
@@ -40,7 +41,7 @@ beforeEach(async () => {
   // staff access, so wiping them would break the next suite and the API's own
   // startup.
   await db.execute(
-    sql`truncate ${schema.schoolAdmissionSettings}, ${schema.admissionCycles} cascade`,
+    sql`truncate ${schema.schoolAdmissionSettings}, ${schema.documentRequirements}, ${schema.admissionCycles} cascade`,
   );
 });
 
@@ -67,5 +68,30 @@ describe("findCurrentCycleForSchool", () => {
 
   it("returns nothing for a school with no cycle", async () => {
     expect(await findCurrentCycleForSchool(db, "smp")).toBeNull();
+  });
+});
+
+describe("getCurrentCycle", () => {
+  // The public page prints these, so one school's list must never pick up
+  // another school's rows: both schools join the same global cycle.
+  it("carries only the asking school's document requirements", async () => {
+    await joinSchoolToCycle("2027/2028", "OPEN", dates.registrationOpenAt);
+
+    const [cycle] = await db.select().from(schema.admissionCycles);
+    const schools = await db.select().from(schema.schools);
+    const sma = schools.find((school) => school.key === "sma");
+    const smk = schools.find((school) => school.key === "smk");
+
+    await db.insert(schema.documentRequirements).values([
+      { admissionCycleId: cycle!.id, schoolId: sma!.id, type: "KARTU_KELUARGA", required: true },
+      { admissionCycleId: cycle!.id, schoolId: sma!.id, type: "IJAZAH", required: false },
+      { admissionCycleId: cycle!.id, schoolId: smk!.id, type: "AKTA_KELAHIRAN", required: true },
+    ]);
+
+    const published = await getCurrentCycle(db, "sma");
+    expect(published?.documents).toEqual([
+      { type: "KARTU_KELUARGA", required: true },
+      { type: "IJAZAH", required: false },
+    ]);
   });
 });
