@@ -6,11 +6,18 @@ import { SCHOOLS } from "@mbs/school-config";
  * cycle, no staff scope and no row in the schools table. `SCHOOLS` stays the
  * three-school list the admission side means by the word.
  */
-const UMBRELLA = { key: "mbs", name: "Madina Boarding School", subdomain: null } as const;
+const UMBRELLA = {
+  key: "mbs",
+  name: "Madina Boarding School",
+  // `level` is the school switcher's tab label. The umbrella has no jenjang, so
+  // it wears its own key — which is what the tabs read on the canvas.
+  level: "MBS",
+  subdomain: null,
+} as const;
 
 export const OWNERS = [UMBRELLA, ...SCHOOLS] as const;
 
-type Owner = (typeof OWNERS)[number];
+export type Owner = (typeof OWNERS)[number];
 
 // Overridable so a staging deploy on another domain resolves owners the same
 // way; the default is production and nothing else needs setting.
@@ -19,6 +26,28 @@ const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
 /** The public hostname an owner is served on. */
 export function ownerHost(owner: Owner): string {
   return owner.subdomain ? `${owner.subdomain}.${APEX}` : APEX;
+}
+
+/**
+ * The absolute URL of an owner's home page, for the one kind of link that
+ * cannot be relative: the schools sit on different hosts from each other.
+ *
+ * Local hosts get `http` and the dev port, because `https://smk.localhost/` is
+ * not reachable and a switcher that leaves the machine is worse than no
+ * switcher.
+ *
+ * These links are baked at build time, since every owner page prerenders. A
+ * deploy on another domain has to set `PROFILE_APEX` when it *builds*, not only
+ * when it serves — otherwise the proxy resolves staging hosts correctly while
+ * the switcher in the HTML sends visitors to production.
+ */
+export function ownerUrl(owner: Owner): string {
+  const host = ownerHost(owner);
+  // 3002 is written here rather than read from PORT: the dev and start scripts
+  // pass it as a CLI flag, which Next does not put in the environment, so an
+  // exported PORT meant for something else would rewrite every local link to a
+  // port nothing serves.
+  return host.endsWith("localhost") ? `http://${host}:3002/` : `https://${host}/`;
 }
 
 /**

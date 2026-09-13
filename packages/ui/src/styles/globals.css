@@ -127,8 +127,12 @@
 }
 
 @layer base {
-  /* Motion is opt-in. Every animated surface here comes from tw-animate-css,
-     which ships no reduced-motion handling of its own.
+  /* Motion is opt-in. Animated surfaces here come from tw-animate-css, which
+     ships no reduced-motion handling of its own, or — in `sheet.tsx` — from Base
+     UI's own `data-starting-style` / `data-ending-style` on a plain transition.
+     The variable resets below only reach the first kind; the second is covered
+     by the `transition-property` narrowing, which drops `transform`, so the
+     slide snaps and the fade survives.
 
      The preference is about movement, not about change being visible, so a
      fade survives and everything that travels does not: transitions are

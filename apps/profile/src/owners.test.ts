@@ -1,6 +1,6 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
-import { ownerFromHostname, ownerHost, OWNERS } from "./owners.ts";
+import { ownerFromHostname, ownerHost, OWNERS, ownerUrl } from "./owners.ts";
 
 test("the apex is the umbrella", () => {
   expect(ownerFromHostname("mbss.sch.id")?.key).toBe("mbs");
@@ -25,6 +25,38 @@ test("the public host of each owner", () => {
     "smk.mbss.sch.id",
     "sma.mbss.sch.id",
   ]);
+});
+
+test("each owner's site has an absolute URL, because the hosts differ", () => {
+  expect(OWNERS.map(ownerUrl)).toEqual([
+    "https://mbss.sch.id/",
+    "https://smp.mbss.sch.id/",
+    "https://smk.mbss.sch.id/",
+    "https://sma.mbss.sch.id/",
+  ]);
+});
+
+test("a local apex keeps the switcher on this machine", async () => {
+  // https://smk.localhost/ is not reachable and not served on the dev port, so
+  // the scheme and port have to follow the apex or the switcher leaves the
+  // machine — on a developer's laptop, straight to the live site.
+  vi.stubEnv("PROFILE_APEX", "localhost");
+  vi.resetModules();
+  const local = await import("./owners.ts");
+
+  expect(local.OWNERS.map(local.ownerUrl)).toEqual([
+    "http://localhost:3002/",
+    "http://smp.localhost:3002/",
+    "http://smk.localhost:3002/",
+    "http://sma.localhost:3002/",
+  ]);
+});
+
+// In the test above, not after it: a failed assertion would skip a cleanup
+// written as the last statement and leave the apex stubbed for the rest of the
+// file.
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 test("no other host resolves to an owner", () => {

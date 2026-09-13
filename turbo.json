@@ -4,6 +4,11 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      // PROFILE_APEX is read at build time, not only at run time: the profile
+      // app prerenders its pages, so the school switcher's absolute links are
+      // baked in. Without it in the hash a staging build replays the cached
+      // production artifact and ships a switcher pointing at the live site.
+      "env": ["PROFILE_APEX"],
       "outputs": [
         "dist/**",
         "build/**",
@@ -19,7 +24,11 @@
       "outputs": ["*.tsbuildinfo"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      // The profile suite pins this in its vitest config so an ambient value
+      // cannot change the result; it is listed here so a change to it still
+      // invalidates a cached run rather than silently replaying one.
+      "env": ["PROFILE_APEX"]
     },
     "lint": {},
     "format:check": {},
