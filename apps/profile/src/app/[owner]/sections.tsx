@@ -1,9 +1,10 @@
+import type { SchoolKey } from "@mbs/school-config";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
-import { isOpen, type CycleFacts } from "../../admission.ts";
+import { getCycleFacts, isOpen, type CycleFacts } from "../../admission.ts";
 import { mediaUrl, type Media } from "../../cms.ts";
 
 /**
@@ -39,6 +40,18 @@ export const formatFee = (amount: number) =>
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(amount);
+
+/** The title and standfirst a content page opens with. */
+export const PageHead = ({ heading, body }: { heading: string; body: string }) => (
+  <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
+    <div className={`${WIDTH} flex flex-col gap-3`}>
+      <h1 className="text-[32px] leading-tight font-extrabold text-balance md:text-[44px]">
+        {heading}
+      </h1>
+      <p className="max-w-[65ch] text-base text-pretty text-muted-foreground">{body}</p>
+    </div>
+  </section>
+);
 
 export function SectionHeading({
   head,
@@ -227,6 +240,41 @@ const BandFact = ({ label, children }: { label: string; children: ReactNode }) =
     <dd className="text-[15px] font-semibold tabular-nums">{children}</dd>
   </div>
 );
+
+/**
+ * The band, with the live facts streamed in behind it.
+ *
+ * The umbrella takes no applications of its own, so its band carries no cycle
+ * and sends a visitor to the joint campaign page instead.
+ */
+export function AdmissionBandSection({
+  schoolKey,
+  admissionCta,
+}: {
+  schoolKey: SchoolKey | undefined;
+  admissionCta: string;
+}) {
+  if (!schoolKey) {
+    return <AdmissionBand facts={{ state: "none" }} admissionCta={admissionCta} />;
+  }
+
+  return (
+    <Suspense fallback={<AdmissionBand facts={null} admissionCta={admissionCta} />}>
+      <LiveAdmissionBand schoolKey={schoolKey} admissionCta={admissionCta} />
+    </Suspense>
+  );
+}
+
+async function LiveAdmissionBand({
+  schoolKey,
+  admissionCta,
+}: {
+  schoolKey: SchoolKey;
+  admissionCta: string;
+}) {
+  const facts: CycleFacts = await getCycleFacts(schoolKey);
+  return <AdmissionBand facts={facts} admissionCta={admissionCta} />;
+}
 
 const BandFactsPlaceholder = () => (
   <div className="flex flex-wrap gap-x-10 gap-y-4 border-t border-primary-foreground/20 pt-6">

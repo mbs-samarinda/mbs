@@ -25,6 +25,11 @@
     "brandSubline": { "type": "string" },
     "logo": { "type": "media", "multiple": false, "allowedTypes": ["images"] },
     "address": { "type": "text" },
+    "mapsCoordinates": {
+      "type": "string",
+      "regex": "^$|^-?\\d+(\\.\\d+)?,\\s*-?\\d+(\\.\\d+)?$",
+      "description": "Titik peta sebagai \"lintang,bujur\", misalnya -0.4656565,117.1953527. Salin dari Google Maps: klik kanan lokasi, lalu klik angka koordinat. Kosongkan untuk menyembunyikan peta."
+    },
     "hours": { "type": "string" },
     "legal": { "type": "string" },
     "copyright": { "type": "string" },
@@ -41,6 +46,12 @@
       "type": "component",
       "repeatable": true,
       "component": "shared.contact-channel"
+    },
+    "socials": {
+      "type": "component",
+      "repeatable": true,
+      "component": "shared.link",
+      "description": "Akun resmi. Hanya tampil di halaman Kontak; footer tidak menampilkannya."
     },
     "seo": { "type": "component", "repeatable": false, "component": "shared.seo" }
   }

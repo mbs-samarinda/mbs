@@ -32,6 +32,8 @@ export type Site = {
   readonly brandSubline: string | null;
   readonly logo: Media | null;
   readonly address: string | null;
+  /** `"lat,lng"`. The map is drawn from it, and hidden without it. */
+  readonly mapsCoordinates: string | null;
   readonly hours: string | null;
   readonly legal: string | null;
   readonly copyright: string | null;
@@ -48,6 +50,8 @@ export type Site = {
     readonly value: string;
     readonly href: string;
   }[];
+  /** Official accounts. `/kontak` draws them; the footer deliberately does not. */
+  readonly socials: readonly CmsLink[];
 };
 
 type SectionHead = {
@@ -113,6 +117,21 @@ export type Block = { readonly id: number } & (
   | { readonly kind: "admission-cta"; heading: string; body: string | null }
   | { readonly kind: "rich-text"; body: string }
   | {
+      readonly kind: "contact";
+      head: SectionHead;
+      showMap: boolean;
+      items: readonly {
+        id: number;
+        title: string;
+        description: string | null;
+        channelValue: string;
+        channelHref: string;
+        ctaLabel: string;
+        hours: string | null;
+        email: string | null;
+      }[];
+    }
+  | {
       readonly kind: "faq";
       head: SectionHead;
       // Strapi gives every repeatable component row an id. It is the only
@@ -170,6 +189,8 @@ const BLOCK_POPULATE: [string, string][] = [
   ["populate[blocks][on][blocks.news][populate]", "*"],
   ["populate[blocks][on][blocks.admission-cta][populate]", "*"],
   ["populate[blocks][on][blocks.rich-text][populate]", "*"],
+  ["populate[blocks][on][blocks.contact][populate][head]", "true"],
+  ["populate[blocks][on][blocks.contact][populate][items]", "true"],
   ["populate[blocks][on][blocks.faq][populate][head]", "true"],
   ["populate[blocks][on][blocks.faq][populate][items]", "true"],
   ["populate[blocks][on][blocks.facilities][populate][head]", "true"],
@@ -195,7 +216,13 @@ function toBlock(raw: Record<string, unknown>): Block {
   // narrowed: what arrives is JSON, and its shape is guaranteed by the CMS
   // schema rather than by anything the compiler can see here.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return { ...rest, kind: String(component).slice("blocks.".length) } as unknown as Block;
+  return {
+    // Same reason as the lists on `Site`: an empty repeatable arrives missing,
+    // and every block that has `items` maps over them without asking.
+    ...(Array.isArray(rest.items) ? {} : { items: [] }),
+    ...rest,
+    kind: String(component).slice("blocks.".length),
+  } as unknown as Block;
 }
 
 /**
@@ -216,13 +243,27 @@ export async function getSite(ownerKey: Owner["key"]): Promise<Site> {
     ["populate[headerPhone]", "true"],
     ["populate[headerWhatsapp]", "true"],
     ["populate[contacts]", "true"],
+    ["populate[socials]", "true"],
     ["populate[logo]", "true"],
     ["populate[footerColumns][populate]", "links"],
   ]);
 
   const site = sites[0];
   if (!site) throw new Error(`No Site row for ${ownerKey}. The CMS seeds one on boot.`);
-  return site;
+
+  // A repeatable component that no row has filled in yet comes back missing
+  // rather than empty, and a CMS still running the previous schema omits it
+  // outright. Every list on `Site` is typed non-optional, so without this the
+  // first `.map` — on an editor who cleared one field, or on a deploy where the
+  // app is ahead of the CMS — is a 500. Defaulted here rather than at each use:
+  // there is one read, and a dozen places that iterate what it returns.
+  return {
+    ...site,
+    navigation: site.navigation ?? [],
+    footerColumns: site.footerColumns ?? [],
+    contacts: site.contacts ?? [],
+    socials: site.socials ?? [],
+  };
 }
 
 /** One route's composed sections. `null` when no editor has published it. */
