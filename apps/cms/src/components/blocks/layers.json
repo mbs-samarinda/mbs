@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_blocks_layers",
+  "info": { "displayName": "Bagian struktur", "icon": "layer" },
+  "options": {},
+  "attributes": {
+    "head": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.section-head",
+      "required": true
+    },
+    "items": { "type": "component", "repeatable": true, "component": "shared.layer" }
+  }
+}

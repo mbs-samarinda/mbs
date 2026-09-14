@@ -1,0 +1,9 @@
+{
+  "collectionName": "components_shared_fact_rows",
+  "info": { "displayName": "Baris fakta", "icon": "bulletList" },
+  "options": {},
+  "attributes": {
+    "label": { "type": "string", "required": true },
+    "value": { "type": "text", "required": true }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_blocks_timelines",
+  "info": { "displayName": "Bagian linimasa", "icon": "clock" },
+  "options": {},
+  "attributes": {
+    "head": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.section-head",
+      "required": true
+    },
+    "items": { "type": "component", "repeatable": true, "component": "shared.timeline-entry" }
+  }
+}
