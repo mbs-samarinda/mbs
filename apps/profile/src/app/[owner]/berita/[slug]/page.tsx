@@ -151,7 +151,7 @@ const Head = ({ article }: { article: FullArticle }) => (
         <span className="text-muted-foreground">{article.title}</span>
       </nav>
 
-      <span className="flex flex-wrap items-center gap-2.5">
+      <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
         <Badge variant={article.kind === "Berita" ? "info" : "warning"}>{article.kind}</Badge>
         {/* Long form here, short form in the listing: one date format per
             context, spelled out where it sits in prose. */}
@@ -159,7 +159,16 @@ const Head = ({ article }: { article: FullArticle }) => (
           {formatLongDate(article.publishedAt)}
         </span>
         {article.attribution && (
-          <span className="text-sm text-muted-foreground">· {article.attribution}</span>
+          // The byline takes its own line on a phone and sits inline from
+          // tablet up, which is how the frames draw it. The separator belongs to
+          // the inline form only: as part of the string it wrapped with the
+          // name and left a dot orphaned at the start of a line.
+          <span className="flex w-full items-center gap-2.5 md:w-auto">
+            <span aria-hidden className="hidden text-muted-foreground md:inline">
+              ·
+            </span>
+            <span className="text-sm text-muted-foreground">{article.attribution}</span>
+          </span>
         )}
       </span>
 
