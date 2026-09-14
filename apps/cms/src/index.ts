@@ -1,8 +1,12 @@
 import type { Core } from "@strapi/strapi";
 
+import { BERITA_ENTRY_SEED, PENGUMUMAN_ENTRY_SEED, type ArticleSeed } from "./seed/articles";
 import { BERITA_SEED, type BeritaSeed } from "./seed/berita-page";
+import { EKSTRAKURIKULER_SEED, type EntrySeed } from "./seed/ekstrakurikuler";
+import { FASILITAS_SEED } from "./seed/fasilitas";
 import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home-page";
 import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
+import { PENCAPAIAN_SEED, type AchievementSeed } from "./seed/pencapaian";
 import { ADMISSION_SEED, type AdmissionSeed } from "./seed/pendaftaran-page";
 
 /**
@@ -288,6 +292,211 @@ async function seedPages(
 }
 
 /**
+ * Gives an owner its starting records in one collection, or leaves it alone.
+ *
+ * The check is per owner rather than per row: a school that has published its
+ * own facilities and then deleted one must not have it restored on the next
+ * restart. Same rule as the sites and the pages — create what is missing, never
+ * touch what is there — applied at the level where "missing" means anything.
+ */
+async function seedEntries(
+  strapi: Core.Strapi,
+  uid: "api::ekstrakurikuler.ekstrakurikuler" | "api::fasilitas.fasilitas",
+  rows: readonly EntrySeed[],
+) {
+  for (const ownerKey of OWNER_KEYS) {
+    const owned = rows.filter((row) => row.ownerKey === ownerKey);
+    if (owned.length === 0) continue;
+
+    const existing = await strapi.documents(uid).findFirst({ filters: { ownerKey } });
+    if (existing) continue;
+
+    for (const row of owned) {
+      await strapi.documents(uid).create({ data: row, status: "published" });
+    }
+  }
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+const daysFromNow = (days: number) => new Date(Date.now() + days * DAY).toISOString();
+
+/**
+ * The news and notices, dated relative to this boot.
+ *
+ * `publishedAt` is written explicitly rather than left to the create call: the
+ * listing sorts on it, so seeding them all at one timestamp would put them in an
+ * arbitrary order. Relative dates also keep a fresh deployment from opening with
+ * a page of news from whenever this file was written.
+ */
+async function seedArticles(
+  strapi: Core.Strapi,
+  uid: "api::berita.berita" | "api::pengumuman.pengumuman",
+  rows: readonly ArticleSeed[],
+) {
+  for (const ownerKey of OWNER_KEYS) {
+    const owned = rows.filter((row) => row.ownerKey === ownerKey);
+    if (owned.length === 0) continue;
+
+    const existing = await strapi.documents(uid).findFirst({ filters: { ownerKey } });
+    if (existing) continue;
+
+    for (const { daysAgo, expiresInDays, ...row } of owned) {
+      const created = await strapi.documents(uid).create({
+        data: {
+          ...row,
+          ...(expiresInDays === undefined ? {} : { expiresAt: daysFromNow(expiresInDays) }),
+        },
+        status: "published",
+      });
+
+      // `publishedAt` cannot be set through the Document Service: publishing
+      // stamps it with the current time and drops whatever was passed in, which
+      // is right for an editor pressing Publish and wrong for a seed that has to
+      // land in a particular order. The published row is written directly, and
+      // only that row — the draft beside it keeps a null `publishedAt`, which is
+      // what makes it a draft.
+      await strapi.db.query(uid).updateMany({
+        where: { documentId: created.documentId, publishedAt: { $notNull: true } },
+        data: { publishedAt: daysFromNow(-daysAgo) },
+      });
+    }
+  }
+}
+
+/** The achievements, each linked to the article that tells its story when there is one. */
+async function seedAchievements(strapi: Core.Strapi, rows: readonly AchievementSeed[]) {
+  const year = new Date().getFullYear();
+
+  for (const ownerKey of OWNER_KEYS) {
+    const owned = rows.filter((row) => row.ownerKey === ownerKey);
+    if (owned.length === 0) continue;
+
+    const existing = await strapi
+      .documents("api::pencapaian.pencapaian")
+      .findFirst({ filters: { ownerKey } });
+    if (existing) continue;
+
+    for (const { yearsAgo, beritaSlug, ...row } of owned) {
+      // The article is seeded first, so this finds it — but an editor may have
+      // deleted it, and an achievement is worth having without its story.
+      const berita = beritaSlug
+        ? await strapi
+            .documents("api::berita.berita")
+            .findFirst({ filters: { ownerKey, slug: beritaSlug } })
+        : null;
+
+      await strapi.documents("api::pencapaian.pencapaian").create({
+        data: {
+          ...row,
+          year: year - yearsAgo,
+          ...(berita ? { berita: berita.documentId } : {}),
+        },
+        status: "published",
+      });
+    }
+  }
+}
+
+/** A relation is stored by document id, so that is what a block's `items` holds. */
+const ids = (rows: readonly { documentId: string }[]) => rows.map((row) => row.documentId);
+
+/**
+ * The homepage's three relation sections, built from what the owner actually has.
+ *
+ * They cannot live in `HOME_SEED` beside the other blocks: a relation is stored
+ * by document id, and those ids only exist once the records above have been
+ * created. A section whose records are missing is left out rather than seeded
+ * empty, which is what the umbrella gets — it runs no classes and owns no
+ * buildings.
+ */
+async function relationBlocks(
+  strapi: Core.Strapi,
+  ownerKey: OwnerKey,
+): Promise<HomeSeed["blocks"]> {
+  // Sorted, because the sections below take the first few: unsorted, which of
+  // SMK's seven facilities gets left out is whatever order the database happens
+  // to return.
+  const sort = "createdAt:asc";
+  const [ekstrakurikuler, fasilitas, pencapaian] = await Promise.all([
+    strapi
+      .documents("api::ekstrakurikuler.ekstrakurikuler")
+      .findMany({ filters: { ownerKey }, sort }),
+    strapi.documents("api::fasilitas.fasilitas").findMany({ filters: { ownerKey }, sort }),
+    strapi.documents("api::pencapaian.pencapaian").findMany({ filters: { ownerKey }, sort }),
+  ]);
+
+  const blocks: HomeSeed["blocks"] = [];
+
+  if (ekstrakurikuler.length > 0) {
+    blocks.push({
+      __component: "blocks.extracurriculars",
+      head: {
+        heading: "Ekstrakurikuler",
+        description: "Kegiatan di luar jam pelajaran, dibina pengajar dan pembina asrama.",
+        linkLabel: "Lihat semua ekstrakurikuler",
+        linkHref: "/ekstrakurikuler",
+      },
+      items: ids(ekstrakurikuler).slice(0, 6),
+    });
+  }
+
+  if (fasilitas.length > 0) {
+    blocks.push({
+      __component: "blocks.facilities",
+      head: {
+        heading: "Fasilitas",
+        description: "Ruang belajar, asrama, dan tempat praktik yang dipakai setiap hari.",
+        linkLabel: "Lihat semua fasilitas",
+        linkHref: "/fasilitas",
+      },
+      items: ids(fasilitas).slice(0, 6),
+    });
+  }
+
+  if (pencapaian.length > 0) {
+    blocks.push({
+      __component: "blocks.achievements",
+      // No link: `/pencapaian` is not a route on any owner's site. The section
+      // is the whole list.
+      head: {
+        heading: "Pencapaian",
+        description: "Catatan prestasi santri, per tingkat dan tahun.",
+      },
+      items: ids(pencapaian),
+    });
+  }
+
+  return blocks;
+}
+
+/**
+ * `HOME_SEED`, with each owner's relation sections inserted before its news
+ * section — the order the page map gives, and the order the canvas draws.
+ */
+async function homeSeed(strapi: Core.Strapi, ownerKey: OwnerKey): Promise<HomeSeed> {
+  const seed = HOME_SEED[ownerKey];
+  const extra = await relationBlocks(strapi, ownerKey);
+  // `__component` is Strapi's discriminator, not a name of ours to rename.
+  // oxlint-disable-next-line eslint/no-underscore-dangle
+  const newsAt = seed.blocks.findIndex((block) => block.__component === "blocks.news");
+  const at = newsAt === -1 ? seed.blocks.length : newsAt;
+
+  return { ...seed, blocks: [...seed.blocks.slice(0, at), ...extra, ...seed.blocks.slice(at)] };
+}
+
+// Written out per owner rather than accumulated in a loop: building a
+// `Record<OwnerKey, …>` by assignment starts from an empty object, and the only
+// way to call that a complete record is to assert it.
+async function homeSeeds(strapi: Core.Strapi): Promise<Record<OwnerKey, HomeSeed>> {
+  return {
+    mbs: await homeSeed(strapi, "mbs"),
+    smp: await homeSeed(strapi, "smp"),
+    smk: await homeSeed(strapi, "smk"),
+    sma: await homeSeed(strapi, "sma"),
+  };
+}
+
+/**
  * What the profile sites read. A change to any of these can change a public
  * page, so the profile is told to drop its content cache.
  */
@@ -359,7 +568,34 @@ export default {
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     await grantPublicRead(strapi);
     await seedSites(strapi);
-    await seedPages(strapi, "home", HOME_SEED);
+
+    // Sample content is a development fixture and never reaches a real server.
+    //
+    // The structure above and below this block is different: a `Site` row is an
+    // identity every page reads — without one the profile app throws — and a
+    // `Page` row is the surface an editor composes on, one per route rather than
+    // something they create. Neither states a fact about a school.
+    //
+    // These records do. An article carries a date, an achievement carries a
+    // recipient, and a facility says a building exists. Publishing an invented
+    // one on a school's own website is a lie with a date on it, however plainly
+    // it was meant as a placeholder — and a half-finished deployment is exactly
+    // where nobody is looking. So a production CMS starts with real emptiness,
+    // which every page already handles, and an editor fills it.
+    if (process.env.NODE_ENV !== "production") {
+      // Records first: the homepage's sections point at them by document id, and
+      // the achievements point at the articles.
+      await seedEntries(strapi, "api::ekstrakurikuler.ekstrakurikuler", EKSTRAKURIKULER_SEED);
+      await seedEntries(strapi, "api::fasilitas.fasilitas", FASILITAS_SEED);
+      await seedArticles(strapi, "api::berita.berita", BERITA_ENTRY_SEED);
+      await seedArticles(strapi, "api::pengumuman.pengumuman", PENGUMUMAN_ENTRY_SEED);
+      await seedAchievements(strapi, PENCAPAIAN_SEED);
+    }
+
+    // `relationBlocks` reads what actually exists, so this is the seeded
+    // homepage in development and the plain one in production — same call, no
+    // second branch.
+    await seedPages(strapi, "home", await homeSeeds(strapi));
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
     await seedPages(strapi, "kontak", KONTAK_SEED);
     await seedPages(strapi, "berita", BERITA_SEED);
