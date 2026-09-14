@@ -158,16 +158,17 @@ const Head = ({ article }: { article: FullArticle }) => (
         <span className="text-sm text-muted-foreground tabular-nums">
           {formatLongDate(article.publishedAt)}
         </span>
+        {/* The byline sits in this row from tablet up and after the lead on a
+            phone, which is where the frames put it — so it is written twice and
+            hidden once rather than moved, since no CSS order moves a child
+            between two containers. `display:none` drops the hidden copy out of
+            the accessibility tree too, so it is never read twice.
+
+            The separator belongs to this form alone: inside the string it
+            wrapped along with the name and left a dot starting a line. */}
         {article.attribution && (
-          // The byline takes its own line on a phone and sits inline from
-          // tablet up, which is how the frames draw it. The separator belongs to
-          // the inline form only: as part of the string it wrapped with the
-          // name and left a dot orphaned at the start of a line.
-          <span className="flex w-full items-center gap-2.5 md:w-auto">
-            <span aria-hidden className="hidden text-muted-foreground md:inline">
-              ·
-            </span>
-            <span className="text-sm text-muted-foreground">{article.attribution}</span>
+          <span className="hidden text-sm text-muted-foreground md:inline">
+            · {article.attribution}
           </span>
         )}
       </span>
@@ -177,6 +178,9 @@ const Head = ({ article }: { article: FullArticle }) => (
       </h1>
       {article.summary && (
         <p className="max-w-[65ch] text-lg text-pretty text-muted-foreground">{article.summary}</p>
+      )}
+      {article.attribution && (
+        <p className="text-sm text-muted-foreground md:hidden">{article.attribution}</p>
       )}
     </div>
   </section>
