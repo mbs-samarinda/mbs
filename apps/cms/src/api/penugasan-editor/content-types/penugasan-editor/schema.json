@@ -1,0 +1,26 @@
+{
+  "kind": "collectionType",
+  "collectionName": "penugasan_editor",
+  "info": {
+    "singularName": "penugasan-editor",
+    "pluralName": "penugasan-editor-list",
+    "displayName": "Penugasan Editor",
+    "description": "Satu baris per pengguna admin: pemilik mana saja yang boleh ia kelola. Peran Editor Konten tidak diberi izin apa pun di sini."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "adminUser": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "admin::user"
+    },
+    "owners": {
+      "type": "component",
+      "repeatable": true,
+      "component": "shared.owner-key",
+      "required": true
+    }
+  }
+}

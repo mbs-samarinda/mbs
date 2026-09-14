@@ -7,9 +7,12 @@
     "build": "strapi ts:generate-types --silent && strapi build",
     "console": "strapi console",
     "dev": "strapi develop",
+    "format": "oxfmt -c ../../.oxfmtrc.json .",
+    "format:check": "oxfmt --check -c ../../.oxfmtrc.json .",
     "lint": "oxlint -c ../../.oxlintrc.json",
     "start": "strapi start",
     "strapi": "strapi",
+    "test:integration": "strapi ts:generate-types --silent && node --test src/owner-scope.integration.test.ts",
     "typecheck": "strapi ts:generate-types --silent && tsc --noEmit",
     "upgrade": "npx @strapi/upgrade latest",
     "upgrade:dry": "npx @strapi/upgrade latest --dry"

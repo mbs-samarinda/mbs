@@ -1,0 +1,12 @@
+{
+  "collectionName": "components_shared_owner_keys",
+  "info": { "displayName": "Pemilik", "icon": "key" },
+  "options": {},
+  "attributes": {
+    "ownerKey": {
+      "type": "enumeration",
+      "enum": ["mbs", "smp", "smk", "sma"],
+      "required": true
+    }
+  }
+}
