@@ -69,6 +69,58 @@ describe("findCurrentCycleForSchool", () => {
   it("returns nothing for a school with no cycle", async () => {
     expect(await findCurrentCycleForSchool(db, "smp")).toBeNull();
   });
+
+  // The invariant the umbrella page depends on: a school with no settings row is
+  // in the cycle anyway, so two schools can never answer with different cycles.
+  it("gives a school with no settings row the same cycle, at the default fee", async () => {
+    await joinSchoolToCycle("2027/2028", "OPEN", dates.registrationOpenAt);
+
+    const joined = await findCurrentCycleForSchool(db, "sma");
+    const implicit = await findCurrentCycleForSchool(db, "smp");
+
+    expect(implicit?.id).toBe(joined?.id);
+    expect(implicit?.isEnabled).toBe(true);
+    expect(implicit?.feeOverride).toBeNull();
+    expect(implicit?.defaultFee).toBe(500_000);
+  });
+
+  // Two schools ask separately, so the answer has to be the same every time a
+  // tie could be broken differently.
+  it("picks the same cycle for every school when two open on one day", async () => {
+    const sameDay = new Date("2026-01-01T00:00:00Z");
+    await joinSchoolToCycle("2026/2027", "OPEN", sameDay);
+    await joinSchoolToCycle("2027/2028", "OPEN", sameDay);
+
+    const sma = await findCurrentCycleForSchool(db, "sma");
+    const smp = await findCurrentCycleForSchool(db, "smp");
+
+    // Naming the winner rather than only comparing the two answers: equal ids
+    // would also be what a coin flip landing the same way twice looks like.
+    const cycles = await db.select().from(schema.admissionCycles);
+    const expected = cycles
+      .map((cycle) => cycle.id)
+      .toSorted()
+      .at(-1);
+
+    expect(sma?.id).toBe(expected);
+    expect(smp?.id).toBe(expected);
+  });
+
+  // Not taking part is a row saying so. Absence must never mean it.
+  it("keeps a school out only when its row disables it", async () => {
+    await joinSchoolToCycle("2027/2028", "OPEN", dates.registrationOpenAt);
+
+    const [cycle] = await db.select().from(schema.admissionCycles);
+    const schools = await db.select().from(schema.schools);
+    const smp = schools.find((school) => school.key === "smp");
+    await db
+      .insert(schema.schoolAdmissionSettings)
+      .values({ admissionCycleId: cycle!.id, schoolId: smp!.id, isEnabled: false });
+
+    const disabled = await findCurrentCycleForSchool(db, "smp");
+    expect(disabled?.id).toBe(cycle!.id);
+    expect(disabled?.isEnabled).toBe(false);
+  });
 });
 
 describe("getCurrentCycle", () => {

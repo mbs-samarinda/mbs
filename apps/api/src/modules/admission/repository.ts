@@ -11,6 +11,11 @@ type Executor = Database | Transaction;
  * prepared and must not leak, and an ARCHIVED one is finished. Nothing stops a
  * school from having two qualifying cycles, so the newest registration window
  * wins rather than whichever row Postgres happens to return first.
+ *
+ * Which cycle that is does not depend on the settings row. The school joins the
+ * cycle on nothing — every school is in every cycle — and its settings row only
+ * overrides the fee and the enabled flag, so the three schools cannot land on
+ * different cycles. A school with no row is enabled at the cycle's default fee.
  */
 export async function findCurrentCycleForSchool(db: Database, schoolKey: string) {
   const rows = await db
@@ -26,21 +31,28 @@ export async function findCurrentCycleForSchool(db: Database, schoolKey: string)
       isEnabled: schema.schoolAdmissionSettings.isEnabled,
     })
     .from(schema.admissionCycles)
-    .innerJoin(
+    // No condition: this pairs the cycle with the school rather than filtering
+    // it, which is what implicit membership looks like in SQL.
+    .innerJoin(schema.schools, eq(schema.schools.key, schoolKey))
+    .leftJoin(
       schema.schoolAdmissionSettings,
-      eq(schema.schoolAdmissionSettings.admissionCycleId, schema.admissionCycles.id),
-    )
-    .innerJoin(schema.schools, eq(schema.schools.id, schema.schoolAdmissionSettings.schoolId))
-    .where(
       and(
-        eq(schema.schools.key, schoolKey),
-        inArray(schema.admissionCycles.status, ["OPEN", "CLOSED"]),
+        eq(schema.schoolAdmissionSettings.admissionCycleId, schema.admissionCycles.id),
+        eq(schema.schoolAdmissionSettings.schoolId, schema.schools.id),
       ),
     )
-    .orderBy(desc(schema.admissionCycles.registrationOpenAt))
+    .where(inArray(schema.admissionCycles.status, ["OPEN", "CLOSED"]))
+    // The id breaks a tie on the open date. Without it two cycles opening the
+    // same day leave the order undefined, and the umbrella asks three times —
+    // three calls free to pick different rows is the disagreement this whole
+    // change exists to remove.
+    .orderBy(desc(schema.admissionCycles.registrationOpenAt), desc(schema.admissionCycles.id))
     .limit(1);
 
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+
+  return { ...row, isEnabled: row.isEnabled ?? true };
 }
 
 export async function listCycles(db: Executor) {
@@ -129,7 +141,11 @@ export async function findSchoolIdByKey(db: Executor, schoolKey: string) {
   return rows[0]?.id ?? null;
 }
 
-/** Every school that has joined this cycle, keyed by the school key. */
+/**
+ * Every school that has overrides in this cycle, keyed by the school key. A
+ * school missing from the result takes part at the cycle's defaults; it is not
+ * a school left out.
+ */
 export async function listSchoolSettings(db: Executor, cycleId: string) {
   return db
     .select({

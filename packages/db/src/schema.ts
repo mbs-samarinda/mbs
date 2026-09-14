@@ -24,14 +24,15 @@ export const schools = pgTable("schools", {
   id: uuid("id").primaryKey().defaultRandom(),
   // Name and level are compile-time facts in @mbs/school-config, not columns.
   // Taking part in a cycle is school_admission_settings.is_enabled, not a
-  // property of the school.
+  // property of the school — and a school with no settings row is taking part.
   key: text("key").notNull().unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// The cycle is global across MBSS. It deliberately carries no school_id; a
-// school joins a cycle through school_admission_settings.
+// The cycle is global across MBSS. It deliberately carries no school_id, and
+// every school takes part in every cycle by construction — so the cycle a
+// school is showing can never differ from the cycle its neighbour shows.
 export const admissionCycles = pgTable("admission_cycles", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
@@ -44,6 +45,12 @@ export const admissionCycles = pgTable("admission_cycles", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * One school's overrides for one cycle — never proof that it joined, because
+ * membership is not a stored fact. No row means the school takes part at the
+ * cycle's own defaults: enabled, at `defaultFee`. Deliberate non-participation
+ * is `isEnabled = false`, never a missing row.
+ */
 export const schoolAdmissionSettings = pgTable(
   "school_admission_settings",
   {

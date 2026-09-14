@@ -41,6 +41,15 @@ export async function getCurrentCycle(
   const row = await findCurrentCycleForSchool(db, schoolKey);
   if (!row) return null;
 
+  // A school that is not taking part has no cycle to report. Every school is now
+  // in every cycle, so without this a disabled school would answer with the
+  // cycle anyway and the public page would print "sudah ditutup" over dates and
+  // a fee belonging to a registration that school never ran. Saying nothing is
+  // the same answer it gave before membership became implicit, and for the same
+  // reason `unavailable` is not rendered as closed: a registration that is not
+  // happening is not a registration that has ended.
+  if (!row.isEnabled) return null;
+
   // The committee's own screen reads every school's requirements for one cycle,
   // so this reuses that query and keeps the one school's rows rather than adding
   // a second, narrower one. Three schools' worth of rows is a handful.
@@ -154,10 +163,10 @@ export async function setAdmissionCycleStatus(
 }
 
 /**
- * One row per school this administrator holds, whether or not it has joined the
- * cycle yet. A school with no settings row is shown as disabled with nothing
- * configured, because that is exactly what it is — and somebody has to be able
- * to open the page that gives it a row.
+ * One row per school this administrator holds. Every school takes part in every
+ * cycle, so a school with no settings row is shown as enabled at the cycle's
+ * default fee — the same answer the public page gives it. Saving the screen is
+ * what turns those defaults into a row.
  */
 export async function listSchoolAdmissionSettings(
   db: Database,
@@ -176,7 +185,7 @@ export async function listSchoolAdmissionSettings(
 
     return {
       schoolKey,
-      isEnabled: row?.isEnabled ?? false,
+      isEnabled: row?.isEnabled ?? true,
       feeOverride: row?.feeOverride ?? null,
       effectiveFee: row?.feeOverride ?? cycle.defaultFee,
       acceptedInstructions: row?.acceptedInstructions ?? null,
