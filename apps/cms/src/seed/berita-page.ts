@@ -6,10 +6,9 @@
  * Pengumuman collections, and none of it is something an editor composes. What
  * the row is for is the title and the SEO fields, which have to live somewhere.
  *
- * No sample articles are seeded. The homepage seed's own rule applies: inventing
- * a plausible school event is not a placeholder, it is a lie with a date on it.
- * An owner with nothing published gets the empty state, which is a real state
- * the page has to handle anyway.
+ * The articles themselves are seeded in development only — see `articles.ts`.
+ * This row is not: it carries no claim, only the title and the SEO fields, and
+ * an editor needs it to exist before they can publish anything.
  */
 
 import type { OwnerKey } from "./home-page";

@@ -71,6 +71,23 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
  * The umbrella carries no "Berita lainnya" row and no related achievement — it
  * publishes foundation-level notices, and pencapaian is a school's record.
  */
+/**
+ * Blocking rather than instant, and a slug nobody owns answers 200, not 404.
+ *
+ * `[slug]` has no `generateStaticParams` — the set of articles changes whenever
+ * an editor publishes — so reading it is runtime data, and the article is read
+ * in the page body rather than streamed. `instant = false` says that out loud
+ * instead of leaving the route flagged by validation.
+ *
+ * The status is the part worth knowing. Once a response starts streaming its
+ * headers are gone, so `notFound()` firing after an `await` cannot turn 200 into
+ * 404; Next injects `<meta name="robots" content="noindex">` instead, which is
+ * what keeps a deleted article out of an index. A real 404 would need the answer
+ * before any `await`, and the answer lives in the CMS. A path no page claims at
+ * all is a different mechanism and does return 404 — see `global-not-found.tsx`.
+ */
+export const instant = false;
+
 export default async function ArticlePage({ params }: { params: Params }) {
   const found = await read(params);
   if (!found) notFound();

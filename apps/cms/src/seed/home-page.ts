@@ -8,9 +8,16 @@
  * them; the seed never overwrites what an editor wrote.
  *
  * Only blocks that carry their own words are here. Facilities, extracurriculars
- * and achievements are relations to records that do not exist yet, and inventing
- * a student's name to fill an achievement is not a placeholder, it is a lie with
- * a date on it. Those sections appear on the page once an editor adds records.
+ * and achievements are relations, and a relation is stored by document id — ids
+ * that exist only after those records are created. Their sections are built at
+ * boot in `index.ts` and inserted before the news block, from whatever the owner
+ * actually has.
+ *
+ * Those records are seeded in development only, so a developer's site is not
+ * blank while a real one still starts empty — an invented article, achievement
+ * or building is a lie with a date on it wherever the public can read it. This
+ * page row seeds everywhere, because it states nothing: it is the surface an
+ * editor composes on, and its words are visibly fill-me text.
  */
 
 import type { Modules } from "@strapi/strapi";
