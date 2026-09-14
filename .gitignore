@@ -43,3 +43,6 @@ apps/cms/public/uploads/*
 .claude/skills/*/scripts/bin/
 .github/skills/*/scripts/bin/
 apps/cms/.strapi-updater.json
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
