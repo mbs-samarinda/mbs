@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Link2 } from "lucide-react";
 import { useState } from "react";
 
 /**
@@ -34,6 +35,11 @@ export function CopyLink({ url, className }: { url: string; className: string })
         }
       }}
     >
+      {copied ? (
+        <Check aria-hidden className="size-4.5 shrink-0" strokeWidth={1.75} />
+      ) : (
+        <Link2 aria-hidden className="size-4.5 shrink-0" strokeWidth={1.75} />
+      )}
       {/* Announced rather than only recoloured: the label is the whole feedback,
           so a screen reader has to hear it change. */}
       <span aria-live="polite">{copied ? "Tersalin" : "Salin tautan"}</span>
