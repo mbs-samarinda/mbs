@@ -8,11 +8,15 @@
 -- explicit row for each school that has none, disabled — deliberate
 -- non-participation written down instead of inferred from absence.
 --
--- Cycles of every status, including DRAFT and ARCHIVED, so nothing is left
--- carrying the old meaning. Idempotent: the (cycle, school) unique constraint
--- makes a re-run a no-op.
+-- OPEN, CLOSED and ARCHIVED cycles only. DRAFT is deliberately left alone: a
+-- draft was never visible to anyone, so a missing row there means "not
+-- configured yet" rather than "deliberately excluded". Writing exclusion onto a
+-- cycle the committee is still setting up would open it with every school
+-- switched off, which is a worse default than the one this migration removes.
+-- Idempotent: the (cycle, school) unique constraint makes a re-run a no-op.
 INSERT INTO "school_admission_settings" ("admission_cycle_id", "school_id", "is_enabled")
 SELECT "admission_cycles"."id", "schools"."id", false
 FROM "admission_cycles"
 CROSS JOIN "schools"
+WHERE "admission_cycles"."status" <> 'DRAFT'
 ON CONFLICT ("admission_cycle_id", "school_id") DO NOTHING;
