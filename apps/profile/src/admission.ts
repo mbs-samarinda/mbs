@@ -3,6 +3,7 @@ import type { SchoolKey } from "@mbs/school-config";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
+import { connection } from "next/server";
 import { cache } from "react";
 
 import { config } from "./config/env.ts";
@@ -43,7 +44,7 @@ type PublicCycle = NonNullable<Awaited<ReturnType<typeof client.public.admission
  * status flipped mid-render would print "dibuka" in the hero above "ditutup" in
  * the band.
  */
-export const getCycleFacts = cache(async (schoolKey: SchoolKey): Promise<CycleFacts> => {
+const fetchCycleFacts = cache(async (schoolKey: SchoolKey): Promise<CycleFacts> => {
   try {
     const cycle = await client.public.admission.getCurrentCycle({ schoolKey });
     return cycle ? { state: "cycle", cycle } : { state: "none" };
@@ -51,6 +52,19 @@ export const getCycleFacts = cache(async (schoolKey: SchoolKey): Promise<CycleFa
     return { state: "unavailable" };
   }
 });
+
+/**
+ * `connection()` says out loud that this reads live state, so a prerender cannot
+ * bake an open or closed status into static HTML — the exact staleness the
+ * paragraph above is about. It sits outside the `cache()` wrapper so the
+ * deduplication still works: the marker belongs to the request, the memo to the
+ * render. Every caller is already inside `<Suspense>`, so only the band or the
+ * badge waits on it and the shell around them still prerenders.
+ */
+export async function getCycleFacts(schoolKey: SchoolKey): Promise<CycleFacts> {
+  await connection();
+  return fetchCycleFacts(schoolKey);
+}
 
 /** Registration is open when the committee says so, not when a date looks right. */
 export const isOpen = (cycle: PublicCycle) => cycle.status === "OPEN" && cycle.isEnabled;

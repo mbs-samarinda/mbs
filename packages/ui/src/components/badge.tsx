@@ -12,6 +12,12 @@ const badgeVariants = cva(
         secondary: "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
         destructive:
           "bg-destructive-tint text-destructive focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive-tint-hover",
+        // The three non-alarm status pairs. They carry meaning, so they are
+        // variants rather than a className every page retypes; and they are
+        // never a control surface, which is why none of them has a hover tint.
+        success: "bg-success-tint text-success",
+        warning: "bg-warning-tint text-warning",
+        info: "bg-info-tint text-info",
         outline: "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
         ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",

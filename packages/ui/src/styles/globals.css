@@ -15,6 +15,12 @@
   --color-destructive: var(--destructive);
   --color-destructive-tint: var(--destructive-tint);
   --color-destructive-tint-hover: var(--destructive-tint-hover);
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-info: var(--info);
+  --color-info-tint: var(--info-tint);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -84,6 +90,18 @@
      ink's: rotating toward 28.5 walks into the warm/ember family, and nothing
      that reads as orange may read as error. Holds 5.26:1 under the same ink. */
   --destructive-tint-hover: oklch(0.935 0.024 17.4);
+  /* The other three approved status pairs, landing with the first surface that
+     consumes them (`/berita` labels its two types). One ink on one tint, shared
+     by all four owners: a school colour never recolours a status, so the
+     Information pair stays Harbor Teal on SMK's blue site by design.
+     Information reusing the light primary is the guide's own choice — a fifth
+     hue for "scheduled" would earn nothing. */
+  --success: oklch(0.472 0.097 165.6); /* #046c4e, 5.79:1 on its tint */
+  --success-tint: oklch(0.961 0.017 168.5); /* #e8f6f0 */
+  --warning: oklch(0.492 0.11 66); /* #8a5200, 5.85:1 */
+  --warning-tint: oklch(0.97 0.024 83.4); /* #fdf4e3 */
+  --info: oklch(0.499 0.086 219.2); /* #126e84, 5.06:1 */
+  --info-tint: oklch(0.949 0.01 219.6); /* #e7f0f3 */
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.35 0.063 219.2);
@@ -118,6 +136,15 @@
   --destructive: oklch(0.72 0.161 25);
   --destructive-tint: oklch(0.26 0.059 25.1);
   --destructive-tint-hover: oklch(0.3 0.059 25.1);
+  /* The approved dark pairs: light ink on a dark tint of the same hue, the same
+     inversion the primary makes. Each clears 8:1, higher than their light
+     counterparts, because a light ink on a dark tint has more room. */
+  --success: oklch(0.8 0.14 154.8); /* #6ad895, 8.63:1 on its tint */
+  --success-tint: oklch(0.26 0.05 155); /* #0c2b19 */
+  --warning: oklch(0.841 0.14 80.4); /* #fac053, 9.51:1 */
+  --warning-tint: oklch(0.259 0.05 69.8); /* #331f05 */
+  --info: oklch(0.8 0.09 218.7); /* #76cce5, 8.45:1 */
+  --info-tint: oklch(0.259 0.047 218.5); /* #002933 */
   --border: oklch(0.341 0 0); /* #383838 hairline */
   --input: oklch(0.341 0 0);
   /* Lighter than its own primary, the reverse of light mode. Same reason both
