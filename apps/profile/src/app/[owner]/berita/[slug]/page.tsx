@@ -151,15 +151,25 @@ const Head = ({ article }: { article: FullArticle }) => (
         <span className="text-muted-foreground">{article.title}</span>
       </nav>
 
-      <span className="flex flex-wrap items-center gap-2.5">
+      <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
         <Badge variant={article.kind === "Berita" ? "info" : "warning"}>{article.kind}</Badge>
         {/* Long form here, short form in the listing: one date format per
             context, spelled out where it sits in prose. */}
         <span className="text-sm text-muted-foreground tabular-nums">
           {formatLongDate(article.publishedAt)}
         </span>
+        {/* The byline sits in this row from tablet up and after the lead on a
+            phone, which is where the frames put it — so it is written twice and
+            hidden once rather than moved, since no CSS order moves a child
+            between two containers. `display:none` drops the hidden copy out of
+            the accessibility tree too, so it is never read twice.
+
+            The separator belongs to this form alone: inside the string it
+            wrapped along with the name and left a dot starting a line. */}
         {article.attribution && (
-          <span className="text-sm text-muted-foreground">· {article.attribution}</span>
+          <span className="hidden text-sm text-muted-foreground md:inline">
+            · {article.attribution}
+          </span>
         )}
       </span>
 
@@ -168,6 +178,9 @@ const Head = ({ article }: { article: FullArticle }) => (
       </h1>
       {article.summary && (
         <p className="max-w-[65ch] text-lg text-pretty text-muted-foreground">{article.summary}</p>
+      )}
+      {article.attribution && (
+        <p className="text-sm text-muted-foreground md:hidden">{article.attribution}</p>
       )}
     </div>
   </section>
