@@ -33,6 +33,16 @@ const DATE = new Intl.DateTimeFormat("id-ID", {
 /** Short form, for fact strips and tables. Prose and headlines spell the month. */
 export const formatDate = (iso: string) => DATE.format(new Date(iso));
 
+const LONG_DATE = new Intl.DateTimeFormat("id-ID", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "Asia/Makassar",
+});
+
+/** Spelled out, for prose and for an article's byline. One format per context. */
+export const formatLongDate = (iso: string) => LONG_DATE.format(new Date(iso));
+
 /** Whole rupiah. The API carries no fractional fee and none is ever displayed. */
 export const formatFee = (amount: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -274,6 +284,71 @@ async function LiveAdmissionBand({
 }) {
   const facts: CycleFacts = await getCycleFacts(schoolKey);
   return <AdmissionBand facts={facts} admissionCta={admissionCta} />;
+}
+
+/**
+ * The admission path as a sidebar card, for the pages that carry no band.
+ *
+ * `/berita` and its articles invite a visitor sideways rather than closing with
+ * a call to action, so the live cycle appears beside the content instead of
+ * under it. Same three states as the band, and for the same reason: a cycle we
+ * could not read is not a closed cycle, so the card still names the way in
+ * rather than disappearing.
+ */
+export function AdmissionCardSection({ schoolKey }: { schoolKey: SchoolKey | undefined }) {
+  if (!schoolKey) {
+    return <AdmissionCard facts={{ state: "none" }} />;
+  }
+
+  return (
+    <Suspense fallback={<AdmissionCard facts={null} />}>
+      <LiveAdmissionCard schoolKey={schoolKey} />
+    </Suspense>
+  );
+}
+
+async function LiveAdmissionCard({ schoolKey }: { schoolKey: SchoolKey }) {
+  return <AdmissionCard facts={await getCycleFacts(schoolKey)} />;
+}
+
+function AdmissionCard({ facts }: { facts: CycleFacts | null }) {
+  const cycle = facts?.state === "cycle" ? facts.cycle : null;
+  const open = cycle ? isOpen(cycle) : false;
+
+  const heading = !cycle
+    ? "Pendaftaran santri baru"
+    : open
+      ? `Pendaftaran ${cycle.name} dibuka`
+      : `Pendaftaran ${cycle.name} ditutup`;
+
+  const body =
+    facts?.state === "unavailable"
+      ? "Status dan tanggal sedang tidak dapat dibaca dari sistem pendaftaran."
+      : cycle
+        ? `${open ? "Ditutup" : "Dibuka"} ${formatDate(open ? cycle.registrationCloseAt : cycle.registrationOpenAt)}. Dibaca langsung dari sistem pendaftaran.`
+        : "Syarat, jadwal, dan biaya ada di halaman pendaftaran.";
+
+  return (
+    <aside className="flex flex-col gap-2 rounded-xl bg-info-tint p-5">
+      {/* The heading holds its height while the facts stream in, so the sidebar
+          does not jump under a visitor who is already reading. */}
+      <h2 className="text-base font-bold text-pretty">
+        {facts === null ? <span className="block h-5 w-48 rounded-md bg-info/15" /> : heading}
+      </h2>
+      {/* Ink rather than muted: supporting grey measures 4.41:1 on this tint,
+          under the floor. The tint is the one ground in the system where that
+          pairing fails. */}
+      <p className="text-[13px] text-pretty tabular-nums">
+        {facts === null ? <span className="block h-9 w-full rounded-md bg-info/10" /> : body}
+      </p>
+      <a
+        href="/pendaftaran"
+        className="flex min-h-11 items-center text-sm font-semibold text-primary underline underline-offset-4"
+      >
+        Buka halaman pendaftaran
+      </a>
+    </aside>
+  );
 }
 
 const BandFactsPlaceholder = () => (

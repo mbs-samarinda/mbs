@@ -1,5 +1,6 @@
 import type { Core } from "@strapi/strapi";
 
+import { BERITA_SEED, type BeritaSeed } from "./seed/berita-page";
 import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home-page";
 import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
 import { ADMISSION_SEED, type AdmissionSeed } from "./seed/pendaftaran-page";
@@ -257,8 +258,8 @@ async function seedSites(strapi: Core.Strapi) {
  */
 async function seedPages(
   strapi: Core.Strapi,
-  slug: "home" | "pendaftaran" | "kontak",
-  seeds: Record<OwnerKey, HomeSeed | AdmissionSeed | KontakSeed>,
+  slug: "home" | "pendaftaran" | "kontak" | "berita",
+  seeds: Record<OwnerKey, HomeSeed | AdmissionSeed | KontakSeed | BeritaSeed>,
 ) {
   for (const ownerKey of OWNER_KEYS) {
     const seed = seeds[ownerKey];
@@ -361,5 +362,6 @@ export default {
     await seedPages(strapi, "home", HOME_SEED);
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
     await seedPages(strapi, "kontak", KONTAK_SEED);
+    await seedPages(strapi, "berita", BERITA_SEED);
   },
 };

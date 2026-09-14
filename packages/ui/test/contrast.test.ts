@@ -56,6 +56,21 @@ test.for([":root", ".dark"] as const)("alarm ink carries text on its own tints i
   }
 });
 
+test.for([":root", ".dark"] as const)(
+  "every status ink carries text on its own tint in %s",
+  (block) => {
+    // Same fact as the alarm pair above: a status pair exists to be read, so the
+    // ratio is asserted rather than trusted. The guide's own numbers are 5.79,
+    // 5.85 and 5.06 in light, and above 8 in dark.
+    for (const status of ["success", "warning", "info"]) {
+      expect(
+        contrast(token(block, status), token(block, `${status}-tint`)),
+        `--${status} on its tint`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  },
+);
+
 test.for([":root", ".dark"] as const)("supporting text carries on every ground in %s", (block) => {
   // The value this guards drifted once already: shadcn's #737373 measures
   // 4.35:1 on --muted, and tinted bands are everywhere in this design.
@@ -69,7 +84,16 @@ test.for([":root", ".dark"] as const)("supporting text carries on every ground i
 
 test.for([":root", ".dark"] as const)("body text carries on page and card in %s", (block) => {
   const ink = token(block, "foreground");
-  for (const surface of ["background", "card", "muted"]) {
+  // The status tints are grounds too: an admission card sits on `--info-tint`,
+  // where supporting grey measures 4.41:1 and body ink is what has to carry.
+  for (const surface of [
+    "background",
+    "card",
+    "muted",
+    "info-tint",
+    "success-tint",
+    "warning-tint",
+  ]) {
     expect(contrast(ink, token(block, surface)), `ink on --${surface}`).toBeGreaterThanOrEqual(7);
   }
 });

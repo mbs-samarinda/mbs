@@ -1,6 +1,7 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 
+import { cutExpired, type Article } from "./articles.ts";
 import { config } from "./config/env.ts";
 import type { Owner } from "./owners.ts";
 
@@ -79,17 +80,9 @@ export type Achievement = {
   readonly berita: { readonly slug: string } | null;
 };
 
-/** One entry in the `/berita` listing, from either of the two types under it. */
-export type Article = {
-  readonly kind: "Berita" | "Pengumuman";
-  readonly slug: string;
-  readonly title: string;
-  readonly summary: string | null;
-  readonly cover: Media | null;
-  readonly publishedAt: string;
-  /** Pengumuman only, and optional there. A Berita article never expires. */
-  readonly expiresAt: string | null;
-};
+// `Article` lives in `articles.ts` with the functions that cut, group and page
+// it, and is re-exported here so a page imports one module per concern.
+export type { Article } from "./articles.ts";
 
 /**
  * One composed section. Strapi names the discriminator `__component` and
@@ -280,32 +273,61 @@ export async function getPage(ownerKey: Owner["key"], slug: string): Promise<Pag
   ]);
 
   const page = pages[0];
-  return page ? { ...page, blocks: page.blocks.map(toBlock) } : null;
+  // Same defaulting as `getSite` and `toBlock`: an empty dynamic zone arrives
+  // missing rather than empty, and `/berita` is the first page whose row has no
+  // blocks at all — the listing is not something an editor composes.
+  return page ? { ...page, blocks: (page.blocks ?? []).map(toBlock) } : null;
 }
 
 /**
- * Both types, newest first, without the expiry applied.
+ * Every entry an owner has published, both types, newest first, with the expiry
+ * not yet applied.
+ *
+ * One read serves the whole `/berita` page — the listing, the archive counts and
+ * the page total — because those three have to agree with each other. Counting
+ * from a separate query would let the arsip say "September 2026 (3)" above a
+ * month that renders two.
  *
  * The expiry cut deliberately does not happen here. A cutoff computed inside a
  * cached function is frozen into the entry: it is not part of the cache key, so
  * it does not bust anything, and a notice that expires at 10:05 would sit on the
  * page until the entry refilled near 11:00. Cache the list, cut it outside.
+ *
+ * ponytail: the whole list is fetched and held in memory, 100 rows per request
+ * (Strapi's `maxLimit`). At the scale these sites run — the previous SMK site
+ * had one article — that is one request an hour per owner. Past roughly a
+ * thousand entries, move the paging and the month counts into Strapi and pay for
+ * the second query.
  */
-async function fetchArticles(ownerKey: Owner["key"], limit: number): Promise<Article[]> {
+async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
   "use cache";
   cacheLife("hours");
   cacheTag(CMS_TAG, `articles:${ownerKey}`);
 
-  const fields: [string, string][] = [
-    ["filters[ownerKey][$eq]", ownerKey],
-    ["sort[0]", "publishedAt:desc"],
-    ["pagination[limit]", String(limit)],
-    ["populate[cover]", "true"],
-  ];
+  /** Walks Strapi's pages until a short one says there are no more. */
+  async function all<T>(collection: string): Promise<T[]> {
+    const rows: T[] = [];
+
+    for (let page = 1; ; page += 1) {
+      // Sequential on purpose: how many pages exist is only known from the
+      // previous one's length, so there is nothing to run in parallel.
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const batch = await cms<T[]>(collection, [
+        ["filters[ownerKey][$eq]", ownerKey],
+        ["sort[0]", "publishedAt:desc"],
+        ["pagination[page]", String(page)],
+        ["pagination[pageSize]", String(PAGE_LIMIT)],
+        ["populate[cover]", "true"],
+      ]);
+
+      rows.push(...batch);
+      if (batch.length < PAGE_LIMIT) return rows;
+    }
+  }
 
   const [berita, pengumuman] = await Promise.all([
-    cms<Omit<Article, "kind" | "expiresAt">[]>("berita-list", fields),
-    cms<Omit<Article, "kind">[]>("pengumuman-list", fields),
+    all<Omit<Article, "kind" | "expiresAt">>("berita-list"),
+    all<Omit<Article, "kind">>("pengumuman-list"),
   ]);
 
   return [
@@ -315,31 +337,105 @@ async function fetchArticles(ownerKey: Owner["key"], limit: number): Promise<Art
   ].toSorted((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
 
+/** `maxLimit` in `apps/cms/config/api.ts`. Asking for more is rejected, not clamped. */
+const PAGE_LIMIT = 100;
+
 /**
- * The newest entries across both types, newest first.
+ * Every unexpired entry, newest first, cut against the real clock.
  *
  * Strictly by date, with no pinning: pinning is how the old SMK homepage ended
  * up telling parents a 2026/2027 intake was open on a page last touched in
- * October 2025. An expired Pengumuman drops out for the same reason, and it is
- * cut against the real clock rather than a cached one.
+ * October 2025. An expired Pengumuman drops out for the same reason.
+ *
+ * `connection()` says out loud what this does: it reads the clock, so it cannot
+ * be prerendered. Without it the build refuses — `Date.now()` is an unstable
+ * value during prerender — and the alternative, cutting inside the cached
+ * function, freezes the cutoff for an hour. Callers put it behind `<Suspense>`,
+ * so only the listing waits; the entries are still served from the cache above.
+ */
+export async function getArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
+  const entries = await fetchArticleIndex(ownerKey);
+  await connection();
+  return cutExpired(entries, Date.now());
+}
+
+/**
+ * The newest entries for the homepage's latest-entries section.
  *
  * A listing can come back short of `limit` when several of the newest entries
- * have expired, which is correct: the alternative is over-fetching on every
- * page to fill a row that nobody promised would be full.
- *
- * `connection()` says out loud what this function does: it reads the clock, so
- * it cannot be prerendered. Without it the build refuses — `Date.now()` is an
- * unstable value during prerender — and the alternative, cutting inside the
- * cached function, freezes the cutoff into the entry for an hour. Callers put
- * it behind `<Suspense>`, so only the listing waits; the entries themselves are
- * still served from `fetchArticles`'s cache.
+ * have expired, which is correct: the alternative is over-fetching to fill a row
+ * that nobody promised would be full.
  */
-export async function getArticles(ownerKey: Owner["key"], limit: number): Promise<Article[]> {
-  const entries = await fetchArticles(ownerKey, limit);
-  await connection();
-  const now = Date.now();
+export const getArticles = async (ownerKey: Owner["key"], limit: number): Promise<Article[]> =>
+  (await getArticleIndex(ownerKey)).slice(0, limit);
 
-  return entries
-    .filter((entry) => !entry.expiresAt || Date.parse(entry.expiresAt) > now)
-    .slice(0, limit);
+/** One article, with the parts only its own page renders. */
+export type FullArticle = Article & {
+  readonly body: string;
+  readonly attribution: string | null;
+  readonly seo: Page["seo"];
+};
+
+/**
+ * One entry by address, looked for in both collections.
+ *
+ * `/berita` is one listing over two types, so a slug there is one address space:
+ * the CMS's `uniqueSlugPerOwner` lifecycle checks Berita and Pengumuman against
+ * each other, which is what makes "whichever answers" safe rather than a guess.
+ *
+ * No expiry cut here, deliberately. `expiresAt` means "drops out of listings" —
+ * the schema says so — and a notice somebody bookmarked or was sent by WhatsApp
+ * should still open rather than 404. It carries its own publication date, which
+ * is what dates it.
+ */
+export async function getArticle(
+  ownerKey: Owner["key"],
+  slug: string,
+): Promise<FullArticle | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CMS_TAG, `article:${ownerKey}:${slug}`);
+
+  const fields: [string, string][] = [
+    ["filters[ownerKey][$eq]", ownerKey],
+    ["filters[slug][$eq]", slug],
+    ["populate[cover]", "true"],
+    ["populate[seo][populate]", "*"],
+  ];
+
+  const [berita, pengumuman] = await Promise.all([
+    cms<Omit<FullArticle, "kind" | "expiresAt">[]>("berita-list", fields),
+    cms<Omit<FullArticle, "kind">[]>("pengumuman-list", fields),
+  ]);
+
+  const article = berita[0];
+  if (article) return { ...article, kind: "Berita", expiresAt: null };
+
+  const notice = pengumuman[0];
+  return notice ? { ...notice, kind: "Pengumuman" } : null;
+}
+
+/**
+ * The achievement an article tells the story of, if there is one.
+ *
+ * Read backwards through `Pencapaian.berita` rather than added as a field on
+ * Berita: the relation already exists in that direction, and a second one would
+ * be a schema change for something a filter does. A Pengumuman can never have
+ * one, which is why the panel is absent from the umbrella's article frames.
+ */
+export async function getRelatedAchievement(
+  ownerKey: Owner["key"],
+  slug: string,
+): Promise<Achievement | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CMS_TAG, `achievement-for:${ownerKey}:${slug}`);
+
+  const found = await cms<Achievement[]>("pencapaian-list", [
+    ["filters[ownerKey][$eq]", ownerKey],
+    ["filters[berita][slug][$eq]", slug],
+    ["populate[berita]", "true"],
+  ]);
+
+  return found[0] ?? null;
 }

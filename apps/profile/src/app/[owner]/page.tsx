@@ -283,8 +283,11 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
             <span className="flex items-center gap-2">
               {/* The type is named rather than implied: the mix leans to
                   notices, and a listing that called everything "Berita" would
-                  be named after the emptier of its two types. */}
-              <Badge variant="secondary">{article.kind}</Badge>
+                  be named after the emptier of its two types. The two status
+                  pairs the canvas gives them — Information and Warning — are
+                  shared and fixed, so they stay teal and amber on every owner's
+                  site, including SMK's blue one. */}
+              <Badge variant={article.kind === "Berita" ? "info" : "warning"}>{article.kind}</Badge>
               <span className="text-xs text-muted-foreground tabular-nums">
                 {formatDate(article.publishedAt)}
               </span>
