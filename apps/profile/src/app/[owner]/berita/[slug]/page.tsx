@@ -62,16 +62,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 /**
- * One article, from either collection.
- *
- * A slug this owner has never published is `notFound()` rather than an empty
- * article: the address is one a page owns but holds no record for, which is the
- * not-found state the page map asks every data-backed page to handle.
- *
- * The umbrella carries no "Berita lainnya" row and no related achievement — it
- * publishes foundation-level notices, and pencapaian is a school's record.
- */
-/**
  * Blocking rather than instant, and a slug nobody owns answers 200, not 404.
  *
  * `[slug]` has no `generateStaticParams` — the set of articles changes whenever
@@ -88,6 +78,16 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
  */
 export const instant = false;
 
+/**
+ * One article, from either collection.
+ *
+ * A slug this owner has never published is `notFound()` rather than an empty
+ * article: the address is one a page owns but holds no record for, which is the
+ * not-found state the page map asks every data-backed page to handle.
+ *
+ * The umbrella carries no "Berita lainnya" row and no related achievement — it
+ * publishes foundation-level notices, and pencapaian is a school's record.
+ */
 export default async function ArticlePage({ params }: { params: Params }) {
   const found = await read(params);
   if (!found) notFound();
@@ -228,20 +228,26 @@ const AchievementPanel = ({ achievement }: { achievement: Achievement }) => {
  */
 const Share = ({ owner, article }: { owner: Owner; article: FullArticle }) => {
   const url = `${ownerUrl(owner)}berita/${article.slug}`;
+  // No resting underline, unlike every other link in this app: the icon beside
+  // each label is what carries the meaning without colour, which is the rule the
+  // underline exists for. It appears on hover so the target still announces
+  // itself as one.
   const row =
-    "flex min-h-11 items-center gap-2 text-sm font-semibold text-primary underline underline-offset-4";
+    "flex min-h-11 items-center gap-1.5 text-[13px] font-semibold text-primary underline-offset-4 hover:underline";
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 rounded-xl bg-muted p-4 md:gap-2.5 md:p-5">
       <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">Bagikan</h2>
-      <div className="flex flex-col">
+      {/* One row from tablet up, stacked on a phone — where three 44px targets
+          side by side would each be too narrow to hit. */}
+      <div className="flex flex-col gap-0.5 md:flex-row md:gap-5">
         <a
           href={`https://wa.me/?text=${encodeURIComponent(`${article.title} ${url}`)}`}
           target="_blank"
           rel="noreferrer"
           className={row}
         >
-          <MessageCircle aria-hidden className="size-4 shrink-0" strokeWidth={1.75} />
+          <MessageCircle aria-hidden className="size-4.5 shrink-0" strokeWidth={1.75} />
           WhatsApp
         </a>
         <CopyLink url={url} className={row} />
@@ -249,7 +255,7 @@ const Share = ({ owner, article }: { owner: Owner; article: FullArticle }) => {
           href={`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(url)}`}
           className={row}
         >
-          <Mail aria-hidden className="size-4 shrink-0" strokeWidth={1.75} />
+          <Mail aria-hidden className="size-4.5 shrink-0" strokeWidth={1.75} />
           Email
         </a>
       </div>
