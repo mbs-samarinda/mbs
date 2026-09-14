@@ -42,7 +42,11 @@ export async function findCurrentCycleForSchool(db: Database, schoolKey: string)
       ),
     )
     .where(inArray(schema.admissionCycles.status, ["OPEN", "CLOSED"]))
-    .orderBy(desc(schema.admissionCycles.registrationOpenAt))
+    // The id breaks a tie on the open date. Without it two cycles opening the
+    // same day leave the order undefined, and the umbrella asks three times —
+    // three calls free to pick different rows is the disagreement this whole
+    // change exists to remove.
+    .orderBy(desc(schema.admissionCycles.registrationOpenAt), desc(schema.admissionCycles.id))
     .limit(1);
 
   const row = rows[0];

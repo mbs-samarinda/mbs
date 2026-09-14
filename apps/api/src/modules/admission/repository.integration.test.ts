@@ -84,6 +84,28 @@ describe("findCurrentCycleForSchool", () => {
     expect(implicit?.defaultFee).toBe(500_000);
   });
 
+  // Two schools ask separately, so the answer has to be the same every time a
+  // tie could be broken differently.
+  it("picks the same cycle for every school when two open on one day", async () => {
+    const sameDay = new Date("2026-01-01T00:00:00Z");
+    await joinSchoolToCycle("2026/2027", "OPEN", sameDay);
+    await joinSchoolToCycle("2027/2028", "OPEN", sameDay);
+
+    const sma = await findCurrentCycleForSchool(db, "sma");
+    const smp = await findCurrentCycleForSchool(db, "smp");
+
+    // Naming the winner rather than only comparing the two answers: equal ids
+    // would also be what a coin flip landing the same way twice looks like.
+    const cycles = await db.select().from(schema.admissionCycles);
+    const expected = cycles
+      .map((cycle) => cycle.id)
+      .toSorted()
+      .at(-1);
+
+    expect(sma?.id).toBe(expected);
+    expect(smp?.id).toBe(expected);
+  });
+
   // Not taking part is a row saying so. Absence must never mean it.
   it("keeps a school out only when its row disables it", async () => {
     await joinSchoolToCycle("2027/2028", "OPEN", dates.registrationOpenAt);
