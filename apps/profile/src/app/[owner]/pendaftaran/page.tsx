@@ -419,14 +419,13 @@ function UmbrellaStatus({
     ? SCHOOLS.map((school, index) => ({ school, facts: facts[index]! }))
     : SCHOOLS.map((school) => ({ school, facts: null }));
 
-  // The banner may only speak for all three schools when all three are actually
-  // on one cycle. Nothing in the database enforces that: a cycle is resolved per
-  // school, so a school left out of the new intake still answers with its old
-  // one. Reading the first school's dates would print this year's name above
-  // last year's row. When they disagree, only the table speaks.
-  const cycles = (facts ?? []).flatMap((entry) => (entry.state === "cycle" ? [entry.cycle] : []));
-  const first = cycles[0];
-  const cycle = first && cycles.every((entry) => entry.id === first.id) ? first : null;
+  // Whichever school answers, it answers with the same cycle: membership is
+  // implicit in the database, so a cycle no longer depends on a settings row and
+  // the three schools cannot land on different ones. The banner can take the
+  // first answer it gets. The table still speaks per school for fee and status,
+  // which do differ.
+  const cycle =
+    (facts ?? []).flatMap((entry) => (entry.state === "cycle" ? [entry.cycle] : []))[0] ?? null;
   const unavailable = facts?.every((entry) => entry.state === "unavailable") ?? false;
 
   return (
@@ -442,9 +441,7 @@ function UmbrellaStatus({
                 ? "Status, tanggal, dan biaya dibaca dari sistem pendaftaran dan sedang tidak dapat dihubungi. Kami tidak menampilkan tanggal lama."
                 : cycle
                   ? `Hasil diumumkan serentak ${formatDate(cycle.resultPublishAt)} untuk ketiga sekolah.`
-                  : cycles.length > 0
-                    ? "Jadwal tiap sekolah berbeda pada siklus ini. Lihat tabel di bawah."
-                    : "Jadwal pendaftaran berikutnya diumumkan di halaman ini."}
+                  : "Jadwal pendaftaran berikutnya diumumkan di halaman ini."}
             </p>
           </div>
           <Actions

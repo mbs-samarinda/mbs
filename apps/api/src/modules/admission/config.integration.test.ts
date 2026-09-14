@@ -105,14 +105,15 @@ describe("cycles", () => {
 });
 
 describe("school settings", () => {
-  it("shows every school in scope, joined or not", async () => {
+  // No settings row is not a school left out: it is the cycle's own defaults.
+  it("shows every school in scope at the cycle's defaults until it has a row", async () => {
     const cycle = await createAdmissionCycle(db, actor, cycleInput);
 
     const settings = await listSchoolAdmissionSettings(db, smaOnly, { cycleId: cycle.id });
     expect(settings).toEqual([
       {
         schoolKey: "sma",
-        isEnabled: false,
+        isEnabled: true,
         feeOverride: null,
         effectiveFee: 250_000,
         acceptedInstructions: null,

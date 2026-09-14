@@ -69,6 +69,36 @@ describe("findCurrentCycleForSchool", () => {
   it("returns nothing for a school with no cycle", async () => {
     expect(await findCurrentCycleForSchool(db, "smp")).toBeNull();
   });
+
+  // The invariant the umbrella page depends on: a school with no settings row is
+  // in the cycle anyway, so two schools can never answer with different cycles.
+  it("gives a school with no settings row the same cycle, at the default fee", async () => {
+    await joinSchoolToCycle("2027/2028", "OPEN", dates.registrationOpenAt);
+
+    const joined = await findCurrentCycleForSchool(db, "sma");
+    const implicit = await findCurrentCycleForSchool(db, "smp");
+
+    expect(implicit?.id).toBe(joined?.id);
+    expect(implicit?.isEnabled).toBe(true);
+    expect(implicit?.feeOverride).toBeNull();
+    expect(implicit?.defaultFee).toBe(500_000);
+  });
+
+  // Not taking part is a row saying so. Absence must never mean it.
+  it("keeps a school out only when its row disables it", async () => {
+    await joinSchoolToCycle("2027/2028", "OPEN", dates.registrationOpenAt);
+
+    const [cycle] = await db.select().from(schema.admissionCycles);
+    const schools = await db.select().from(schema.schools);
+    const smp = schools.find((school) => school.key === "smp");
+    await db
+      .insert(schema.schoolAdmissionSettings)
+      .values({ admissionCycleId: cycle!.id, schoolId: smp!.id, isEnabled: false });
+
+    const disabled = await findCurrentCycleForSchool(db, "smp");
+    expect(disabled?.id).toBe(cycle!.id);
+    expect(disabled?.isEnabled).toBe(false);
+  });
 });
 
 describe("getCurrentCycle", () => {

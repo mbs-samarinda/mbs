@@ -154,10 +154,10 @@ export async function setAdmissionCycleStatus(
 }
 
 /**
- * One row per school this administrator holds, whether or not it has joined the
- * cycle yet. A school with no settings row is shown as disabled with nothing
- * configured, because that is exactly what it is — and somebody has to be able
- * to open the page that gives it a row.
+ * One row per school this administrator holds. Every school takes part in every
+ * cycle, so a school with no settings row is shown as enabled at the cycle's
+ * default fee — the same answer the public page gives it. Saving the screen is
+ * what turns those defaults into a row.
  */
 export async function listSchoolAdmissionSettings(
   db: Database,
@@ -176,7 +176,7 @@ export async function listSchoolAdmissionSettings(
 
     return {
       schoolKey,
-      isEnabled: row?.isEnabled ?? false,
+      isEnabled: row?.isEnabled ?? true,
       feeOverride: row?.feeOverride ?? null,
       effectiveFee: row?.feeOverride ?? cycle.defaultFee,
       acceptedInstructions: row?.acceptedInstructions ?? null,
