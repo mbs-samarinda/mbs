@@ -250,7 +250,11 @@ const Share = ({ owner, article }: { owner: Owner; article: FullArticle }) => {
           <MessageCircle aria-hidden className="size-4.5 shrink-0" strokeWidth={1.75} />
           WhatsApp
         </a>
-        <CopyLink url={url} className={row} />
+        {/* Width reserved for the longer of its two labels, but only in the row
+            layout: "Salin tautan" becoming "Tersalin" would otherwise pull the
+            Email link left for two seconds and drop it back. Stacked, the label
+            changes width against nothing. */}
+        <CopyLink url={url} className={`${row} md:min-w-25`} />
         <a
           href={`mailto:?subject=${encodeURIComponent(article.title)}&body=${encodeURIComponent(url)}`}
           className={row}
