@@ -8,6 +8,7 @@ import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home
 import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
 import { PENCAPAIAN_SEED, type AchievementSeed } from "./seed/pencapaian";
 import { ADMISSION_SEED, type AdmissionSeed } from "./seed/pendaftaran-page";
+import { PROFIL_SEED, type ProfilSeed } from "./seed/profil-page";
 
 /**
  * What each owner's site starts with.
@@ -262,8 +263,8 @@ async function seedSites(strapi: Core.Strapi) {
  */
 async function seedPages(
   strapi: Core.Strapi,
-  slug: "home" | "pendaftaran" | "kontak" | "berita",
-  seeds: Record<OwnerKey, HomeSeed | AdmissionSeed | KontakSeed | BeritaSeed>,
+  slug: "home" | "profil" | "pendaftaran" | "kontak" | "berita",
+  seeds: Record<OwnerKey, HomeSeed | ProfilSeed | AdmissionSeed | KontakSeed | BeritaSeed>,
 ) {
   for (const ownerKey of OWNER_KEYS) {
     const seed = seeds[ownerKey];
@@ -484,6 +485,38 @@ async function homeSeed(strapi: Core.Strapi, ownerKey: OwnerKey): Promise<HomeSe
   return { ...seed, blocks: [...seed.blocks.slice(0, at), ...extra, ...seed.blocks.slice(at)] };
 }
 
+/**
+ * `PROFIL_SEED`, with the owner's pencapaian section appended.
+ *
+ * Same reason the homepage's relation sections are built here: an achievement is
+ * referenced by document id, and those exist only once the records do. The
+ * section closes the page, which is where the canvas draws it.
+ */
+async function profilSeed(strapi: Core.Strapi, ownerKey: OwnerKey): Promise<ProfilSeed> {
+  const seed = PROFIL_SEED[ownerKey];
+  const pencapaian = await strapi
+    .documents("api::pencapaian.pencapaian")
+    .findMany({ filters: { ownerKey }, sort: "createdAt:asc" });
+
+  if (pencapaian.length === 0) return seed;
+
+  return {
+    ...seed,
+    blocks: [
+      ...seed.blocks,
+      {
+        __component: "blocks.achievements",
+        head: {
+          heading: "Pencapaian",
+          description:
+            "Catatan per tingkat dan tahun. Sebagian menautkan ke satu berita yang menceritakannya.",
+        },
+        items: ids(pencapaian),
+      },
+    ],
+  };
+}
+
 // Written out per owner rather than accumulated in a loop: building a
 // `Record<OwnerKey, …>` by assignment starts from an empty object, and the only
 // way to call that a complete record is to assert it.
@@ -596,6 +629,12 @@ export default {
     // homepage in development and the plain one in production — same call, no
     // second branch.
     await seedPages(strapi, "home", await homeSeeds(strapi));
+    await seedPages(strapi, "profil", {
+      mbs: await profilSeed(strapi, "mbs"),
+      smp: await profilSeed(strapi, "smp"),
+      smk: await profilSeed(strapi, "smk"),
+      sma: await profilSeed(strapi, "sma"),
+    });
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
     await seedPages(strapi, "kontak", KONTAK_SEED);
     await seedPages(strapi, "berita", BERITA_SEED);

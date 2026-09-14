@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_blocks_values",
+  "info": { "displayName": "Bagian nilai", "icon": "star" },
+  "options": {},
+  "attributes": {
+    "head": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.section-head",
+      "required": true
+    },
+    "items": { "type": "component", "repeatable": true, "component": "shared.value-item" }
+  }
+}

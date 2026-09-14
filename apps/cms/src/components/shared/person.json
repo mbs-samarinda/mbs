@@ -1,0 +1,10 @@
+{
+  "collectionName": "components_shared_people",
+  "info": { "displayName": "Orang", "icon": "user" },
+  "options": {},
+  "attributes": {
+    "name": { "type": "string", "required": true },
+    "role": { "type": "string", "required": true },
+    "photo": { "type": "media", "multiple": false, "allowedTypes": ["images"] }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "collectionName": "components_shared_layers",
+  "info": { "displayName": "Lapis", "icon": "layer" },
+  "options": {},
+  "attributes": {
+    "title": { "type": "string", "required": true },
+    "description": { "type": "text" }
+  }
+}

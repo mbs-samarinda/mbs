@@ -1,0 +1,15 @@
+{
+  "collectionName": "components_shared_value_items",
+  "info": { "displayName": "Nilai", "icon": "star" },
+  "options": {},
+  "attributes": {
+    "icon": {
+      "type": "enumeration",
+      "enum": ["kitab", "perisai", "kunci", "tangan", "orang", "topi-wisuda"],
+      "default": "kitab",
+      "required": true
+    },
+    "title": { "type": "string", "required": true },
+    "description": { "type": "text" }
+  }
+}

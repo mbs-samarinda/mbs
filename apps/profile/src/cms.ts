@@ -84,6 +84,9 @@ export type Achievement = {
 // it, and is re-exported here so a page imports one module per concern.
 export type { Article } from "./articles.ts";
 
+/** The icons a value on `/profil` can carry, bounded by the CMS enumeration. */
+export type ValueIcon = "kitab" | "perisai" | "kunci" | "tangan" | "orang" | "topi-wisuda";
+
 /**
  * One composed section. Strapi names the discriminator `__component` and
  * prefixes every value with `blocks.`; `toBlock` below renames it on the way in
@@ -106,6 +109,32 @@ export type Block = { readonly id: number } & (
   | { readonly kind: "facilities"; head: SectionHead; items: readonly Entry[] }
   | { readonly kind: "extracurriculars"; head: SectionHead; items: readonly Entry[] }
   | { readonly kind: "achievements"; head: SectionHead; items: readonly Achievement[] }
+  | {
+      readonly kind: "facts";
+      heading: string;
+      body: string | null;
+      items: readonly { id: number; label: string; value: string }[];
+    }
+  | {
+      readonly kind: "timeline";
+      head: SectionHead;
+      items: readonly { id: number; year: number; body: string }[];
+    }
+  | {
+      readonly kind: "values";
+      head: SectionHead;
+      items: readonly { id: number; icon: ValueIcon; title: string; description: string | null }[];
+    }
+  | {
+      readonly kind: "people";
+      head: SectionHead;
+      items: readonly { id: number; name: string; role: string; photo: Media | null }[];
+    }
+  | {
+      readonly kind: "layers";
+      head: SectionHead;
+      items: readonly { id: number; title: string; description: string | null }[];
+    }
   | { readonly kind: "news"; head: SectionHead; limit: number }
   | { readonly kind: "admission-cta"; heading: string; body: string | null }
   | { readonly kind: "rich-text"; body: string }
@@ -182,6 +211,12 @@ const BLOCK_POPULATE: [string, string][] = [
   ["populate[blocks][on][blocks.news][populate]", "*"],
   ["populate[blocks][on][blocks.admission-cta][populate]", "*"],
   ["populate[blocks][on][blocks.rich-text][populate]", "*"],
+  ["populate[blocks][on][blocks.facts][populate]", "*"],
+  ["populate[blocks][on][blocks.timeline][populate]", "*"],
+  ["populate[blocks][on][blocks.values][populate]", "*"],
+  ["populate[blocks][on][blocks.layers][populate]", "*"],
+  ["populate[blocks][on][blocks.people][populate][head]", "true"],
+  ["populate[blocks][on][blocks.people][populate][items][populate]", "photo"],
   ["populate[blocks][on][blocks.contact][populate][head]", "true"],
   ["populate[blocks][on][blocks.contact][populate][items]", "true"],
   ["populate[blocks][on][blocks.faq][populate][head]", "true"],

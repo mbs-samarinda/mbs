@@ -1,0 +1,9 @@
+{
+  "collectionName": "components_shared_timeline_entries",
+  "info": { "displayName": "Titik linimasa", "icon": "clock" },
+  "options": {},
+  "attributes": {
+    "year": { "type": "integer", "required": true, "min": 2000 },
+    "body": { "type": "text", "required": true }
+  }
+}
