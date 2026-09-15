@@ -17,6 +17,11 @@ coverage/
 .claude/settings.local.json
 .codex/config.toml
 
+# Throwaway checkouts an agent works in. Each one carries its own node_modules,
+# so committing them would add gigabytes of a copy of this repository to this
+# repository.
+.claude/worktrees/
+
 # Editor config. Zed's Docker Compose server parses every YAML as one
 # document and chokes on the two-document pnpm-lock.yaml; the fix is a
 # personal preference, not a repo rule.
