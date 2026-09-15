@@ -1,5 +1,6 @@
 import type { Core } from "@strapi/strapi";
 
+import { assertOwnerScope, registerOwnerScope, seedEditorRole } from "./owner-scope";
 import { BERITA_ENTRY_SEED, PENGUMUMAN_ENTRY_SEED, type ArticleSeed } from "./seed/articles";
 import { BERITA_SEED, type BeritaSeed } from "./seed/berita-page";
 import { EKSTRAKURIKULER_SEED, type EntrySeed } from "./seed/ekstrakurikuler";
@@ -588,6 +589,10 @@ export default {
     // clone has to work without somebody remembering a manual step, and a
     // forgotten webhook shows up as content that is silently hours stale.
     strapi.documents.use(async (context, next) => {
+      // Before the write, not after: a condition cannot see a row that does not
+      // exist yet, so create is guarded here or nowhere.
+      await assertOwnerScope(strapi, context);
+
       const result = await next();
 
       if (changesPublicPages(context.uid, context.action)) {
@@ -599,6 +604,10 @@ export default {
   },
 
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
+    // The condition first: seeding a permission whose condition the provider
+    // does not know yet drops the condition and grants the permission outright.
+    await registerOwnerScope(strapi);
+    await seedEditorRole(strapi);
     await grantPublicRead(strapi);
     await seedSites(strapi);
 

@@ -88,6 +88,36 @@ jobs:
       - run: pnpm db:migrate
       - run: pnpm --filter @mbs/api test:integration
 
+  integration-cms:
+    name: test (cms database)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        # Its own database, named here. The job above provisions `mbs_core`
+        # only, and the `mbs_cms` role and database come from
+        # infra/postgres/init-cms-db.sql — a docker-compose mount that CI never
+        # runs. The test defaults to these credentials, so nothing else to set.
+        env:
+          POSTGRES_USER: mbs
+          POSTGRES_PASSWORD: mbs_local_dev
+          POSTGRES_DB: mbs_cms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mbs -d mbs_cms_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      # No migration step: Strapi owns its schema and writes it on first boot,
+      # which is what the test's beforeAll does.
+      - run: pnpm --filter @mbs/cms test:integration
+
   build:
     runs-on: ubuntu-latest
     steps:
