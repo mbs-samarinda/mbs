@@ -200,23 +200,33 @@ decision and audit history.
   Ekstrakurikuler, Fasilitas and Pencapaian. No page reads either yet. The rest
   of the profile decisions above are agreed and documented, not implemented.
 
-Three things about that model are decisions rather than mechanics:
+Four things about that model are decisions rather than mechanics:
 
 - **A `Page` is one row per known route**, its `slug` an enumeration of the
   routes the profile app builds, so a page can never exist at an address with no
   route to show it. A lifecycle rejects a second page for the same owner and
-  route; taking the create and delete buttons away from editors is a role
-  permission, and roles land with owner scope. A new page is a code change plus
+  route, and the editor role holds neither create nor delete on `Page` or
+  `Site` — deleting either takes a live route down. A new page is a code change plus
   one enum value, which is what the page map already means by a section earning
   its own page.
 - **Only blocks that something renders exist.** Hero, text, text-and-image,
   programs, facilities, extracurriculars, achievements, news, FAQ, admission
   invitation and contact — the eleven the first pages draw. Gallery, statistics
-  and testimonials are modelled when a page renders them; testimonials in
-  particular have nothing to publish, by brand rule.
+  and testimonials stay unmodelled and are closed rather than pending:
+  testimonials have nothing to publish by brand rule, and no remaining page
+  draws the other two. They reopen only if an editor asks for one on a homepage.
 - **Plural names read `berita-list`, not `beritas`.** Strapi requires a plural
   distinct from the singular and Indonesian does not take an `-s`, so every
   collection uses a `-list` suffix rather than a word no one would write.
+- **An editor's reach is role plus assignment, never a role named after a
+  school.** One role says what an editor may do; a `Penugasan Editor` row says
+  whose content they may do it to, and a global content administrator is that
+  same role assigned all four owners. Two limits come with it. An owner cannot
+  be changed once a record has been published, for anyone, so a misfiled article
+  caught after publication is deleted and retyped rather than moved. And the
+  media library is shared: Strapi's upload actions carry no subject for a scope
+  condition to attach to, and deletion rides on update, so every editor can
+  delete every school's photographs. Both are accepted, not pending.
 
 ## Brand Commitments
 
