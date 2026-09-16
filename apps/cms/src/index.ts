@@ -4,6 +4,7 @@ import { assertOwnerScope, registerOwnerScope, seedEditorRole } from "./owner-sc
 import { BERITA_ENTRY_SEED, PENGUMUMAN_ENTRY_SEED, type ArticleSeed } from "./seed/articles";
 import { BERITA_SEED, type BeritaSeed } from "./seed/berita-page";
 import { EKSTRAKURIKULER_SEED, type EntrySeed } from "./seed/ekstrakurikuler";
+import { EKSTRAKURIKULER_PAGE_SEED, type EkstrakurikulerSeed } from "./seed/ekstrakurikuler-page";
 import { FASILITAS_SEED } from "./seed/fasilitas";
 import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home-page";
 import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
@@ -265,12 +266,21 @@ async function seedSites(strapi: Core.Strapi) {
  */
 async function seedPages(
   strapi: Core.Strapi,
-  slug: "home" | "profil" | "program" | "pendaftaran" | "kontak" | "berita",
+  slug: "home" | "profil" | "program" | "ekstrakurikuler" | "pendaftaran" | "kontak" | "berita",
   // Partial, because `/program` is the first route only the schools own: an
   // owner with no seed here has no such page, and the profile app answers 404
   // for it rather than rendering an empty one.
   seeds: Partial<
-    Record<OwnerKey, HomeSeed | ProfilSeed | ProgramSeed | AdmissionSeed | KontakSeed | BeritaSeed>
+    Record<
+      OwnerKey,
+      | HomeSeed
+      | ProfilSeed
+      | ProgramSeed
+      | EkstrakurikulerSeed
+      | AdmissionSeed
+      | KontakSeed
+      | BeritaSeed
+    >
   >,
 ) {
   for (const ownerKey of OWNER_KEYS) {
@@ -653,6 +663,7 @@ export default {
       sma: await profilSeed(strapi, "sma"),
     });
     await seedPages(strapi, "program", PROGRAM_SEED);
+    await seedPages(strapi, "ekstrakurikuler", EKSTRAKURIKULER_PAGE_SEED);
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
     await seedPages(strapi, "kontak", KONTAK_SEED);
     await seedPages(strapi, "berita", BERITA_SEED);

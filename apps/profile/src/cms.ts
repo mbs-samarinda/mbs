@@ -67,7 +67,20 @@ export type Entry = {
   readonly slug: string;
   readonly title: string;
   readonly summary: string | null;
+  /** The one line under a card's title — an activity's schedule. */
+  readonly meta: string | null;
   readonly images: readonly Media[];
+};
+
+/** One entry with the parts only its own page renders. */
+export type FullEntry = Entry & {
+  readonly body: string;
+  readonly facts: readonly {
+    readonly id: number;
+    readonly label: string;
+    readonly value: string;
+  }[];
+  readonly seo: Page["seo"];
 };
 
 export type Achievement = {
@@ -491,4 +504,70 @@ export async function getRelatedAchievement(
   ]);
 
   return found[0] ?? null;
+}
+
+/**
+ * The collections whose records each own a page. Activities today; facilities
+ * are the same shape and join this union when `/fasilitas` is built.
+ *
+ * The parameter exists rather than a function per collection for the reason
+ * `seedEntries` in `apps/cms` takes a uid: only the rows differ. `fasilitas-list`
+ * is deliberately **not** listed yet — its schema carries neither `meta` nor
+ * `facts`, so `getEntry` would send `populate[facts]` for an attribute that does
+ * not exist, and Strapi answers 400 rather than ignoring it. Add the fields and
+ * the literal together.
+ */
+type EntryCollection = "ekstrakurikuler-list";
+
+/**
+ * Everything an owner has published in one collection, for its listing page.
+ *
+ * Unpaged, unlike `/berita`: a school runs a handful of activities and owns a
+ * handful of buildings, the canvas draws them all on one screen, and `PAGE_LIMIT`
+ * is the ceiling either would have to pass before that stops being true.
+ */
+export async function getEntries(
+  ownerKey: Owner["key"],
+  collection: EntryCollection,
+): Promise<Entry[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CMS_TAG, `entries:${collection}:${ownerKey}`);
+
+  const entries = await cms<Entry[]>(collection, [
+    ["filters[ownerKey][$eq]", ownerKey],
+    ["sort[0]", "title:asc"],
+    ["pagination[pageSize]", String(PAGE_LIMIT)],
+    ["populate[images]", "true"],
+  ]);
+
+  // An entry nobody has given a photograph arrives with `images` missing rather
+  // than empty, and the card reads `images[0]` without asking. Same defaulting
+  // as `getSite` and `toBlock`, for the same reason.
+  return entries.map((entry) => ({ ...entry, images: entry.images ?? [] }));
+}
+
+/** One entry by address, or `null` when this owner has never published it. */
+export async function getEntry(
+  ownerKey: Owner["key"],
+  collection: EntryCollection,
+  slug: string,
+): Promise<FullEntry | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CMS_TAG, `entry:${collection}:${ownerKey}:${slug}`);
+
+  const found = await cms<FullEntry[]>(collection, [
+    ["filters[ownerKey][$eq]", ownerKey],
+    ["filters[slug][$eq]", slug],
+    ["populate[images]", "true"],
+    ["populate[facts]", "true"],
+    ["populate[seo][populate]", "*"],
+  ]);
+
+  const entry = found[0];
+  // Same defaulting as `getSite` and `toBlock`: a repeatable nobody has filled
+  // in arrives missing rather than empty, so the panel below would be a 500 on
+  // the first entry an editor leaves without facts.
+  return entry ? { ...entry, facts: entry.facts ?? [], images: entry.images ?? [] } : null;
 }

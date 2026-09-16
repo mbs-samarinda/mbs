@@ -16,7 +16,14 @@ import Image from "next/image";
 import { Suspense, type ReactNode } from "react";
 
 import { getCycleFacts, isOpen, type CycleFacts } from "../../admission.ts";
-import { getArticles, mediaUrl, type Block, type Media, type ValueIcon } from "../../cms.ts";
+import {
+  getArticles,
+  mediaUrl,
+  type Block,
+  type Entry,
+  type Media,
+  type ValueIcon,
+} from "../../cms.ts";
 import type { Owner } from "../../owners.ts";
 import { Prose } from "./prose.tsx";
 
@@ -953,3 +960,35 @@ async function HeroFacts({ schoolKey }: { schoolKey: SchoolKey }) {
     </FactStrip>
   );
 }
+
+/**
+ * One activity or facility on its collection's listing, and in the row of others
+ * at the foot of a detail page.
+ *
+ * The photograph is flush to the card's edge rather than inset, which the
+ * homepage's own cards are not — so the radius baked into `Photo` has to be
+ * overridden here, and `!` is what makes that deterministic: both classes set
+ * `border-radius`, and which one wins otherwise depends on Tailwind's own
+ * ordering rather than on the order written here. The card clips, so the corners
+ * a visitor sees are the card's.
+ */
+export const EntryCard = ({ entry, base }: { entry: Entry; base: string }) => (
+  <a
+    href={`${base}/${entry.slug}`}
+    className="flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
+  >
+    <Photo
+      image={entry.images[0] ?? null}
+      label="Foto"
+      className="aspect-43/20 w-full rounded-none!"
+      inCard
+    />
+    <div className="flex flex-col gap-1.5 p-4.5">
+      <h3 className="text-[17px] font-bold text-pretty">{entry.title}</h3>
+      {entry.summary && <p className="text-[13px] text-muted-foreground">{entry.summary}</p>}
+      {entry.meta && (
+        <p className="text-xs font-semibold text-primary tabular-nums">{entry.meta}</p>
+      )}
+    </div>
+  </a>
+);
