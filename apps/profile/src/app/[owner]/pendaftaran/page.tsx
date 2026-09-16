@@ -225,7 +225,14 @@ type ActionState = "loading" | "open" | "closed" | "unknown";
 
 function Actions({ state, admissionCta }: { state: ActionState; admissionCta: string }) {
   return (
-    <div className="flex flex-wrap gap-3">
+    // `shrink-0` because both callers put this beside a `lg:max-w-[65ch]` copy
+    // column in a `lg:flex-row` row. Without it the row squeezes this box below
+    // its content width and `flex-wrap` does as it is told, stacking the two
+    // buttons on a 1440 page where the canvas draws them side by side (`bh1UE`,
+    // node `z8aqK`, 348x44). Below `lg` the parent is a column, this is full
+    // width, and the wrap is what stacks them on a phone — which is why the
+    // wrap stays.
+    <div className="flex shrink-0 flex-wrap gap-3">
       {state === "loading" ? (
         // The prerendered shell. It holds the row's height and says nothing: a
         // slow admission system must not bake a greyed-out button into the HTML.
