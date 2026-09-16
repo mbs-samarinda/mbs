@@ -4,6 +4,7 @@ import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
 import {
   BookOpen,
+  Check,
   GraduationCap,
   HeartHandshake,
   ShieldCheck,
@@ -62,6 +63,18 @@ export const formatFee = (amount: number) =>
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(amount);
+
+/**
+ * The lists an editor types one per line into a `text` field.
+ *
+ * `\r?\n`, because text authored on Windows leaves a trailing carriage return
+ * that `filter(Boolean)` does not catch — it renders as a blank bullet.
+ */
+const lines = (value: string) =>
+  value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 
 /** The title and standfirst a content page opens with. */
 export const PageHead = ({ heading, body }: { heading: string; body: string }) => (
@@ -599,17 +612,91 @@ export function BlockSection({
                   )}
                   {item.points && (
                     <ul className="flex flex-col gap-1 text-[13px] text-muted-foreground">
-                      {/* `\r?\n`, because text authored on Windows leaves a
-                          trailing carriage return that `filter(Boolean)` does
-                          not catch — it renders as a blank bullet. */}
-                      {item.points
-                        .split(/\r?\n/)
-                        .map((point) => point.trim())
-                        .filter(Boolean)
-                        .map((point) => (
-                          <li key={point}>{point}</li>
-                        ))}
+                      {lines(item.points).map((point) => (
+                        <li key={point}>{point}</li>
+                      ))}
                     </ul>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      );
+
+    // Kurikulum, jenjang and keunggulan on `/program`: three facts with no
+    // section heading above them, which is what the frame draws. The key takes
+    // the owner's colour, the only place on this page that does.
+    case "highlights":
+      return (
+        <section className={`${SECTION} ${band}`}>
+          <div className={`${WIDTH} grid gap-5 md:grid-cols-3`}>
+            {block.items.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col gap-2 rounded-xl border border-border bg-background p-5"
+              >
+                <p className="text-xs font-bold tracking-wide text-primary uppercase">
+                  {item.label}
+                </p>
+                <p className="text-[15px] leading-relaxed text-pretty">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+
+    // A jurusan carries more than a program does — a code, a duration and the
+    // kompetensi under it — so it is its own block rather than a flag on
+    // `programs`: an editor on the homepage is never shown fields that do
+    // nothing there. Three columns on a desktop page, stacked below `lg`, which
+    // is what the tablet and mobile frames draw.
+    case "majors":
+      return (
+        <section className={`${SECTION} ${band}`}>
+          <div className={`${WIDTH} flex flex-col gap-7`}>
+            <SectionHeading head={block.head} />
+            <div className="flex flex-col gap-4">
+              {block.items.map((item) => (
+                <article
+                  key={item.id}
+                  className="flex flex-col gap-6 rounded-xl border border-border bg-background p-6 lg:flex-row lg:gap-8"
+                >
+                  <div className="flex flex-col gap-2 lg:w-105">
+                    {(item.code || item.meta) && (
+                      <span className="flex items-center gap-2.5">
+                        {/* Neutral, not a status pair. The frame tints this pill,
+                            but a jurusan code is not a state — and the four
+                            status colours are fixed and mean something else. */}
+                        {item.code && <Badge variant="secondary">{item.code}</Badge>}
+                        {item.meta && (
+                          <span className="text-xs text-muted-foreground">{item.meta}</span>
+                        )}
+                      </span>
+                    )}
+                    <h3 className="text-xl leading-snug font-bold text-pretty">{item.title}</h3>
+                  </div>
+
+                  {item.description && (
+                    <p className="flex-1 text-[15px] leading-relaxed text-pretty">
+                      {item.description}
+                    </p>
+                  )}
+
+                  {item.points && (
+                    <div className="flex flex-col gap-2 lg:w-65">
+                      <p className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
+                        Kompetensi inti
+                      </p>
+                      <ul className="flex flex-col gap-2">
+                        {lines(item.points).map((point) => (
+                          <li key={point} className="flex items-center gap-2 text-[13px]">
+                            <Check className="size-3.5 shrink-0 text-primary" aria-hidden />
+                            {point}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                 </article>
               ))}

@@ -1,0 +1,12 @@
+{
+  "collectionName": "components_shared_major_items",
+  "info": { "displayName": "Jurusan", "icon": "briefcase" },
+  "options": {},
+  "attributes": {
+    "code": { "type": "string" },
+    "title": { "type": "string", "required": true },
+    "meta": { "type": "string" },
+    "description": { "type": "text" },
+    "points": { "type": "text" }
+  }
+}

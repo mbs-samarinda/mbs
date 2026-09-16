@@ -1,0 +1,8 @@
+{
+  "collectionName": "components_blocks_highlights",
+  "info": { "displayName": "Bagian sorotan", "icon": "bulletList" },
+  "options": {},
+  "attributes": {
+    "items": { "type": "component", "repeatable": true, "component": "shared.fact-row" }
+  }
+}

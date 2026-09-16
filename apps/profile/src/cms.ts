@@ -106,6 +106,22 @@ export type Block = { readonly id: number } & (
       head: SectionHead;
       items: readonly { title: string; description: string | null; points: string | null }[];
     }
+  | {
+      readonly kind: "highlights";
+      items: readonly { id: number; label: string; value: string }[];
+    }
+  | {
+      readonly kind: "majors";
+      head: SectionHead;
+      items: readonly {
+        id: number;
+        code: string | null;
+        title: string;
+        meta: string | null;
+        description: string | null;
+        points: string | null;
+      }[];
+    }
   | { readonly kind: "facilities"; head: SectionHead; items: readonly Entry[] }
   | { readonly kind: "extracurriculars"; head: SectionHead; items: readonly Entry[] }
   | { readonly kind: "achievements"; head: SectionHead; items: readonly Achievement[] }
@@ -208,6 +224,8 @@ const BLOCK_POPULATE: [string, string][] = [
   ["populate[blocks][on][blocks.hero][populate]", "*"],
   ["populate[blocks][on][blocks.image-text][populate]", "*"],
   ["populate[blocks][on][blocks.programs][populate]", "*"],
+  ["populate[blocks][on][blocks.highlights][populate]", "*"],
+  ["populate[blocks][on][blocks.majors][populate]", "*"],
   ["populate[blocks][on][blocks.news][populate]", "*"],
   ["populate[blocks][on][blocks.admission-cta][populate]", "*"],
   ["populate[blocks][on][blocks.rich-text][populate]", "*"],

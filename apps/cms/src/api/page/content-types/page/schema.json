@@ -44,6 +44,8 @@
         "blocks.people",
         "blocks.layers",
         "blocks.programs",
+        "blocks.highlights",
+        "blocks.majors",
         "blocks.facilities",
         "blocks.extracurriculars",
         "blocks.achievements",

@@ -1,0 +1,14 @@
+{
+  "collectionName": "components_blocks_majors",
+  "info": { "displayName": "Bagian jurusan", "icon": "briefcase" },
+  "options": {},
+  "attributes": {
+    "head": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.section-head",
+      "required": true
+    },
+    "items": { "type": "component", "repeatable": true, "component": "shared.major-item" }
+  }
+}
