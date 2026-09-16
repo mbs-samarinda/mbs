@@ -31,6 +31,11 @@ export async function generateMetadata({
  * this app that belongs to the schools alone, and the shape `/ekstrakurikuler`
  * and `/fasilitas` follow.
  *
+ * The apex never reaches this guard: `ownerLacksPath` in `owners.ts` sends it to
+ * an unclaimed path, so `global-not-found.tsx` answers with the branded 404. The
+ * check stays because it is what narrows `school` for the code below, and because
+ * a page should not depend on the proxy having run.
+ *
  * What a school publishes is still its own: SMK composes the offering as jurusan
  * with their kompetensi, SMP and SMA as plain programs. Nothing here decides
  * which — both are blocks an editor ordered.

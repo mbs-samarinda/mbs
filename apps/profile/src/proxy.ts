@@ -1,6 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ownerFromHostname, ownerHost } from "./owners.ts";
+import { ownerFromHostname, ownerHost, ownerLacksPath } from "./owners.ts";
+
+/**
+ * Where a path its owner has no page for is sent, so that `global-not-found.tsx`
+ * answers it rather than Next's built-in 404. Nothing claims it, which is the
+ * whole requirement — `global-not-found` is reached by not matching a route, not
+ * by a page calling `notFound()`. Reserved-looking on purpose: a slug an editor
+ * could type must never collide with it.
+ */
+const UNCLAIMED = "/__not-found";
 
 /**
  * Turns the hostname into a route segment: sma.mbss.sch.id/foo becomes
@@ -23,8 +32,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(`https://${ownerHost(owner)}${pathname}${search}`, 308);
   }
 
+  const { pathname } = request.nextUrl;
   const url = request.nextUrl.clone();
-  url.pathname = `/${owner.key}${request.nextUrl.pathname}`;
+  url.pathname = ownerLacksPath(owner, pathname)
+    ? `/${owner.key}${UNCLAIMED}`
+    : `/${owner.key}${pathname}`;
   return NextResponse.rewrite(url);
 }
 

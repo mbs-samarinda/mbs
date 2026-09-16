@@ -23,6 +23,32 @@ export type Owner = (typeof OWNERS)[number];
 // way; the default is production and nothing else needs setting.
 const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
 
+/**
+ * The paths only the schools own. The umbrella teaches no classes and lists no
+ * activities, so it has no page at any of them: its navigation carries no entry
+ * for one and the CMS seeds it no row.
+ *
+ * `/fasilitas` joins this list when that page is built. Until a route file
+ * claims a path, an unclaimed one already answers `global-not-found.tsx`, which
+ * is the same page this produces — so listing it early would assert nothing.
+ */
+const SCHOOL_ONLY = ["/program", "/ekstrakurikuler"] as const;
+
+/**
+ * Whether this owner has no page at this path.
+ *
+ * The proxy asks before it rewrites, because a page cannot answer this itself.
+ * `notFound()` inside the tree looks for a `not-found.js` boundary, and the root
+ * layout lives inside `[owner]` so there is none — Next then renders its own
+ * built-in 404 instead of the branded one. `global-not-found.tsx` only answers a
+ * URL that matches no route at all, so the apex has to be sent to one.
+ */
+export function ownerLacksPath(owner: Owner, pathname: string): boolean {
+  // Only the umbrella lacks these, and it is the one owner with no subdomain.
+  if (owner.subdomain) return false;
+  return SCHOOL_ONLY.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
 /** The public hostname an owner is served on. */
 export function ownerHost(owner: Owner): string {
   return owner.subdomain ? `${owner.subdomain}.${APEX}` : APEX;

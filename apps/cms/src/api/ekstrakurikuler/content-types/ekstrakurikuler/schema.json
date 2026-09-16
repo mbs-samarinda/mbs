@@ -28,8 +28,17 @@
       "type": "text",
       "maxLength": 300
     },
+    "meta": {
+      "type": "string",
+      "maxLength": 60
+    },
     "body": {
       "type": "richtext"
+    },
+    "facts": {
+      "type": "component",
+      "repeatable": true,
+      "component": "shared.fact-row"
     },
     "images": {
       "type": "media",
