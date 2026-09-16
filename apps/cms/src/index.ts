@@ -10,6 +10,7 @@ import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
 import { PENCAPAIAN_SEED, type AchievementSeed } from "./seed/pencapaian";
 import { ADMISSION_SEED, type AdmissionSeed } from "./seed/pendaftaran-page";
 import { PROFIL_SEED, type ProfilSeed } from "./seed/profil-page";
+import { PROGRAM_SEED, type ProgramSeed } from "./seed/program-page";
 
 /**
  * What each owner's site starts with.
@@ -264,11 +265,18 @@ async function seedSites(strapi: Core.Strapi) {
  */
 async function seedPages(
   strapi: Core.Strapi,
-  slug: "home" | "profil" | "pendaftaran" | "kontak" | "berita",
-  seeds: Record<OwnerKey, HomeSeed | ProfilSeed | AdmissionSeed | KontakSeed | BeritaSeed>,
+  slug: "home" | "profil" | "program" | "pendaftaran" | "kontak" | "berita",
+  // Partial, because `/program` is the first route only the schools own: an
+  // owner with no seed here has no such page, and the profile app answers 404
+  // for it rather than rendering an empty one.
+  seeds: Partial<
+    Record<OwnerKey, HomeSeed | ProfilSeed | ProgramSeed | AdmissionSeed | KontakSeed | BeritaSeed>
+  >,
 ) {
   for (const ownerKey of OWNER_KEYS) {
     const seed = seeds[ownerKey];
+    if (!seed) continue;
+
     const existing = await strapi
       .documents("api::page.page")
       .findFirst({ filters: { ownerKey, slug }, status: "draft" });
@@ -644,6 +652,7 @@ export default {
       smk: await profilSeed(strapi, "smk"),
       sma: await profilSeed(strapi, "sma"),
     });
+    await seedPages(strapi, "program", PROGRAM_SEED);
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
     await seedPages(strapi, "kontak", KONTAK_SEED);
     await seedPages(strapi, "berita", BERITA_SEED);

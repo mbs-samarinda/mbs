@@ -110,9 +110,11 @@ answer separate questions.
 
 The apex, `mbss.sch.id`, is the umbrella site: identity, the three schools, and
 the joint admission campaign. It is not a fourth school profile, so it carries
-no facilities, activities, staff or achievements — a visitor landing there is
-choosing a school. Yapendis Nurul Haq is content on it, never the identity of
-it. Its admission page reads every school's facts through
+no program, facilities, activities, staff or achievements — a visitor landing
+there is choosing a school. A route only the schools own answers 404 at the
+apex rather than rendering an empty page: its navigation carries no entry for
+one and the CMS seeds it no row. Yapendis Nurul Haq is content on it, never the
+identity of it. Its admission page reads every school's facts through
 `public.admission.getCurrentCycle`, once per school; the cycle is one shared row
 so the answers cannot disagree.
 
