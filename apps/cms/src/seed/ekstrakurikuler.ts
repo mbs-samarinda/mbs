@@ -11,10 +11,10 @@
  * has no entry here.
  *
  * `seedEntries` skips an owner that already holds any record, so a database
- * seeded before `meta` and `facts` existed keeps its rows without them: the cards
- * render with no schedule line and the detail pages with no panel. Nothing
- * errors, there is simply nothing in the fields. Drop the local database to see
- * them.
+ * seeded before `meta`, `facts` and `icon` existed keeps its rows without them:
+ * the cards render with no schedule line, the detail pages with no panel, and
+ * every homepage tile wears the `bintang` default. Nothing errors, there is
+ * simply nothing in the fields. Drop the local database to see them.
  */
 
 import type { OwnerKey } from "./home-page";
@@ -26,6 +26,24 @@ export type EntrySeed = {
   summary: string;
   /** The one-line schedule under a card's title. Short: the card gives it a line. */
   meta?: string;
+  /**
+   * The glyph the homepage's tiles draw. Optional here because the facilities
+   * beside these share this type and have no such field; every activity sets
+   * one. An activity the list has no glyph for takes `bintang`, which is also
+   * the schema default — a tile with no icon at all is a hole an editor would
+   * not notice.
+   */
+  icon?:
+    | "kitab"
+    | "tenda"
+    | "bola"
+    | "target"
+    | "komputer"
+    | "pena"
+    | "labu"
+    | "mikrofon"
+    | "toko"
+    | "bintang";
   body: string;
   /**
    * The panel beside the body on the detail page. Labels are free text rather
@@ -40,6 +58,7 @@ const shared = (ownerKey: OwnerKey): EntrySeed[] => [
     ownerKey,
     title: "Tahfiz Qur'an",
     slug: "tahfiz-quran",
+    icon: "kitab",
     summary: "Setoran hafalan harian dengan pembina asrama, dari juz 30 ke atas.",
     meta: "Setiap hari · 05.30 WITA",
     body: "Program tahfiz berjalan setiap hari di luar jam pelajaran, dengan setoran pagi sebelum kelas dan muraja'ah setelah maghrib.\n\nSantri dikelompokkan menurut capaian hafalan, bukan menurut kelas, sehingga tiap kelompok berjalan pada kecepatan yang sama. Pembina mencatat capaian tiap pekan dan melaporkannya kepada orang tua/wali pada akhir semester.",
@@ -54,6 +73,7 @@ const shared = (ownerKey: OwnerKey): EntrySeed[] => [
     ownerKey,
     title: "Panahan",
     slug: "panahan",
+    icon: "target",
     summary: "Latihan rutin dua kali sepekan di lapangan kampus.",
     meta: "Rabu & Sabtu · 16.00 WITA",
     body: "Panahan dilatih dua kali sepekan, Rabu sore dan Sabtu pagi, dengan peralatan yang disediakan sekolah.\n\nLatihan dibuka untuk semua tingkat. Santri yang menunjukkan capaian stabil diikutkan pada kejuaraan pelajar tingkat kota dan kabupaten.",
@@ -68,6 +88,7 @@ const shared = (ownerKey: OwnerKey): EntrySeed[] => [
     ownerKey,
     title: "Pramuka",
     slug: "pramuka",
+    icon: "tenda",
     summary: "Kegiatan wajib kelas VII sampai IX, dengan perkemahan tiap semester.",
     meta: "Jumat · 15.30 WITA",
     body: "Kepramukaan berjalan sebagai kegiatan wajib mingguan dan mencakup keterampilan dasar lapangan, kepemimpinan regu, dan kerja sama.\n\nSetiap semester ditutup dengan perkemahan dua hari di lingkungan kampus.",
@@ -82,6 +103,7 @@ const shared = (ownerKey: OwnerKey): EntrySeed[] => [
     ownerKey,
     title: "Futsal",
     slug: "futsal",
+    icon: "bola",
     summary: "Latihan sore di lapangan serbaguna, terbuka untuk semua tingkat.",
     meta: "Selasa & Kamis · 16.00 WITA",
     body: "Latihan futsal berjalan tiga kali sepekan pada sore hari, dengan pembagian kelompok menurut tingkat.\n\nSekolah mengikutsertakan tim pada turnamen antar sekolah di Samarinda sepanjang tahun ajaran.",
@@ -100,6 +122,7 @@ export const EKSTRAKURIKULER_SEED: EntrySeed[] = [
     ownerKey: "smp",
     title: "Karya Ilmiah Remaja",
     slug: "karya-ilmiah-remaja",
+    icon: "labu",
     summary: "Pendampingan penelitian sederhana dan lomba karya tulis.",
     meta: "Kamis · 15.30 WITA",
     body: "Kelompok karya ilmiah mendampingi santri menyusun penelitian sederhana, dari perumusan masalah sampai penyajian hasil.\n\nKarya terpilih diikutkan pada lomba tingkat kota dan provinsi.",
@@ -115,6 +138,7 @@ export const EKSTRAKURIKULER_SEED: EntrySeed[] = [
     ownerKey: "smk",
     title: "Robotik",
     slug: "robotik",
+    icon: "komputer",
     summary: "Perakitan dan pemrograman robot lini, didampingi guru TKJ.",
     meta: "Jumat · 15.30 WITA",
     body: "Kegiatan robotik berjalan di laboratorium komputer setiap Jumat sore, mencakup perakitan, pemrograman mikrokontroler, dan uji lintasan.\n\nKegiatan ini terbuka untuk semua jurusan, bukan hanya TKJ.",
@@ -129,6 +153,7 @@ export const EKSTRAKURIKULER_SEED: EntrySeed[] = [
     ownerKey: "smk",
     title: "Lembaga Kewirausahaan Santri",
     slug: "kewirausahaan-santri",
+    icon: "toko",
     summary: "Unit usaha kecil yang dijalankan santri bersama guru pendamping.",
     meta: "Setiap hari · di luar jam kelas",
     body: "Santri menjalankan unit usaha kecil di lingkungan kampus — kantin kejujuran, produksi makanan ringan, dan jasa servis komputer ringan.\n\nPembukuan disusun santri sendiri dan diperiksa guru pendamping tiap bulan.",
@@ -144,6 +169,7 @@ export const EKSTRAKURIKULER_SEED: EntrySeed[] = [
     ownerKey: "sma",
     title: "Jurnalistik",
     slug: "jurnalistik",
+    icon: "pena",
     summary: "Buletin sekolah, peliputan kegiatan, dan dasar-dasar fotografi.",
     meta: "Rabu · 15.30 WITA",
     body: "Kelompok jurnalistik menyusun buletin sekolah, meliput kegiatan kampus, dan mengelola arsip foto kegiatan.\n\nPelatihan mencakup penulisan berita, wawancara, dan dasar fotografi.",
@@ -158,6 +184,7 @@ export const EKSTRAKURIKULER_SEED: EntrySeed[] = [
     ownerKey: "sma",
     title: "Debat Bahasa Inggris",
     slug: "debat-bahasa-inggris",
+    icon: "mikrofon",
     summary: "Latihan debat parlementer dan persiapan lomba tingkat provinsi.",
     meta: "Senin & Kamis · 16.00 WITA",
     body: "Latihan debat berjalan dua kali sepekan dengan format parlementer Asia, mencakup penyusunan argumen, sanggahan, dan manajemen waktu bicara.\n\nTim inti disiapkan untuk lomba tingkat kota dan provinsi.",

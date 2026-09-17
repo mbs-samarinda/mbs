@@ -32,6 +32,22 @@
       "type": "string",
       "maxLength": 60
     },
+    "icon": {
+      "type": "enumeration",
+      "enum": [
+        "kitab",
+        "tenda",
+        "bola",
+        "target",
+        "komputer",
+        "pena",
+        "labu",
+        "mikrofon",
+        "toko",
+        "bintang"
+      ],
+      "default": "bintang"
+    },
     "body": {
       "type": "richtext"
     },
