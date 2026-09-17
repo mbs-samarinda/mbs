@@ -28,11 +28,11 @@ const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
  * activities, so it has no page at any of them: its navigation carries no entry
  * for one and the CMS seeds it no row.
  *
- * `/fasilitas` joins this list when that page is built. Until a route file
- * claims a path, an unclaimed one already answers `global-not-found.tsx`, which
- * is the same page this produces — so listing it early would assert nothing.
+ * A path no route file claims already answers `global-not-found.tsx` on its
+ * own; a path listed here is one a route *does* claim, which the apex has to be
+ * steered away from.
  */
-const SCHOOL_ONLY = ["/program", "/ekstrakurikuler"] as const;
+const SCHOOL_ONLY = ["/program", "/ekstrakurikuler", "/fasilitas"] as const;
 
 /**
  * Whether this owner has no page at this path.
