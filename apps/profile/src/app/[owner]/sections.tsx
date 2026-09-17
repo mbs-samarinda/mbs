@@ -445,7 +445,9 @@ export function BlockSection({
     case "hero":
       return (
         <Hero
-          heading={block.heading ?? tagline}
+          // `||`, not `??`: a heading an editor cleared comes back as an
+          // empty string, and an empty `h1` is the umbrella home's only one.
+          heading={block.heading || tagline}
           body={block.body}
           image={block.image}
           schoolKey={schoolKey}
@@ -481,7 +483,10 @@ export function BlockSection({
             <SectionHeading head={block.head} />
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {block.items.map((item) => (
-                <SchoolCard key={item.school} card={item} />
+                // Keyed by the row id, not by the school: nothing stops an
+                // editor adding two cards for one school, and the row id is the
+                // only stable key — the rule the `faq` block already records.
+                <SchoolCard key={item.id} card={item} />
               ))}
             </div>
           </div>
@@ -988,7 +993,10 @@ function SchoolCard({ card }: { card: Extract<Block, { kind: "schools" }>["items
       <Photo image={card.photo} label="Foto" className="aspect-43/20 w-full rounded-none!" inCard />
       <div className="flex flex-col gap-2.5 p-5">
         <span className="flex flex-wrap items-center gap-2.5">
-          <Suspense fallback={<StatusPlaceholder />}>
+          {/* Sized for "Dibuka", not for the hero's full sentence: a
+              placeholder wider than the badge it becomes pushes the jenjang
+              line onto a second row and reflows when the status arrives. */}
+          <Suspense fallback={<span className="h-6 w-16 rounded-4xl bg-muted" />}>
             <SchoolStatus schoolKey={school.key} />
           </Suspense>
           <span className="text-xs text-muted-foreground">
