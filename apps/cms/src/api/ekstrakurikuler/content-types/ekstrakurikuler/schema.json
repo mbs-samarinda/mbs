@@ -46,8 +46,7 @@
         "toko",
         "bintang"
       ],
-      "default": "bintang",
-      "required": true
+      "default": "bintang"
     },
     "body": {
       "type": "richtext"

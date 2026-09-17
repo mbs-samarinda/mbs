@@ -83,7 +83,14 @@ export type Entry = {
  */
 export type Activity = Entry & { readonly icon: ActivityIcon | null };
 
-/** The glyphs an activity can wear, bounded by the CMS enumeration. */
+/**
+ * The glyphs an activity can wear, bounded by the CMS enumeration.
+ *
+ * Three copies of this list exist — the schema, this union, and `ACTIVITY_ICONS`
+ * in `sections.tsx` — and they have to move together. The seed direction is held
+ * by the compiler; the schema direction is not, so the tile falls back to a star
+ * rather than trusting it.
+ */
 export type ActivityIcon =
   | "kitab"
   | "tenda"

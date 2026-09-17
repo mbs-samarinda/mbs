@@ -764,10 +764,13 @@ export function BlockSection({
             <SectionHeading head={block.head} />
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
               {block.items.map((item) => {
-                // `bintang` covers a row created before the field existed:
-                // Strapi's default lands on new rows only, so the old ones
-                // arrive null and would otherwise draw no glyph at all.
-                const Icon = ACTIVITY_ICONS[item.icon ?? "bintang"];
+                // `bintang` twice, for two different holes. A row created
+                // before the field existed arrives null, since Strapi's default
+                // lands on new rows only; and a value added to the CMS
+                // enumeration but not to the map below would otherwise be
+                // `undefined`, which React renders by throwing — one forgotten
+                // line in a schema would take the whole homepage down.
+                const Icon = ACTIVITY_ICONS[item.icon ?? "bintang"] ?? Star;
                 return (
                   <a
                     key={item.slug}
