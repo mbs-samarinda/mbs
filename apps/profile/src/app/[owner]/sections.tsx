@@ -5,10 +5,19 @@ import { cn } from "cn";
 import {
   BookOpen,
   Check,
+  Cpu,
+  FlaskConical,
   GraduationCap,
   HeartHandshake,
+  Mic,
+  PenLine,
   ShieldCheck,
+  Star,
+  Store,
+  Target,
+  Tent,
   Users,
+  Volleyball,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -19,6 +28,7 @@ import { getCycleFacts, isOpen, type CycleFacts } from "../../admission.ts";
 import {
   getArticles,
   mediaUrl,
+  type ActivityIcon,
   type Block,
   type Entry,
   type Media,
@@ -713,17 +723,15 @@ export function BlockSection({
       );
 
     case "facilities":
-    case "extracurriculars": {
-      const base = block.kind === "facilities" ? "/fasilitas" : "/ekstrakurikuler";
       return (
-        <section className={`${SECTION} ${base === "/fasilitas" ? "bg-muted" : ""}`}>
+        <section className={`${SECTION} bg-muted`}>
           <div className={`${WIDTH} flex flex-col gap-7`}>
             <SectionHeading head={block.head} />
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {block.items.map((item) => (
                 <a
                   key={item.slug}
-                  href={`${base}/${item.slug}`}
+                  href={`/fasilitas/${item.slug}`}
                   className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
                 >
                   <Photo
@@ -744,7 +752,38 @@ export function BlockSection({
           </div>
         </section>
       );
-    }
+
+    // An activity is a name and a glyph here, not a photograph: the canvas draws
+    // six small tiles in one row, and the photo card beside it belongs to a
+    // facility. A building is worth a picture and a description; a weekly
+    // activity is a word a parent scans for, and its own page carries the rest.
+    case "extracurriculars":
+      return (
+        <section className={SECTION}>
+          <div className={`${WIDTH} flex flex-col gap-7`}>
+            <SectionHeading head={block.head} />
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+              {block.items.map((item) => {
+                // `bintang` covers a row created before the field existed:
+                // Strapi's default lands on new rows only, so the old ones
+                // arrive null and would otherwise draw no glyph at all.
+                const Icon = ACTIVITY_ICONS[item.icon ?? "bintang"];
+                return (
+                  <a
+                    key={item.slug}
+                    href={`/ekstrakurikuler/${item.slug}`}
+                    className="flex flex-col gap-2.5 rounded-xl border border-border bg-background p-4 hover:border-primary"
+                  >
+                    {/* Stroke 1.75 beside a 500 label, per the icon rule. */}
+                    <Icon className="size-5 text-primary" strokeWidth={1.75} aria-hidden />
+                    <span className="text-sm font-medium text-pretty">{item.title}</span>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      );
 
     case "achievements":
       return (
@@ -820,6 +859,27 @@ const VALUE_ICONS: Record<ValueIcon, LucideIcon> = {
   tangan: HeartHandshake,
   orang: Users,
   "topi-wisuda": GraduationCap,
+};
+
+/**
+ * The glyphs an activity can wear on the homepage's tiles.
+ *
+ * A second list rather than a reuse of the one above: a value is an idea and an
+ * activity is a thing that happens, and nothing a school runs is drawn by a
+ * shield. `bintang` is the fallback for an activity none of the others fit —
+ * the tile is icon and name only, so a missing glyph leaves half of it empty.
+ */
+const ACTIVITY_ICONS: Record<ActivityIcon, LucideIcon> = {
+  kitab: BookOpen,
+  tenda: Tent,
+  bola: Volleyball,
+  target: Target,
+  komputer: Cpu,
+  pena: PenLine,
+  labu: FlaskConical,
+  mikrofon: Mic,
+  toko: Store,
+  bintang: Star,
 };
 
 // Holds the row's height while the listing streams in, and does not animate:

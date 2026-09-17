@@ -72,6 +72,30 @@ export type Entry = {
   readonly images: readonly Media[];
 };
 
+/**
+ * An activity, which carries a glyph a facility does not.
+ *
+ * The homepage draws activities as icon tiles and facilities as photo cards, so
+ * the icon is a field on the record rather than something the block holds: it
+ * belongs to the activity, and an editor sets it once wherever the activity is
+ * listed. `null` covers a row created before the field existed — Strapi's
+ * default only applies to new rows, not to a backfill.
+ */
+export type Activity = Entry & { readonly icon: ActivityIcon | null };
+
+/** The glyphs an activity can wear, bounded by the CMS enumeration. */
+export type ActivityIcon =
+  | "kitab"
+  | "tenda"
+  | "bola"
+  | "target"
+  | "komputer"
+  | "pena"
+  | "labu"
+  | "mikrofon"
+  | "toko"
+  | "bintang";
+
 /** One entry with the parts only its own page renders. */
 export type FullEntry = Entry & {
   readonly body: string;
@@ -136,7 +160,7 @@ export type Block = { readonly id: number } & (
       }[];
     }
   | { readonly kind: "facilities"; head: SectionHead; items: readonly Entry[] }
-  | { readonly kind: "extracurriculars"; head: SectionHead; items: readonly Entry[] }
+  | { readonly kind: "extracurriculars"; head: SectionHead; items: readonly Activity[] }
   | { readonly kind: "achievements"; head: SectionHead; items: readonly Achievement[] }
   | {
       readonly kind: "facts";
