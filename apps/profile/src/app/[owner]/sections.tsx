@@ -1028,17 +1028,6 @@ async function HeroFacts({ schoolKey }: { schoolKey: SchoolKey }) {
 }
 
 /**
- * One activity or facility on its collection's listing, and in the row of others
- * at the foot of a detail page.
- *
- * The photograph is flush to the card's edge rather than inset, which the
- * homepage's own cards are not — so the radius baked into `Photo` has to be
- * overridden here, and `!` is what makes that deterministic: both classes set
- * `border-radius`, and which one wins otherwise depends on Tailwind's own
- * ordering rather than on the order written here. The card clips, so the corners
- * a visitor sees are the card's.
- */
-/**
  * The two collections whose records own a page, and the words each wears.
  *
  * One record rather than a prop per string: an activity page and a facility page
@@ -1166,6 +1155,17 @@ export async function MoreEntries({
   );
 }
 
+/**
+ * One activity or facility on its collection's listing, and in the row of others
+ * at the foot of a detail page.
+ *
+ * The photograph is flush to the card's edge rather than inset, which the
+ * homepage's own cards are not — so the radius baked into `Photo` has to be
+ * overridden here, and `!` is what makes that deterministic: both classes set
+ * `border-radius`, and which one wins otherwise depends on Tailwind's own
+ * ordering rather than on the order written here. The card clips, so the corners
+ * a visitor sees are the card's.
+ */
 export const EntryCard = ({ entry, base }: { entry: Entry; base: string }) => (
   <a
     href={`${base}/${entry.slug}`}
