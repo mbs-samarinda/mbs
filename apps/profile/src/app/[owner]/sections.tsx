@@ -1,4 +1,4 @@
-import type { SchoolKey } from "@mbs/school-config";
+import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
 import { Badge } from "@mbs/ui/components/badge";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
@@ -37,7 +37,7 @@ import {
   type Media,
   type ValueIcon,
 } from "../../cms.ts";
-import type { Owner } from "../../owners.ts";
+import { ownerUrl, type Owner } from "../../owners.ts";
 import { Prose } from "./prose.tsx";
 
 /**
@@ -429,12 +429,14 @@ export function BlockSection({
   owner,
   schoolKey,
   admissionCta,
+  tagline,
   tinted = false,
 }: {
   block: Block;
   owner: Owner;
   schoolKey: SchoolKey | undefined;
   admissionCta: string;
+  tagline: string;
   tinted?: boolean;
 }) {
   const band = tinted ? "bg-muted" : "";
@@ -443,7 +445,7 @@ export function BlockSection({
     case "hero":
       return (
         <Hero
-          heading={block.heading}
+          heading={block.heading ?? tagline}
           body={block.body}
           image={block.image}
           schoolKey={schoolKey}
@@ -465,6 +467,22 @@ export function BlockSection({
                 </p>
               )}
               <Prose>{block.body}</Prose>
+            </div>
+          </div>
+        </section>
+      );
+
+    // The apex's own section: a visitor landing there is choosing a school, so
+    // this is the page's real navigation rather than a list of links.
+    case "schools":
+      return (
+        <section className={`${SECTION} bg-muted`}>
+          <div className={`${WIDTH} flex flex-col gap-7`}>
+            <SectionHeading head={block.head} />
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {block.items.map((item) => (
+                <SchoolCard key={item.school} card={item} />
+              ))}
             </div>
           </div>
         </section>
@@ -939,6 +957,70 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
         </a>
       ))}
     </div>
+  );
+}
+
+/**
+ * One school, on the umbrella's home page.
+ *
+ * The name and the address come from `packages/school-config` and `ownerUrl`,
+ * never from the editor: the schools sit on different hosts, so a URL typed at
+ * the apex is the one link shape that cannot be relative and a field for it
+ * would send every local and staging visitor to production. The editor supplies
+ * the photograph, the jenjang line and the description.
+ *
+ * The status is live and streams in beside the rest, the same as the hero's:
+ * the apex takes no applications of its own, but it does say which school is
+ * open. A cycle that cannot be read shows nothing rather than a guess.
+ */
+function SchoolCard({ card }: { card: Extract<Block, { kind: "schools" }>["items"][number] }) {
+  const school = SCHOOLS.find((candidate) => candidate.key === card.school);
+  // The CMS enumeration is the same three keys, so this is unreachable — and it
+  // returns nothing rather than guessing a school, which is the failure the
+  // owner boundary exists to stop.
+  if (!school) return null;
+
+  return (
+    <a
+      href={ownerUrl(school)}
+      className="flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
+    >
+      <Photo image={card.photo} label="Foto" className="aspect-43/20 w-full rounded-none!" inCard />
+      <div className="flex flex-col gap-2.5 p-5">
+        <span className="flex flex-wrap items-center gap-2.5">
+          <Suspense fallback={<StatusPlaceholder />}>
+            <SchoolStatus schoolKey={school.key} />
+          </Suspense>
+          <span className="text-xs text-muted-foreground">
+            {school.level}
+            {card.meta && ` · ${card.meta}`}
+          </span>
+        </span>
+        <h3 className="text-[19px] leading-snug font-bold text-pretty">{school.name}</h3>
+        {card.description && (
+          <p className="text-[13px] text-muted-foreground">{card.description}</p>
+        )}
+        {/* Its own 44px row: on a phone this is the thing being tapped, and the
+            card around it is taller than a thumb can aim at. */}
+        <span className="flex min-h-11 items-center text-[13px] font-bold text-primary underline underline-offset-4">
+          Buka situs sekolah
+        </span>
+      </div>
+    </a>
+  );
+}
+
+async function SchoolStatus({ schoolKey }: { schoolKey: SchoolKey }) {
+  const facts = await getCycleFacts(schoolKey);
+  if (facts.state !== "cycle") return null;
+
+  const open = isOpen(facts.cycle);
+  // Success rather than the owner's colour, which is what the frame draws: an
+  // open admission is a state, and the four status pairs are shared and fixed.
+  return (
+    <Badge variant={open ? "success" : "secondary"} className="h-6 px-2.5">
+      {open ? "Dibuka" : "Ditutup"}
+    </Badge>
   );
 }
 

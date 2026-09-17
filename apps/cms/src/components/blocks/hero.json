@@ -3,7 +3,7 @@
   "info": { "displayName": "Hero", "icon": "picture" },
   "options": {},
   "attributes": {
-    "heading": { "type": "string", "required": true },
+    "heading": { "type": "string" },
     "body": { "type": "text" },
     "image": { "type": "media", "multiple": false, "allowedTypes": ["images"] }
   }

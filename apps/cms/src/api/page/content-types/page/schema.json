@@ -36,6 +36,7 @@
       "type": "dynamiczone",
       "components": [
         "blocks.hero",
+      "blocks.schools",
         "blocks.rich-text",
         "blocks.image-text",
         "blocks.facts",
