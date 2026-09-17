@@ -37,6 +37,7 @@
       "components": [
         "blocks.hero",
         "blocks.schools",
+        "blocks.admission-table",
         "blocks.rich-text",
         "blocks.image-text",
         "blocks.facts",

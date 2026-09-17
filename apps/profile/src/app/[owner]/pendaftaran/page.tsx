@@ -21,6 +21,7 @@ import {
   FactStrip,
   PageHead,
   SECTION,
+  SchoolStatusBadge,
   SectionHeading,
   WIDTH,
   formatDate,
@@ -535,19 +536,6 @@ function UmbrellaStatus({
       </div>
     </section>
   );
-}
-
-/**
- * Status never rides on colour alone: the badge carries the word, so "Ditutup"
- * reads the same to someone who cannot tell the two fills apart.
- */
-function SchoolStatusBadge({ facts }: { facts: CycleFacts | null }) {
-  if (facts === null) return <span className="block h-5 w-20 rounded-4xl bg-muted" />;
-  if (facts.state === "unavailable") return <Badge variant="outline">Belum bisa dibaca</Badge>;
-  if (facts.state === "none") return <Badge variant="secondary">Belum dibuka</Badge>;
-
-  const open = isOpen(facts.cycle);
-  return <Badge variant={open ? "default" : "secondary"}>{open ? "Dibuka" : "Ditutup"}</Badge>;
 }
 
 /**

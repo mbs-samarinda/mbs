@@ -1,0 +1,8 @@
+{
+  "collectionName": "components_blocks_admission_tables",
+  "info": { "displayName": "Bagian pendaftaran bersama", "icon": "apps" },
+  "options": {},
+  "attributes": {
+    "description": { "type": "text", "maxLength": 300 }
+  }
+}

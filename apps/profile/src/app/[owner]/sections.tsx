@@ -35,6 +35,7 @@ import {
   type EntryCollection,
   type FullEntry,
   type Media,
+  type Site,
   type ValueIcon,
 } from "../../cms.ts";
 import { ownerUrl, type Owner } from "../../owners.ts";
@@ -331,6 +332,141 @@ async function LiveAdmissionBand({
   return <AdmissionBand facts={facts} admissionCta={admissionCta} />;
 }
 
+async function LiveAdmissionTable({ description }: { description: string | null }) {
+  // One call per school, three times, exactly as `/pendaftaran` does it. There
+  // is no multi-school endpoint and asking for one would be asking three
+  // answers to agree when they already cannot disagree: the cycle row is shared.
+  const facts = await Promise.all(SCHOOLS.map((school) => getCycleFacts(school.key)));
+  return <AdmissionTable facts={facts} description={description} />;
+}
+
+/**
+ * Every school's cycle: a table on a desktop page, one card per school below it.
+ *
+ * Four columns, not the five the frame draws. The fifth is *Biaya pendaftaran*,
+ * Rp 250.000 — and no registration fee exists anywhere in `packages/db` or the
+ * contract. It is invented placeholder copy, the umbrella `/pendaftaran` table
+ * already ships without it, and printing a number to make a layout match is the
+ * failure §5 forbids. If the schools do charge one, it needs a schema change
+ * first.
+ */
+function AdmissionTable({
+  facts,
+  description,
+}: {
+  facts: readonly CycleFacts[] | null;
+  description: string | null;
+}) {
+  const rows = SCHOOLS.map((school, index) => ({ school, facts: facts?.[index] ?? null }));
+  const cycle =
+    (facts ?? []).flatMap((entry) => (entry.state === "cycle" ? [entry.cycle] : []))[0] ?? null;
+  const unavailable = facts?.every((entry) => entry.state === "unavailable") ?? false;
+
+  return (
+    <section className={SECTION}>
+      <div className={`${WIDTH} flex flex-col gap-7`}>
+        <SectionHeading
+          head={{
+            heading: cycle ? `Pendaftaran ${cycle.name}` : "Pendaftaran bersama",
+            // The editor's sentence describes a working system. When the system
+            // is the thing that is down, say so instead — an outage rendered as
+            // silence is how a parent concludes there is no intake.
+            description: unavailable
+              ? "Status, tanggal, dan biaya dibaca dari sistem pendaftaran dan sedang tidak dapat dihubungi. Kami tidak menampilkan tanggal lama."
+              : description,
+            linkLabel: "Buka halaman pendaftaran",
+            linkHref: "/pendaftaran",
+          }}
+        />
+
+        <div className="hidden overflow-hidden rounded-xl border border-border lg:block">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-muted text-left">
+                {["Sekolah", "Status", "Ditutup", "Biaya sekolah"].map((column) => (
+                  <th
+                    key={column}
+                    className="px-5 py-3 text-xs font-bold tracking-wide text-muted-foreground uppercase"
+                  >
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ school, facts: entry }) => {
+                const row = entry?.state === "cycle" ? entry.cycle : null;
+                return (
+                  <tr key={school.key} className="border-t border-border">
+                    <th scope="row" className="px-5 py-4 text-left font-semibold">
+                      {school.name}
+                    </th>
+                    <td className="px-5 py-4">
+                      <SchoolStatusBadge facts={entry} />
+                    </td>
+                    <td className="px-5 py-4 tabular-nums">
+                      {row ? formatDate(row.registrationCloseAt) : "—"}
+                    </td>
+                    <td className="px-5 py-4 tabular-nums">
+                      {row ? formatFee(row.effectiveFee) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* The table does not fit 834px, and a squeezed one is how a parent
+            reads the wrong school's closing date. */}
+        <div className="grid gap-4 md:grid-cols-2 lg:hidden">
+          {rows.map(({ school, facts: entry }) => {
+            const row = entry?.state === "cycle" ? entry.cycle : null;
+            return (
+              <article
+                key={school.key}
+                className="flex flex-col gap-2.5 rounded-xl border border-border p-5"
+              >
+                <span className="flex flex-wrap items-center gap-2">
+                  <SchoolStatusBadge facts={entry} />
+                  {row && (
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      Ditutup {formatDate(row.registrationCloseAt)}
+                    </span>
+                  )}
+                </span>
+                <h3 className="text-[17px] font-bold text-pretty">{school.name}</h3>
+                {/* Holds its height while the facts stream in: without this the
+                    three cards each grow by a row and the page jumps under a
+                    visitor who is already reading. */}
+                {row ? (
+                  <FactStrip>
+                    <Fact label="Biaya sekolah">{formatFee(row.effectiveFee)}</Fact>
+                  </FactStrip>
+                ) : (
+                  <span className="h-8 w-28 rounded-md bg-muted" />
+                )}
+              </article>
+            );
+          })}
+        </div>
+
+        {cycle && (
+          <p className="text-[13px] text-muted-foreground tabular-nums">
+            Hasil diumumkan serentak {formatDate(cycle.resultPublishAt)} untuk ketiga sekolah.
+          </p>
+        )}
+
+        {unavailable && (
+          <p className="text-[13px] text-muted-foreground">
+            Perlu jawaban sekarang? Hubungi panitia lewat kontak di bawah halaman ini.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /**
  * The admission path as a sidebar card, for the pages that carry no band.
  *
@@ -428,15 +564,17 @@ export function BlockSection({
   block,
   owner,
   schoolKey,
-  admissionCta,
-  tagline,
+  site,
   tinted = false,
 }: {
   block: Block;
   owner: Owner;
   schoolKey: SchoolKey | undefined;
-  admissionCta: string;
-  tagline: string;
+  // The whole row rather than the fields the hero happens to need today: the
+  // identity a block draws from keeps growing — CTA label, tagline, and now the
+  // brand subline — and threading one more scalar through every caller each
+  // time is churn for nothing.
+  site: Site;
   tinted?: boolean;
 }) {
   const band = tinted ? "bg-muted" : "";
@@ -447,11 +585,18 @@ export function BlockSection({
         <Hero
           // `||`, not `??`: a heading an editor cleared comes back as an
           // empty string, and an empty `h1` is the umbrella home's only one.
-          heading={block.heading || tagline}
+          heading={block.heading || site.tagline}
           body={block.body}
           image={block.image}
+          // The umbrella names itself above its promise, which is what the
+          // frame draws. Derived from the identity already on the row rather
+          // than typed into the block — a school wears a live cycle badge in
+          // this slot instead, so neither is a second copy of a name.
+          eyebrow={schoolKey ? null : `${owner.name} ${site.brandSubline ?? ""}`.trim()}
+          secondaryLabel={block.secondaryLabel}
+          secondaryHref={block.secondaryHref}
           schoolKey={schoolKey}
-          admissionCta={admissionCta}
+          admissionCta={site.admissionCta}
         />
       );
 
@@ -478,7 +623,11 @@ export function BlockSection({
     // this is the page's real navigation rather than a list of links.
     case "schools":
       return (
-        <section className={`${SECTION} bg-muted`}>
+        // The hero's second action points here, so the section needs a name to
+        // be pointed at — and a scroll margin, because the header is sticky and
+        // two rows tall: without it the heading lands behind the header and the
+        // visitor arrives halfway down the card grid.
+        <section id="sekolah" className={`${SECTION} scroll-mt-28 bg-muted`}>
           <div className={`${WIDTH} flex flex-col gap-7`}>
             <SectionHeading head={block.head} />
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -848,6 +997,19 @@ export function BlockSection({
         </section>
       );
 
+    // The joint campaign, on the apex's own home page: which school is open,
+    // until when, and for how much. Read live per school, never typed by an
+    // editor — the one field the block carries is the sentence under the
+    // heading. A school site never draws it: its own band answers for itself,
+    // and listing its two siblings' fees on its homepage is not that page's job.
+    case "admission-table":
+      if (schoolKey) return null;
+      return (
+        <Suspense fallback={<AdmissionTable facts={null} description={block.description} />}>
+          <LiveAdmissionTable description={block.description} />
+        </Suspense>
+      );
+
     case "news":
       return (
         <section className={`${SECTION} bg-muted`}>
@@ -1021,12 +1183,50 @@ function SchoolCard({ card }: { card: Extract<Block, { kind: "schools" }>["items
 async function SchoolStatus({ schoolKey }: { schoolKey: SchoolKey }) {
   const facts = await getCycleFacts(schoolKey);
   if (facts.state !== "cycle") return null;
+  return <SchoolStatusBadge facts={facts} className="h-6 px-2.5" />;
+}
+
+/**
+ * Whether one school's admission is open, in a word — on a surface that lists
+ * the schools: the umbrella's table and the home page's school cards.
+ *
+ * Success rather than the owner's colour, which is what those frames draw
+ * (`bh1UE`, `sjqBc`) and what `DESIGN.md` requires: an open admission is a
+ * workflow state, and a school colour never recolors one. The hero's own badge
+ * is deliberately not this component — its frame carries no success fill, and it
+ * announces the cycle rather than comparing schools.
+ *
+ * The three states the band and the card already have apply here too, so a cycle
+ * we could not read says exactly that instead of reading as closed.
+ *
+ * Status never rides on colour alone either: the badge carries the word, so
+ * "Ditutup" reads the same to someone who cannot tell the two fills apart.
+ */
+export function SchoolStatusBadge({
+  facts,
+  className,
+}: {
+  facts: CycleFacts | null;
+  className?: string;
+}) {
+  if (facts === null)
+    return <span className={`block h-5 w-20 rounded-4xl bg-muted ${className ?? ""}`} />;
+  if (facts.state === "unavailable")
+    return (
+      <Badge variant="outline" className={className}>
+        Belum bisa dibaca
+      </Badge>
+    );
+  if (facts.state === "none")
+    return (
+      <Badge variant="secondary" className={className}>
+        Belum dibuka
+      </Badge>
+    );
 
   const open = isOpen(facts.cycle);
-  // Success rather than the owner's colour, which is what the frame draws: an
-  // open admission is a state, and the four status pairs are shared and fixed.
   return (
-    <Badge variant={open ? "success" : "secondary"} className="h-6 px-2.5">
+    <Badge variant={open ? "success" : "secondary"} className={className}>
       {open ? "Dibuka" : "Ditutup"}
     </Badge>
   );
@@ -1036,12 +1236,18 @@ function Hero({
   heading,
   body,
   image,
+  eyebrow,
+  secondaryLabel,
+  secondaryHref,
   schoolKey,
   admissionCta,
 }: {
   heading: string;
   body: string | null;
   image: Media | null;
+  eyebrow: string | null;
+  secondaryLabel: string | null;
+  secondaryHref: string | null;
   schoolKey: SchoolKey | undefined;
   admissionCta: string;
 }) {
@@ -1049,6 +1255,9 @@ function Hero({
     <section className={SECTION}>
       <div className={`${WIDTH} flex flex-col gap-10 lg:flex-row lg:items-center lg:gap-16`}>
         <div className="flex flex-col gap-5 lg:flex-1">
+          {eyebrow && (
+            <p className="text-[13px] font-bold tracking-wide text-primary uppercase">{eyebrow}</p>
+          )}
           {schoolKey && (
             <Suspense fallback={<StatusPlaceholder />}>
               <CycleStatus schoolKey={schoolKey} />
@@ -1064,6 +1273,16 @@ function Hero({
             <a href="/pendaftaran" className={buttonVariants({ size: "touch" })}>
               {admissionCta}
             </a>
+            {/* Both halves or neither: a label with no address is a button that
+                goes nowhere, and an address with no label is invisible. */}
+            {secondaryLabel && secondaryHref && (
+              <a
+                href={secondaryHref}
+                className={buttonVariants({ variant: "outline", size: "touch" })}
+              >
+                {secondaryLabel}
+              </a>
+            )}
           </div>
           {schoolKey && (
             <Suspense fallback={<FactsPlaceholder count={3} />}>

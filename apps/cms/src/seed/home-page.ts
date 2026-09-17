@@ -65,11 +65,26 @@ const news = (description: string): Block => ({
 
 // The three schools differ in their name, their headline and what their
 // `program` page carries, and in nothing else at this stage.
-function schoolHome(name: string, headline: string, sub: string, programs: Block): HomeSeed {
+function schoolHome(
+  name: string,
+  headline: string,
+  sub: string,
+  programs: Block,
+  // What `/program` is called on this school. SMK runs jurusan; the other two
+  // run programs, and naming a jurusan they do not have would be the same lie
+  // as an invented achievement.
+  secondaryLabel = "Lihat Program",
+): HomeSeed {
   return {
     title: `Beranda ${name}`,
     blocks: [
-      { __component: "blocks.hero", heading: headline, body: sub },
+      {
+        __component: "blocks.hero",
+        heading: headline,
+        body: sub,
+        secondaryLabel,
+        secondaryHref: "/program",
+      },
       {
         __component: "blocks.image-text",
         heading: "Sambutan Kepala Sekolah",
@@ -110,6 +125,10 @@ export const HOME_SEED: Record<OwnerKey, HomeSeed> = {
         // profile app falls back to the tagline when a hero carries no heading.
         __component: "blocks.hero",
         body: "Pilih jenjang yang sesuai untuk anak Anda, lalu daftar lewat satu kampanye pendaftaran bersama.",
+        // An anchor, not a route: the three schools live further down this same
+        // page, and the apex has no page of its own that lists them.
+        secondaryLabel: "Pilih Sekolah",
+        secondaryHref: "#sekolah",
       },
       {
         __component: "blocks.schools",
@@ -137,6 +156,15 @@ export const HOME_SEED: Record<OwnerKey, HomeSeed> = {
             description: "Persiapan perguruan tinggi dengan penguatan tahfiz dan bahasa.",
           },
         ],
+      },
+      {
+        // Third on the page, between the schools and the foundation, which is
+        // where every umbrella frame draws it. Only the sentence is seeded:
+        // the heading carries the live cycle name, and the dates and fees are
+        // read from the admission system.
+        __component: "blocks.admission-table",
+        description:
+          "Satu siklus untuk tiga sekolah. Tanggal dan biaya dibaca langsung dari sistem pendaftaran.",
       },
       {
         __component: "blocks.facts",
@@ -180,6 +208,7 @@ export const HOME_SEED: Record<OwnerKey, HomeSeed> = {
         { title: "Tata Boga", description: "Produksi makanan, layanan, dan higienitas dapur." },
       ],
     ),
+    "Lihat Jurusan",
   ),
   sma: schoolHome(
     "SMA Madina Citra Insani",

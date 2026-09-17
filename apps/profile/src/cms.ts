@@ -146,6 +146,17 @@ export type Block = { readonly id: number } & (
       heading: string | null;
       body: string | null;
       image: Media | null;
+      // The outline action beside the entry CTA. Both halves or neither: a
+      // label with no address is a button that goes nowhere, and an address
+      // with no label is invisible.
+      //
+      // The CMS constrains the address to `/path` or `#anchor`. It is rendered
+      // into an `href`, so a free-text field would take `javascript:` and an
+      // address with no leading slash resolves against whatever route the
+      // visitor is on — and an absolute one at the apex is the production-link
+      // trap `ownerUrl` exists to stop.
+      secondaryLabel: string | null;
+      secondaryHref: string | null;
     }
   | {
       readonly kind: "schools";
@@ -218,6 +229,14 @@ export type Block = { readonly id: number } & (
       readonly kind: "layers";
       head: SectionHead;
       items: readonly { id: number; title: string; description: string | null }[];
+    }
+  | {
+      readonly kind: "admission-table";
+      // The only editor field. Everything else — the cycle name in the heading,
+      // the dates, the fees, the result line — is read live from the admission
+      // system, because a date typed by an editor is the exact failure this
+      // product exists to stop.
+      description: string | null;
     }
   | { readonly kind: "news"; head: SectionHead; limit: number }
   | { readonly kind: "admission-cta"; heading: string; body: string | null }
@@ -297,6 +316,7 @@ const BLOCK_POPULATE: [string, string][] = [
   ["populate[blocks][on][blocks.highlights][populate]", "*"],
   ["populate[blocks][on][blocks.majors][populate]", "*"],
   ["populate[blocks][on][blocks.news][populate]", "*"],
+  ["populate[blocks][on][blocks.admission-table][populate]", "*"],
   ["populate[blocks][on][blocks.admission-cta][populate]", "*"],
   ["populate[blocks][on][blocks.rich-text][populate]", "*"],
   ["populate[blocks][on][blocks.facts][populate]", "*"],
