@@ -322,6 +322,104 @@ async function seedPages(
 }
 
 /**
+ * Runs a repair against rows that already exist, exactly once per database.
+ *
+ * `seedPages` deliberately never touches a row it finds — that rule is what
+ * stops a restart from reverting an editor's work. The cost is that a section
+ * added to a seed after first boot reaches only brand-new databases, so a
+ * deploy ships the feature invisible. This is the other half: a named repair
+ * that runs on the boot after it appears and never again, so a section an
+ * editor then deletes stays deleted.
+ *
+ * The marker lives in Strapi's own key-value store rather than in a field of
+ * ours: it is a fact about this database's migration state, not about any
+ * page. Clearing the key re-runs the repair, which is the rollback.
+ */
+async function backfillOnce(strapi: Core.Strapi, key: string, run: () => Promise<boolean>) {
+  const store = strapi.store({ type: "plugin", name: "mbs-seed" });
+  if (await store.get({ key })) return;
+
+  const changed = await run();
+  await store.set({ key, value: true });
+  strapi.log.info(changed ? `Backfill ${key}: applied.` : `Backfill ${key}: nothing to do.`);
+}
+
+/* `__component` is Strapi's discriminator, not a name of ours to rename. */
+/* oxlint-disable eslint/no-underscore-dangle */
+
+/** A block the repair is not touching, named so Strapi keeps it as it is. */
+const keep = (block: PageBlock) => ({ __component: block.__component, id: block.id });
+
+/** One entry of a page's dynamic zone, as a read returns it. */
+type PageBlock = { __component: string; id?: number | string };
+
+/**
+ * The umbrella home page's school cards and joint-admission table, on a database
+ * that was seeded before either existed.
+ *
+ * Both sections and the hero's second action shipped inside `HOME_SEED`, which
+ * only ever reaches a row being created — so every environment past its first
+ * boot shows the page exactly as it was. This puts them in once.
+ *
+ * **Untouched blocks are passed back by reference**, `__component` and `id`
+ * alone. A dynamic zone can only be written whole, and re-sending a block from a
+ * shallow read is how an editor's images and relations get dropped on the way
+ * out; a reference asks Strapi to keep the component it already has.
+ *
+ * Position rather than order: each missing section is inserted after the one it
+ * follows on the canvas, so anything an editor has added or reordered stays
+ * where they put it.
+ */
+async function backfillUmbrellaHome(strapi: Core.Strapi): Promise<boolean> {
+  const page = await strapi
+    .documents("api::page.page")
+    .findFirst({ filters: { ownerKey: "mbs", slug: "home" }, status: "draft", populate: "blocks" });
+
+  if (!page?.blocks) return false;
+
+  const blocks: readonly PageBlock[] = page.blocks;
+  const has = (kind: string) => blocks.some((block) => block.__component === kind);
+  const seeded = HOME_SEED.mbs.blocks;
+  const fromSeed = (kind: string) => seeded.find((block) => block.__component === kind);
+
+  const hero = fromSeed("blocks.hero");
+  const schools = fromSeed("blocks.schools");
+  const table = fromSeed("blocks.admission-table");
+  if (!schools || !table || !hero) return false;
+  if (has("blocks.schools") && has("blocks.admission-table")) return false;
+
+  // The generated input type describes a component being *written*, so it wants
+  // every field. A reference deliberately carries none — that is the point of it
+  // — so this is the one place the shape is asserted rather than proved.
+  const references = blocks.map((block) =>
+    // The hero keeps everything it has and gains the second action: a component
+    // named by id takes the fields given and leaves the rest alone.
+    block.__component === "blocks.hero"
+      ? { ...keep(block), secondaryLabel: "Pilih Sekolah", secondaryHref: "#sekolah" }
+      : keep(block),
+  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  const next = references as unknown as HomeSeed["blocks"];
+
+  /** Puts a section straight after the one it follows on the canvas. */
+  const insertAfter = (kind: string, block: HomeSeed["blocks"][number]) => {
+    const at = next.findIndex((entry) => entry.__component === kind);
+    next.splice(at === -1 ? next.length : at + 1, 0, block);
+  };
+
+  if (!has("blocks.schools")) insertAfter("blocks.hero", schools);
+  if (!has("blocks.admission-table")) insertAfter("blocks.schools", table);
+
+  await strapi
+    .documents("api::page.page")
+    .update({ documentId: page.documentId, data: { blocks: next }, status: "published" });
+
+  return true;
+}
+
+/* oxlint-enable eslint/no-underscore-dangle */
+
+/**
  * Gives an owner its starting records in one collection, or leaves it alone.
  *
  * The check is per owner rather than per row: a school that has published its
@@ -678,5 +776,10 @@ export default {
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
     await seedPages(strapi, "kontak", KONTAK_SEED);
     await seedPages(strapi, "berita", BERITA_SEED);
+
+    // After the seeds, and once per database: the rows above are only created
+    // when missing, so a section added to a seed later needs this to reach an
+    // environment that has already booted.
+    await backfillOnce(strapi, "umbrella-home-sections", () => backfillUmbrellaHome(strapi));
   },
 };
