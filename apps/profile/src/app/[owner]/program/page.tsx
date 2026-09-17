@@ -62,6 +62,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ owner:
           owner={owner}
           schoolKey={school.key}
           admissionCta={site.admissionCta}
+          tagline={site.tagline}
           tinted={index % 2 === 1}
         />
       ))}

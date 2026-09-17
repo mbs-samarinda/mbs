@@ -104,9 +104,49 @@ export const HOME_SEED: Record<OwnerKey, HomeSeed> = {
     title: "Beranda Madina Boarding School",
     blocks: [
       {
+        // No heading, deliberately. The umbrella's headline is its promise, and
+        // the promise is `Site.tagline` — typing it here as well would be a
+        // second copy of a string the brand guide says has one home. The
+        // profile app falls back to the tagline when a hero carries no heading.
         __component: "blocks.hero",
-        heading: "Tiga sekolah, satu pembinaan Qur'ani di Samarinda.",
         body: "Pilih jenjang yang sesuai untuk anak Anda, lalu daftar lewat satu kampanye pendaftaran bersama.",
+      },
+      {
+        __component: "blocks.schools",
+        head: {
+          heading: "Tiga sekolah, satu naungan",
+          description: "Pilih jenjang untuk membuka situs sekolahnya.",
+        },
+        // No link and no name on a card: both are derived from the key by the
+        // profile app, because the schools sit on different hosts and a URL
+        // typed here would send every local and staging visitor to production.
+        items: [
+          {
+            school: "smp",
+            meta: "Kelas VII–IX",
+            description: "Pendidikan menengah pertama berasrama dengan pembinaan Al-Qur'an harian.",
+          },
+          {
+            school: "smk",
+            meta: "Kelas X–XII",
+            description: "Kompetensi keahlian dengan praktik dan pembinaan asrama.",
+          },
+          {
+            school: "sma",
+            meta: "Kelas X–XII",
+            description: "Persiapan perguruan tinggi dengan penguatan tahfiz dan bahasa.",
+          },
+        ],
+      },
+      {
+        __component: "blocks.facts",
+        heading: "Di bawah Yayasan Pendidikan dan Dakwah Islam Nurul Haq",
+        body: "Yayasan Pendidikan dan Dakwah Islam Nurul Haq Samarinda menaungi Madina Boarding School dan tiga sekolah di dalamnya.\n\nSetiap sekolah menjalankan kurikulum dan pembinaannya sendiri, dengan jadwal pendaftaran dan pengumuman hasil yang dikoordinasikan bersama.",
+        items: [
+          { label: "Sekolah", value: "SMP, SMK, SMA" },
+          { label: "Model", value: "Berasrama, putra dan putri" },
+          { label: "Lokasi", value: "Samarinda, Kalimantan Timur" },
+        ],
       },
       news("Kabar dari ketiga sekolah, terbaru lebih dulu."),
     ],

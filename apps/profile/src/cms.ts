@@ -1,3 +1,4 @@
+import type { SchoolKey } from "@mbs/school-config";
 import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 
@@ -137,7 +138,30 @@ export type ValueIcon = "kitab" | "perisai" | "kunci" | "tangan" | "orang" | "to
  * so the pages switch on a plain `kind`.
  */
 export type Block = { readonly id: number } & (
-  | { readonly kind: "hero"; heading: string; body: string | null; image: Media | null }
+  | {
+      readonly kind: "hero";
+      // Optional, and the page falls back to the owner's tagline. That is how
+      // the umbrella's promise reaches its own headline without being typed a
+      // second time into a block — it is `Site.tagline`, and nowhere else.
+      heading: string | null;
+      body: string | null;
+      image: Media | null;
+    }
+  | {
+      readonly kind: "schools";
+      head: SectionHead;
+      // The card carries no link and no school name: both are derived from the
+      // key. A URL typed at the apex is the one shape that cannot be relative,
+      // so a field here would send every local and staging visitor to
+      // production, and the names already live in `packages/school-config`.
+      items: readonly {
+        id: number;
+        school: SchoolKey;
+        meta: string | null;
+        description: string | null;
+        photo: Media | null;
+      }[];
+    }
   | {
       readonly kind: "image-text";
       heading: string | null;
@@ -266,6 +290,8 @@ async function cms<T>(collection: string, params: [string, string][]) {
  */
 const BLOCK_POPULATE: [string, string][] = [
   ["populate[blocks][on][blocks.hero][populate]", "*"],
+  ["populate[blocks][on][blocks.schools][populate][head]", "true"],
+  ["populate[blocks][on][blocks.schools][populate][items][populate]", "photo"],
   ["populate[blocks][on][blocks.image-text][populate]", "*"],
   ["populate[blocks][on][blocks.programs][populate]", "*"],
   ["populate[blocks][on][blocks.highlights][populate]", "*"],

@@ -1,0 +1,15 @@
+{
+  "collectionName": "components_shared_school_cards",
+  "info": { "displayName": "Kartu sekolah", "icon": "house" },
+  "options": {},
+  "attributes": {
+    "school": {
+      "type": "enumeration",
+      "enum": ["smp", "smk", "sma"],
+      "required": true
+    },
+    "meta": { "type": "string", "maxLength": 60 },
+    "description": { "type": "text", "maxLength": 300 },
+    "photo": { "type": "media", "multiple": false, "allowedTypes": ["images"] }
+  }
+}

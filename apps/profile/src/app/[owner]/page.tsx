@@ -48,6 +48,7 @@ export default async function OwnerHomePage({ params }: { params: Promise<{ owne
           owner={owner}
           schoolKey={school?.key}
           admissionCta={site.admissionCta}
+          tagline={site.tagline}
         />
       ))}
 
