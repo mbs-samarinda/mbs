@@ -538,17 +538,16 @@ export async function getRelatedAchievement(
 }
 
 /**
- * The collections whose records each own a page. Activities today; facilities
- * are the same shape and join this union when `/fasilitas` is built.
+ * The collections whose records each own a page: activities and facilities.
  *
  * The parameter exists rather than a function per collection for the reason
- * `seedEntries` in `apps/cms` takes a uid: only the rows differ. `fasilitas-list`
- * is deliberately **not** listed yet — its schema carries neither `meta` nor
- * `facts`, so `getEntry` would send `populate[facts]` for an attribute that does
- * not exist, and Strapi answers 400 rather than ignoring it. Add the fields and
- * the literal together.
+ * `seedEntries` in `apps/cms` takes a uid: the two schemas are the same shape
+ * and only the rows differ. A third collection joins by adding its `meta` and
+ * `facts` fields and its plural name here in one change — `getEntry` sends
+ * `populate[facts]`, and Strapi answers 400 for an attribute that does not
+ * exist rather than ignoring it.
  */
-type EntryCollection = "ekstrakurikuler-list";
+export type EntryCollection = "ekstrakurikuler-list" | "fasilitas-list";
 
 /**
  * Everything an owner has published in one collection, for its listing page.

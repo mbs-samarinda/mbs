@@ -6,6 +6,7 @@ import { BERITA_SEED, type BeritaSeed } from "./seed/berita-page";
 import { EKSTRAKURIKULER_SEED, type EntrySeed } from "./seed/ekstrakurikuler";
 import { EKSTRAKURIKULER_PAGE_SEED, type EkstrakurikulerSeed } from "./seed/ekstrakurikuler-page";
 import { FASILITAS_SEED } from "./seed/fasilitas";
+import { FASILITAS_PAGE_SEED, type FasilitasSeed } from "./seed/fasilitas-page";
 import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home-page";
 import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
 import { PENCAPAIAN_SEED, type AchievementSeed } from "./seed/pencapaian";
@@ -266,7 +267,15 @@ async function seedSites(strapi: Core.Strapi) {
  */
 async function seedPages(
   strapi: Core.Strapi,
-  slug: "home" | "profil" | "program" | "ekstrakurikuler" | "pendaftaran" | "kontak" | "berita",
+  slug:
+    | "home"
+    | "profil"
+    | "program"
+    | "ekstrakurikuler"
+    | "fasilitas"
+    | "pendaftaran"
+    | "kontak"
+    | "berita",
   // Partial, because `/program` is the first route only the schools own: an
   // owner with no seed here has no such page, and the profile app answers 404
   // for it rather than rendering an empty one.
@@ -277,6 +286,7 @@ async function seedPages(
       | ProfilSeed
       | ProgramSeed
       | EkstrakurikulerSeed
+      | FasilitasSeed
       | AdmissionSeed
       | KontakSeed
       | BeritaSeed
@@ -664,6 +674,7 @@ export default {
     });
     await seedPages(strapi, "program", PROGRAM_SEED);
     await seedPages(strapi, "ekstrakurikuler", EKSTRAKURIKULER_PAGE_SEED);
+    await seedPages(strapi, "fasilitas", FASILITAS_PAGE_SEED);
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
     await seedPages(strapi, "kontak", KONTAK_SEED);
     await seedPages(strapi, "berita", BERITA_SEED);

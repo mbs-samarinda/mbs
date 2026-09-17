@@ -17,16 +17,16 @@ import {
 
 type Params = Promise<{ owner: string; slug: string }>;
 
-const SECTION_INFO = ENTRY_SECTIONS["ekstrakurikuler-list"];
+const SECTION_INFO = ENTRY_SECTIONS["fasilitas-list"];
 
-/** Resolves the school and the activity together, or gives up. */
+/** Resolves the school and the facility together, or gives up. */
 async function read(params: Params) {
   const { owner: key, slug } = await params;
   const owner = OWNERS.find((candidate) => candidate.key === key);
   const school = SCHOOLS.find((candidate) => candidate.key === key);
   if (!owner || !school) return null;
 
-  const entry = await getEntry(owner.key, "ekstrakurikuler-list", slug);
+  const entry = await getEntry(owner.key, "fasilitas-list", slug);
   return entry ? { owner, entry } : null;
 }
 
@@ -45,24 +45,22 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     openGraph: {
       title,
       description,
-      url: `${ownerUrl(owner)}ekstrakurikuler/${entry.slug}`,
+      url: `${ownerUrl(owner)}fasilitas/${entry.slug}`,
       images: share ? [mediaUrl(share)] : undefined,
     },
   };
 }
 
 /**
- * Blocking, and a slug nobody owns answers 200 rather than 404 — the same two
- * facts `/berita/[slug]` records at length. There is no `generateStaticParams`
- * because the set of activities changes whenever an editor publishes, and once a
- * response has started streaming its headers are gone, so `notFound()` after an
- * `await` can only add `<meta name="robots" content="noindex">`. That is what
- * keeps a deleted activity out of a search index.
+ * Blocking, and a slug nobody owns answers 200 rather than 404 — the two facts
+ * `/berita/[slug]` records at length and `/ekstrakurikuler/[slug]` repeats. The
+ * answer lives behind an `await`, and once a response has started streaming its
+ * headers are gone, so `notFound()` can only add `noindex`.
  */
 export const instant = false;
 
-/** One activity: what it is, how it runs, and what else a visitor could look at. */
-export default async function EkstrakurikulerDetailPage({ params }: { params: Params }) {
+/** One facility: what it is, how it is used, and what else a visitor could see. */
+export default async function FasilitasDetailPage({ params }: { params: Params }) {
   const found = await read(params);
   if (!found) notFound();
 
@@ -86,7 +84,7 @@ export default async function EkstrakurikulerDetailPage({ params }: { params: Pa
         </div>
       </section>
 
-      <MoreEntries ownerKey={owner.key} collection="ekstrakurikuler-list" slug={entry.slug} />
+      <MoreEntries ownerKey={owner.key} collection="fasilitas-list" slug={entry.slug} />
     </main>
   );
 }
