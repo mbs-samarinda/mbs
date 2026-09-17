@@ -539,10 +539,6 @@ function UmbrellaStatus({
 }
 
 /**
- * Status never rides on colour alone: the badge carries the word, so "Ditutup"
- * reads the same to someone who cannot tell the two fills apart.
- */
-/**
  * What an editor owns on this page: the FAQ, and any extra prose. Every other
  * block type renders nothing here — its own page draws it.
  */

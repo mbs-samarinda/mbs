@@ -149,6 +149,12 @@ export type Block = { readonly id: number } & (
       // The outline action beside the entry CTA. Both halves or neither: a
       // label with no address is a button that goes nowhere, and an address
       // with no label is invisible.
+      //
+      // The CMS constrains the address to `/path` or `#anchor`. It is rendered
+      // into an `href`, so a free-text field would take `javascript:` and an
+      // address with no leading slash resolves against whatever route the
+      // visitor is on — and an absolute one at the apex is the production-link
+      // trap `ownerUrl` exists to stop.
       secondaryLabel: string | null;
       secondaryHref: string | null;
     }

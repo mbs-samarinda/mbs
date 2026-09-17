@@ -7,6 +7,10 @@
     "body": { "type": "text" },
     "image": { "type": "media", "multiple": false, "allowedTypes": ["images"] },
     "secondaryLabel": { "type": "string", "maxLength": 40 },
-    "secondaryHref": { "type": "string", "maxLength": 200 }
+    "secondaryHref": {
+      "type": "string",
+      "maxLength": 200,
+      "regex": "^$|^[/#][^\\s]*$"
+    }
   }
 }

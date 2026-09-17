@@ -360,6 +360,7 @@ function AdmissionTable({
   const rows = SCHOOLS.map((school, index) => ({ school, facts: facts?.[index] ?? null }));
   const cycle =
     (facts ?? []).flatMap((entry) => (entry.state === "cycle" ? [entry.cycle] : []))[0] ?? null;
+  const unavailable = facts?.every((entry) => entry.state === "unavailable") ?? false;
 
   return (
     <section className={SECTION}>
@@ -367,7 +368,12 @@ function AdmissionTable({
         <SectionHeading
           head={{
             heading: cycle ? `Pendaftaran ${cycle.name}` : "Pendaftaran bersama",
-            description,
+            // The editor's sentence describes a working system. When the system
+            // is the thing that is down, say so instead — an outage rendered as
+            // silence is how a parent concludes there is no intake.
+            description: unavailable
+              ? "Status, tanggal, dan biaya dibaca dari sistem pendaftaran dan sedang tidak dapat dihubungi. Kami tidak menampilkan tanggal lama."
+              : description,
             linkLabel: "Buka halaman pendaftaran",
             linkHref: "/pendaftaran",
           }}
@@ -411,7 +417,7 @@ function AdmissionTable({
           </table>
         </div>
 
-        {/* Six columns do not fit 834px, and a squeezed table is how a parent
+        {/* The table does not fit 834px, and a squeezed one is how a parent
             reads the wrong school's closing date. */}
         <div className="grid gap-4 md:grid-cols-2 lg:hidden">
           {rows.map(({ school, facts: entry }) => {
@@ -430,10 +436,15 @@ function AdmissionTable({
                   )}
                 </span>
                 <h3 className="text-[17px] font-bold text-pretty">{school.name}</h3>
-                {row && (
+                {/* Holds its height while the facts stream in: without this the
+                    three cards each grow by a row and the page jumps under a
+                    visitor who is already reading. */}
+                {row ? (
                   <FactStrip>
                     <Fact label="Biaya sekolah">{formatFee(row.effectiveFee)}</Fact>
                   </FactStrip>
+                ) : (
+                  <span className="h-8 w-28 rounded-md bg-muted" />
                 )}
               </article>
             );
@@ -443,6 +454,12 @@ function AdmissionTable({
         {cycle && (
           <p className="text-[13px] text-muted-foreground tabular-nums">
             Hasil diumumkan serentak {formatDate(cycle.resultPublishAt)} untuk ketiga sekolah.
+          </p>
+        )}
+
+        {unavailable && (
+          <p className="text-[13px] text-muted-foreground">
+            Perlu jawaban sekarang? Hubungi panitia lewat kontak di bawah halaman ini.
           </p>
         )}
       </div>
@@ -607,8 +624,10 @@ export function BlockSection({
     case "schools":
       return (
         // The hero's second action points here, so the section needs a name to
-        // be pointed at.
-        <section id="sekolah" className={`${SECTION} bg-muted`}>
+        // be pointed at — and a scroll margin, because the header is sticky and
+        // two rows tall: without it the heading lands behind the header and the
+        // visitor arrives halfway down the card grid.
+        <section id="sekolah" className={`${SECTION} scroll-mt-28 bg-muted`}>
           <div className={`${WIDTH} flex flex-col gap-7`}>
             <SectionHeading head={block.head} />
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -1168,13 +1187,20 @@ async function SchoolStatus({ schoolKey }: { schoolKey: SchoolKey }) {
 }
 
 /**
- * Whether one school's admission is open, in a word.
+ * Whether one school's admission is open, in a word — on a surface that lists
+ * the schools: the umbrella's table and the home page's school cards.
  *
- * Success rather than the owner's colour, which is what every frame that draws
- * this badge shows — and what `DESIGN.md` requires anyway: an open admission is
- * a workflow state, and a school colour never recolors one. The three states the
- * band and the card already have apply here too, so a cycle we could not read
- * says exactly that instead of reading as closed.
+ * Success rather than the owner's colour, which is what those frames draw
+ * (`bh1UE`, `sjqBc`) and what `DESIGN.md` requires: an open admission is a
+ * workflow state, and a school colour never recolors one. The hero's own badge
+ * is deliberately not this component — its frame carries no success fill, and it
+ * announces the cycle rather than comparing schools.
+ *
+ * The three states the band and the card already have apply here too, so a cycle
+ * we could not read says exactly that instead of reading as closed.
+ *
+ * Status never rides on colour alone either: the badge carries the word, so
+ * "Ditutup" reads the same to someone who cannot tell the two fills apart.
  */
 export function SchoolStatusBadge({
   facts,
