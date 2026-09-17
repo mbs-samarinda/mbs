@@ -21,6 +21,7 @@ import {
   FactStrip,
   PageHead,
   SECTION,
+  SchoolStatusBadge,
   SectionHeading,
   WIDTH,
   formatDate,
@@ -541,15 +542,6 @@ function UmbrellaStatus({
  * Status never rides on colour alone: the badge carries the word, so "Ditutup"
  * reads the same to someone who cannot tell the two fills apart.
  */
-function SchoolStatusBadge({ facts }: { facts: CycleFacts | null }) {
-  if (facts === null) return <span className="block h-5 w-20 rounded-4xl bg-muted" />;
-  if (facts.state === "unavailable") return <Badge variant="outline">Belum bisa dibaca</Badge>;
-  if (facts.state === "none") return <Badge variant="secondary">Belum dibuka</Badge>;
-
-  const open = isOpen(facts.cycle);
-  return <Badge variant={open ? "default" : "secondary"}>{open ? "Dibuka" : "Ditutup"}</Badge>;
-}
-
 /**
  * What an editor owns on this page: the FAQ, and any extra prose. Every other
  * block type renders nothing here — its own page draws it.
