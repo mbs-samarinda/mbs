@@ -20,7 +20,22 @@ readonly API_TAG=${3:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
 
 readonly ROOT=/opt/mbs
 readonly ENV_FILE=$ROOT/.env
-readonly COMPOSE=("docker" "compose" "--env-file" "$ENV_FILE" "-f" "$ROOT/compose.prod.yml")
+# The three image pins, in their own file rather than passed inline.
+#
+# compose interpolates the WHOLE file on every command, not just `up` — so with
+# these exported for one command only, a plain `compose exec postgres pg_dump`
+# fails with "required variable API_IMAGE is missing a value". That is the
+# backup step below, and the probe step, and every compose call in backup.sh.
+#
+# Separate from .env because this file is machine-written on each deploy and
+# .env holds hand-placed secrets that nothing should ever rewrite.
+readonly IMAGES_FILE=$ROOT/images.env
+readonly COMPOSE=(
+  "docker" "compose"
+  "--env-file" "$ENV_FILE"
+  "--env-file" "$IMAGES_FILE"
+  "-f" "$ROOT/compose.prod.yml"
+)
 readonly PROJECT=mbs-prod
 readonly NETWORK=${PROJECT}_default
 readonly CANDIDATE=mbs-deploy-candidate
@@ -53,12 +68,21 @@ set -a
 source "$ENV_FILE"
 set +a
 
-for required in PROFILE_APEX CMS_URL REVALIDATE_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD; do
+for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD; do
   if [[ -z ${!required:-} ]]; then
     echo "$ENV_FILE is missing $required" >&2
     exit 1
   fi
 done
+
+log "Pinning $IMAGES_FILE"
+# Written before any compose command runs, for the reason above.
+cat > "$IMAGES_FILE" <<PINS
+# Written by deploy.sh on every deploy. Do not edit by hand.
+PROFILE_IMAGE=$REGISTRY/mbs-profile:$PROFILE_TAG
+CMS_IMAGE=$REGISTRY/mbs-cms:$CMS_TAG
+API_IMAGE=$REGISTRY/mbs-api:$API_TAG
+PINS
 
 log "Pulling images"
 docker pull -q "$REGISTRY/mbs-profile:$PROFILE_TAG"
@@ -89,10 +113,7 @@ docker run --rm --network "$NETWORK" \
   "$REGISTRY/mbs-api:$API_TAG" node_modules/.bin/drizzle-kit migrate
 
 log "Starting cms and api"
-PROFILE_IMAGE="$REGISTRY/mbs-profile:$PROFILE_TAG" \
-  CMS_IMAGE="$REGISTRY/mbs-cms:$CMS_TAG" \
-  API_IMAGE="$REGISTRY/mbs-api:$API_TAG" \
-  "${COMPOSE[@]}" up -d cms api
+"${COMPOSE[@]}" up -d cms api
 
 # ---------------------------------------------------------------------------
 # The gate that used to live in `next build`.
@@ -110,8 +131,11 @@ docker run -d --name "$CANDIDATE" --network "$NETWORK" \
   -e NODE_ENV=production \
   -e "PROFILE_APEX=$PROFILE_APEX" \
   -e "CMS_URL=$CMS_URL" \
+  -e "MEDIA_BASE_URL=$MEDIA_BASE_URL" \
   -e API_BASE_URL=http://api:3001 \
   -e "REVALIDATE_SECRET=$REVALIDATE_SECRET" \
+  -e PROFILE_CACHE_DIR=/app/.cache/content \
+  --mount "type=volume,source=${PROJECT}_content-cache,target=/app/.cache/content" \
   "$REGISTRY/mbs-profile:$PROFILE_TAG" >/dev/null
 # 500, higher than every compose service. If the box runs out of memory while
 # two profiles are alive, the one nobody is using yet is what the kernel takes.
@@ -163,15 +187,12 @@ log "Swapping the candidate out and the new image in"
 # may write to it.
 cleanup_candidate
 
-PROFILE_IMAGE="$REGISTRY/mbs-profile:$PROFILE_TAG" \
-  CMS_IMAGE="$REGISTRY/mbs-cms:$CMS_TAG" \
-  API_IMAGE="$REGISTRY/mbs-api:$API_TAG" \
-  "${COMPOSE[@]}" up -d profile
+"${COMPOSE[@]}" up -d profile
 
-log "Warming and verifying the live container"
-# The swapped-in container starts cold until slice 4 gives the cache a volume,
-# so these probes double as the warm-up that spares the first real visitor a
-# Strapi round trip. They are also the check that the swap itself worked.
+log "Verifying the live container"
+# The new container inherits the candidate's cache through the shared volume, so
+# these are a check that the swap worked rather than a warm-up. They stay
+# because the swap is the one step nothing else verifies.
 if ! smoke profile; then
   echo "The deployed profile is not answering. Roll forward; do not roll back past a" >&2
   echo "commit that added a CMS component, which would destroy that content." >&2
