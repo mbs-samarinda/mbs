@@ -53,6 +53,17 @@ set +a
 export AWS_SECRET_ACCESS_KEY=$AWS_ACCESS_SECRET
 export AWS_DEFAULT_REGION=${AWS_REGION:-idn}
 
+# aws-cli v2 bundles its own CA store and ignores the system one. Biznet's chain
+# fails that bundle — "self-signed certificate in certificate chain" — while
+# curl on this host and Node's fetch both accept it against /etc/ssl/certs.
+# Measured on Ubuntu 26.04 with aws-cli 2.31.35: without this, every upload
+# fails, so every backup fails.
+#
+# Deliberately not --no-verify-ssl. That would accept any certificate, which on
+# the one channel carrying the database off the box is the wrong trade even
+# though the payload is already encrypted.
+export AWS_CA_BUNDLE=${AWS_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}
+
 echo "== newest backup of $DB"
 # Names carry an ISO 8601 timestamp, so the newest is the last one sorted.
 latest=$(aws --endpoint-url "$AWS_ENDPOINT" s3 ls "s3://$BACKUP_BUCKET/" \
