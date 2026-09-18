@@ -172,6 +172,17 @@ services:
       MEDIA_BASE_URL: ${MEDIA_BASE_URL:?set MEDIA_BASE_URL}
       API_BASE_URL: http://api:3001
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
+      PROFILE_CACHE_DIR: /app/.cache/content
+    volumes:
+      # The `"use cache"` store. On a volume so a redeploy does not start cold
+      # and Strapi being down during one stops mattering.
+      #
+      # A deploy candidate is run against this same volume on purpose: a
+      # candidate that passes its probes has already warmed the cache the live
+      # container will serve. The other half of that bargain is in deploy.sh —
+      # a candidate that FAILS is removed before the swap, because only an image
+      # about to go live may write here.
+      - content-cache:/app/.cache/content
     oom_score_adj: 200
 
   caddy:
@@ -198,6 +209,7 @@ services:
 
 volumes:
   postgres-data:
+  content-cache:
   cms-uploads:
   caddy-data:
   caddy-config:

@@ -53,7 +53,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-for required in PROFILE_APEX CMS_URL REVALIDATE_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD; do
+for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD; do
   if [[ -z ${!required:-} ]]; then
     echo "$ENV_FILE is missing $required" >&2
     exit 1
@@ -110,8 +110,11 @@ docker run -d --name "$CANDIDATE" --network "$NETWORK" \
   -e NODE_ENV=production \
   -e "PROFILE_APEX=$PROFILE_APEX" \
   -e "CMS_URL=$CMS_URL" \
+  -e "MEDIA_BASE_URL=$MEDIA_BASE_URL" \
   -e API_BASE_URL=http://api:3001 \
   -e "REVALIDATE_SECRET=$REVALIDATE_SECRET" \
+  -e PROFILE_CACHE_DIR=/app/.cache/content \
+  --mount "type=volume,source=${PROJECT}_content-cache,target=/app/.cache/content" \
   "$REGISTRY/mbs-profile:$PROFILE_TAG" >/dev/null
 # 500, higher than every compose service. If the box runs out of memory while
 # two profiles are alive, the one nobody is using yet is what the kernel takes.
@@ -168,10 +171,10 @@ PROFILE_IMAGE="$REGISTRY/mbs-profile:$PROFILE_TAG" \
   API_IMAGE="$REGISTRY/mbs-api:$API_TAG" \
   "${COMPOSE[@]}" up -d profile
 
-log "Warming and verifying the live container"
-# The swapped-in container starts cold until slice 4 gives the cache a volume,
-# so these probes double as the warm-up that spares the first real visitor a
-# Strapi round trip. They are also the check that the swap itself worked.
+log "Verifying the live container"
+# The new container inherits the candidate's cache through the shared volume, so
+# these are a check that the swap worked rather than a warm-up. They stay
+# because the swap is the one step nothing else verifies.
 if ! smoke profile; then
   echo "The deployed profile is not answering. Roll forward; do not roll back past a" >&2
   echo "commit that added a CMS component, which would destroy that content." >&2
