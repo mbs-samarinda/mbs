@@ -185,9 +185,14 @@ jobs:
         # nothing in CI knows its contents.
         run: |
           set -euo pipefail
-          tar -cz -C infra compose.prod.yml Caddyfile deploy.sh postgres \
+          # install-host.sh and generate-secrets.sh are deliberately absent: both
+          # have to run before any deploy exists, so they arrive with a clone
+          # or an scp rather than with this.
+          tar -cz -C infra \
+            compose.prod.yml Caddyfile postgres \
+            deploy.sh backup.sh restore-drill.sh install-backup-cron.sh \
             | ssh -o BatchMode=yes "$VPS_USER@${{ secrets.VPS_HOST }}" \
-              'mkdir -p /opt/mbs && tar -xz -C /opt/mbs && chmod +x /opt/mbs/deploy.sh'
+              'mkdir -p /opt/mbs && tar -xz -C /opt/mbs && chmod +x /opt/mbs/*.sh'
 
       - name: Deploy
         run: |
