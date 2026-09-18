@@ -75,6 +75,13 @@ export default async function OwnerLayout({
   );
 }
 
+/**
+ * Required, not leftover. Compile mode prerenders nothing, so this enumerates
+ * nothing — but `owner` is a root parameter, and Next refuses to build without
+ * a `generateStaticParams` for one: "A required root parameter (owner) was not
+ * provided in generateStaticParams". Deleting it fails the build; it has been
+ * tried.
+ */
 export function generateStaticParams() {
   return OWNERS.map((owner) => ({ owner: owner.key }));
 }

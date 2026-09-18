@@ -22,6 +22,13 @@ COPY apps/profile/.next/standalone ./
 COPY apps/profile/.next/static ./apps/profile/.next/static
 COPY apps/profile/public ./apps/profile/public
 
+# next/image writes optimized copies of Strapi's photographs here on first
+# request. Every COPY above lands as root, so without this the process cannot
+# create the directory and each image request fails on EACCES — while the page
+# HTML still returns 200, which is exactly the failure a status-code smoke check
+# cannot see.
+RUN mkdir -p /app/apps/profile/.next/cache && chown -R node:node /app/apps/profile/.next
+
 USER node
 EXPOSE 3002
 ENV PORT=3002

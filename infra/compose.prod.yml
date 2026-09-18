@@ -91,6 +91,11 @@ services:
       DATABASE_URL: postgres://mbs:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/mbs_core
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL}
+      # Required because the API refuses to boot without them, not because
+      # anything uses them yet: staff sign-in belongs to the committee app,
+      # which is still a scaffold, and the Caddyfile gives the API no public
+      # host for Google to call back to. Placeholder-shaped values until that
+      # app ships, at which point it gets its own host and these become real.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET}
       ADMIN_APP_URL: ${ADMIN_APP_URL:?set ADMIN_APP_URL}

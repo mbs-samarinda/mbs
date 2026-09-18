@@ -17,3 +17,11 @@
 # The profile image needs apps/profile/.next/standalone, so .next stays. Its
 # cache directory does not.
 **/.next/cache
+
+# Last, so it wins over the re-include above. A developer's .env holds real
+# credentials, and both images would otherwise carry one: `COPY apps/api` takes
+# it directly, and Next copies apps/profile/.env into the standalone output.
+# Every image would then hand its secrets to anyone who can pull it. Production
+# gets all of these from /opt/mbs/.env on the box instead.
+**/.env
+**/Dockerfile
