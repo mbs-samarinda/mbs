@@ -4,15 +4,16 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      // CMS_URL is read at build time by the profile's next.config.ts, which
-      // turns it into images.remotePatterns. Without it in the hash a build
-      // against a different CMS replays the cached artifact and every uploaded
+      // CMS_URL and MEDIA_BASE_URL are both read at build time by the
+      // profile's next.config.ts, which turns them into
+      // images.remotePatterns. Without them in the hash, a build against a
+      // different CMS or bucket replays the cached artifact and every uploaded
       // photograph 500s with "hostname is not configured".
       //
       // PROFILE_APEX no longer changes the build — nothing prerenders, so the
       // switcher's links come from the serving process. It is kept here anyway:
       // it costs nothing, and a future prerender would need it.
-      "env": ["CMS_URL", "PROFILE_APEX"],
+      "env": ["CMS_URL", "MEDIA_BASE_URL", "PROFILE_APEX"],
       "outputs": [
         "dist/**",
         "build/**",
