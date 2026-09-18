@@ -169,14 +169,48 @@ docker run -d --name "$CANDIDATE" --network "$NETWORK" \
 # 500, higher than every compose service. If the box runs out of memory while
 # two profiles are alive, the one nobody is using yet is what the kernel takes.
 
+# wget from the POSTGRES container, not caddy. Caddy is started after the smoke
+# check passes, so on a first deploy `compose exec caddy` fails with `service
+# "caddy" is not running` — and because the old version sent stderr to
+# /dev/null, that was reported as "did not return 200". A misleading message on
+# the one mechanism the deploy safety story rests on.
+#
+# postgres:18-alpine carries busybox wget and is the first container up, so it
+# is available for every probe by construction. The node-based images have
+# neither curl nor wget.
+readonly PROBE_SVC=postgres
+
+# Waits for the candidate to answer at all before judging what it answers.
+# `docker run -d` returns as soon as the container is created, and a Next.js
+# server needs a second or two to listen — the first failed run probed 200ms
+# after starting it, so "did not return 200" meant "was not up yet".
+wait_for_candidate() {
+  local deadline=$((SECONDS + 60))
+  while ((SECONDS < deadline)); do
+    if "${COMPOSE[@]}" exec -T "$PROBE_SVC" \
+      wget -q -O /dev/null --spider "http://$CANDIDATE:3002/" 2>/dev/null; then
+      return 0
+    fi
+    # A 500 still means it is listening, which is all this waits for; the probes
+    # below are what decide whether the answer is right.
+    if "${COMPOSE[@]}" exec -T "$PROBE_SVC" \
+      sh -c "wget -q -O /dev/null --spider 'http://$CANDIDATE:3002/' 2>&1 | grep -q 'server returned error'" 2>/dev/null; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "Candidate never started listening within 60s." >&2
+  return 1
+}
+
 probe() {
-  local target=$1 host=$2 path=$3 owner=$4 body
-  # wget from the caddy container: it is on this network already and has one,
-  # while the node-based images have neither curl nor wget. `-O -` so the body
-  # can be checked, not just the status.
-  if ! body=$("${COMPOSE[@]}" exec -T caddy \
-    wget -q -O - --header "Host: $host" "http://$target:3002$path" 2>/dev/null); then
-    echo "  FAIL $host$path did not return 200" >&2
+  local target=$1 host=$2 path=$3 owner=$4 body err
+  # stderr is captured rather than discarded. Losing it is how "caddy is not
+  # running" came back as "did not return 200".
+  if ! body=$("${COMPOSE[@]}" exec -T "$PROBE_SVC" \
+    wget -q -O - --header "Host: $host" "http://$target:3002$path" 2>/tmp/probe.err); then
+    err=$(tr -d '\r' < /tmp/probe.err | tail -2 | tr '\n' ' ')
+    echo "  FAIL $host$path — ${err:-no response}" >&2
     return 1
   fi
   # A 200 whose <html> carries another owner's key would mean the proxy resolved
@@ -203,6 +237,12 @@ smoke() {
     probe "$target" "smp.$PROFILE_APEX" "$path" smp || return 1
   done
 }
+
+log "Waiting for the candidate to listen"
+if ! wait_for_candidate; then
+  echo "The running profile was not touched." >&2
+  exit 1
+fi
 
 log "Smoke-checking the candidate"
 if ! smoke "$CANDIDATE"; then
