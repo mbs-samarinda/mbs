@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import type { NextConfig } from "next";
 
 // Images come from Strapi, on its own host. Without this, the first logo or
@@ -48,6 +50,13 @@ const config: NextConfig = {
   // school key, which is also part of the cache key so two schools never share
   // a cached page for the same path.
   cacheComponents: true,
+  // The `"use cache"` store, on a compose volume rather than in memory. Next
+  // 16.3.4's own default handler is memory-backed, so every deploy and restart
+  // started cold and the first visitor to each page waited on Strapi. With this
+  // the replacement container reads what its predecessor wrote.
+  cacheHandlers: {
+    default: join(import.meta.dirname, "cache-handler.ts"),
+  },
   // The root layout lives inside `[owner]`, so an unmatched path has no layout
   // to render a `not-found.tsx` in. This file convention answers those from
   // outside the tree instead.
