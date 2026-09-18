@@ -13,8 +13,11 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Middlewar
   // the files upload fine and the admin shows broken images, which reads as a
   // failed upload.
   //
-  // Unset AWS_ENDPOINT (local development, filesystem provider) contributes
-  // nothing, so the default stays as tight as it was.
+  // With no AWS_ENDPOINT this contributes nothing and the default stays as
+  // tight as it was. Note .env.example ships the endpoint pre-filled while
+  // leaving AWS_BUCKET empty, so a developer on the filesystem provider does
+  // get the bucket host in this list — harmless, and cheaper than two
+  // variables that have to agree.
   {
     name: "strapi::security",
     config: {
@@ -49,7 +52,18 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Middlewar
 function mediaHosts(env: Env): string[] {
   const hosts = [env("AWS_ENDPOINT"), env("AWS_BASE_URL")]
     .filter((value): value is string => Boolean(value))
-    .map((value) => new URL(value).host);
+    // `new URL` throws on a value with no scheme, and this runs while Strapi is
+    // loading config — so `AWS_ENDPOINT=nos.jkt-1.neo.id`, an easy thing to
+    // write, would stop the CMS booting with nothing pointing at the cause.
+    // Skipped instead: a missing CSP host shows broken thumbnails in the admin,
+    // which is visible and recoverable.
+    .flatMap((value) => {
+      try {
+        return [new URL(value).host];
+      } catch {
+        return [];
+      }
+    });
   // Usually the same host twice, since the base URL is the endpoint plus the
   // bucket path. They differ only when a CDN fronts the bucket.
   return [...new Set(hosts)];
