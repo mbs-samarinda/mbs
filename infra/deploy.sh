@@ -20,7 +20,22 @@ readonly API_TAG=${3:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
 
 readonly ROOT=/opt/mbs
 readonly ENV_FILE=$ROOT/.env
-readonly COMPOSE=("docker" "compose" "--env-file" "$ENV_FILE" "-f" "$ROOT/compose.prod.yml")
+# The three image pins, in their own file rather than passed inline.
+#
+# compose interpolates the WHOLE file on every command, not just `up` — so with
+# these exported for one command only, a plain `compose exec postgres pg_dump`
+# fails with "required variable API_IMAGE is missing a value". That is the
+# backup step below, and the probe step, and every compose call in backup.sh.
+#
+# Separate from .env because this file is machine-written on each deploy and
+# .env holds hand-placed secrets that nothing should ever rewrite.
+readonly IMAGES_FILE=$ROOT/images.env
+readonly COMPOSE=(
+  "docker" "compose"
+  "--env-file" "$ENV_FILE"
+  "--env-file" "$IMAGES_FILE"
+  "-f" "$ROOT/compose.prod.yml"
+)
 readonly PROJECT=mbs-prod
 readonly NETWORK=${PROJECT}_default
 readonly CANDIDATE=mbs-deploy-candidate
@@ -60,6 +75,15 @@ for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_P
   fi
 done
 
+log "Pinning $IMAGES_FILE"
+# Written before any compose command runs, for the reason above.
+cat > "$IMAGES_FILE" <<PINS
+# Written by deploy.sh on every deploy. Do not edit by hand.
+PROFILE_IMAGE=$REGISTRY/mbs-profile:$PROFILE_TAG
+CMS_IMAGE=$REGISTRY/mbs-cms:$CMS_TAG
+API_IMAGE=$REGISTRY/mbs-api:$API_TAG
+PINS
+
 log "Pulling images"
 docker pull -q "$REGISTRY/mbs-profile:$PROFILE_TAG"
 docker pull -q "$REGISTRY/mbs-cms:$CMS_TAG"
@@ -89,10 +113,7 @@ docker run --rm --network "$NETWORK" \
   "$REGISTRY/mbs-api:$API_TAG" node_modules/.bin/drizzle-kit migrate
 
 log "Starting cms and api"
-PROFILE_IMAGE="$REGISTRY/mbs-profile:$PROFILE_TAG" \
-  CMS_IMAGE="$REGISTRY/mbs-cms:$CMS_TAG" \
-  API_IMAGE="$REGISTRY/mbs-api:$API_TAG" \
-  "${COMPOSE[@]}" up -d cms api
+"${COMPOSE[@]}" up -d cms api
 
 # ---------------------------------------------------------------------------
 # The gate that used to live in `next build`.
@@ -166,10 +187,7 @@ log "Swapping the candidate out and the new image in"
 # may write to it.
 cleanup_candidate
 
-PROFILE_IMAGE="$REGISTRY/mbs-profile:$PROFILE_TAG" \
-  CMS_IMAGE="$REGISTRY/mbs-cms:$CMS_TAG" \
-  API_IMAGE="$REGISTRY/mbs-api:$API_TAG" \
-  "${COMPOSE[@]}" up -d profile
+"${COMPOSE[@]}" up -d profile
 
 log "Verifying the live container"
 # The new container inherits the candidate's cache through the shared volume, so

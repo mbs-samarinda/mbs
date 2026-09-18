@@ -13,7 +13,20 @@
 set -euo pipefail
 
 readonly ENV_FILE=/opt/mbs/.env
-readonly COMPOSE=("docker" "compose" "--env-file" "$ENV_FILE" "-f" "/opt/mbs/compose.prod.yml")
+# Both env files. compose interpolates the whole compose file on every command,
+# so without the image pins even `exec postgres pg_dump` refuses to run.
+readonly IMAGES_FILE=/opt/mbs/images.env
+readonly COMPOSE=(
+  "docker" "compose"
+  "--env-file" "$ENV_FILE"
+  "--env-file" "$IMAGES_FILE"
+  "-f" "/opt/mbs/compose.prod.yml"
+)
+
+[[ -f $IMAGES_FILE ]] || {
+  echo "$IMAGES_FILE does not exist yet. deploy.sh writes it; run a deploy first." >&2
+  exit 1
+}
 
 set -a
 # shellcheck disable=SC1090
@@ -47,7 +60,8 @@ export AWS_DEFAULT_REGION=${AWS_REGION:-idn}
 # though the payload is already encrypted.
 export AWS_CA_BUNDLE=${AWS_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}
 
-readonly STAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+STAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+readonly STAMP
 
 for db in mbs_core mbs_cms; do
   # The naming scheme the previous job used. Its dumps are ciphertext nobody can
