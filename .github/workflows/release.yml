@@ -26,6 +26,10 @@ env:
   # starts. Setting it here would put it in the hash and make the apex cutover
   # rebuild an image identical to the one already deployed.
   CMS_URL: https://cms.mbss.sch.id
+  # Where Strapi's S3 provider serves media from. Also a build input: the
+  # profile turns it into a second images.remotePatterns entry, without which
+  # every photograph 500s with "hostname is not configured".
+  MEDIA_BASE_URL: https://nos.jkt-1.neo.id/mbss-uploads
 
 jobs:
   images:

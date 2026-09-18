@@ -71,10 +71,20 @@ services:
       TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:?set TRANSFER_TOKEN_SALT}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY}
+      # Media goes to Biznet Gio object storage. Required, not optional: with
+      # these unset Strapi silently falls back to writing into the container,
+      # and every photograph an editor uploads dies with it on the next deploy.
+      AWS_BUCKET: ${AWS_BUCKET:?set AWS_BUCKET}
+      AWS_ENDPOINT: ${AWS_ENDPOINT:?set AWS_ENDPOINT}
+      AWS_REGION: ${AWS_REGION:-idn}
+      AWS_BASE_URL: ${AWS_BASE_URL:?set AWS_BASE_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID}
+      AWS_ACCESS_SECRET: ${AWS_ACCESS_SECRET:?set AWS_ACCESS_SECRET}
     volumes:
-      # Dies with the container until slice 5 moves media to S3. Named so that
-      # an editor who uploads before then does not lose the photograph on the
-      # next deploy.
+      # Media lives in S3 now, so nothing should be written here. Kept because
+      # the provider falls back to the filesystem if the AWS variables are ever
+      # unset, and losing an editor's photographs to that is worse than an
+      # empty volume.
       - cms-uploads:/app/apps/cms/public/uploads
     # Strapi seeds every owner's rows in its `bootstrap` hook, which runs before
     # the HTTP server listens — so an answer here means seeding finished, not
@@ -149,6 +159,17 @@ services:
       # it at module load.
       PROFILE_APEX: ${PROFILE_APEX:?set PROFILE_APEX}
       CMS_URL: ${CMS_URL:?set CMS_URL}
+      # Recorded, not used. next.config.ts turns this into
+      # images.remotePatterns at BUILD time, and `output: "standalone"`
+      # serialises the result into the image — next.config.ts is not even
+      # present in the standalone output, so it cannot re-run and this value
+      # cannot take effect at runtime. Correcting a wrong bucket URL here and
+      # redeploying changes nothing; it needs a rebuild.
+      #
+      # Kept so the box records which value the running image was built with,
+      # and so deploy.sh can assert it is set. CMS_URL above is the genuinely
+      # dual-purpose one: config/env.ts reads it per request.
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL:?set MEDIA_BASE_URL}
       API_BASE_URL: http://api:3001
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
     oom_score_adj: 200
