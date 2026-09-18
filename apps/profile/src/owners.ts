@@ -62,10 +62,11 @@ export function ownerHost(owner: Owner): string {
  * not reachable and a switcher that leaves the machine is worse than no
  * switcher.
  *
- * These links are baked at build time, since every owner page prerenders. A
- * deploy on another domain has to set `PROFILE_APEX` when it *builds*, not only
- * when it serves — otherwise the proxy resolves staging hosts correctly while
- * the switcher in the HTML sends visitors to production.
+ * `APEX` is read once when this module loads, and nothing prerenders any more,
+ * so these links come from the value the *serving* process was started with. A
+ * deploy on another domain sets `PROFILE_APEX` in its environment and restarts;
+ * changing it needs no rebuild, but it does need a restart, because a module
+ * already loaded keeps the old value.
  */
 export function ownerUrl(owner: Owner): string {
   const host = ownerHost(owner);

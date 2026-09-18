@@ -1,0 +1,49 @@
+# Caddy terminates TLS for every host and proxies to the three services.
+#
+# Cloudflare is DNS-only (grey cloud) on this zone, so requests arrive here
+# directly and Caddy's own HTTP-01 challenge works with no extra configuration.
+# Turning the Cloudflare proxy on for any of these hosts breaks certificate
+# renewal and would need a DNS-01 challenge with an API token instead.
+#
+# {$PROFILE_APEX} keeps this file the same on `new.` and at the apex: compose
+# passes the one value both this and the profile service read. {$CMS_HOST} is
+# separate because Strapi stays on cms.mbss.sch.id through the cutover.
+
+{
+	email {$CADDY_EMAIL}
+}
+
+# The four owner hosts. `www.` is listed only so a certificate exists for it;
+# the application answers it with a 308 to the bare host.
+{$PROFILE_APEX}, www.{$PROFILE_APEX}, smp.{$PROFILE_APEX}, sma.{$PROFILE_APEX}, smk.{$PROFILE_APEX} {
+	encode zstd gzip
+
+	# Everything, including /api. The profile owns /api/revalidate, and nothing
+	# else under /api is reachable from a browser on these hosts: `admission.ts`
+	# reads the API from the server, over the compose network, so the API needs
+	# no public route here. Sending /api/* to the API service instead would take
+	# the revalidate endpoint away from the app that implements it. The admission
+	# and committee apps get their own hosts, and their own site blocks.
+	#
+	# The profile resolves the owner from the Host header, so the original host
+	# has to survive the hop. Caddy passes it through unchanged by default; the
+	# whole multi-tenant scheme rests on that, so it is not left to a default
+	# nobody can see.
+	reverse_proxy profile:3002 {
+		header_up Host {host}
+	}
+}
+
+{$CMS_HOST} {
+	encode zstd gzip
+
+	# Strapi's media library uploads photographs, and Caddy's default request
+	# body limit is far below what a camera produces.
+	request_body {
+		max_size 100MB
+	}
+
+	reverse_proxy cms:1337 {
+		header_up Host {host}
+	}
+}

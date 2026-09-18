@@ -1,0 +1,19 @@
+# Every image copies build output that already exists on the host, so the
+# context only needs sources, manifests and that output. node_modules is the
+# expensive exception: pnpm's tree is symlinks into a store that means nothing
+# inside an image, and each image installs its own.
+**/node_modules
+**/.turbo
+**/.tmp
+.git
+.github
+
+# The one node_modules that must ship. `output: "standalone"` writes a real
+# dependency tree under here — not workspace symlinks into a store — and it is
+# the only copy of Next the image gets. Excluding it builds an image that starts
+# and then dies on "Cannot find module 'next'".
+!apps/profile/.next/standalone/**
+
+# The profile image needs apps/profile/.next/standalone, so .next stays. Its
+# cache directory does not.
+**/.next/cache

@@ -37,8 +37,8 @@ export async function generateMetadata({
 // teal, and globals.css matches the dark blocks same-element as
 // `.dark[data-owner="smp"]`, where the theme class also lives.
 //
-// Being here keeps every owner page prerenderable, which reading the owner from
-// a header in a layout above would not. Next's not-found boundary sits above
+// Being here also keeps the owner a route parameter rather than a header read,
+// so it stays part of every cache key. Next's not-found boundary sits above
 // this layout, so an unclaimed path is answered by `app/global-not-found.tsx`
 // instead, which reads the owner from the Host header on its own and builds the
 // same shell from `shell.tsx`.

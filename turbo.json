@@ -4,11 +4,15 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      // PROFILE_APEX is read at build time, not only at run time: the profile
-      // app prerenders its pages, so the school switcher's absolute links are
-      // baked in. Without it in the hash a staging build replays the cached
-      // production artifact and ships a switcher pointing at the live site.
-      "env": ["PROFILE_APEX"],
+      // CMS_URL is read at build time by the profile's next.config.ts, which
+      // turns it into images.remotePatterns. Without it in the hash a build
+      // against a different CMS replays the cached artifact and every uploaded
+      // photograph 500s with "hostname is not configured".
+      //
+      // PROFILE_APEX no longer changes the build — nothing prerenders, so the
+      // switcher's links come from the serving process. It is kept here anyway:
+      // it costs nothing, and a future prerender would need it.
+      "env": ["CMS_URL", "PROFILE_APEX"],
       "outputs": [
         "dist/**",
         "build/**",

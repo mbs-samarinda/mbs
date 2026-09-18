@@ -97,7 +97,7 @@ jobs:
         image: postgres:18-alpine
         # Its own database, named here. The job above provisions `mbs_core`
         # only, and the `mbs_cms` role and database come from
-        # infra/postgres/init-cms-db.sql — a docker-compose mount that CI never
+        # infra/postgres/init-cms-db.sh — a docker-compose mount that CI never
         # runs. The test defaults to these credentials, so nothing else to set.
         env:
           POSTGRES_USER: mbs
@@ -127,7 +127,10 @@ jobs:
       - uses: ./.github/actions/setup
       # Only the applications that produce artifacts have a build task. The API
       # runs TypeScript directly on Node, so typecheck is what proves it
-      # compiles. The profile is skipped on purpose: its pages prerender from
-      # Strapi at build time and fail without one, which is what a deployment
-      # wants and what CI cannot provide. Its typecheck still runs above.
-      - run: pnpm exec turbo run build $AFFECTED --filter=!@mbs/profile
+      # compiles.
+      #
+      # The profile used to be excluded here, because its pages prerendered from
+      # Strapi and the build failed without one. It builds in compile mode now
+      # and never reads the CMS, so it belongs in this job like everything else
+      # — and the image hash no longer depends on content.
+      - run: pnpm exec turbo run build $AFFECTED
