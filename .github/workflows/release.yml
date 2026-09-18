@@ -78,10 +78,20 @@ jobs:
           # with unchanged application code has to produce a new image.
           # .dockerignore counts too: it decides what reaches the image at all,
           # and getting it wrong is how a .env ends up in one.
+          #
+          # pnpm-lock.yaml counts most of all, and turbo does not fold it in —
+          # measured: bumping a dependency in the lockfile leaves both
+          # @mbs/profile#build and @mbs/api#typecheck on the same hash. The api
+          # and cms images run `pnpm install` from that lockfile at docker build
+          # time, so without it here a `pnpm update` for a security patch would
+          # change what the image *would* contain, find the old tag already
+          # published, skip the build, and leave the vulnerable version running
+          # behind a green workflow.
           tag=$(printf '%s' \
             "$turbo_hash" \
             "$(sha256sum apps/${{ matrix.app }}/Dockerfile | cut -d' ' -f1)" \
             "$(sha256sum .dockerignore | cut -d' ' -f1)" \
+            "$(sha256sum pnpm-lock.yaml | cut -d' ' -f1)" \
             | sha256sum | cut -c1-16)
 
           image="$REGISTRY/${{ github.repository_owner }}/mbs-${{ matrix.app }}"
@@ -118,8 +128,12 @@ jobs:
         run: |
           set -euo pipefail
           # Tagged twice: the content hash is what a deploy pins and what the
-          # skip above matches, and the commit SHA is what makes a running
-          # container traceable back to a commit.
+          # skip above matches, and the commit SHA records which commit first
+          # produced this image. Note it only appears on commits that actually
+          # changed the image — a merge that touches nothing here adds no SHA
+          # tag, so the SHA tags are a partial history, not a per-commit one.
+          # What a deploy pins and reports is the content hash, which is
+          # reproducible from any checkout.
           docker build \
             -f apps/${{ matrix.app }}/Dockerfile \
             -t "${{ steps.tag.outputs.image }}:${{ steps.tag.outputs.tag }}" \
