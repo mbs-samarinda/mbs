@@ -89,16 +89,44 @@ docker pull -q "$REGISTRY/mbs-profile:$PROFILE_TAG"
 docker pull -q "$REGISTRY/mbs-cms:$CMS_TAG"
 docker pull -q "$REGISTRY/mbs-api:$API_TAG"
 
+log "Starting Postgres"
+# Before the backup, not after. On a first deploy nothing is running at all, so
+# `compose exec postgres` fails with `service "postgres" is not running` — which
+# is how the third deploy attempt failed. Every local rehearsal started from a
+# stack that was already up, so the script only ever handled a steady-state
+# deploy and never a cold start.
+#
+# --wait blocks until the healthcheck passes, so the dump below cannot race the
+# socket appearing. On a first deploy this is also what runs
+# init-cms-db.sh and creates mbs_cms, so both databases exist by the time they
+# are dumped.
+"${COMPOSE[@]}" up -d --wait postgres
+
 log "Backing up both databases"
 # Local and pre-deploy: this is the copy that lets a bad migration be undone in
 # the next ten minutes. The nightly off-box backup is slice 6 and a different
 # job with a different retention.
+#
+# On a first deploy these dump a freshly initialised empty database. That is
+# small and useless but correct, and it is cheaper than special-casing.
 backup_dir=$ROOT/backups
 mkdir -p "$backup_dir"
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 for db in mbs_core mbs_cms; do
-  "${COMPOSE[@]}" exec -T postgres pg_dump -U mbs -Fc "$db" \
-    > "$backup_dir/$db-$stamp.dump"
+  # Written to a .part name and renamed only once it has content. The shell
+  # creates a redirect target before the command runs, so a failed pg_dump left
+  # a zero-byte file named exactly like a backup — which the fortnight prune
+  # then kept, looking legitimate. pg_dump -Fc always writes a header, so empty
+  # means it never ran. The leading dot keeps the part file out of the *.dump
+  # glob the prune uses.
+  part=$backup_dir/.$db-$stamp.dump.part
+  "${COMPOSE[@]}" exec -T postgres pg_dump -U mbs -Fc "$db" > "$part"
+  if [[ ! -s $part ]]; then
+    echo "pg_dump wrote nothing for $db; refusing to leave an empty dump" >&2
+    rm -f "$part"
+    exit 1
+  fi
+  mv "$part" "$backup_dir/$db-$stamp.dump"
 done
 # Keep a fortnight. Without this the 58 GB disk fills quietly.
 find "$backup_dir" -name '*.dump' -mtime +14 -delete
@@ -113,6 +141,7 @@ docker run --rm --network "$NETWORK" \
   "$REGISTRY/mbs-api:$API_TAG" node_modules/.bin/drizzle-kit migrate
 
 log "Starting cms and api"
+# Postgres is already up from the backup step above.
 "${COMPOSE[@]}" up -d cms api
 
 # ---------------------------------------------------------------------------
