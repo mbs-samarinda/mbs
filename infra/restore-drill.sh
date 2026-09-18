@@ -102,8 +102,16 @@ echo "== reading a row back out"
 # script exists to catch, so it ends by counting something real.
 case $DB in
   mbs_core)
+    # `key` only. The schools table carries no name column — name and level are
+    # compile-time facts in @mbs/school-config, per the comment on the table.
+    #
+    # This was fixed once already, on the branch that became #27, and lost when
+    # that branch was rebuilt as #33 carrying only three of its files. The first
+    # real drill failed here: everything worked, age decrypted the dump and
+    # pg_restore restored it, and the last assertion threw `column "name" does
+    # not exist`.
     "${COMPOSE[@]}" exec -T postgres psql -U mbs -d "$SCRATCH" \
-      -c "select key, name from schools order by key"
+      -c "select key, created_at from schools order by key"
     ;;
   mbs_cms)
     "${COMPOSE[@]}" exec -T postgres psql -U mbs -d "$SCRATCH" \
