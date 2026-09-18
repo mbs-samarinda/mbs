@@ -89,9 +89,14 @@ done
 if [[ -f $ROOT/.env ]]; then
   echo "  ok $ROOT/.env exists"
 else
+  # Paths relative to where this script itself was run from, not to $ROOT.
+  # These files are copied to the box before $ROOT exists, so they are wherever
+  # you put them — and the earlier version of this hint named `infra/…` and
+  # `$ROOT/generate-secrets.sh`, neither of which is true at this point.
+  here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
   echo "  -- $ROOT/.env is missing. Next, as $DEPLOY_USER (not root):"
-  echo "       install -m 600 infra/env.example $ROOT/.env"
-  echo "       $ROOT/generate-secrets.sh >> $ROOT/.env"
+  echo "       install -m 600 $here/env.example $ROOT/.env"
+  echo "       bash $here/generate-secrets.sh >> $ROOT/.env"
   echo "     then edit it and remove the blank originals of the generated keys."
 fi
 
