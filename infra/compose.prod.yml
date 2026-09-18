@@ -159,9 +159,16 @@ services:
       # it at module load.
       PROFILE_APEX: ${PROFILE_APEX:?set PROFILE_APEX}
       CMS_URL: ${CMS_URL:?set CMS_URL}
-      # Only used by next.config.ts, which runs again at startup. It must match
-      # the value the image was BUILT with, or remotePatterns and the URLs
-      # Strapi hands out disagree and every photograph 500s.
+      # Recorded, not used. next.config.ts turns this into
+      # images.remotePatterns at BUILD time, and `output: "standalone"`
+      # serialises the result into the image — next.config.ts is not even
+      # present in the standalone output, so it cannot re-run and this value
+      # cannot take effect at runtime. Correcting a wrong bucket URL here and
+      # redeploying changes nothing; it needs a rebuild.
+      #
+      # Kept so the box records which value the running image was built with,
+      # and so deploy.sh can assert it is set. CMS_URL above is the genuinely
+      # dual-purpose one: config/env.ts reads it per request.
       MEDIA_BASE_URL: ${MEDIA_BASE_URL:?set MEDIA_BASE_URL}
       API_BASE_URL: http://api:3001
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
