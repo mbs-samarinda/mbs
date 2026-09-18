@@ -17,6 +17,3 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
 }
 
 export { Input };
-
-// Probe for the release workflow: a change here must rebuild the profile
-// image and only the profile image. Reverted in the next commit.

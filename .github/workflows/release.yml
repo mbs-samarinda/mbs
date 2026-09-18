@@ -2,9 +2,7 @@ name: Release
 
 on:
   push:
-    # TEMPORARY: ci/release-ghcr is here only to prove this workflow on a branch
-    # before it merges. Removed in the commit that follows.
-    branches: [main, ci/release-ghcr]
+    branches: [main]
 
 # One release at a time, and never cancelled. A run that is already pushing
 # layers has to finish: killing it leaves a tag half-written in the registry.
