@@ -9,6 +9,10 @@
 set -euo pipefail
 
 readonly ROOT=/opt/mbs
+# The release workflow connects as this user and runs deploy.sh with no sudo, so
+# it has to own the tree and be able to talk to Docker. Slice 0: `root` is
+# refused by the box, which redirects to this account.
+readonly DEPLOY_USER=admin-mbss
 
 [[ $EUID -eq 0 ]] || {
   echo "Run with sudo." >&2
@@ -34,10 +38,23 @@ SOURCE
   systemctl enable --now docker
 fi
 
+# Without this every Docker call in deploy.sh fails with "permission denied
+# while trying to connect to the Docker daemon socket" — the pull, every
+# compose command, and the migration container. Group membership applies to new
+# logins, which each SSH deploy is.
+if ! id -nG "$DEPLOY_USER" | tr ' ' '\n' | grep -qx docker; then
+  echo "== adding $DEPLOY_USER to the docker group"
+  usermod -aG docker "$DEPLOY_USER"
+fi
+
 echo "== docker $(docker --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1), compose $(docker compose version --short)"
 
+# Owned by the deploy user, not root. deploy.sh writes images.env here, dumps
+# into backups/, and reads .env — all as $DEPLOY_USER over SSH without sudo, so
+# a root-owned 0700 tree fails the deploy before it pulls anything.
 mkdir -p "$ROOT" "$ROOT/backups"
-chmod 700 "$ROOT"
+chown -R "$DEPLOY_USER:$DEPLOY_USER" "$ROOT"
+chmod 750 "$ROOT"
 
 # The checks that matter, from what slice 0 found on this box.
 echo
@@ -72,7 +89,7 @@ done
 if [[ -f $ROOT/.env ]]; then
   echo "  ok $ROOT/.env exists"
 else
-  echo "  -- $ROOT/.env is missing. Next:"
+  echo "  -- $ROOT/.env is missing. Next, as $DEPLOY_USER (not root):"
   echo "       install -m 600 infra/env.example $ROOT/.env"
   echo "       $ROOT/generate-secrets.sh >> $ROOT/.env"
   echo "     then edit it and remove the blank originals of the generated keys."

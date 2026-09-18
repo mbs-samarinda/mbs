@@ -4,6 +4,10 @@
 #   ./generate-secrets.sh
 #   ./generate-secrets.sh >> /opt/mbs/.env     # then remove the blank originals
 #
+# Run it as the deploy user that owns /opt/mbs, not under sudo: the shell opens
+# a `>>` target before sudo runs, so `sudo ... >> /opt/mbs/.env` is the
+# unprivileged user writing a root-owned file, and fails.
+#
 # Every value here must be STABLE FOREVER. Strapi's keys sign admin sessions and
 # API tokens, so rotating one logs every editor out and invalidates every token;
 # the database passwords are set on the role at first boot and changing them
@@ -12,14 +16,29 @@
 # a step in the deploy.
 set -euo pipefail
 
-# Refuses rather than appends a second set, which would leave two values for one
-# variable in the file and let the shell pick the last — silently rotating keys
-# nobody meant to rotate.
-if [[ -f /opt/mbs/.env ]] && grep -qE '^APP_KEYS=.+' /opt/mbs/.env; then
-  echo "/opt/mbs/.env already has APP_KEYS set." >&2
+readonly ROOT=/opt/mbs
+readonly ENV_FILE=$ROOT/.env
+
+refuse() {
+  echo "$1" >&2
   echo "These values must never be regenerated: every admin session and API" >&2
   echo "token is signed with them. Nothing written." >&2
   exit 1
+}
+
+# This guard must never fail open, and the obvious version does. It was
+# `[[ -f $ENV_FILE ]] && grep -q ...`, which is false whenever this user cannot
+# traverse $ROOT — so running it unprivileged against a root-owned tree printed
+# a second full set of keys quite happily. Append those and the file holds two
+# values for one variable, the shell takes the last, and every editor is logged
+# out. So anything short of proof that no keys exist yet is a refusal.
+if [[ -d $ROOT ]] && { [[ ! -r $ROOT ]] || [[ ! -x $ROOT ]]; }; then
+  refuse "Cannot read $ROOT, so cannot tell whether keys already exist."
+fi
+
+if [[ -e $ENV_FILE ]]; then
+  [[ -r $ENV_FILE ]] || refuse "$ENV_FILE exists but this user cannot read it."
+  grep -qE '^APP_KEYS=.+' "$ENV_FILE" && refuse "$ENV_FILE already has APP_KEYS set."
 fi
 
 # hex, not base64. The Postgres password is interpolated into a URL in
