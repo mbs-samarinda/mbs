@@ -15,6 +15,22 @@ import type { NextConfig } from "next";
 // `PROFILE_APEX`.
 const cms = new URL(process.env.CMS_URL || "http://localhost:1337");
 
+// Once media lives in S3, Strapi returns absolute URLs on the bucket's host and
+// `cms.ts`'s `mediaUrl` passes them straight through — so the CMS host above no
+// longer covers them and every photograph 500s with "hostname is not
+// configured". Same value as the CMS's own AWS_BASE_URL.
+//
+// Optional: unset means the filesystem provider, media on the CMS host, and the
+// single pattern below is enough. That is local development.
+const mediaBase = process.env.MEDIA_BASE_URL ? new URL(process.env.MEDIA_BASE_URL) : null;
+
+const remote = (url: URL, pathname: string) => ({
+  protocol: url.protocol === "https:" ? ("https" as const) : ("http" as const),
+  hostname: url.hostname,
+  port: url.port,
+  pathname,
+});
+
 const config: NextConfig = {
   // The image ships this folder and nothing else. Without it the runtime stage
   // needs the whole workspace `node_modules`, which on pnpm is a tree of
@@ -22,12 +38,10 @@ const config: NextConfig = {
   output: "standalone",
   images: {
     remotePatterns: [
-      {
-        protocol: cms.protocol === "https:" ? "https" : "http",
-        hostname: cms.hostname,
-        port: cms.port,
-        pathname: "/uploads/**",
-      },
+      remote(cms, "/uploads/**"),
+      // The bucket path, not /uploads/**: the S3 provider keys objects at the
+      // root of the bucket.
+      ...(mediaBase ? [remote(mediaBase, `${mediaBase.pathname.replace(/\/$/, "")}/**`)] : []),
     ],
   },
   // One application serves every school subdomain. The hostname resolves to a
