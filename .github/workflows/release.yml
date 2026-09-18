@@ -115,6 +115,12 @@ jobs:
   deploy:
     needs: images
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The box pulls the images, so this job's token has to be able to read
+      # packages. Declared rather than inherited: the default for a job with no
+      # block is whatever the repository setting happens to be.
+      packages: read
     env:
       # Not a secret — slice 0 of the deployment plan names it, and `root` is
       # refused by the box anyway. Only the address, the private key and the
@@ -152,6 +158,22 @@ jobs:
           # command that replaces the running site.
           printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" > ~/.ssh/known_hosts
 
+      - name: Let the box pull from GHCR
+        # The packages are private, so `docker pull` on the box is
+        # `unauthorized` without a credential — which is how the first real
+        # deploy failed. The runner's own GITHUB_TOKEN authenticated the push
+        # here and nothing ever authenticated the pull there.
+        #
+        # GITHUB_TOKEN rather than a stored PAT: it expires when this job ends
+        # and is scoped to this repository, so no long-lived registry
+        # credential sits on the machine. The logout step below removes even
+        # the short-lived one, and runs on failure too.
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" \
+            | ssh -o BatchMode=yes "$VPS_USER@${{ secrets.VPS_HOST }}" \
+              'docker login ghcr.io -u ${{ github.actor }} --password-stdin'
+
       - name: Send the files the box runs from
         # compose.prod.yml, the Caddyfile, the init script and deploy.sh live in
         # Git, not in any image, so the box needs this commit's copies before it
@@ -169,3 +191,11 @@ jobs:
           ssh -o BatchMode=yes "$VPS_USER@${{ secrets.VPS_HOST }}" \
             "/opt/mbs/deploy.sh '${{ steps.tags.outputs.profile }}' \
               '${{ steps.tags.outputs.cms }}' '${{ steps.tags.outputs.api }}'"
+
+      - name: Remove the registry credential
+        # always(), so a failed deploy does not leave the token in
+        # ~/.docker/config.json on the box until the next run overwrites it.
+        if: always()
+        run: |
+          ssh -o BatchMode=yes "$VPS_USER@${{ secrets.VPS_HOST }}" \
+            'docker logout ghcr.io' || true
