@@ -76,6 +76,27 @@ services:
       # an editor who uploads before then does not lose the photograph on the
       # next deploy.
       - cms-uploads:/app/apps/cms/public/uploads
+    # Strapi seeds every owner's rows in its `bootstrap` hook, which runs before
+    # the HTTP server listens — so an answer here means seeding finished, not
+    # merely that the process is up. The profile waits on it for exactly that
+    # reason: `getPage` caches its result for hours and returns null for a row
+    # that does not exist yet, so one request during an unseeded boot pins an
+    # empty page for an hour. node's own fetch, because this image has neither
+    # curl nor wget.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:1337/_health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # Strapi takes its time on 2 vCPU, and a restart loop caused by an
+      # impatient healthcheck would look exactly like a broken image.
+      start_period: 90s
     # The hungriest process on a 3.8 GiB box, and the one whose restart costs
     # least. If something has to die, it should be this.
     oom_score_adj: 300
@@ -88,6 +109,12 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
+      # POSTGRES_PASSWORD goes into a URL here, and compose does no
+      # percent-encoding. A `/`, `@`, `#` or `?` in it ends the authority
+      # component early and the API either fails its `z.url()` check at boot or
+      # dials a host nobody meant — so generate it from hex or base64url only.
+      # `openssl rand -base64` is the wrong tool; `openssl rand -hex 32` is the
+      # right one. Enforced where the secrets are made, in slice 7.
       DATABASE_URL: postgres://mbs:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/mbs_core
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL}
@@ -106,8 +133,15 @@ services:
     image: ${PROFILE_IMAGE:?set PROFILE_IMAGE}
     restart: unless-stopped
     depends_on:
-      - cms
-      - api
+      cms:
+        # Not `service_started`. See the healthcheck on cms: starting before
+        # Strapi has seeded lets one request cache an empty page for an hour.
+        condition: service_healthy
+      api:
+        # Started is enough. Admission facts are read per request behind a
+        # <Suspense> boundary and a failure renders "unavailable", so a late API
+        # costs a badge, not a page.
+        condition: service_started
     environment:
       NODE_ENV: production
       # Both are read when the process starts. A profile with no PROFILE_APEX

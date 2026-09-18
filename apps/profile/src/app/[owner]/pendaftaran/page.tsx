@@ -91,7 +91,7 @@ function SchoolAdmission({
         body="Tanggal, biaya, dan syarat di halaman ini dibaca langsung dari sistem pendaftaran."
       />
       {/* Two boundaries rather than one around the whole page: the steps between
-          them are fixed copy and ship with the prerendered HTML. `getCycleFacts`
+          them are fixed copy and need no request of their own. `getCycleFacts`
           is memoised per render, so this is still one request. */}
       <Suspense fallback={<StatusPanel facts={null} admissionCta={site.admissionCta} />}>
         <LiveStatus schoolKey={school.key} admissionCta={site.admissionCta} />
@@ -235,8 +235,9 @@ function Actions({ state, admissionCta }: { state: ActionState; admissionCta: st
     // wrap stays.
     <div className="flex shrink-0 flex-wrap gap-3">
       {state === "loading" ? (
-        // The prerendered shell. It holds the row's height and says nothing: a
-        // slow admission system must not bake a greyed-out button into the HTML.
+        // The shell the <Suspense> fallback renders. It holds the row's height
+        // and says nothing: a slow admission system must not put a greyed-out
+        // button in front of a parent.
         <span aria-hidden className="h-11 w-44 rounded-xl bg-muted" />
       ) : state === "open" || state === "unknown" ? (
         <a href={admissionUrl()} className={buttonVariants({ size: "touch" })}>

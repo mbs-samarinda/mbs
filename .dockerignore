@@ -23,5 +23,13 @@
 # it directly, and Next copies apps/profile/.env into the standalone output.
 # Every image would then hand its secrets to anyone who can pull it. Production
 # gets all of these from /opt/mbs/.env on the box instead.
-**/.env
+# `.env*` and not `.env`: .gitignore ignores the whole family, so `.env.local`
+# and `.env.production` are both expected on a developer machine, and Next
+# copies every one of them into the standalone output. A pattern matching only
+# `.env` leaves the leak open under a different filename — and Next *loads*
+# those files, so a variable set in one and absent from /opt/mbs/.env would
+# quietly become production configuration.
+# No negation for `.env.example`: nothing in an image reads it, so the simpler
+# and stricter rule is to keep the whole family out.
+**/.env*
 **/Dockerfile

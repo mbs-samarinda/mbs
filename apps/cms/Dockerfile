@@ -35,8 +35,11 @@ COPY apps/cms/public ./apps/cms/public
 # Strapi writes into all three at runtime: uploads until slice 5 moves media to
 # S3, and the other two on every boot. They are created and chowned here because
 # the process does not run as root and cannot make them itself.
+# Only these three, not `-R` over /app/apps/cms: that would rewrite every file
+# in Strapi's node_modules into a new layer and roughly double the largest part
+# of the image, which matters both for disk and for pull time on a 2 vCPU box.
 RUN mkdir -p /app/apps/cms/public/uploads /app/apps/cms/.strapi /app/apps/cms/.tmp \
-  && chown -R node:node /app/apps/cms
+  && chown node:node /app/apps/cms/public/uploads /app/apps/cms/.strapi /app/apps/cms/.tmp
 
 USER node
 EXPOSE 1337

@@ -37,8 +37,11 @@
 {$CMS_HOST} {
 	encode zstd gzip
 
-	# Strapi's media library uploads photographs, and Caddy's default request
-	# body limit is far below what a camera produces.
+	# Caddy imposes no body limit of its own, so this *adds* a ceiling rather
+	# than raising one. It is the binding limit: the upload plugin sets no
+	# sizeLimit, leaving Strapi's own 200MB default above this. 100MB is well
+	# clear of any photograph an editor will upload and keeps a single request
+	# from filling the disk on a 58 GB box.
 	request_body {
 		max_size 100MB
 	}

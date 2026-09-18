@@ -5,7 +5,7 @@ import { z } from "zod";
 // to `undefined/api/...` somewhere in a page render.
 //
 // `PROFILE_APEX` is deliberately not here: it is read at module scope in
-// `owners.ts` and baked into prerendered pages, and it has a working default.
+// `owners.ts`, once per process, and it has a working default.
 // An unset variable and one set to "" mean the same thing: take the default.
 // Without this a blank line copied from `.env.example` fails validation, and
 // this module throws at import — which kills every render, not just the feature
