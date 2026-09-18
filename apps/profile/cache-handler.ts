@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type {
@@ -12,12 +12,19 @@ import { z } from "zod";
 /**
  * A file-backed `"use cache"` store, so content survives a container.
  *
- * Next 16.3.4 ships only a memory-backed default handler, which means every
- * deploy and every restart starts cold and the first visitor to each page waits
- * on a Strapi round trip. Pointing `cacheHandlers.default` here, with the
- * directory on a compose volume, makes the previous container's entries
- * readable by its replacement — and makes Strapi being down during a deploy
- * stop mattering.
+ * Next 16.3.4 ships only a memory-backed default handler, so a restart threw
+ * away every entry and the next visitor to each page waited on Strapi.
+ *
+ * What this does and does not buy, stated precisely, because the obvious
+ * reading is wrong. Next seeds every cache key with the build id, so a *new
+ * image* cannot read an old image's entries — persistence does not carry
+ * content across a deploy on its own. What it does carry:
+ *
+ * - A restart or a crash of the same image keeps everything.
+ * - The deploy candidate runs the same image that is about to go live, so the
+ *   keys it warms are exactly the keys the live container will ask for. That is
+ *   what makes Strapi being down *after* a deploy survivable, and it only works
+ *   because the candidate and the live container share this volume.
  *
  * Written rather than installed: there is no file-backed handler for this
  * interface in the package. The interface is the five methods in
@@ -81,6 +88,16 @@ async function loadTags(): Promise<Record<string, Timestamp>> {
  */
 const pending = new Map<string, Promise<void>>();
 
+/**
+ * One entry is one file: a four-byte big-endian header length, the metadata as
+ * JSON, then the body bytes.
+ *
+ * One file rather than two on purpose. With the metadata beside the body, an
+ * overwrite renames them one at a time, and between the two renames a reader
+ * sees the new body paired with the previous metadata — so `get` would check
+ * fresh content against a stale tag set and timestamp, and could serve an entry
+ * a `revalidateTag` should have killed.
+ */
 async function writeEntry(cacheKey: string, entry: CacheEntry): Promise<void> {
   const body = Buffer.from(await new Response(entry.value).arrayBuffer());
   const meta: Meta = {
@@ -90,15 +107,65 @@ async function writeEntry(cacheKey: string, entry: CacheEntry): Promise<void> {
     expire: entry.expire,
     revalidate: entry.revalidate,
   };
+  const header = Buffer.from(JSON.stringify(meta), "utf8");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(header.byteLength);
 
   await mkdir(ENTRIES, { recursive: true });
   const path = fileFor(cacheKey);
-  // Written to a temporary name and renamed, so a reader never sees half a
-  // body. A crash mid-write leaves the .tmp behind and the old entry intact.
-  await writeFile(`${path}.tmp`, body);
-  await writeFile(`${path}.meta.tmp`, JSON.stringify(meta));
-  await rename(`${path}.tmp`, path);
-  await rename(`${path}.meta.tmp`, `${path}.meta`);
+  // A name nobody else can be using. `pending` serialises get-against-set for
+  // one key, not set-against-set: two requests for the same uncached page — the
+  // ordinary stampede — both call `set`, and a shared temp name would let them
+  // interleave writes and leave a file blended from two different renders.
+  const temp = `${path}.${process.pid}.${(counter += 1)}.tmp`;
+  try {
+    await writeFile(temp, Buffer.concat([length, header, body]));
+    await rename(temp, path);
+  } catch (error) {
+    await rm(temp, { force: true });
+    throw error;
+  }
+}
+
+let counter = 0;
+
+/**
+ * Removes entry files nothing can reach any more, once per process.
+ *
+ * Next seeds every `"use cache"` key with the build id — it says so in
+ * `use-cache-wrapper.js`, because an Action ID does not yet hash its
+ * implementation — so a new image cannot read the previous image's entries at
+ * all. Those files are not stale, they are unaddressable, and `get` is the only
+ * thing that deletes anything, so nothing would ever look at them again.
+ *
+ * Left alone that is a whole generation of pages kept per deploy, on a 58 GB
+ * box, with the default profile's `expire` measured in decades. Age is the only
+ * usable signal: the handler cannot tell which build a file belongs to without
+ * reading all of them, and a file untouched for a week is either orphaned or
+ * cold enough that one Strapi round trip is cheaper than keeping it.
+ */
+const SWEEP_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+let swept = false;
+
+async function sweepOnce(): Promise<void> {
+  if (swept) return;
+  swept = true;
+
+  try {
+    const cutoff = Date.now() - SWEEP_AFTER_MS;
+    const names = await readdir(ENTRIES);
+    await Promise.all(
+      names.map(async (name) => {
+        const path = join(ENTRIES, name);
+        // `.tmp` files are also collected here: an interrupted write leaves one
+        // behind, and nothing else ever removes it.
+        const info = await stat(path).catch(() => null);
+        if (info && info.mtimeMs < cutoff) await rm(path, { force: true });
+      }),
+    );
+  } catch {
+    // A sweep is housekeeping. Failing it must never fail a request.
+  }
 }
 
 const handler: CacheHandler = {
@@ -109,20 +176,21 @@ const handler: CacheHandler = {
     let meta: Meta;
     let body: Buffer;
     try {
-      [meta, body] = await Promise.all([
-        readFile(`${path}.meta`, "utf8").then((text) => MetaSchema.parse(JSON.parse(text))),
-        readFile(path),
-      ]);
+      const file = await readFile(path);
+      const headerEnd = 4 + file.readUInt32BE(0);
+      meta = MetaSchema.parse(JSON.parse(file.subarray(4, headerEnd).toString("utf8")));
+      body = file.subarray(headerEnd);
     } catch {
+      // Absent, truncated, or written by an older shape of this file. All of
+      // them are a miss, which costs one Strapi round trip.
       return undefined;
     }
 
-    const now = Date.now();
-    const age = (now - meta.timestamp) / 1000;
+    const age = (Date.now() - meta.timestamp) / 1000;
     if (age > meta.expire) {
-      // Past its life, not merely stale. Removed rather than left to be
-      // stepped over on every request.
-      await Promise.all([rm(path, { force: true }), rm(`${path}.meta`, { force: true })]);
+      // Past its life, not merely stale. Removed rather than stepped over on
+      // every request.
+      await rm(path, { force: true });
       return undefined;
     }
 
@@ -163,6 +231,7 @@ const handler: CacheHandler = {
 
   async refreshTags() {
     await loadTags();
+    await sweepOnce();
   },
 
   async getExpiration(tagNames) {
@@ -170,6 +239,11 @@ const handler: CacheHandler = {
     return Math.max(0, ...tagNames.map((tag) => manifest[tag] ?? 0));
   },
 
+  // The one method here with no `catch`, deliberately. A revalidation this
+  // cannot record is content that will keep being served stale, so the publish
+  // webhook should fail and say so rather than answer 200 and quietly do
+  // nothing. `set` is the opposite case: the page is already rendered and a
+  // failed write costs only a miss.
   async updateTags(tagNames) {
     const manifest = tags ?? (await loadTags());
     const now = Date.now();
