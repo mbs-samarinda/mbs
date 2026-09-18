@@ -41,7 +41,21 @@ case $identity_path in
 esac
 
 readonly ENV_FILE=/opt/mbs/.env
-readonly COMPOSE=("docker" "compose" "--env-file" "$ENV_FILE" "-f" "/opt/mbs/compose.prod.yml")
+# Both env files. compose interpolates the whole compose file on every command,
+# not just `up`, so without the image pins even `exec postgres pg_dump` refuses
+# to run — which is exactly how an early deploy failed.
+readonly IMAGES_FILE=/opt/mbs/images.env
+readonly COMPOSE=(
+  "docker" "compose"
+  "--env-file" "$ENV_FILE"
+  "--env-file" "$IMAGES_FILE"
+  "-f" "/opt/mbs/compose.prod.yml"
+)
+
+[[ -f $IMAGES_FILE ]] || {
+  echo "$IMAGES_FILE does not exist yet. deploy.sh writes it; run a deploy first." >&2
+  exit 1
+}
 readonly SCRATCH="${DB}_drill"
 
 set -a
