@@ -101,8 +101,10 @@ echo "== reading a row back out"
 # script exists to catch, so it ends by counting something real.
 case $DB in
   mbs_core)
+    # `key` only. The schools table carries no name column — name and level are
+    # compile-time facts in @mbs/school-config, per the comment on the table.
     "${COMPOSE[@]}" exec -T postgres psql -U mbs -d "$SCRATCH" \
-      -c "select key, name from schools order by key"
+      -c "select key, created_at from schools order by key"
     ;;
   mbs_cms)
     "${COMPOSE[@]}" exec -T postgres psql -U mbs -d "$SCRATCH" \
