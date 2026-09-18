@@ -18,13 +18,13 @@
     "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
   },
   "dependencies": {
+    "drizzle-kit": "0.31.10",
     "drizzle-orm": "0.45.2",
     "postgres": "3.4.9"
   },
   "devDependencies": {
     "@mbs/typescript-config": "workspace:*",
     "@types/node": "^24.0.0",
-    "drizzle-kit": "0.31.10",
     "typescript": "7.0.2",
     "vitest": "^4.0.0"
   }

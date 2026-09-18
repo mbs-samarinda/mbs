@@ -65,39 +65,10 @@ jobs:
         id: tag
         run: |
           set -euo pipefail
-
-          # --dry=json and not --affected. This workflow runs on push to main,
-          # where --affected compares main against itself and resolves to
-          # nothing; the dry run reports the task hash regardless.
-          turbo_hash=$(pnpm exec turbo run ${{ matrix.task }} \
-            --filter=@mbs/${{ matrix.app }} --dry=json \
-            | jq -er --arg pkg "@mbs/${{ matrix.app }}" \
-              'first(.tasks[] | select(.package == $pkg) | .hash)')
-
-          # The image holds more than the turbo output, so a Dockerfile edit
-          # with unchanged application code has to produce a new image.
-          # .dockerignore counts too: it decides what reaches the image at all,
-          # and getting it wrong is how a .env ends up in one.
-          #
-          # pnpm-lock.yaml counts most of all, and turbo does not fold it in —
-          # measured: bumping a dependency in the lockfile leaves both
-          # @mbs/profile#build and @mbs/api#typecheck on the same hash. The api
-          # and cms images run `pnpm install` from that lockfile at docker build
-          # time, so without it here a `pnpm update` for a security patch would
-          # change what the image *would* contain, find the old tag already
-          # published, skip the build, and leave the vulnerable version running
-          # behind a green workflow.
-          tag=$(printf '%s' \
-            "$turbo_hash" \
-            "$(sha256sum apps/${{ matrix.app }}/Dockerfile | cut -d' ' -f1)" \
-            "$(sha256sum .dockerignore | cut -d' ' -f1)" \
-            "$(sha256sum pnpm-lock.yaml | cut -d' ' -f1)" \
-            | sha256sum | cut -c1-16)
-
-          image="$REGISTRY/${{ github.repository_owner }}/mbs-${{ matrix.app }}"
-          echo "image=$image" >> "$GITHUB_OUTPUT"
+          tag=$(infra/image-tag.sh ${{ matrix.app }} ${{ matrix.task }})
+          echo "image=$REGISTRY/${{ github.repository_owner }}/mbs-${{ matrix.app }}" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Tag for mbs-${{ matrix.app }}: $tag (turbo $turbo_hash)"
+          echo "Tag for mbs-${{ matrix.app }}: $tag"
 
       - uses: docker/login-action@v3
         with:
@@ -140,3 +111,61 @@ jobs:
             -t "${{ steps.tag.outputs.image }}:sha-${{ github.sha }}" \
             .
           docker push --all-tags "${{ steps.tag.outputs.image }}"
+
+  deploy:
+    needs: images
+    runs-on: ubuntu-latest
+    env:
+      # Not a secret — slice 0 of the deployment plan names it, and `root` is
+      # refused by the box anyway. Only the address, the private key and the
+      # host key are secrets.
+      VPS_USER: admin-mbss
+    # Deliberately not in branch protection's required checks. Those six gate a
+    # merge; this runs after one, and requiring a context that only appears
+    # post-merge blocks every pull request on the repository.
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      - name: Work out the tags to deploy
+        id: tags
+        # Recomputed rather than carried over from the matrix above: matrix legs
+        # cannot aggregate job outputs without an artifact, and the computation
+        # is deterministic — the same script on the same commit gives the same
+        # answer, which is why it lives in one file both jobs call.
+        run: |
+          set -euo pipefail
+          echo "profile=$(infra/image-tag.sh profile build)" >> "$GITHUB_OUTPUT"
+          echo "cms=$(infra/image-tag.sh cms build)" >> "$GITHUB_OUTPUT"
+          echo "api=$(infra/image-tag.sh api typecheck)" >> "$GITHUB_OUTPUT"
+
+      - name: Open an SSH connection
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # Pinned rather than accepted blindly: StrictHostKeyChecking=no would
+          # make a swapped host key invisible, and this connection carries the
+          # command that replaces the running site.
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" > ~/.ssh/known_hosts
+
+      - name: Send the files the box runs from
+        # compose.prod.yml, the Caddyfile, the init script and deploy.sh live in
+        # Git, not in any image, so the box needs this commit's copies before it
+        # runs them. /opt/mbs/.env is never touched: it holds every secret and
+        # nothing in CI knows its contents.
+        run: |
+          set -euo pipefail
+          tar -cz -C infra compose.prod.yml Caddyfile deploy.sh postgres \
+            | ssh -o BatchMode=yes "$VPS_USER@${{ secrets.VPS_HOST }}" \
+              'mkdir -p /opt/mbs && tar -xz -C /opt/mbs && chmod +x /opt/mbs/deploy.sh'
+
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes "$VPS_USER@${{ secrets.VPS_HOST }}" \
+            "/opt/mbs/deploy.sh '${{ steps.tags.outputs.profile }}' \
+              '${{ steps.tags.outputs.cms }}' '${{ steps.tags.outputs.api }}'"
