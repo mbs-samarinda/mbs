@@ -180,26 +180,30 @@ docker run -d --name "$CANDIDATE" --network "$NETWORK" \
 # neither curl nor wget.
 readonly PROBE_SVC=postgres
 
-# Waits for the candidate to answer at all before judging what it answers.
-# `docker run -d` returns as soon as the container is created, and a Next.js
-# server needs a second or two to listen — the first failed run probed 200ms
-# after starting it, so "did not return 200" meant "was not up yet".
-wait_for_candidate() {
-  local deadline=$((SECONDS + 60))
+# Waits for a target to answer at all before judging what it answers.
+#
+# Both `docker run -d` and `compose up -d` return as soon as the container is
+# created, and a Next.js server needs a second or two to listen. The first
+# failed run probed the candidate 200ms after starting it; the next probed the
+# swapped-in container 290ms after, and got `Connection refused`. Same bug, two
+# places — so this takes the target as an argument and both use it.
+wait_for() {
+  local target=$1 deadline=$((SECONDS + 60))
   while ((SECONDS < deadline)); do
-    if "${COMPOSE[@]}" exec -T "$PROBE_SVC" \
-      wget -q -O /dev/null --spider "http://$CANDIDATE:3002/" 2>/dev/null; then
-      return 0
-    fi
-    # A 500 still means it is listening, which is all this waits for; the probes
-    # below are what decide whether the answer is right.
-    if "${COMPOSE[@]}" exec -T "$PROBE_SVC" \
-      sh -c "wget -q -O /dev/null --spider 'http://$CANDIDATE:3002/' 2>&1 | grep -q 'server returned error'" 2>/dev/null; then
+    # Matched positively on an HTTP status line, not negatively on one error
+    # string. `grep -qv 'Connection refused'` looked right and was not: an
+    # unresolvable host produces different text, so anything that was not
+    # refused — including a name that does not exist — counted as ready.
+    #
+    # Any status counts, including 500. This waits for a listener; whether the
+    # answer is correct is the probes' business, below.
+    if "${COMPOSE[@]}" exec -T "$PROBE_SVC" sh -c \
+      "wget -S -q -O /dev/null --spider 'http://$target:3002/' 2>&1 | grep -q 'HTTP/'" 2>/dev/null; then
       return 0
     fi
     sleep 2
   done
-  echo "Candidate never started listening within 60s." >&2
+  echo "$target never started listening within 60s." >&2
   return 1
 }
 
@@ -239,7 +243,7 @@ smoke() {
 }
 
 log "Waiting for the candidate to listen"
-if ! wait_for_candidate; then
+if ! wait_for "$CANDIDATE"; then
   echo "The running profile was not touched." >&2
   exit 1
 fi
@@ -256,7 +260,17 @@ log "Swapping the candidate out and the new image in"
 # may write to it.
 cleanup_candidate
 
-"${COMPOSE[@]}" up -d profile
+# `up -d` with no service, not `up -d profile`. Caddy depends_on profile, and
+# compose starts a service's dependencies, never its dependents — so naming
+# profile alone left Caddy permanently unstarted and the site unreachable from
+# outside the box, with every internal probe still passing.
+"${COMPOSE[@]}" up -d
+
+log "Waiting for the live container"
+if ! wait_for profile; then
+  echo "The swapped-in profile never started listening." >&2
+  exit 1
+fi
 
 log "Verifying the live container"
 # The new container inherits the candidate's cache through the shared volume, so
