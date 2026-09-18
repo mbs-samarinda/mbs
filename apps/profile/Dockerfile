@@ -22,12 +22,23 @@ COPY apps/profile/.next/standalone ./
 COPY apps/profile/.next/static ./apps/profile/.next/static
 COPY apps/profile/public ./apps/profile/public
 
-# next/image writes optimized copies of Strapi's photographs here on first
-# request. Every COPY above lands as root, so without this the process cannot
-# create the directory and each image request fails on EACCES — while the page
-# HTML still returns 200, which is exactly the failure a status-code smoke check
-# cannot see.
-RUN mkdir -p /app/apps/profile/.next/cache && chown -R node:node /app/apps/profile/.next
+# Two directories the process writes to, both created and chowned here because
+# every COPY above lands as root and the process does not run as one.
+#
+# .next/cache: next/image writes optimized copies of Strapi's photographs here
+# on first request.
+#
+# .cache/content: the `"use cache"` store, which compose mounts a volume over.
+# This one has to exist *in the image*, not just at runtime — Docker copies an
+# image directory's ownership onto a fresh named volume, and initialises the
+# volume as root:root when the mountpoint is absent. A root-owned volume means
+# the handler's writes fail on EACCES, `set` swallows it, and nothing is ever
+# cached with no error anywhere. Verified both ways with a probe container.
+#
+# Both failures are invisible to a smoke check that only reads status codes:
+# pages still return 200, they are just uncached and missing every photograph.
+RUN mkdir -p /app/apps/profile/.next/cache /app/.cache/content \
+  && chown -R node:node /app/apps/profile/.next /app/.cache
 
 USER node
 EXPOSE 3002
