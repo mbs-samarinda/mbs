@@ -71,12 +71,26 @@ for db in mbs_core mbs_cms; do
   object="s3://$BACKUP_BUCKET/$db-$STAMP.dump.age"
   echo "== $db -> $object"
 
-  # -Fc, so a restore can be selective and does not depend on psql replaying a
-  # whole script. set -o pipefail above is what makes a pg_dump failure fail the
-  # run rather than uploading a truncated, happily-encrypted object.
-  "${COMPOSE[@]}" exec -T postgres pg_dump -U mbs -Fc "$db" \
+  # -Fc, so a restore can be selective rather than depending on psql replaying a
+  # whole script.
+  if "${COMPOSE[@]}" exec -T postgres pg_dump -U mbs -Fc "$db" \
     | age -r "$BACKUP_AGE_RECIPIENT" \
-    | aws --endpoint-url "$AWS_ENDPOINT" s3 cp - "$object"
+    | aws --endpoint-url "$AWS_ENDPOINT" s3 cp - "$object"; then
+    echo "   ok"
+  else
+    # pipefail fails the run but cannot un-upload. `aws s3 cp -` streams
+    # whatever it is handed, so a pg_dump that dies mid-stream leaves a
+    # truncated object — and it sorts newest, which is exactly the one
+    # restore-drill.sh reaches for by default. An earlier comment here claimed
+    # pipefail prevented that; it does not.
+    #
+    # Taken from the previous iteration's infra/backup/backup.sh, which got this
+    # right and said so: "aws uploads whatever it was handed, so a failed
+    # pg_dump still leaves an object behind".
+    echo "   FAILED — removing the partial object" >&2
+    aws --endpoint-url "$AWS_ENDPOINT" s3 rm "$object" >/dev/null 2>&1 || true
+    exit 1
+  fi
 done
 
 # Retention. Without it the bucket grows forever, and the bill with it.
