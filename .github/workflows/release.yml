@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# One release at a time, and never cancelled. A run that is already pushing
+# layers has to finish: killing it leaves a tag half-written in the registry.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # Same remote cache as CI. The build runs on the runner and not inside Docker
+  # precisely so this keeps working — a build in a Dockerfile has no token and
+  # redoes work the cache already holds.
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAMID: team_G2sXGIEvkYnFhLHzWtvo1u04
+  REGISTRY: ghcr.io
+  # Read at build time by apps/profile/next.config.ts, which turns it into
+  # images.remotePatterns. It is in turbo.json's build env, so it is part of the
+  # hash below and a change to it produces a new image.
+  #
+  # PROFILE_APEX is deliberately absent. Nothing prerenders any more, so it
+  # changes nothing in the artifact — owners.ts reads it when the process
+  # starts. Setting it here would put it in the hash and make the apex cutover
+  # rebuild an image identical to the one already deployed.
+  CMS_URL: https://cms.mbss.sch.id
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      # Independent images. One failing should not stop the other two from
+      # publishing, since the deploy in the next slice pins each by its own tag.
+      fail-fast: false
+      matrix:
+        include:
+          - app: profile
+            # The task whose hash stands for "everything that goes into this
+            # image". Turbo already folds in the dependency graph and the `env`
+            # list, which is why this is used instead of path filters: a change
+            # to packages/ui moves this hash, and a path filter on apps/profile
+            # would not see it.
+            task: build
+          - app: cms
+            task: build
+          - app: api
+            # The API has no build task — Node runs its TypeScript directly —
+            # so typecheck stands in. It hashes the same things: the package's
+            # own files and its dependencies.
+            task: typecheck
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      - name: Work out the image tag
+        id: tag
+        run: |
+          set -euo pipefail
+
+          # --dry=json and not --affected. This workflow runs on push to main,
+          # where --affected compares main against itself and resolves to
+          # nothing; the dry run reports the task hash regardless.
+          turbo_hash=$(pnpm exec turbo run ${{ matrix.task }} \
+            --filter=@mbs/${{ matrix.app }} --dry=json \
+            | jq -er --arg pkg "@mbs/${{ matrix.app }}" \
+              'first(.tasks[] | select(.package == $pkg) | .hash)')
+
+          # The image holds more than the turbo output, so a Dockerfile edit
+          # with unchanged application code has to produce a new image.
+          # .dockerignore counts too: it decides what reaches the image at all,
+          # and getting it wrong is how a .env ends up in one.
+          tag=$(printf '%s' \
+            "$turbo_hash" \
+            "$(sha256sum apps/${{ matrix.app }}/Dockerfile | cut -d' ' -f1)" \
+            "$(sha256sum .dockerignore | cut -d' ' -f1)" \
+            | sha256sum | cut -c1-16)
+
+          image="$REGISTRY/${{ github.repository_owner }}/mbs-${{ matrix.app }}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Tag for mbs-${{ matrix.app }}: $tag (turbo $turbo_hash)"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Is this image already published?
+        id: exists
+        run: |
+          if docker manifest inspect \
+            "${{ steps.tag.outputs.image }}:${{ steps.tag.outputs.tag }}" >/dev/null 2>&1
+          then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Already published; nothing to build."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Both remaining steps are skipped when the tag exists, which is the
+      # whole point: an unrelated merge republishes nothing.
+      - name: Build the application
+        if: steps.exists.outputs.found == 'false' && matrix.task == 'build'
+        run: pnpm exec turbo run build --filter=@mbs/${{ matrix.app }}
+
+      - name: Build and push the image
+        if: steps.exists.outputs.found == 'false'
+        run: |
+          set -euo pipefail
+          # Tagged twice: the content hash is what a deploy pins and what the
+          # skip above matches, and the commit SHA is what makes a running
+          # container traceable back to a commit.
+          docker build \
+            -f apps/${{ matrix.app }}/Dockerfile \
+            -t "${{ steps.tag.outputs.image }}:${{ steps.tag.outputs.tag }}" \
+            -t "${{ steps.tag.outputs.image }}:sha-${{ github.sha }}" \
+            .
+          docker push --all-tags "${{ steps.tag.outputs.image }}"
