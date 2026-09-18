@@ -1,6 +1,6 @@
 // Overridable so a staging deploy scopes its cookie to its own domain, exactly
-// as `owners.ts` resolves hosts. Read here and baked into prerendered pages, so
-// it is a build input like `PROFILE_APEX` already is for the school switcher.
+// as `owners.ts` resolves hosts. Read once when this module loads, so a change
+// to it needs a restart of the serving process — not a rebuild.
 const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
 
 /**

@@ -16,6 +16,10 @@ import type { NextConfig } from "next";
 const cms = new URL(process.env.CMS_URL || "http://localhost:1337");
 
 const config: NextConfig = {
+  // The image ships this folder and nothing else. Without it the runtime stage
+  // needs the whole workspace `node_modules`, which on pnpm is a tree of
+  // symlinks that does not survive a `COPY` into a thin image.
+  output: "standalone",
   images: {
     remotePatterns: [
       {

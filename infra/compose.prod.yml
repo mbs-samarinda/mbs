@@ -1,0 +1,182 @@
+# Production stack. Runs on the VPS; nothing here builds.
+#
+# Images are pinned by digest rather than tag, so a re-pull can never bring a
+# different Postgres or Caddy than the one that was tested. The three
+# application images are pinned by the release workflow instead, which passes
+# their tags in through the env file.
+#
+# Every secret comes from /opt/mbs/.env on the box. Nothing in this file holds
+# one, and the file is never in Git or in an image.
+
+# Not `mbs`. That is what the development compose file at the repository root
+# gets from its directory name, and a matching project name makes this file
+# adopt those containers and that database volume — so running it locally to
+# check it, which the deployment plan asks for, would quietly point production
+# services at the development database and remove the dev containers.
+name: mbs-prod
+
+services:
+  postgres:
+    image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mbs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: mbs_core
+      CMS_DB_PASSWORD: ${CMS_DB_PASSWORD:?set CMS_DB_PASSWORD}
+    # Deliberately not published. Both databases are reached over the compose
+    # network; a published 5432 on a box with no firewall is the whole database
+    # on the public internet.
+    volumes:
+      # Postgres 18 keeps its data in a subdirectory, so the mount is one level up.
+      - postgres-data:/var/lib/postgresql
+      # Creates mbs_cms and its own owner. Runs once, on an empty volume only —
+      # after that the role and database have to be made by hand.
+      - ./postgres/init-cms-db.sh:/docker-entrypoint-initdb.d/init-cms-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mbs -d mbs_core"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No oom_score_adj. Postgres does not reset the value on its backends, so a
+    # negative score here would be inherited by every one of them and make a
+    # leaking backend the hardest thing on the box to kill. It is protected by
+    # everything else being raised above it instead.
+
+  cms:
+    image: ${CMS_IMAGE:?set CMS_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_CLIENT: postgres
+      # Every one of these is required, not defaulted. config/database.ts falls
+      # back to strapi@localhost in silence, so a missing value here would
+      # connect Strapi to nothing rather than fail.
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: mbs_cms
+      DATABASE_USERNAME: mbs_cms
+      DATABASE_PASSWORD: ${CMS_DB_PASSWORD:?set CMS_DB_PASSWORD}
+      # The live service name, never a deploy candidate: a publish must drop the
+      # cache of the container actually serving visitors.
+      PROFILE_REVALIDATE_URL: http://profile:3002/api/revalidate
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
+      # Generated once and never rotated. Changing any of them invalidates every
+      # admin session and API token.
+      APP_KEYS: ${APP_KEYS:?set APP_KEYS}
+      API_TOKEN_SALT: ${API_TOKEN_SALT:?set API_TOKEN_SALT}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET}
+      TRANSFER_TOKEN_SALT: ${TRANSFER_TOKEN_SALT:?set TRANSFER_TOKEN_SALT}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY}
+    volumes:
+      # Dies with the container until slice 5 moves media to S3. Named so that
+      # an editor who uploads before then does not lose the photograph on the
+      # next deploy.
+      - cms-uploads:/app/apps/cms/public/uploads
+    # Strapi seeds every owner's rows in its `bootstrap` hook, which runs before
+    # the HTTP server listens — so an answer here means seeding finished, not
+    # merely that the process is up. The profile waits on it for exactly that
+    # reason: `getPage` caches its result for hours and returns null for a row
+    # that does not exist yet, so one request during an unseeded boot pins an
+    # empty page for an hour. node's own fetch, because this image has neither
+    # curl nor wget.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:1337/_health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # Strapi takes its time on 2 vCPU, and a restart loop caused by an
+      # impatient healthcheck would look exactly like a broken image.
+      start_period: 90s
+    # The hungriest process on a 3.8 GiB box, and the one whose restart costs
+    # least. If something has to die, it should be this.
+    oom_score_adj: 300
+
+  api:
+    image: ${API_IMAGE:?set API_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # POSTGRES_PASSWORD goes into a URL here, and compose does no
+      # percent-encoding. A `/`, `@`, `#` or `?` in it ends the authority
+      # component early and the API either fails its `z.url()` check at boot or
+      # dials a host nobody meant — so generate it from hex or base64url only.
+      # `openssl rand -base64` is the wrong tool; `openssl rand -hex 32` is the
+      # right one. Enforced where the secrets are made, in slice 7.
+      DATABASE_URL: postgres://mbs:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/mbs_core
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL}
+      # Required because the API refuses to boot without them, not because
+      # anything uses them yet: staff sign-in belongs to the committee app,
+      # which is still a scaffold, and the Caddyfile gives the API no public
+      # host for Google to call back to. Placeholder-shaped values until that
+      # app ships, at which point it gets its own host and these become real.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET}
+      ADMIN_APP_URL: ${ADMIN_APP_URL:?set ADMIN_APP_URL}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+    oom_score_adj: 200
+
+  profile:
+    image: ${PROFILE_IMAGE:?set PROFILE_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      cms:
+        # Not `service_started`. See the healthcheck on cms: starting before
+        # Strapi has seeded lets one request cache an empty page for an hour.
+        condition: service_healthy
+      api:
+        # Started is enough. Admission facts are read per request behind a
+        # <Suspense> boundary and a failure renders "unavailable", so a late API
+        # costs a badge, not a page.
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      # Both are read when the process starts. A profile with no PROFILE_APEX
+      # answers 404 on every host, because owners.ts resolves hostnames against
+      # it at module load.
+      PROFILE_APEX: ${PROFILE_APEX:?set PROFILE_APEX}
+      CMS_URL: ${CMS_URL:?set CMS_URL}
+      API_BASE_URL: http://api:3001
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
+    oom_score_adj: 200
+
+  caddy:
+    image: caddy@sha256:ad27e531c8b286ff153c0e6e16587a1583e4111bb58c4d83bd73d6d3ef0a0ce1
+    restart: unless-stopped
+    depends_on:
+      - profile
+      - api
+      - cms
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PROFILE_APEX: ${PROFILE_APEX:?set PROFILE_APEX}
+      CMS_HOST: ${CMS_HOST:?set CMS_HOST}
+      CADDY_EMAIL: ${CADDY_EMAIL:?set CADDY_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Losing this volume means re-issuing every
+      # certificate on the next start, which Let's Encrypt rate-limits.
+      - caddy-data:/data
+      - caddy-config:/config
+    oom_score_adj: 200
+
+volumes:
+  postgres-data:
+  cms-uploads:
+  caddy-data:
+  caddy-config:
