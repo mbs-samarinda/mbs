@@ -1,3 +1,5 @@
+import { THEME_SCRIPT } from "./theme-script-content.ts";
+
 // Overridable so a staging deploy scopes its cookie to its own domain, exactly
 // as `owners.ts` resolves hosts. Read once when this module loads, so a change
 // to it needs a restart of the serving process — not a rebuild.
@@ -44,22 +46,6 @@ export const COOKIE_SUFFIX =
  * component as a reference proxy — it would be stringified into the attribute
  * and never run. `nav-link.ts` carries the same warning for the same reason.
  */
-const SCRIPT = `
-(function () {
-  try {
-    var match = document.cookie.match(/(?:^|; )theme=([^;]*)/);
-    var stored = match ? decodeURIComponent(match[1]) : "";
-    var dark = stored === "dark" ||
-      (stored !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.classList.toggle("dark", dark);
-    document.documentElement.style.colorScheme = dark ? "dark" : "light";
-  } catch (error) {
-    // Never let this stop the page rendering. Light is the correct fallback:
-    // it is the default theme.
-  }
-})();
-`;
-
 export function ThemeScript() {
-  return <script dangerouslySetInnerHTML={{ __html: SCRIPT }} />;
+  return <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />;
 }
