@@ -2,7 +2,7 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@mbs/ui/components/select";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
-import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 type Theme = "system" | "light" | "dark";
 
@@ -99,17 +99,6 @@ export function ThemeSelect({
   className?: string;
 }) {
   const theme = useSyncExternalStore(subscribe, readTheme, () => SERVER_THEME);
-
-  // While following the operating system, the page has to keep up with it: a
-  // visitor whose phone switches to dark at sunset should not have to reload.
-  useEffect(() => {
-    if (theme !== "system") return () => {};
-
-    const media = matchMedia(DARK);
-    const update = () => apply("system");
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, [theme]);
 
   const choose = (value: Theme | null) => {
     if (!value || !isTheme(value)) return;
