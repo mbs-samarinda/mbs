@@ -50,6 +50,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      PUBLIC_URL: https://${CMS_HOST:?set CMS_HOST}
       DATABASE_CLIENT: postgres
       # Every one of these is required, not defaulted. config/database.ts falls
       # back to strapi@localhost in silence, so a missing value here would
