@@ -10,8 +10,8 @@
 # turbo on a 2 vCPU machine to learn something the runner already knows.
 #
 # The order is the one docs/11 fixes: pull, back up, migrate exactly once, start
-# the services that have no gate, then prove the new profile works before any
-# visitor sees it.
+# cms and api in place and wait for cms to be healthy, then prove the new
+# profile works before any visitor sees it.
 set -euo pipefail
 
 readonly PROFILE_TAG=${1:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
@@ -142,7 +142,14 @@ docker run --rm --network "$NETWORK" \
 
 log "Starting cms and api"
 # Postgres is already up from the backup step above.
-"${COMPOSE[@]}" up -d cms api
+# --wait: the candidate below is a plain `docker run` that skips depends_on, so
+# without it a new cms image is still booting when the smoke check runs. The
+# 7-minute cap covers the cms healthcheck's full budget (90s start + 30 × 10s),
+# so a cms stuck in a restart loop fails the deploy instead of hanging it.
+if ! timeout 7m "${COMPOSE[@]}" up -d --wait cms api; then
+  echo "The new cms did not become healthy. The running profile was not touched." >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # The gate that used to live in `next build`.
