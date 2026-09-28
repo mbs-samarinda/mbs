@@ -64,7 +64,9 @@ export function uniqueSlugPerOwner(uid: string, siblings: readonly string[] = []
     // The schema no longer forces a slug, so this is the only place that
     // stops an entry being published at an empty address.
     if (title && slug === "") {
-      throw new errors.ApplicationError("Judul tidak bisa dijadikan alamat. Isi alamatnya sendiri.");
+      throw new errors.ApplicationError(
+        "Judul tidak bisa dijadikan alamat. Isi alamatnya sendiri.",
+      );
     }
     if (!slug) return;
 
