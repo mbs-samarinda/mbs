@@ -101,21 +101,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
 
       <section className={SECTION}>
         <div className={`${WIDTH} flex flex-col gap-8`}>
-          {/* A real cover keeps its own shape: editors upload portrait and
-              square photos too, and a fixed 16:9 frame cut them. Capped at 75vh
-              so a tall one never pushes the body off screen. `self-center` stops
-              the flex column stretching it back to full width, which would bring
-              the crop back. The empty placeholder has no shape of its own, so it
-              keeps the 16:9 frame. */}
-          <Photo
-            image={article.cover}
-            label="Sampul"
-            className={
-              article.cover
-                ? "h-auto max-h-[75vh] w-auto max-w-full self-center"
-                : "aspect-video w-full"
-            }
-          />
+          <Photo image={article.cover} label="Sampul" className="aspect-video w-full" />
 
           <div className="flex flex-col gap-10 lg:flex-row lg:gap-12">
             <div className="flex-1">
