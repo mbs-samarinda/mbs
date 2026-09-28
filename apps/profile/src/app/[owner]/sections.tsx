@@ -82,17 +82,12 @@ const ownerOf = (key: Owner["key"]) => OWNERS.find((owner) => owner.key === key)
 
 /**
  * One quiet badge per owner, beside the type badge. Each wears its own school's
- * palette through `data-owner`, so an SMK badge is blue on SMA's green site.
- * Tint and a thin edge only: the type badge already carries the colour.
+ * palette through `data-owner`, so an SMK badge is blue on SMP's green site.
+ * Same tint-and-ink shape as the type badge, so the pair reads as one row.
  */
 export const OwnerBadges = ({ article, site }: { article: Article; site: Owner["key"] }) =>
   badgeOwners(article, site).map((key) => (
-    <Badge
-      key={key}
-      variant="outline"
-      data-owner={key}
-      className="border-l-accent-brand bg-surface-brand rounded-sm border-0 border-l-2"
-    >
+    <Badge key={key} data-owner={key} className="bg-surface-brand text-primary">
       {ownerOf(key).level}
     </Badge>
   ));

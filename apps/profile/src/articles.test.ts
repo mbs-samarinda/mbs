@@ -89,6 +89,18 @@ describe("filtering", () => {
       "notice",
     ]);
   });
+
+  test("a school keeps its own articles and the collabs it joined", () => {
+    const mixed = [
+      entry("own", "2026-09-03T03:00:00Z", { ownerKey: "smp" }),
+      entry("joined", "2026-09-02T03:00:00Z", { ownerKey: "sma", collaborators: ["smp"] }),
+      entry("other", "2026-09-01T03:00:00Z", { ownerKey: "smk" }),
+    ];
+    expect(filterArticles(mixed, { school: "smp" }).map((item) => item.slug)).toEqual([
+      "own",
+      "joined",
+    ]);
+  });
 });
 
 describe("paging", () => {

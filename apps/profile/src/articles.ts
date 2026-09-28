@@ -73,10 +73,18 @@ export function monthKey(iso: string): string {
 export const cutExpired = (entries: readonly Article[], now: number): Article[] =>
   entries.filter((entry) => !entry.expiresAt || Date.parse(entry.expiresAt) > now);
 
-/** Narrows to one collection, or to one month, or both. Newest first throughout. */
+/**
+ * Narrows by collection, month and school, in any mix. Newest first throughout.
+ * A school matches its own articles and the collabs it accepted, the same set
+ * its own listing shows.
+ */
 export function filterArticles(
   entries: readonly Article[],
-  filters: { type?: ArticleType | undefined; month?: string | undefined },
+  filters: {
+    type?: ArticleType | undefined;
+    month?: string | undefined;
+    school?: SchoolKey | undefined;
+  },
 ): Article[] {
   const kind =
     filters.type === "berita" ? "Berita" : filters.type === "pengumuman" ? "Pengumuman" : null;
@@ -84,7 +92,10 @@ export function filterArticles(
   return entries.filter(
     (entry) =>
       (!kind || entry.kind === kind) &&
-      (!filters.month || monthKey(entry.publishedAt) === filters.month),
+      (!filters.month || monthKey(entry.publishedAt) === filters.month) &&
+      (!filters.school ||
+        entry.ownerKey === filters.school ||
+        entry.collaborators.includes(filters.school)),
   );
 }
 

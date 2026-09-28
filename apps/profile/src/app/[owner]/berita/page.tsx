@@ -1,4 +1,4 @@
-import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
+import { isSchoolKey, SCHOOLS, type SchoolKey } from "@mbs/school-config";
 import { Badge } from "@mbs/ui/components/badge";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -14,7 +14,7 @@ import {
   type Month,
 } from "../../../articles.ts";
 import { getArticleIndex, getPage, type Article } from "../../../cms.ts";
-import { OWNERS, ownerUrl, type Owner } from "../../../owners.ts";
+import { OWNERS, type Owner } from "../../../owners.ts";
 import {
   AdmissionCardSection,
   OwnerBadges,
@@ -30,6 +30,8 @@ import {
 type Params = {
   type?: string | undefined;
   month?: string | undefined;
+  /** Umbrella only: a school's own site is already that school. */
+  school?: string | undefined;
   page?: string | undefined;
 };
 
@@ -105,15 +107,17 @@ async function Listing({
   // The umbrella's listing runs full width: it has no admission cycle of its
   // own, and an archive beside four entries is furniture.
   const hasSidebar = Boolean(schoolKey);
-  const [{ type, month: requested, page }, entries] = await Promise.all([
+  const [{ type, month: requested, school: requestedSchool, page }, entries] = await Promise.all([
     searchParams,
     getArticleIndex(owner.key),
   ]);
 
   const active = isArticleType(type) ? type : undefined;
+  const school =
+    !schoolKey && requestedSchool && isSchoolKey(requestedSchool) ? requestedSchool : undefined;
   // The archive counts the type the visitor is looking at, so the number beside
   // a month is the number of entries that link actually renders.
-  const inType = filterArticles(entries, { type: active });
+  const inType = filterArticles(entries, { type: active, school });
   const months = monthsOf(inType);
   // A month nobody published in is dropped rather than honoured, the same way a
   // bad `?type=` and a bad `?page=` are. An arsip link whose last entry has since
@@ -124,9 +128,10 @@ async function Listing({
 
   const href = (next: Partial<Params>) => {
     const query = new URLSearchParams();
-    const merged = { type: active, month, ...next };
+    const merged = { type: active, month, school, ...next };
     if (merged.type) query.set("type", merged.type);
     if (merged.month) query.set("month", merged.month);
+    if (merged.school) query.set("school", merged.school);
     if (merged.page && merged.page !== "1") query.set("page", merged.page);
     const search = query.toString();
     return search ? `/berita?${search}` : "/berita";
@@ -135,8 +140,11 @@ async function Listing({
   return (
     <section className={SECTION}>
       <div className={`${WIDTH} flex flex-col gap-6`}>
-        <Filter active={active} month={month} href={href} />
-        {!schoolKey && <SchoolLinks />}
+        {/* One row: type filters left, school filters right, wrapping on narrow screens. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Filter active={active} month={month} href={href} />
+          {!schoolKey && <SchoolFilter active={school} month={month} href={href} />}
+        </div>
 
         <div className={`flex flex-col gap-10 ${hasSidebar ? "lg:flex-row lg:gap-8" : ""}`}>
           <div className="flex flex-1 flex-col gap-6">
@@ -227,11 +235,7 @@ const Filter = ({
         // with no entries.
         href={href({ type: value, month, page: "1" })}
         aria-current={active === value ? "page" : undefined}
-        className={`flex min-h-11 items-center rounded-4xl border px-4 text-sm font-semibold ${
-          active === value
-            ? "border-foreground bg-foreground text-background"
-            : "border-border hover:bg-muted"
-        }`}
+        className={pill(active === value)}
       >
         {label}
       </a>
@@ -239,20 +243,34 @@ const Filter = ({
   </nav>
 );
 
+/** One filter link. Shared so the type and school rows can never drift apart. */
+const pill = (on: boolean) =>
+  `flex min-h-11 items-center rounded-4xl border px-4 text-sm font-semibold ${
+    on ? "border-foreground bg-foreground text-background" : "border-border hover:bg-muted"
+  }`;
+
 /**
- * The umbrella's way into each school's own listing.
+ * The umbrella's school filter, one school at a time, built like the type filter.
  *
- * Links, not filters: the umbrella's list stays one list in date order, and a
- * reader after one school's news is better served on that school's site. Drawn
- * like the type filter's idle state so the row reads as the same kind of thing.
+ * It narrows this list and stays on the umbrella, so a reader comparing schools
+ * never leaves the page. Cards still lead to each article's home site.
  */
-const SchoolLinks = () => (
-  <nav aria-label="Berita sekolah" className="flex flex-wrap gap-2">
-    {SCHOOLS.map((school) => (
+const SchoolFilter = ({
+  active,
+  month,
+  href,
+}: {
+  active: SchoolKey | undefined;
+  month: string | undefined;
+  href: (next: Partial<Params>) => string;
+}) => (
+  <nav aria-label="Saring menurut sekolah" className="flex flex-wrap gap-2">
+    {[{ key: undefined, level: "Semua sekolah" }, ...SCHOOLS].map((school) => (
       <a
-        key={school.key}
-        href={`${ownerUrl(school)}berita`}
-        className="flex min-h-11 items-center rounded-4xl border border-border px-4 text-sm font-semibold hover:bg-muted"
+        key={school.level}
+        href={href({ school: school.key, month, page: "1" })}
+        aria-current={active === school.key ? "page" : undefined}
+        className={pill(active === school.key)}
       >
         {school.level}
       </a>
