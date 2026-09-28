@@ -755,7 +755,7 @@ export default {
     // does not know yet drops the condition and grants the permission outright.
     await registerOwnerScope(strapi);
     await seedEditorRole(strapi);
-    await grantKolaborasi(strapi);
+    await backfillOnce(strapi, "kolaborasi-permissions", () => grantKolaborasi(strapi));
     await grantPublicRead(strapi);
     await seedSites(strapi);
 

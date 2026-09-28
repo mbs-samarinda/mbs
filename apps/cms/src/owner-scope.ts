@@ -175,7 +175,7 @@ export async function seedEditorRole(strapi: Core.Strapi) {
   });
 
   // Kolaborasi carries an owner but gets its own narrower grant, from
-  // `grantKolaborasi`, which runs after this on every boot.
+  // `grantKolaborasi`, which runs once per database after this.
   const scoped = new Set(scopedUids(strapi).filter((uid) => uid !== KOLABORASI_UID));
   const actions = permissionService(strapi)
     .actionProvider.values()
@@ -234,21 +234,23 @@ const KOLABORASI_PERMISSIONS: SeedPermission[] = [
  * The role is seeded only when missing, so a database from before Kolaborasi
  * existed would never get it. This adds rather than re-assigns: `assignPermissions`
  * replaces the role's whole list and would undo whatever an administrator has
- * changed in the panel. Any Kolaborasi permission on the role means it has run
- * already, or an administrator has taken it over — either way, hands off.
+ * changed in the panel. It runs under `backfillOnce`, so an administrator who
+ * later removes every Kolaborasi permission is not overruled on the next boot.
+ * Any Kolaborasi permission already on the role means someone set it by hand.
  */
-export async function grantKolaborasi(strapi: Core.Strapi) {
+export async function grantKolaborasi(strapi: Core.Strapi): Promise<boolean> {
   const role = await roleService(strapi).findOne({ code: EDITOR_ROLE_CODE });
-  if (!role) return;
+  if (!role) return false;
 
   const existing: { id: number } | null = await strapi.db
     .query("admin::permission")
     .findOne({ where: { role: role.id, subject: KOLABORASI_UID }, select: ["id"] });
-  if (existing) return;
+  if (existing) return false;
 
   await permissionService(strapi).createMany(
     KOLABORASI_PERMISSIONS.map((permission) => ({ ...permission, role: role.id })),
   );
+  return true;
 }
 
 /** Has any row of this document ever carried a publication date? */
