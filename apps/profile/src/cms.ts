@@ -1,8 +1,8 @@
-import type { SchoolKey } from "@mbs/school-config";
+import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
 import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 
-import { cutExpired, type Article } from "./articles.ts";
+import { cutExpired, umbrellaNews, type Article } from "./articles.ts";
 import { config } from "./config/env.ts";
 import type { Owner } from "./owners.ts";
 
@@ -422,9 +422,28 @@ export async function getPage(ownerKey: Owner["key"], slug: string): Promise<Pag
   return page ? { ...page, blocks: (page.blocks ?? []).map(toBlock) } : null;
 }
 
+/** An index row as Strapi returns it, before the collaborators are flattened. */
+type IndexRow = Omit<Article, "kind" | "collaborators"> & {
+  readonly kolaborasi: readonly { readonly ownerKey: SchoolKey }[];
+};
+
+// Fixed order rather than acceptance order, so a card's badges read the same
+// on every site.
+const withCollaborators = ({ kolaborasi, ...entry }: IndexRow) => ({
+  ...entry,
+  collaborators: SCHOOLS.map((school) => school.key).filter((key) =>
+    kolaborasi.some((row) => row.ownerKey === key),
+  ),
+});
+
 /**
- * Every entry an owner has published, both types, newest first, with the expiry
- * not yet applied.
+ * Every entry an owner lists, both types, newest first, with the expiry not yet
+ * applied.
+ *
+ * A school lists what it owns plus what it accepted as a collaborator; the
+ * umbrella lists everything, no invite needed. Accepted collaborators come
+ * along for the badges. A pending invite is filtered out in both places, so an
+ * article a school has not agreed to never carries its name.
  *
  * One read serves the whole `/berita` page — the listing, the archive counts and
  * the page total — because those three have to agree with each other. Counting
@@ -447,6 +466,15 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
   cacheLife("hours");
   cacheTag(CMS_TAG, `articles:${ownerKey}`);
 
+  const scope: [string, string][] =
+    ownerKey === "mbs"
+      ? []
+      : [
+          ["filters[$or][0][ownerKey][$eq]", ownerKey],
+          ["filters[$or][1][kolaborasi][ownerKey][$eq]", ownerKey],
+          ["filters[$or][1][kolaborasi][status][$eq]", "diterima"],
+        ];
+
   /** Walks Strapi's pages until a short one says there are no more. */
   async function all<T>(collection: string): Promise<T[]> {
     const rows: T[] = [];
@@ -456,11 +484,13 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
       // previous one's length, so there is nothing to run in parallel.
       // oxlint-disable-next-line eslint/no-await-in-loop
       const batch = await cms<T[]>(collection, [
-        ["filters[ownerKey][$eq]", ownerKey],
+        ...scope,
         ["sort[0]", "publishedAt:desc"],
         ["pagination[page]", String(page)],
         ["pagination[pageSize]", String(PAGE_LIMIT)],
         ["populate[cover]", "true"],
+        ["populate[kolaborasi][filters][status][$eq]", "diterima"],
+        ["populate[kolaborasi][fields][0]", "ownerKey"],
       ]);
 
       rows.push(...batch);
@@ -469,14 +499,17 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
   }
 
   const [berita, pengumuman] = await Promise.all([
-    all<Omit<Article, "kind" | "expiresAt">>("berita-list"),
-    all<Omit<Article, "kind">>("pengumuman-list"),
+    all<Omit<IndexRow, "expiresAt">>("berita-list"),
+    all<IndexRow>("pengumuman-list"),
   ]);
 
   return [
     // Only a Pengumuman can expire; a Berita article is permanent by type.
-    ...berita.map((entry) => ({ ...entry, kind: "Berita" as const, expiresAt: null })),
-    ...pengumuman.map((entry) => ({ ...entry, kind: "Pengumuman" as const })),
+    ...berita.map((entry) => ({
+      ...withCollaborators({ ...entry, expiresAt: null }),
+      kind: "Berita" as const,
+    })),
+    ...pengumuman.map((entry) => ({ ...withCollaborators(entry), kind: "Pengumuman" as const })),
   ].toSorted((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
 
@@ -509,11 +542,14 @@ export async function getArticleIndex(ownerKey: Owner["key"]): Promise<Article[]
  * have expired, which is correct: the alternative is over-fetching to fill a row
  * that nobody promised would be full.
  */
-export const getArticles = async (ownerKey: Owner["key"], limit: number): Promise<Article[]> =>
-  (await getArticleIndex(ownerKey)).slice(0, limit);
+export async function getArticles(ownerKey: Owner["key"], limit: number): Promise<Article[]> {
+  const entries = await getArticleIndex(ownerKey);
+  return ownerKey === "mbs" ? umbrellaNews(entries, limit) : entries.slice(0, limit);
+}
 
 /** One article, with the parts only its own page renders. */
-export type FullArticle = Article & {
+// No collaborators: the article's own page shows none, so it does not read them.
+export type FullArticle = Omit<Article, "collaborators"> & {
   readonly body: string;
   readonly attribution: string | null;
   readonly seo: Page["seo"];

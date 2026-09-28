@@ -14,8 +14,17 @@ import {
   type Month,
 } from "../../../articles.ts";
 import { getArticleIndex, getPage, type Article } from "../../../cms.ts";
-import { OWNERS, type Owner } from "../../../owners.ts";
-import { AdmissionCardSection, PageHead, Photo, SECTION, WIDTH, formatDate } from "../sections.tsx";
+import { OWNERS, ownerUrl, type Owner } from "../../../owners.ts";
+import {
+  AdmissionCardSection,
+  OwnerBadges,
+  PageHead,
+  Photo,
+  SECTION,
+  WIDTH,
+  articleHref,
+  formatDate,
+} from "../sections.tsx";
 
 /** What the listing reads out of the URL. The params stay English; the copy does not. */
 type Params = {
@@ -127,6 +136,7 @@ async function Listing({
     <section className={SECTION}>
       <div className={`${WIDTH} flex flex-col gap-6`}>
         <Filter active={active} month={month} href={href} />
+        {!schoolKey && <SchoolLinks />}
 
         <div className={`flex flex-col gap-10 ${hasSidebar ? "lg:flex-row lg:gap-8" : ""}`}>
           <div className="flex flex-1 flex-col gap-6">
@@ -135,7 +145,11 @@ async function Listing({
             ) : (
               <ul className="flex flex-col">
                 {listing.entries.map((entry) => (
-                  <Row key={`${entry.kind}-${entry.slug}`} entry={entry} />
+                  <Row
+                    key={`${entry.kind}-${entry.ownerKey}-${entry.slug}`}
+                    entry={entry}
+                    site={owner.key}
+                  />
                 ))}
               </ul>
             )}
@@ -157,16 +171,17 @@ async function Listing({
 /** The type label's own colour, from the shared status pairs. */
 const TYPE_VARIANT = { Berita: "info", Pengumuman: "warning" } as const;
 
-const Row = ({ entry }: { entry: Article }) => (
+const Row = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
   <li className="border-b border-border first:border-t">
     <a
-      href={`/berita/${entry.slug}`}
+      href={articleHref(entry, site)}
       className="flex flex-col gap-3 py-5 hover:opacity-90 md:flex-row md:items-start md:gap-5"
     >
       <Photo image={entry.cover} label="Sampul" className="aspect-3/2 w-full md:w-50 md:shrink-0" />
       <div className="flex flex-col gap-1.5">
         <span className="flex items-center gap-2">
           <Badge variant={TYPE_VARIANT[entry.kind]}>{entry.kind}</Badge>
+          <OwnerBadges article={entry} site={site} />
           <span className="text-xs text-muted-foreground tabular-nums">
             {formatDate(entry.publishedAt)}
           </span>
@@ -219,6 +234,27 @@ const Filter = ({
         }`}
       >
         {label}
+      </a>
+    ))}
+  </nav>
+);
+
+/**
+ * The umbrella's way into each school's own listing.
+ *
+ * Links, not filters: the umbrella's list stays one list in date order, and a
+ * reader after one school's news is better served on that school's site. Drawn
+ * like the type filter's idle state so the row reads as the same kind of thing.
+ */
+const SchoolLinks = () => (
+  <nav aria-label="Berita sekolah" className="flex flex-wrap gap-2">
+    {SCHOOLS.map((school) => (
+      <a
+        key={school.key}
+        href={`${ownerUrl(school)}berita`}
+        className="flex min-h-11 items-center rounded-4xl border border-border px-4 text-sm font-semibold hover:bg-muted"
+      >
+        {school.level}
       </a>
     ))}
   </nav>

@@ -21,6 +21,7 @@ import {
   Photo,
   SECTION,
   WIDTH,
+  articleHref,
   formatDate,
   formatLongDate,
 } from "../../sections.tsx";
@@ -283,7 +284,7 @@ const Share = ({ owner, article }: { owner: Owner; article: FullArticle }) => {
 /** Three more entries, newest first, minus the one being read. */
 async function MoreNews({ owner, slug }: { owner: Owner; slug: string }) {
   const entries = (await getArticleIndex(owner.key))
-    .filter((entry) => entry.slug !== slug)
+    .filter((entry) => entry.ownerKey !== owner.key || entry.slug !== slug)
     .slice(0, 3);
 
   if (entries.length === 0) return null;
@@ -303,7 +304,11 @@ async function MoreNews({ owner, slug }: { owner: Owner; slug: string }) {
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {entries.map((entry) => (
-            <Card key={`${entry.kind}-${entry.slug}`} entry={entry} />
+            <Card
+              key={`${entry.kind}-${entry.ownerKey}-${entry.slug}`}
+              entry={entry}
+              site={owner.key}
+            />
           ))}
         </div>
       </div>
@@ -311,9 +316,9 @@ async function MoreNews({ owner, slug }: { owner: Owner; slug: string }) {
   );
 }
 
-const Card = ({ entry }: { entry: Article }) => (
+const Card = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
   <a
-    href={`/berita/${entry.slug}`}
+    href={articleHref(entry, site)}
     className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
   >
     <Photo image={entry.cover} label="Sampul" className="aspect-3/2 w-full" inCard />

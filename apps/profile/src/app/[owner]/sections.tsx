@@ -25,9 +25,11 @@ import Image from "next/image";
 import { Suspense, type ReactNode } from "react";
 
 import { getCycleFacts, isOpen, type CycleFacts } from "../../admission.ts";
+import { badgeOwners } from "../../articles.ts";
 import {
   getArticles,
   getEntries,
+  type Article,
   mediaUrl,
   type ActivityIcon,
   type Block,
@@ -38,7 +40,7 @@ import {
   type Site,
   type ValueIcon,
 } from "../../cms.ts";
-import { ownerUrl, type Owner } from "../../owners.ts";
+import { OWNERS, ownerUrl, type Owner } from "../../owners.ts";
 import { Prose } from "./prose.tsx";
 
 /**
@@ -66,6 +68,34 @@ const DATE = new Intl.DateTimeFormat("id-ID", {
 
 /** Short form, for fact strips and tables. Prose and headlines spell the month. */
 export const formatDate = (iso: string) => DATE.format(new Date(iso));
+
+/**
+ * Where a card leads. Relative on the article's home site; the full address
+ * everywhere else, because its page only exists on its primary's host.
+ */
+export const articleHref = (article: Article, site: Owner["key"]) =>
+  article.ownerKey === site
+    ? `/berita/${article.slug}`
+    : `${ownerUrl(ownerOf(article.ownerKey))}berita/${article.slug}`;
+
+const ownerOf = (key: Owner["key"]) => OWNERS.find((owner) => owner.key === key) ?? OWNERS[0];
+
+/**
+ * One quiet badge per owner, beside the type badge. Each wears its own school's
+ * palette through `data-owner`, so an SMK badge is blue on SMA's green site.
+ * Tint and a thin edge only: the type badge already carries the colour.
+ */
+export const OwnerBadges = ({ article, site }: { article: Article; site: Owner["key"] }) =>
+  badgeOwners(article, site).map((key) => (
+    <Badge
+      key={key}
+      variant="outline"
+      data-owner={key}
+      className="border-l-accent-brand bg-surface-brand rounded-sm border-0 border-l-2"
+    >
+      {ownerOf(key).level}
+    </Badge>
+  ));
 
 const LONG_DATE = new Intl.DateTimeFormat("id-ID", {
   day: "numeric",
@@ -1094,12 +1124,13 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {articles.map((article) => (
         <a
-          key={`${article.kind}-${article.slug}`}
+          // Slugs are unique per owner only, and one list now holds several.
+          key={`${article.kind}-${article.ownerKey}-${article.slug}`}
           // Both types live under `/berita`, which is one listing over two
           // collections. `/berita/[slug]` therefore has to look in both; the
           // CMS's `uniqueSlugPerOwner` lifecycle already treats them as one
           // address space, so a slug cannot mean two articles on one site.
-          href={`/berita/${article.slug}`}
+          href={articleHref(article, ownerKey)}
           className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
         >
           <Photo image={article.cover} label="Sampul" className="aspect-3/2 w-full" inCard />
@@ -1112,6 +1143,7 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
                   shared and fixed, so they stay teal and amber on every owner's
                   site, including SMK's blue one. */}
               <Badge variant={article.kind === "Berita" ? "info" : "warning"}>{article.kind}</Badge>
+              <OwnerBadges article={article} site={ownerKey} />
               <span className="text-xs text-muted-foreground tabular-nums">
                 {formatDate(article.publishedAt)}
               </span>
