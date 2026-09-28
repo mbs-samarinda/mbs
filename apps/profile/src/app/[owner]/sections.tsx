@@ -1253,8 +1253,12 @@ function Hero({
 }) {
   return (
     <section className={SECTION}>
-      <div className={`${WIDTH} flex flex-col gap-10 lg:flex-row lg:items-center lg:gap-16`}>
-        <div className="flex flex-col gap-5 lg:flex-1">
+      {/* Photo above the text until xl: narrower, a half-width column breaks the
+          44px heading into four or five lines. */}
+      <div
+        className={`${WIDTH} flex flex-col-reverse gap-10 xl:flex-row xl:items-center xl:gap-16`}
+      >
+        <div className="flex flex-col gap-5 xl:flex-1">
           {eyebrow && (
             <p className="text-[13px] font-bold tracking-wide text-primary uppercase">{eyebrow}</p>
           )}
@@ -1290,7 +1294,13 @@ function Hero({
             </Suspense>
           )}
         </div>
-        <Photo image={image} label="Foto sekolah" className="aspect-4/3 lg:flex-1" />
+        {/* min-w-0: an image's width attribute is otherwise its flex minimum,
+            and it takes the text column's share. */}
+        <Photo
+          image={image}
+          label="Foto sekolah"
+          className="aspect-video xl:aspect-4/3 xl:min-w-0 xl:flex-1"
+        />
       </div>
     </section>
   );
