@@ -180,8 +180,15 @@ export async function trackCollaborations(
 
   const publishes = action === "publish" || (saves && params.status === "published");
   const removes = action === "unpublish" || action === "delete";
+  // Discarding a draft rebuilds it from the published row, relations and all,
+  // and a Kolaborasi row holds one article — so the copy pulls every row off
+  // the published article the profile reads. They are pointed back, and not
+  // re-asked: nothing the invitee agreed to has changed.
+  const discards = action === "discardDraft";
   const rows =
-    params.documentId && (publishes || removes) ? await rowsOf(strapi, uid, params.documentId) : [];
+    params.documentId && (publishes || removes || discards)
+      ? await rowsOf(strapi, uid, params.documentId)
+      : [];
 
   return async (result) => {
     if (removes && params.documentId) {
@@ -202,5 +209,17 @@ export async function trackCollaborations(
 
     const documentId = params.documentId ?? documentIdOf(result);
     if (publishes && documentId) await reconcile(strapi, uid, documentId, rows);
+    if (discards && documentId && rows.length > 0) {
+      const published: { id: number } | null = await strapi.db.query(uid).findOne({
+        where: { documentId, publishedAt: { $notNull: true } },
+        select: ["id"],
+      });
+      if (published) {
+        await strapi.db.query(KOLABORASI_UID).updateMany({
+          where: { id: { $in: rows.map((row) => row.id) } },
+          data: { [ARTICLES[uid]]: published.id },
+        });
+      }
+    }
   };
 }

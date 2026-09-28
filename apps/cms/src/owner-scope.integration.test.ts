@@ -327,6 +327,20 @@ void describe("collaboration", () => {
     assert.deepEqual(draft?.collaborators, []);
   });
 
+  void it("keeps the invites on the published article when a draft is discarded", async () => {
+    const documentId = await publishedArticle(["smp", "smk"]);
+    await tick(documentId, ["smp"]);
+    await strapi.documents("api::berita.berita").discardDraft({ documentId });
+
+    const published: { kolaborasi?: unknown[] } | null = await strapi.db
+      .query("api::berita.berita")
+      .findOne({
+        where: { documentId, publishedAt: { $notNull: true } },
+        populate: ["kolaborasi"],
+      });
+    assert.equal(published?.kolaborasi?.length, 2);
+  });
+
   // The profile's two queries, in object form, against published rows only —
   // what the public REST endpoint reads. The suite has no HTTP listener, so the
   // public role's permission is checked separately.
