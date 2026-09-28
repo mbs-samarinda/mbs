@@ -1,5 +1,6 @@
 import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
 import { Badge } from "@mbs/ui/components/badge";
+import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -135,8 +136,11 @@ async function Listing({
   return (
     <section className={SECTION}>
       <div className={`${WIDTH} flex flex-col gap-6`}>
-        <Filter active={active} month={month} href={href} />
-        {!schoolKey && <SchoolLinks />}
+        {/* One row: type filters left, school links right, wrapping on narrow screens. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Filter active={active} month={month} href={href} />
+          {!schoolKey && <SchoolLinks />}
+        </div>
 
         <div className={`flex flex-col gap-10 ${hasSidebar ? "lg:flex-row lg:gap-8" : ""}`}>
           <div className="flex flex-1 flex-col gap-6">
@@ -244,7 +248,8 @@ const Filter = ({
  *
  * Links, not filters: the umbrella's list stays one list in date order, and a
  * reader after one school's news is better served on that school's site. Drawn
- * like the type filter's idle state so the row reads as the same kind of thing.
+ * like the type filter's idle state so the row reads as the same kind of thing;
+ * the icon is what says these leave for another site.
  */
 const SchoolLinks = () => (
   <nav aria-label="Berita sekolah" className="flex flex-wrap gap-2">
@@ -252,9 +257,10 @@ const SchoolLinks = () => (
       <a
         key={school.key}
         href={`${ownerUrl(school)}berita`}
-        className="flex min-h-11 items-center rounded-4xl border border-border px-4 text-sm font-semibold hover:bg-muted"
+        className="flex min-h-11 items-center gap-1.5 rounded-4xl border border-border px-4 text-sm font-semibold hover:bg-muted"
       >
         {school.level}
+        <ExternalLink aria-hidden className="size-3.5 shrink-0" strokeWidth={1.75} />
       </a>
     ))}
   </nav>
