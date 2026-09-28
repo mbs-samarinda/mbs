@@ -1,0 +1,44 @@
+{
+  "kind": "collectionType",
+  "collectionName": "kolaborasi",
+  "info": {
+    "singularName": "kolaborasi",
+    "pluralName": "kolaborasi-list",
+    "displayName": "Kolaborasi",
+    "description": "Undangan kolaborasi dari sekolah lain. Ubah status menjadi diterima untuk menampilkan artikelnya di situs sekolah Anda, atau hapus untuk menolak."
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "attributes": {
+    "ownerKey": {
+      "type": "enumeration",
+      "enum": ["smp", "smk", "sma"],
+      "required": true
+    },
+    "berita": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::berita.berita",
+      "inversedBy": "kolaborasi"
+    },
+    "pengumuman": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::pengumuman.pengumuman",
+      "inversedBy": "kolaborasi"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["menunggu", "diterima"],
+      "default": "menunggu",
+      "required": true
+    },
+    "judul": {
+      "type": "string"
+    },
+    "alamat": {
+      "type": "string"
+    }
+  }
+}

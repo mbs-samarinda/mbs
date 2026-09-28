@@ -28,6 +28,8 @@ export type ArticleSeed = {
   daysAgo: number;
   /** Pengumuman only. Days after that boot, when it drops out of the listing. */
   expiresInDays?: number;
+  /** Schools that have already accepted, so a fresh profile has a collab to show. */
+  collaborators?: OwnerKey[];
 };
 
 const HUMAS = (name: string) => `Humas ${name}`;
@@ -91,6 +93,7 @@ export const BERITA_ENTRY_SEED: ArticleSeed[] = [
     ownerKey: "sma",
     title: "Tim debat menuju seleksi tingkat provinsi",
     slug: "tim-debat-seleksi-provinsi",
+    collaborators: ["smk"],
     summary: "Tim inti disiapkan setelah seleksi internal dua babak.",
     body: "Tim debat bahasa Inggris menuntaskan seleksi internal dua babak dan menetapkan tim inti untuk seleksi tingkat provinsi.\n\nLatihan difokuskan pada penyusunan argumen dan manajemen waktu bicara, dengan simulasi penuh tiap akhir pekan.\n\nSeleksi provinsi dijadwalkan pada bulan depan.",
     attribution: HUMAS("SMA Madina Citra Insani"),
