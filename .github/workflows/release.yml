@@ -9,8 +9,11 @@ on:
 
 # One release at a time, and never cancelled. A run that is already pushing
 # layers has to finish: killing it leaves a tag half-written in the registry.
+#
+# Keyed by branch: GitHub keeps one waiting run per group, so a manual run on
+# another branch must not take the slot of a waiting release from main.
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -36,8 +39,8 @@ env:
 
 jobs:
   images:
-    # A manual run can name any branch, and this deploys. `deploy` needs this
-    # job, so skipping it here skips both.
+    # A manual run can name any branch, and this workflow deploys. `deploy`
+    # repeats the check rather than relying on being skipped with this job.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -124,6 +127,7 @@ jobs:
 
   deploy:
     needs: images
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
