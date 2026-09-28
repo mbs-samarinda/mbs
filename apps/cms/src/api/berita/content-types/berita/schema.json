@@ -53,7 +53,8 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::kolaborasi.kolaborasi",
-      "mappedBy": "berita"
+      "mappedBy": "berita",
+      "visible": false
     }
   }
 }

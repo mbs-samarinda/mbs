@@ -56,7 +56,8 @@
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::kolaborasi.kolaborasi",
-      "mappedBy": "pengumuman"
+      "mappedBy": "pengumuman",
+      "visible": false
     }
   }
 }
