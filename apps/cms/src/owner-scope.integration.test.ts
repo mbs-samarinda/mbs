@@ -344,6 +344,46 @@ void describe("collaboration", () => {
   // The profile's two queries, in object form, against published rows only —
   // what the public REST endpoint reads. The suite has no HTTP listener, so the
   // public role's permission is checked separately.
+  // Pengumuman runs through the same hooks. Its own case proves the second
+  // relation is wired, and that its address is `/berita/` too: the profile has no
+  // `/pengumuman` route, both kinds share one listing and one detail page.
+  void it("invites, lists and clears a pengumuman the same way", async () => {
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const { documentId } = await strapi.documents("api::pengumuman.pengumuman").create({
+      data: {
+        ownerKey: "sma",
+        title: `Uji pengumuman ${stamp}`,
+        slug: `uji-pengumuman-${stamp}`,
+        body: "Isi uji.",
+        collaborators: [{ ownerKey: "smk" }],
+      },
+    });
+    await strapi.documents("api::pengumuman.pengumuman").publish({ documentId });
+
+    const invites = (): Promise<Invite[]> =>
+      strapi.db.query(KOLABORASI).findMany({
+        where: { pengumuman: { documentId } },
+        select: ["id", "ownerKey", "status", "judul", "alamat"],
+      });
+
+    const [invite] = await invites();
+    assert.equal(invite?.ownerKey, "smk");
+    assert.match(invite?.alamat ?? "", /^https:\/\/sma\.[^/]+\/berita\/uji-pengumuman-/);
+    await accept(invite);
+
+    const listed = await strapi.documents("api::pengumuman.pengumuman").findMany({
+      status: "published",
+      filters: {
+        documentId,
+        kolaborasi: { ownerKey: { $eq: "smk" }, status: { $eq: "diterima" } },
+      },
+    });
+    assert.equal(listed.length, 1);
+
+    await strapi.documents("api::pengumuman.pengumuman").unpublish({ documentId });
+    assert.equal((await invites()).length, 0);
+  });
+
   void it("answers the profile's listing and badge queries from the published article", async () => {
     const documentId = await publishedArticle(["smp", "smk"]);
     const invites = await invitesOf(documentId);
