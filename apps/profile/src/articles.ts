@@ -1,4 +1,7 @@
+import type { SchoolKey } from "@mbs/school-config";
+
 import type { Media } from "./cms.ts";
+import type { Owner } from "./owners.ts";
 
 /** One entry in the `/berita` listing, from either of the two types under it. */
 export type Article = {
@@ -10,6 +13,10 @@ export type Article = {
   readonly publishedAt: string;
   /** Pengumuman only, and optional there. A Berita article never expires. */
   readonly expiresAt: string | null;
+  /** The primary owner, the one site where the article's page lives. */
+  readonly ownerKey: Owner["key"];
+  /** Schools that accepted the primary's invite, in `SCHOOLS` order. */
+  readonly collaborators: readonly SchoolKey[];
 };
 
 /**
@@ -133,3 +140,35 @@ export const pageParam = (value: string | undefined) => {
   const page = Number(value);
   return Number.isInteger(page) && page > 0 ? page : 1;
 };
+
+/**
+ * The owners a card names, primary first.
+ *
+ * Empty for a solo article on its own site: there the site already says whose
+ * it is, and a badge would repeat the header. Everywhere else — a collab, or
+ * anything seen from a site that is not its home — every owner is named, so a
+ * reader knows whose page the card leads to before they leave for it.
+ */
+export const badgeOwners = (article: Article, site: Owner["key"]): Owner["key"][] =>
+  article.collaborators.length === 0 && article.ownerKey === site
+    ? []
+    : [article.ownerKey, ...article.collaborators];
+
+/**
+ * The umbrella homepage's news block.
+ *
+ * The umbrella's own posts take the first slots, up to half rounded up, so its
+ * news is never pushed off its own homepage by three busy schools. The rest are
+ * school posts by date. When the schools have too few, older umbrella posts
+ * fill in, because an empty slot says less than an older post.
+ */
+export function umbrellaNews(entries: readonly Article[], limit: number): Article[] {
+  const own = entries.filter((entry) => entry.ownerKey === "mbs").slice(0, Math.ceil(limit / 2));
+  // A stable sort, so schools stay in date order and leftover umbrella posts
+  // come after every school post.
+  const rest = entries
+    .filter((entry) => !own.includes(entry))
+    .toSorted((a, b) => Number(a.ownerKey === "mbs") - Number(b.ownerKey === "mbs"))
+    .slice(0, limit - own.length);
+  return [...own, ...rest];
+}

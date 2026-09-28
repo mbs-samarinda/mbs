@@ -66,19 +66,22 @@
    #fb676a — so hovering there brightens and saturates. These are the approved
    values, measured, not derived.
 
-   Selectors are same-element rather than descendant because `data-owner` and
-   the theme class both live on <html>. Nothing sets that class yet: no app
-   toggles dark mode, so these four blocks are correct and unreachable until
-   one does. */
+   Each block has two selectors. The same-element one is the site itself,
+   because `data-owner` and the theme class (set by the switcher in
+   `[owner]/theme.tsx`) both live on <html>. The descendant one is a nested
+   `data-owner`, like another school's badge on a listing: without it, that
+   badge would take its school's light values on a dark page. */
 
 /* Same as light: the shared dark primary, hover and ring are already the
    umbrella's approved values, so only the two brand roles are set here. */
-.dark[data-owner="mbs"] {
+.dark[data-owner="mbs"],
+.dark [data-owner="mbs"] {
   --accent-brand: oklch(0.84 0.093 42.1); /* #ffb79b */
   --surface-brand: oklch(0.259 0.047 218.5); /* #002933, ink 13.74:1 */
 }
 
-.dark[data-owner="smp"] {
+.dark[data-owner="smp"],
+.dark [data-owner="smp"] {
   --primary: oklch(0.779 0.104 154.9); /* #7fcb9a, label 9.57:1 */
   --primary-hover: oklch(0.701 0.105 154.4); /* #66b281 */
   --accent-brand: oklch(0.84 0.138 89.6); /* #eec654 */
@@ -86,7 +89,8 @@
   --ring: oklch(0.92 0.07 154.3); /* #c1f3d0 */
 }
 
-.dark[data-owner="smk"] {
+.dark[data-owner="smk"],
+.dark [data-owner="smk"] {
   --primary: oklch(0.78 0.113 258.1); /* #8ab9ff, label 9.18:1 */
   --primary-hover: oklch(0.7 0.158 258); /* #5c9eff */
   --accent-brand: oklch(0.84 0.094 43.5); /* #ffb799 */
@@ -94,7 +98,8 @@
   --ring: oklch(0.92 0.039 257.9); /* #d5e6ff */
 }
 
-.dark[data-owner="sma"] {
+.dark[data-owner="sma"],
+.dark [data-owner="sma"] {
   --primary: oklch(0.78 0.128 22.1); /* #ff9592, label 8.74:1 */
   --primary-hover: oklch(0.7 0.181 21.8); /* #fb676a */
   --accent-brand: oklch(0.84 0.153 87.1); /* #f5c33e */
