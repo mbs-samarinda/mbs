@@ -21,8 +21,7 @@
       "required": true
     },
     "slug": {
-      "type": "string",
-      "required": true
+      "type": "string"
     },
     "summary": {
       "type": "text",
