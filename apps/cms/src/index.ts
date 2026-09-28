@@ -1,6 +1,12 @@
 import type { Core } from "@strapi/strapi";
 
-import { assertOwnerScope, registerOwnerScope, seedEditorRole } from "./owner-scope";
+import { trackCollaborations } from "./collaboration";
+import {
+  assertOwnerScope,
+  grantKolaborasi,
+  registerOwnerScope,
+  seedEditorRole,
+} from "./owner-scope";
 import { BERITA_ENTRY_SEED, PENGUMUMAN_ENTRY_SEED, type ArticleSeed } from "./seed/articles";
 import { BERITA_SEED, type BeritaSeed } from "./seed/berita-page";
 import { EKSTRAKURIKULER_SEED, type EntrySeed } from "./seed/ekstrakurikuler";
@@ -192,6 +198,9 @@ const PUBLIC_READ = [
   "api::ekstrakurikuler.ekstrakurikuler",
   "api::fasilitas.fasilitas",
   "api::pencapaian.pencapaian",
+  // Read through the articles: the profile filters and populates on it to list
+  // a school's accepted collaborations and badge them.
+  "api::kolaborasi.kolaborasi",
 ] as const;
 
 async function grantPublicRead(strapi: Core.Strapi) {
@@ -468,14 +477,27 @@ async function seedArticles(
     const existing = await strapi.documents(uid).findFirst({ filters: { ownerKey } });
     if (existing) continue;
 
-    for (const { daysAgo, expiresInDays, ...row } of owned) {
+    for (const { daysAgo, expiresInDays, collaborators = [], ...row } of owned) {
       const created = await strapi.documents(uid).create({
         data: {
           ...row,
+          collaborators: collaborators.map((key) => ({ ownerKey: key })),
           ...(expiresInDays === undefined ? {} : { expiresAt: daysFromNow(expiresInDays) }),
         },
         status: "published",
       });
+
+      // Publishing just invited them as `menunggu`; the seed answers for them.
+      if (collaborators.length > 0) {
+        await strapi.db.query("api::kolaborasi.kolaborasi").updateMany({
+          where: {
+            [uid === "api::berita.berita" ? "berita" : "pengumuman"]: {
+              documentId: created.documentId,
+            },
+          },
+          data: { status: "diterima" },
+        });
+      }
 
       // `publishedAt` cannot be set through the Document Service: publishing
       // stamps it with the current time and drops whatever was passed in, which
@@ -669,9 +691,10 @@ const PUBLIC_CONTENT = new Set<string>(PUBLIC_READ);
  * editor saving a draft — invisible to visitors, and no reason to drop four
  * sites' caches. `Site` has `draftAndPublish: false`, so its `update` *is* the
  * live change, and gating it on `publish` would mean a renamed navigation item
- * never appearing.
+ * never appearing. Kolaborasi is the same: a school accepting or leaving is the
+ * change visitors see.
  */
-const LIVE_ON_UPDATE = new Set<string>(["api::site.site"]);
+const LIVE_ON_UPDATE = new Set<string>(["api::site.site", "api::kolaborasi.kolaborasi"]);
 const PUBLISHED_CHANGE = new Set(["publish", "unpublish", "delete"]);
 const DIRECT_CHANGE = new Set(["create", "update", "delete"]);
 
@@ -719,7 +742,9 @@ export default {
       // exist yet, so create is guarded here or nowhere.
       await assertOwnerScope(strapi, context);
 
+      const collaborations = await trackCollaborations(strapi, context);
       const result = await next();
+      await collaborations(result);
 
       if (changesPublicPages(context.uid, context.action)) {
         void notifyProfile(strapi);
@@ -734,6 +759,7 @@ export default {
     // does not know yet drops the condition and grants the permission outright.
     await registerOwnerScope(strapi);
     await seedEditorRole(strapi);
+    await grantKolaborasi(strapi);
     await grantPublicRead(strapi);
     await seedSites(strapi);
 

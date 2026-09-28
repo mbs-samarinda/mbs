@@ -75,12 +75,16 @@ const READ = "plugin::content-manager.explorer.read";
 const CREATE = "plugin::content-manager.explorer.create";
 const DELETE = "plugin::content-manager.explorer.delete";
 const PUBLISH = "plugin::content-manager.explorer.publish";
+const UPDATE = "plugin::content-manager.explorer.update";
+const KOLABORASI = "api::kolaborasi.kolaborasi";
 
 type AdminUser = { id: number; roles?: { code?: string }[] };
-type Rule = { action: string; subject: string; conditions?: unknown };
+type Rule = { action: string; subject: string; conditions?: unknown; fields?: unknown };
+type Invite = { id: number; ownerKey: string; status: string; judul: string; alamat: string };
 
 let strapi: Core.Strapi;
 let editor: AdminUser;
+let smkEditor: AdminUser;
 
 /** Runs a write the way a request does, so the document middleware sees an actor. */
 const as = (user: AdminUser, write: () => Promise<unknown>) =>
@@ -96,9 +100,8 @@ const rulesFor = async (user: AdminUser): Promise<Rule[]> => {
   return ability.rules;
 };
 
-before(async () => {
-  strapi = await createStrapi(await compileStrapi()).load();
-
+/** An editor-role admin user assigned one owner. */
+const createEditor = async (ownerKey: "smp" | "smk") => {
   const role: { id: number } = await strapi.db
     .query("admin::role")
     .findOne({ where: { code: EDITOR_ROLE_CODE } });
@@ -107,7 +110,7 @@ before(async () => {
     data: {
       firstname: "Uji",
       lastname: "Editor",
-      email: `owner-scope-${Date.now()}@example.test`,
+      email: `owner-scope-${ownerKey}-${Date.now()}@example.test`,
       password: "not-a-real-login",
       isActive: true,
       roles: [role.id],
@@ -118,12 +121,19 @@ before(async () => {
   // non-scalar value as a relation, so the `owners` component reaches
   // `toIdArray` and fails with "Invalid id, expected a string or integer".
   await strapi.documents("api::penugasan-editor.penugasan-editor").create({
-    data: { adminUser: created.id, owners: [{ ownerKey: "smp" }] },
+    data: { adminUser: created.id, owners: [{ ownerKey }] },
   });
 
-  editor = await strapi.db
+  const user: AdminUser = await strapi.db
     .query("admin::user")
     .findOne({ where: { id: created.id }, populate: ["roles"] });
+  return user;
+};
+
+before(async () => {
+  strapi = await createStrapi(await compileStrapi()).load();
+  editor = await createEditor("smp");
+  smkEditor = await createEditor("smk");
 });
 
 after(async () => {
@@ -193,5 +203,174 @@ void describe("owner scope", () => {
         .update({ documentId: published.documentId, data: { ownerKey: "smk" } });
 
     await assert.rejects(as(editor, move), /pernah terbit/);
+  });
+});
+
+/** An SMA article with these ticks, published, as the SMA editor's publish would leave it. */
+const publishedArticle = async (collaborators: ("smp" | "smk" | "sma" | "mbs")[]) => {
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const article = await strapi.documents("api::berita.berita").create({
+    data: {
+      ownerKey: "sma",
+      title: `Uji kolaborasi ${stamp}`,
+      slug: `uji-kolaborasi-${stamp}`,
+      body: "Isi uji.",
+      collaborators: collaborators.map((ownerKey) => ({ ownerKey })),
+    },
+  });
+  await strapi.documents("api::berita.berita").publish({ documentId: article.documentId });
+  return article.documentId;
+};
+
+const invitesOf = (documentId: string): Promise<Invite[]> =>
+  strapi.db.query(KOLABORASI).findMany({
+    where: { berita: { documentId } },
+    select: ["id", "ownerKey", "status", "judul", "alamat"],
+    orderBy: { ownerKey: "asc" },
+  });
+
+const accept = (invite: Invite | undefined) => {
+  // An undefined id would widen the `where` to every row.
+  assert.ok(invite, "expected an invite to accept");
+  return strapi.db
+    .query(KOLABORASI)
+    .update({ where: { id: invite.id }, data: { status: "diterima" } });
+};
+
+const tick = (documentId: string, collaborators: "smp"[] | "smk"[]) =>
+  strapi.documents("api::berita.berita").update({
+    documentId,
+    data: { collaborators: collaborators.map((ownerKey) => ({ ownerKey })) },
+  });
+
+void describe("collaboration", () => {
+  // The owner filter does the hiding: an SMK editor's Kolaborasi rules carry
+  // SMK's key and nothing else, so SMA's invites never reach its list.
+  void it("scopes an smk editor to its own invites, status only, no create", async () => {
+    const rules = (await rulesFor(smkEditor)).filter((rule) => rule.subject === KOLABORASI);
+    const read = rules.find((rule) => rule.action === READ);
+    const update = rules.find((rule) => rule.action === UPDATE);
+
+    assert.deepEqual(read?.conditions, { $and: [{ $or: [{ ownerKey: { $in: ["smk"] } }] }] });
+    assert.deepEqual(update?.conditions, { $and: [{ $or: [{ ownerKey: { $in: ["smk"] } }] }] });
+    assert.deepEqual(update?.fields, ["status"]);
+    assert.ok(rules.some((rule) => rule.action === DELETE));
+    assert.ok(!rules.some((rule) => rule.action === CREATE));
+  });
+
+  void it("refuses the umbrella, the article's own owner, and a school twice", async () => {
+    await assert.rejects(publishedArticle(["mbs"]), /MBS/);
+    await assert.rejects(publishedArticle(["sma"]), /Pemilik artikel/);
+    await assert.rejects(publishedArticle(["smk", "smk"]), /sekali/);
+  });
+
+  void it("invites on publish and re-asks accepted schools on the next one", async () => {
+    const documentId = await publishedArticle(["smp", "smk"]);
+    const invites = await invitesOf(documentId);
+
+    assert.deepEqual(
+      invites.map(({ ownerKey, status }) => ({ ownerKey, status })),
+      [
+        { ownerKey: "smk", status: "menunggu" },
+        { ownerKey: "smp", status: "menunggu" },
+      ],
+    );
+    assert.match(invites[0]?.alamat ?? "", /^https:\/\/sma\.[^/]+\/berita\/uji-kolaborasi-/);
+
+    await accept(invites[0]);
+    await strapi.documents("api::berita.berita").publish({ documentId });
+
+    const reasked = await invitesOf(documentId);
+    assert.ok(reasked.every((invite) => invite.status === "menunggu"));
+  });
+
+  void it("drops an unticked school on the next publish, not on save", async () => {
+    const documentId = await publishedArticle(["smp", "smk"]);
+
+    await tick(documentId, ["smp"]);
+    assert.equal((await invitesOf(documentId)).length, 2);
+
+    await strapi.documents("api::berita.berita").publish({ documentId });
+    assert.deepEqual(
+      (await invitesOf(documentId)).map((invite) => invite.ownerKey),
+      ["smp"],
+    );
+  });
+
+  void it("invites a school that left again on the next publish", async () => {
+    const documentId = await publishedArticle(["smk"]);
+    const [invite] = await invitesOf(documentId);
+    assert.ok(invite, "expected an invite to leave");
+    await strapi.db.query(KOLABORASI).delete({ where: { id: invite.id } });
+
+    await strapi.documents("api::berita.berita").publish({ documentId });
+    assert.deepEqual(
+      (await invitesOf(documentId)).map(({ ownerKey, status }) => ({ ownerKey, status })),
+      [{ ownerKey: "smk", status: "menunggu" }],
+    );
+  });
+
+  void it("removes every invite and every tick on unpublish", async () => {
+    const documentId = await publishedArticle(["smp", "smk"]);
+    const rows = await invitesOf(documentId);
+
+    await strapi.documents("api::berita.berita").unpublish({ documentId });
+
+    const draft: { collaborators?: unknown[] } | null = await strapi.db
+      .query("api::berita.berita")
+      .findOne({ where: { documentId }, populate: ["collaborators"] });
+    const leftover = await strapi.db
+      .query(KOLABORASI)
+      .count({ where: { id: { $in: rows.map((row) => row.id) } } });
+
+    assert.equal(leftover, 0);
+    assert.deepEqual(draft?.collaborators, []);
+  });
+
+  // The profile's two queries, in object form, against published rows only —
+  // what the public REST endpoint reads. The suite has no HTTP listener, so the
+  // public role's permission is checked separately.
+  void it("answers the profile's listing and badge queries from the published article", async () => {
+    const documentId = await publishedArticle(["smp", "smk"]);
+    const invites = await invitesOf(documentId);
+    await accept(invites.find((invite) => invite.ownerKey === "smk"));
+
+    const published: { kolaborasi?: unknown[] } | null = await strapi.db
+      .query("api::berita.berita")
+      .findOne({
+        where: { documentId, publishedAt: { $notNull: true } },
+        populate: ["kolaborasi"],
+      });
+    assert.equal(published?.kolaborasi?.length, 2);
+
+    const listing = (ownerKey: "smp" | "smk") =>
+      strapi.documents("api::berita.berita").findMany({
+        status: "published",
+        filters: {
+          documentId,
+          $or: [
+            { ownerKey: { $eq: ownerKey } },
+            { kolaborasi: { ownerKey: { $eq: ownerKey }, status: { $eq: "diterima" } } },
+          ],
+        },
+        populate: {
+          kolaborasi: { filters: { status: { $eq: "diterima" } }, fields: ["ownerKey"] },
+        },
+      });
+
+    const [smk] = await listing("smk");
+    assert.deepEqual(
+      smk?.kolaborasi?.map((row: { ownerKey?: string }) => row.ownerKey),
+      ["smk"],
+    );
+    assert.equal((await listing("smp")).length, 0);
+
+    const role: { id: number } = await strapi.db
+      .query("plugin::users-permissions.role")
+      .findOne({ where: { type: "public" } });
+    const find = await strapi.db
+      .query("plugin::users-permissions.permission")
+      .findOne({ where: { action: `${KOLABORASI}.find`, role: role.id } });
+    assert.ok(find, "the public role must be able to find Kolaborasi");
   });
 });

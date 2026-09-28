@@ -46,6 +46,17 @@
       "type": "component",
       "repeatable": false,
       "component": "shared.seo"
+    },
+    "collaborators": {
+      "type": "component",
+      "repeatable": true,
+      "component": "shared.owner-key"
+    },
+    "kolaborasi": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::kolaborasi.kolaborasi",
+      "mappedBy": "pengumuman"
     }
   }
 }

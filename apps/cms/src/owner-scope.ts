@@ -18,7 +18,10 @@ export const OWNER_SCOPE_CONDITION = "api::owner-scope";
 
 const ASSIGNMENT_UID = "api::penugasan-editor.penugasan-editor";
 const SUPER_ADMIN_CODE = "strapi-super-admin";
+const KOLABORASI_UID = "api::kolaborasi.kolaborasi";
+const READ = "plugin::content-manager.explorer.read";
 const CREATE = "plugin::content-manager.explorer.create";
+const UPDATE = "plugin::content-manager.explorer.update";
 const DELETE = "plugin::content-manager.explorer.delete";
 
 // Editors compose inside these two; they never add or remove one. `slug` is an
@@ -45,10 +48,16 @@ const MEDIA_ACTIONS = [
 type AdminActor = { id?: unknown; roles?: { code?: string }[] };
 type OwnerFilter = { ownerKey: { $in: OwnerKey[] } };
 type Action = { section: string; actionId: string };
-type SeedPermission = { action: string; subject?: string | null; conditions: string[] };
+type SeedPermission = {
+  action: string;
+  subject?: string | null;
+  properties?: { fields: string[] };
+  conditions: string[];
+};
 
 type PermissionService = {
   actionProvider: { values(): Action[] };
+  createMany(permissions: (SeedPermission & { role: number })[]): Promise<unknown>;
   conditionProvider: {
     register(condition: {
       name: string;
@@ -165,7 +174,9 @@ export async function seedEditorRole(strapi: Core.Strapi) {
       "Mengelola konten pemilik yang ditugaskan pada barisnya di Penugasan Editor. Tidak bisa menambah atau menghapus Halaman dan Situs.",
   });
 
-  const scoped = new Set(scopedUids(strapi));
+  // Kolaborasi carries an owner but gets its own narrower grant, from
+  // `grantKolaborasi`, which runs after this on every boot.
+  const scoped = new Set(scopedUids(strapi).filter((uid) => uid !== KOLABORASI_UID));
   const actions = permissionService(strapi)
     .actionProvider.values()
     .filter((action) => action.section === "contentTypes");
@@ -190,6 +201,54 @@ export async function seedEditorRole(strapi: Core.Strapi) {
   permissions.push(...MEDIA_ACTIONS.map((action) => ({ action, conditions: [] })));
 
   await roles.assignPermissions(role.id, permissions);
+}
+
+/**
+ * What an editor may do with the invites to their own schools: read them, accept
+ * one by changing `status`, and decline or leave by deleting it. Never create —
+ * a row only ever comes from the inviting article's publish.
+ *
+ * Unlike every other type this one names its fields, because the invitee must
+ * not rewrite the copies or re-point the row at another article. Read lists
+ * every field so the relation and the copies still show.
+ */
+const KOLABORASI_PERMISSIONS: SeedPermission[] = [
+  {
+    action: READ,
+    subject: KOLABORASI_UID,
+    properties: { fields: ["ownerKey", "berita", "pengumuman", "status", "judul", "alamat"] },
+    conditions: [OWNER_SCOPE_CONDITION],
+  },
+  {
+    action: UPDATE,
+    subject: KOLABORASI_UID,
+    properties: { fields: ["status"] },
+    conditions: [OWNER_SCOPE_CONDITION],
+  },
+  { action: DELETE, subject: KOLABORASI_UID, conditions: [OWNER_SCOPE_CONDITION] },
+];
+
+/**
+ * Adds the Kolaborasi grant to the editor role, once.
+ *
+ * The role is seeded only when missing, so a database from before Kolaborasi
+ * existed would never get it. This adds rather than re-assigns: `assignPermissions`
+ * replaces the role's whole list and would undo whatever an administrator has
+ * changed in the panel. Any Kolaborasi permission on the role means it has run
+ * already, or an administrator has taken it over — either way, hands off.
+ */
+export async function grantKolaborasi(strapi: Core.Strapi) {
+  const role = await roleService(strapi).findOne({ code: EDITOR_ROLE_CODE });
+  if (!role) return;
+
+  const existing: { id: number } | null = await strapi.db
+    .query("admin::permission")
+    .findOne({ where: { role: role.id, subject: KOLABORASI_UID }, select: ["id"] });
+  if (existing) return;
+
+  await permissionService(strapi).createMany(
+    KOLABORASI_PERMISSIONS.map((permission) => ({ ...permission, role: role.id })),
+  );
 }
 
 /** Has any row of this document ever carried a publication date? */
