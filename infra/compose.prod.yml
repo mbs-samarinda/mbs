@@ -64,6 +64,9 @@ services:
       # cache of the container actually serving visitors.
       PROFILE_REVALIDATE_URL: http://profile:3002/api/revalidate
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
+      # Builds the public address each Kolaborasi invite shows. Same value as the
+      # profile's, or a staging CMS writes production addresses into its invites.
+      PROFILE_APEX: ${PROFILE_APEX:?set PROFILE_APEX}
       # Generated once and never rotated. Changing any of them invalidates every
       # admin session and API token.
       APP_KEYS: ${APP_KEYS:?set APP_KEYS}
