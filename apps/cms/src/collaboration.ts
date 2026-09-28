@@ -214,11 +214,14 @@ export async function trackCollaborations(
         where: { documentId, publishedAt: { $notNull: true } },
         select: ["id"],
       });
+      // One row at a time: `updateMany` writes plain columns only and would
+      // silently drop the relation. A handful of schools per article at most.
       if (published) {
-        await strapi.db.query(KOLABORASI_UID).updateMany({
-          where: { id: { $in: rows.map((row) => row.id) } },
-          data: { [ARTICLES[uid]]: published.id },
-        });
+        for (const row of rows) {
+          await strapi.db
+            .query(KOLABORASI_UID)
+            .update({ where: { id: row.id }, data: { [ARTICLES[uid]]: published.id } });
+        }
       }
     }
   };

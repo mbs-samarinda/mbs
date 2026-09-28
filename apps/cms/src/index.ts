@@ -488,9 +488,14 @@ async function seedArticles(
       });
 
       // Publishing just invited them as `menunggu`; the seed answers for them.
+      // Ids first: `updateMany` cannot filter through a relation.
       if (collaborators.length > 0) {
-        await strapi.db.query(KOLABORASI_UID).updateMany({
+        const invites: { id: number }[] = await strapi.db.query(KOLABORASI_UID).findMany({
           where: { [ARTICLES[uid]]: { documentId: created.documentId } },
+          select: ["id"],
+        });
+        await strapi.db.query(KOLABORASI_UID).updateMany({
+          where: { id: { $in: invites.map((invite) => invite.id) } },
           data: { status: "diterima" },
         });
       }
