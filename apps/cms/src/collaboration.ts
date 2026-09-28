@@ -6,7 +6,7 @@ import { OWNER_KEYS } from "./seed/home-page";
 export const KOLABORASI_UID = "api::kolaborasi.kolaborasi";
 
 /** The two article types that take collaborators, and the Kolaborasi field that points at each. */
-const ARTICLES = {
+export const ARTICLES = {
   "api::berita.berita": "berita",
   "api::pengumuman.pengumuman": "pengumuman",
 } as const;
@@ -17,9 +17,9 @@ const isArticle = (uid: string): uid is ArticleUid => uid in ARTICLES;
 
 // The CMS has no list of the profile's hosts — `PUBLIC_URL` is its own address —
 // so the rule is copied from the profile's `ownerHost`, apex included. Staging
-// sets `PROFILE_APEX`; left unset, the copy names production, which is what an
+// sets `PROFILE_APEX`; left unset or empty, the copy names production, which is what an
 // invitee reading it needs to recognise.
-const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
+const APEX = process.env.PROFILE_APEX || "mbss.sch.id";
 
 const articleUrl = (ownerKey: string, slug: string) =>
   `https://${ownerKey === "mbs" ? APEX : `${ownerKey}.${APEX}`}/berita/${slug}`;

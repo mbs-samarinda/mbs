@@ -1,6 +1,6 @@
 import type { Core } from "@strapi/strapi";
 
-import { trackCollaborations } from "./collaboration";
+import { ARTICLES, KOLABORASI_UID, trackCollaborations } from "./collaboration";
 import {
   assertOwnerScope,
   grantKolaborasi,
@@ -489,12 +489,8 @@ async function seedArticles(
 
       // Publishing just invited them as `menunggu`; the seed answers for them.
       if (collaborators.length > 0) {
-        await strapi.db.query("api::kolaborasi.kolaborasi").updateMany({
-          where: {
-            [uid === "api::berita.berita" ? "berita" : "pengumuman"]: {
-              documentId: created.documentId,
-            },
-          },
+        await strapi.db.query(KOLABORASI_UID).updateMany({
+          where: { [ARTICLES[uid]]: { documentId: created.documentId } },
           data: { status: "diterima" },
         });
       }

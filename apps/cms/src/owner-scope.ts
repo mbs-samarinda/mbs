@@ -1,6 +1,7 @@
 import type { Core, UID } from "@strapi/strapi";
 import { errors } from "@strapi/utils";
 
+import { KOLABORASI_UID } from "./collaboration";
 import { OWNER_KEYS, type OwnerKey } from "./seed/home-page";
 
 /**
@@ -18,7 +19,6 @@ export const OWNER_SCOPE_CONDITION = "api::owner-scope";
 
 const ASSIGNMENT_UID = "api::penugasan-editor.penugasan-editor";
 const SUPER_ADMIN_CODE = "strapi-super-admin";
-const KOLABORASI_UID = "api::kolaborasi.kolaborasi";
 const READ = "plugin::content-manager.explorer.read";
 const CREATE = "plugin::content-manager.explorer.create";
 const UPDATE = "plugin::content-manager.explorer.update";
