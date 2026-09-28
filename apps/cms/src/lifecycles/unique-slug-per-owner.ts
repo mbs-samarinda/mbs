@@ -35,7 +35,9 @@ const text = (value: unknown) => (typeof value === "string" && value !== "" ? va
  * first school to publish "Penerimaan Siswa Baru" would take that address from
  * the other two — on sites that share no hostname, no listing and no reader. So
  * slug is a plain string, generated from the title when an editor leaves it
- * empty, and checked here against the owner's own entries.
+ * empty, and checked here against the owner's own entries. It is not
+ * `required` in the schemas: Strapi checks that before this lifecycle runs,
+ * so a required slug forces editors to type one by hand.
  *
  * `siblings` covers the case where two collections share one address space:
  * Berita and Pengumuman are separate types rendered in one `/berita` listing,
@@ -58,10 +60,16 @@ export function uniqueSlugPerOwner(uid: string, siblings: readonly string[] = []
 
     const ownerKey = text(data.ownerKey) ?? current?.ownerKey;
     const title = text(data.title) ?? current?.title;
-    const slug = text(data.slug) ?? current?.slug ?? (title ? slugify(title) : undefined);
-    if (!ownerKey || !slug) return;
+    const slug = text(data.slug) ?? text(current?.slug) ?? (title ? slugify(title) : undefined);
+    // The schema no longer forces a slug, so this is the only place that
+    // stops an entry being published at an empty address.
+    if (title && slug === "") {
+      throw new errors.ApplicationError("Judul tidak bisa dijadikan alamat. Isi alamatnya sendiri.");
+    }
+    if (!slug) return;
 
     data.slug = slug;
+    if (!ownerKey) return;
 
     const documentId = text(data.documentId) ?? current?.documentId;
 
