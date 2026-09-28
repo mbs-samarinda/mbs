@@ -18,7 +18,7 @@
 /* oxlint-disable typescript/no-unsafe-type-assertion -- a CommonJS bridge into Strapi's untyped admin surface */
 import type { Core } from "@strapi/strapi";
 
-const { after, before, describe, it } = require("node:test") as typeof import("node:test");
+const { before, describe, it } = require("node:test") as typeof import("node:test");
 const assert = require("node:assert/strict") as typeof import("node:assert/strict");
 
 // Booting Strapi runs its migrations and every seed, so this must never point at
@@ -130,14 +130,15 @@ const createEditor = async (ownerKey: "smp" | "smk") => {
   return user;
 };
 
+// No `strapi.destroy()` afterwards: Strapi reads each written entry back for
+// its events after the write returns, and closing the pool under that read
+// failed CI at random with only "test failed". `test:integration` passes
+// `--test-force-exit` to end the process instead, so run it through that
+// script. A bare `node --test` on this file never exits.
 before(async () => {
   strapi = await createStrapi(await compileStrapi()).load();
   editor = await createEditor("smp");
   smkEditor = await createEditor("smk");
-});
-
-after(async () => {
-  await strapi?.destroy();
 });
 
 void describe("owner scope", () => {
