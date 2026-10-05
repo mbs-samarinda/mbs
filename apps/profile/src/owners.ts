@@ -24,15 +24,15 @@ export type Owner = (typeof OWNERS)[number];
 const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
 
 /**
- * The paths only the schools own. The umbrella teaches no classes and lists no
- * activities, so it has no page at any of them: its navigation carries no entry
+ * The paths only the schools own. The umbrella teaches no classes, lists no
+ * activities and keeps no photographs or files of its own, so it has no page at any of them: its navigation carries no entry
  * for one and the CMS seeds it no row.
  *
  * A path no route file claims already answers `global-not-found.tsx` on its
  * own; a path listed here is one a route *does* claim, which the apex has to be
  * steered away from.
  */
-const SCHOOL_ONLY = ["/program", "/ekstrakurikuler", "/fasilitas"] as const;
+const SCHOOL_ONLY = ["/program", "/ekstrakurikuler", "/fasilitas", "/galeri", "/unduhan"] as const;
 
 /**
  * Whether this owner has no page at this path.

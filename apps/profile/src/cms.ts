@@ -285,7 +285,7 @@ export type Page = {
 export const CMS_TAG = "cms";
 
 /** Strapi returns media paths relative to its own host when storage is local. */
-export const mediaUrl = (media: Media) =>
+export const mediaUrl = (media: Pick<Media, "url">) =>
   media.url.startsWith("http") ? media.url : `${config.cmsUrl}${media.url}`;
 
 async function cms<T>(collection: string, params: [string, string][]) {
@@ -682,4 +682,89 @@ export async function getEntry(
   // in arrives missing rather than empty, so the panel below would be a 500 on
   // the first entry an editor leaves without facts.
   return entry ? { ...entry, facts: entry.facts ?? [], images: entry.images ?? [] } : null;
+}
+
+/** One activity's photographs, for `/galeri`. The first photo is the cover. */
+export type Album = {
+  readonly slug: string;
+  readonly title: string;
+  /** `YYYY-MM-DD`: the day of the activity, which is what the gallery sorts by. */
+  readonly date: string;
+  readonly photos: readonly Media[];
+};
+
+/** Every album an owner has published, newest activity first. */
+export async function getAlbums(ownerKey: Owner["key"]): Promise<Album[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CMS_TAG, `albums:${ownerKey}`);
+
+  // Every photo comes along, not just the cover: the card shows the count, and
+  // a school runs nowhere near `PAGE_LIMIT` activities a year.
+  const albums = await cms<Album[]>("album-list", [
+    ["filters[ownerKey][$eq]", ownerKey],
+    ["sort[0]", "date:desc"],
+    ["pagination[pageSize]", String(PAGE_LIMIT)],
+    ["populate[photos]", "true"],
+  ]);
+
+  return albums.map((album) => ({ ...album, photos: album.photos ?? [] }));
+}
+
+/** One album by address, or `null` when this owner has never published it. */
+export async function getAlbum(
+  ownerKey: Owner["key"],
+  slug: string,
+): Promise<(Album & { readonly seo: Page["seo"] }) | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CMS_TAG, `album:${ownerKey}:${slug}`);
+
+  const found = await cms<(Album & { seo: Page["seo"] })[]>("album-list", [
+    ["filters[ownerKey][$eq]", ownerKey],
+    ["filters[slug][$eq]", slug],
+    ["populate[photos]", "true"],
+    ["populate[seo][populate]", "*"],
+  ]);
+
+  const album = found[0];
+  return album ? { ...album, photos: album.photos ?? [] } : null;
+}
+
+/** A file on `/unduhan`. */
+export type Berkas = {
+  readonly documentId: string;
+  readonly title: string;
+  readonly category: "Akademik" | "Pendaftaran" | "Asrama" | "Umum";
+  /** When it was last published, which is what "Diperbarui" means to a parent. */
+  readonly publishedAt: string;
+  readonly file: {
+    readonly url: string;
+    /** `.pdf`, with the dot. */
+    readonly ext: string;
+    /** Kilobytes, as Strapi stores it. */
+    readonly size: number;
+  };
+};
+
+/** Every file an owner has published, most recently updated first. */
+export async function getFiles(ownerKey: Owner["key"]): Promise<Berkas[]> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CMS_TAG, `files:${ownerKey}`);
+
+  const rows = await cms<(Omit<Berkas, "file"> & { file: Berkas["file"] | null })[]>(
+    "berkas-list",
+    [
+      ["filters[ownerKey][$eq]", ownerKey],
+      ["sort[0]", "publishedAt:desc"],
+      ["pagination[pageSize]", String(PAGE_LIMIT)],
+      ["populate[file]", "true"],
+    ],
+  );
+
+  // `required` is checked when an editor saves, not afterwards: deleting the
+  // file from the Media Library leaves a published row pointing at nothing.
+  // Dropped here, or one missing PDF takes the whole page down.
+  return rows.flatMap(({ file, ...row }) => (file ? [{ ...row, file }] : []));
 }

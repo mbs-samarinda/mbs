@@ -1,0 +1,44 @@
+{
+  "kind": "collectionType",
+  "collectionName": "albums",
+  "info": {
+    "singularName": "album",
+    "pluralName": "album-list",
+    "displayName": "Album",
+    "description": "Foto satu kegiatan. Tampil di halaman Galeri, terbaru di depan."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "ownerKey": {
+      "type": "enumeration",
+      "enum": ["mbs", "smp", "smk", "sma"],
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "string"
+    },
+    "date": {
+      "type": "date",
+      "required": true,
+      "description": "Tanggal kegiatan, bukan tanggal unggah. Galeri diurutkan dari tanggal ini."
+    },
+    "photos": {
+      "type": "media",
+      "multiple": true,
+      "required": true,
+      "allowedTypes": ["images"],
+      "description": "Foto pertama menjadi sampul album."
+    },
+    "seo": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.seo"
+    }
+  }
+}

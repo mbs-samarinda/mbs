@@ -103,8 +103,8 @@ Profile sites: each school has its own address (`sma.mbss.sch.id` and so on)
 but all belong to one product. A visitor should quickly find what the school is
 and whom it serves, its programs, values, facilities and activities, news and
 contact details, whether admission is open, and how to start. School pages are
-`/`, `/profil`, `/program`, `/ekstrakurikuler`, `/fasilitas`, `/berita`,
-`/pendaftaran`, `/kontak`. `program` is the academic offering and carries SMK's
+`/`, `/profil`, `/program`, `/ekstrakurikuler`, `/fasilitas`, `/galeri`,
+`/berita`, `/unduhan`, `/pendaftaran`, `/kontak`. `program` is the academic offering and carries SMK's
 jurusan; `ekstrakurikuler` is activities. They are separate pages because they
 answer separate questions.
 
@@ -217,6 +217,8 @@ Four things about that model are decisions rather than mechanics:
   and testimonials stay unmodelled and are closed rather than pending:
   testimonials have nothing to publish by brand rule, and no remaining page
   draws the other two. They reopen only if an editor asks for one on a homepage.
+  `/galeri` does not reopen the gallery block: it reads the `Album` collection
+  directly, the way `/fasilitas` reads its own.
 - **Plural names read `berita-list`, not `beritas`.** Strapi requires a plural
   distinct from the singular and Indonesian does not take an `-s`, so every
   collection uses a `-list` suffix rather than a word no one would write.

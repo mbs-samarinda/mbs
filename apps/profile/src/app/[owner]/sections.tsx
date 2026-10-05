@@ -180,11 +180,18 @@ export function Photo({
   label,
   className,
   inCard = false,
+  sizes,
 }: {
   image: Media | null;
   label: string;
   className: string;
   inCard?: boolean;
+  /**
+   * How wide the photo renders, for a grid of small ones. Without it the browser
+   * picks from the photo's own width, so a phone downloads a full-size original
+   * for every thumbnail.
+   */
+  sizes?: string;
 }) {
   const edge = inCard ? "" : "outline outline-black/10 dark:outline-white/12";
 
@@ -204,6 +211,7 @@ export function Photo({
       alt={image.alternativeText ?? ""}
       width={image.width}
       height={image.height}
+      sizes={sizes}
       className={`rounded-lg object-cover ${edge} ${className}`}
     />
   );
@@ -1396,10 +1404,19 @@ export const ENTRY_SECTIONS = {
   },
 } as const satisfies Record<EntryCollection, unknown>;
 
-type EntrySection = (typeof ENTRY_SECTIONS)[EntryCollection];
-
-/** Where the visitor is, what this is, and the one line that summarises it. */
-export const EntryHead = ({ entry, section }: { entry: FullEntry; section: EntrySection }) => (
+/**
+ * Where the visitor is, what this is, and the one line that summarises it.
+ *
+ * Takes only what it draws, so an album page — which is not an entry — opens
+ * the same way.
+ */
+export const EntryHead = ({
+  entry,
+  section,
+}: {
+  entry: Pick<FullEntry, "title" | "summary">;
+  section: { readonly base: string; readonly label: string };
+}) => (
   <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
     <div className={`${WIDTH} flex flex-col gap-4`}>
       <nav aria-label="Remah roti" className="flex flex-wrap items-center gap-1.5 text-[13px]">

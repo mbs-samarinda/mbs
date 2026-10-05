@@ -3,6 +3,7 @@ import type { Core } from "@strapi/strapi";
 import { ARTICLES, KOLABORASI_UID, trackCollaborations } from "./collaboration";
 import {
   assertOwnerScope,
+  grantEditorTypes,
   grantKolaborasi,
   registerOwnerScope,
   seedEditorRole,
@@ -13,6 +14,7 @@ import { EKSTRAKURIKULER_SEED, type EntrySeed } from "./seed/ekstrakurikuler";
 import { EKSTRAKURIKULER_PAGE_SEED, type EkstrakurikulerSeed } from "./seed/ekstrakurikuler-page";
 import { FASILITAS_SEED } from "./seed/fasilitas";
 import { FASILITAS_PAGE_SEED, type FasilitasSeed } from "./seed/fasilitas-page";
+import { GALERI_PAGE_SEED, UNDUHAN_PAGE_SEED, type ListingSeed } from "./seed/galeri-page";
 import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home-page";
 import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
 import { PENCAPAIAN_SEED, type AchievementSeed } from "./seed/pencapaian";
@@ -82,7 +84,9 @@ const schoolSite = (
     { label: "Program", href: "/program" },
     { label: "Ekstrakurikuler", href: "/ekstrakurikuler" },
     { label: "Fasilitas", href: "/fasilitas" },
+    { label: "Galeri", href: "/galeri" },
     { label: "Berita", href: "/berita" },
+    { label: "Unduhan", href: "/unduhan" },
     { label: "Pendaftaran", href: "/pendaftaran" },
     { label: "Kontak", href: "/kontak" },
   ],
@@ -96,12 +100,14 @@ const schoolSite = (
         { label: "Program", href: "/program" },
         { label: "Ekstrakurikuler", href: "/ekstrakurikuler" },
         { label: "Fasilitas", href: "/fasilitas" },
+        { label: "Galeri", href: "/galeri" },
       ],
     },
     {
       heading: "Informasi",
       links: [
         { label: "Berita & Pengumuman", href: "/berita" },
+        { label: "Unduhan", href: "/unduhan" },
         { label: "Pendaftaran", href: "/pendaftaran" },
         { label: "Kontak", href: "/kontak" },
       ],
@@ -198,6 +204,8 @@ const PUBLIC_READ = [
   "api::ekstrakurikuler.ekstrakurikuler",
   "api::fasilitas.fasilitas",
   "api::pencapaian.pencapaian",
+  "api::album.album",
+  "api::berkas.berkas",
   // Read through the articles: the profile filters and populates on it to list
   // a school's accepted collaborations and badge them.
   "api::kolaborasi.kolaborasi",
@@ -282,6 +290,8 @@ async function seedPages(
     | "program"
     | "ekstrakurikuler"
     | "fasilitas"
+    | "galeri"
+    | "unduhan"
     | "pendaftaran"
     | "kontak"
     | "berita",
@@ -296,6 +306,7 @@ async function seedPages(
       | ProgramSeed
       | EkstrakurikulerSeed
       | FasilitasSeed
+      | ListingSeed
       | AdmissionSeed
       | KontakSeed
       | BeritaSeed
@@ -427,6 +438,82 @@ async function backfillUmbrellaHome(strapi: Core.Strapi): Promise<boolean> {
 }
 
 /* oxlint-enable eslint/no-underscore-dangle */
+
+type Link = { label: string; href: string };
+
+/** Puts `link` straight after the link to `after`, or `null` when that anchor is gone. */
+function insertLink(links: readonly Link[], link: Link, after: string): Link[] | null {
+  const at = links.findIndex((entry) => entry.href === after);
+  if (at === -1) return null;
+  return [...links.slice(0, at + 1), link, ...links.slice(at + 1)];
+}
+
+/**
+ * Links as label and href alone, the shape a write takes. Read types call every
+ * field optional, required ones included; both are required on `shared.link`,
+ * so the filter drops nothing real.
+ */
+const plain = (links: readonly { label?: string | null; href?: string | null }[] | null = []) =>
+  (links ?? []).flatMap(({ label, href }) => (label && href ? [{ label, href }] : []));
+
+/** Where each new page goes, by the link it follows in `schoolSite`. */
+const SCHOOL_LINKS = [
+  { link: { label: "Galeri", href: "/galeri" }, after: "/fasilitas" },
+  { link: { label: "Unduhan", href: "/unduhan" }, after: "/berita" },
+] as const;
+
+/**
+ * Galeri and Unduhan in the header and footer of a school site seeded before
+ * either page existed — the `Site` half of what `backfillUmbrellaHome` does for
+ * a page. `seedSites` never touches a row it finds, so without this a deploy
+ * ships both pages with nothing linking to them.
+ *
+ * Each link lands after the one it follows in `schoolSite`. A link already
+ * present is left where it is. In the header, a missing anchor appends the link
+ * rather than dropping it: a page nobody can reach is the failure this exists to
+ * fix. In the footer, a missing anchor skips that column, because an editor
+ * who removed it has rearranged the footer and a guess would undo their work.
+ *
+ * Links are written back as label and href alone: they carry nothing else, and
+ * `Site` has no draft, so this is live the moment it runs.
+ */
+async function backfillSchoolLinks(strapi: Core.Strapi): Promise<boolean> {
+  const sites = await strapi.documents("api::site.site").findMany({
+    filters: { ownerKey: { $in: ["smp", "smk", "sma"] } },
+    populate: { navigation: true, footerColumns: { populate: ["links"] } },
+  });
+
+  let changed = false;
+  for (const site of sites) {
+    let navigation = plain(site.navigation);
+    let columns = (site.footerColumns ?? []).map((column) => ({
+      heading: column.heading ?? "",
+      links: plain(column.links),
+    }));
+    const before = JSON.stringify({ navigation, columns });
+
+    for (const { link, after } of SCHOOL_LINKS) {
+      if (!navigation.some((entry) => entry.href === link.href)) {
+        navigation = insertLink(navigation, link, after) ?? [...navigation, link];
+      }
+      if (!columns.some((column) => column.links.some((entry) => entry.href === link.href))) {
+        columns = columns.map((column) => ({
+          ...column,
+          links: insertLink(column.links, link, after) ?? column.links,
+        }));
+      }
+    }
+
+    if (JSON.stringify({ navigation, columns }) === before) continue;
+    await strapi.documents("api::site.site").update({
+      documentId: site.documentId,
+      data: { navigation, footerColumns: columns },
+    });
+    changed = true;
+  }
+
+  return changed;
+}
 
 /**
  * Gives an owner its starting records in one collection, or leaves it alone.
@@ -800,6 +887,8 @@ export default {
     await seedPages(strapi, "program", PROGRAM_SEED);
     await seedPages(strapi, "ekstrakurikuler", EKSTRAKURIKULER_PAGE_SEED);
     await seedPages(strapi, "fasilitas", FASILITAS_PAGE_SEED);
+    await seedPages(strapi, "galeri", GALERI_PAGE_SEED);
+    await seedPages(strapi, "unduhan", UNDUHAN_PAGE_SEED);
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
     await seedPages(strapi, "kontak", KONTAK_SEED);
     await seedPages(strapi, "berita", BERITA_SEED);
@@ -808,5 +897,9 @@ export default {
     // when missing, so a section added to a seed later needs this to reach an
     // environment that has already booted.
     await backfillOnce(strapi, "umbrella-home-sections", () => backfillUmbrellaHome(strapi));
+    await backfillOnce(strapi, "galeri-unduhan-links", () => backfillSchoolLinks(strapi));
+    await backfillOnce(strapi, "galeri-unduhan-editors", () =>
+      grantEditorTypes(strapi, ["api::album.album", "api::berkas.berkas"]),
+    );
   },
 };
