@@ -34,11 +34,12 @@ test("an unknown host is refused", () => {
   expect(proxy(request("sd.mbss.sch.id")).status).toBe(404);
 });
 
-// The apex has no `/program`, `/ekstrakurikuler` or `/fasilitas` page, and the
-// pages' own `notFound()` cannot produce the branded 404: with the root layout inside
-// `[owner]` there is no not-found boundary in the tree, so Next renders its
-// built-in page instead. `global-not-found.tsx` only answers a URL that matches
-// no route, so the proxy has to send the apex to one.
+// The apex has no `/program`, `/ekstrakurikuler`, `/fasilitas`, `/galeri` or
+// `/unduhan` page, and the pages' own `notFound()` cannot produce the branded
+// 404: with the root layout inside `[owner]` there is no not-found boundary in
+// the tree, so Next renders its built-in page instead. `global-not-found.tsx`
+// only answers a URL that matches no route, so the proxy has to send the apex
+// to one.
 test("a school-only path on the apex is rewritten to an unclaimed path", () => {
   const paths = [
     "/program",
@@ -46,6 +47,9 @@ test("a school-only path on the apex is rewritten to an unclaimed path", () => {
     "/ekstrakurikuler/panahan",
     "/fasilitas",
     "/fasilitas/perpustakaan",
+    "/galeri",
+    "/galeri/upacara-hut-ri",
+    "/unduhan",
   ];
   for (const path of paths) {
     const response = proxy(request("mbss.sch.id", path));

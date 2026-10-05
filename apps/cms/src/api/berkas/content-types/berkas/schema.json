@@ -1,0 +1,36 @@
+{
+  "kind": "collectionType",
+  "collectionName": "berkas",
+  "info": {
+    "singularName": "berkas",
+    "pluralName": "berkas-list",
+    "displayName": "Berkas",
+    "description": "Berkas yang bisa diunduh di halaman Unduhan. Jangan unggah biaya, tanggal, atau syarat pendaftaran: halaman Pendaftaran membacanya langsung dari sistem, dan salinan PDF akan basi."
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "ownerKey": {
+      "type": "enumeration",
+      "enum": ["mbs", "smp", "smk", "sma"],
+      "required": true
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "category": {
+      "type": "enumeration",
+      "enum": ["Akademik", "Pendaftaran", "Asrama", "Umum"],
+      "required": true,
+      "default": "Umum"
+    },
+    "file": {
+      "type": "media",
+      "multiple": false,
+      "required": true,
+      "allowedTypes": ["files", "images"]
+    }
+  }
+}

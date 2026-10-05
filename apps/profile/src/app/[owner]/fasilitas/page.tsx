@@ -27,8 +27,8 @@ export async function generateMetadata({
  *
  * Not composed, the arrangement `/ekstrakurikuler` and `/berita` already use:
  * the listing is what has been published in the Fasilitas collection, and the
- * `Page` row exists for the title and the SEO fields. This is descriptions and
- * photographs rather than a gallery — the reason no gallery block was modelled.
+ * `Page` row exists for the title and the SEO fields. It describes buildings;
+ * photographs of what happens in them belong to `/galeri`.
  *
  * School-only. The umbrella owns no buildings, so the apex answers 404 rather
  * than an empty grid; `ownerLacksPath` sends it to an unclaimed path before this
@@ -44,10 +44,7 @@ export default async function FasilitasPage({ params }: { params: Promise<{ owne
 
   return (
     <main>
-      <PageHead
-        heading="Fasilitas"
-        body="Keterangan dan foto tiap fasilitas, bukan galeri lepas."
-      />
+      <PageHead heading="Fasilitas" body="Keterangan dan foto tiap fasilitas." />
 
       <section className={SECTION}>
         <div className={WIDTH}>

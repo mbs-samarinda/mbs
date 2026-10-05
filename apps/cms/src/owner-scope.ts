@@ -176,31 +176,67 @@ export async function seedEditorRole(strapi: Core.Strapi) {
 
   // Kolaborasi carries an owner but gets its own narrower grant, from
   // `grantKolaborasi`, which runs once per database after this.
-  const scoped = new Set(scopedUids(strapi).filter((uid) => uid !== KOLABORASI_UID));
+  const permissions = editorPermissions(
+    strapi,
+    new Set(scopedUids(strapi).filter((uid) => uid !== KOLABORASI_UID)),
+  );
+  permissions.push(...MEDIA_ACTIONS.map((action) => ({ action, conditions: [] })));
+
+  await roles.assignPermissions(role.id, permissions);
+}
+
+/** Every content-manager action on these types, each narrowed to the editor's owners. */
+function editorPermissions(strapi: Core.Strapi, subjects: ReadonlySet<string>): SeedPermission[] {
   const actions = permissionService(strapi)
     .actionProvider.values()
     .filter((action) => action.section === "contentTypes");
 
-  const permissions: SeedPermission[] = contentTypeService(strapi)
-    .getPermissionsWithNestedFields(actions)
-    .filter(({ subject }) => scoped.has(subject))
-    .filter(
-      ({ action, subject }) =>
-        !(NO_CREATE_OR_DELETE.has(subject) && (action === CREATE || action === DELETE)),
-    )
-    // The field list that call just computed is dropped on purpose. A rule whose
-    // `fields` is nil means every field, so the page slices still to come can
-    // add block fields without anybody re-ticking checkboxes. Opening the role
-    // in the admin panel and saving it writes an explicit list and ends that.
-    //
-    // Exactly one condition per permission: results are combined as
-    // `{ $and: [{ $or: results }] }`, so a second condition returning `true`
-    // would discard the owner filter.
-    .map(({ action, subject }) => ({ action, subject, conditions: [OWNER_SCOPE_CONDITION] }));
+  return (
+    contentTypeService(strapi)
+      .getPermissionsWithNestedFields(actions)
+      .filter(({ subject }) => subjects.has(subject))
+      .filter(
+        ({ action, subject }) =>
+          !(NO_CREATE_OR_DELETE.has(subject) && (action === CREATE || action === DELETE)),
+      )
+      // The field list that call just computed is dropped on purpose. A rule whose
+      // `fields` is nil means every field, so the page slices still to come can
+      // add block fields without anybody re-ticking checkboxes. Opening the role
+      // in the admin panel and saving it writes an explicit list and ends that.
+      //
+      // Exactly one condition per permission: results are combined as
+      // `{ $and: [{ $or: results }] }`, so a second condition returning `true`
+      // would discard the owner filter.
+      .map(({ action, subject }) => ({ action, subject, conditions: [OWNER_SCOPE_CONDITION] }))
+  );
+}
 
-  permissions.push(...MEDIA_ACTIONS.map((action) => ({ action, conditions: [] })));
+/**
+ * Adds content types that arrived after the editor role was seeded.
+ *
+ * The role is created once and never re-asserted, so a type added later is
+ * invisible to every editor on a database that already has the role. Same
+ * add-not-replace rule as `grantKolaborasi`, and it runs under `backfillOnce`
+ * for the same reason. A type the role already holds anything on is skipped:
+ * someone set it by hand, or the role was seeded after the type existed.
+ */
+export async function grantEditorTypes(
+  strapi: Core.Strapi,
+  uids: readonly string[],
+): Promise<boolean> {
+  const role = await roleService(strapi).findOne({ code: EDITOR_ROLE_CODE });
+  if (!role) return false;
 
-  await roles.assignPermissions(role.id, permissions);
+  const held: { subject: string }[] = await strapi.db
+    .query("admin::permission")
+    .findMany({ where: { role: role.id, subject: { $in: uids } }, select: ["subject"] });
+  const missing = new Set(uids.filter((uid) => !held.some((row) => row.subject === uid)));
+  if (missing.size === 0) return false;
+
+  await permissionService(strapi).createMany(
+    editorPermissions(strapi, missing).map((permission) => ({ ...permission, role: role.id })),
+  );
+  return true;
 }
 
 /**
