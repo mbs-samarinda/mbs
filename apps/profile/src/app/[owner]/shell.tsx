@@ -5,6 +5,7 @@ import Image from "next/image";
 import { mediaUrl, type Site } from "../../cms.ts";
 import { OWNERS, ownerUrl, type Owner } from "../../owners.ts";
 import { MobileMenu } from "./mobile-menu.tsx";
+import { toMenu } from "./nav-link.ts";
 import { NavScroller } from "./nav-scroller.tsx";
 import { COOKIE_SUFFIX } from "./theme-script.tsx";
 import { ThemeSelect } from "./theme.tsx";
@@ -60,10 +61,7 @@ function LogoSlot({ logo, className }: { logo: Site["logo"]; className: string }
  * goes with it so the bar holds the identity alone.
  */
 export function Header({ owner, site }: { owner: Owner; site: Site }) {
-  // ponytail: flat until the Artikel dropdown is built. An item with an address
-  // shows as one link; one without shows its children instead, so nothing an
-  // editor adds goes missing.
-  const flat = site.menu.flatMap(({ label, href, links }) => (href ? [{ label, href }] : links));
+  const menu = toMenu(site.menu);
 
   return (
     // Both rows stay put while the page scrolls: the switcher says which site
@@ -130,14 +128,14 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
         </a>
 
         <MobileMenu
-          items={flat}
+          items={menu}
           owner={owner.name}
           admissionCta={site.admissionCta}
           cookieSuffix={COOKIE_SUFFIX}
         />
 
         <NavScroller
-          items={flat}
+          items={menu}
           // The tablet row is its own 44px-tall band, so an arrow sitting over
           // it has somewhere to be. On a desktop page the row is inline and the
           // 76px main bar gives the arrow its height instead. No rule between
