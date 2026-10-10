@@ -6,8 +6,7 @@ import { cn } from "cn";
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import type { Site } from "../../cms.ts";
-import { NAV_LINK } from "./nav-link.ts";
+import { NAV_LINK, menuKey, type MenuEntry } from "./nav-link.ts";
 
 /**
  * The navigation row, always on one line, with an arrow over whatever is cut
@@ -32,7 +31,13 @@ import { NAV_LINK } from "./nav-link.ts";
  * swallows the clicks of whatever it covers is a failure this design has
  * already removed once.
  */
-export function NavScroller({ items, className }: { items: Site["menu"]; className: string }) {
+export function NavScroller({
+  items,
+  className,
+}: {
+  items: readonly MenuEntry[];
+  className: string;
+}) {
   const track = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: false, end: false });
 
@@ -91,14 +96,12 @@ export function NavScroller({ items, className }: { items: Site["menu"]; classNa
         className="flex w-full scroll-px-12 [scrollbar-width:none] items-center gap-6 overflow-x-auto whitespace-nowrap lg:[justify-content:safe_center] [&::-webkit-scrollbar]:hidden"
       >
         {items.map((item) =>
-          item.links.length > 0 ? (
-            <Group key={item.label} item={item} />
+          "links" in item ? (
+            <Group key={menuKey(item)} item={item} />
           ) : (
-            item.href && (
-              <a key={item.label} href={item.href} className={NAV_LINK}>
-                {item.label}
-              </a>
-            )
+            <a key={menuKey(item)} href={item.href} className={NAV_LINK}>
+              {item.label}
+            </a>
           ),
         )}
       </div>
@@ -136,6 +139,8 @@ export function NavScroller({ items, className }: { items: Site["menu"]; classNa
   );
 }
 
+const ROW = "flex min-h-10 items-center rounded-md px-3 text-sm font-medium hover:bg-muted";
+
 /**
  * A menu item with child links, as a button that opens them.
  *
@@ -143,10 +148,10 @@ export function NavScroller({ items, className }: { items: Site["menu"]; classNa
  * menu role would take over the arrow keys and announce them as commands. The
  * popup portals out of the track, so its `overflow-x` cannot clip it.
  *
- * The child pointing where the item itself does — Semua artikel for Artikel —
- * is the overview, so a hairline sets it apart from the rest.
+ * The overview — Semua artikel for Artikel — comes first, set apart by a
+ * hairline.
  */
-function Group({ item }: { item: Site["menu"][number] }) {
+function Group({ item }: { item: Extract<MenuEntry, { links: unknown }> }) {
   return (
     <Popover>
       <PopoverTrigger
@@ -163,15 +168,16 @@ function Group({ item }: { item: Site["menu"][number] }) {
         />
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={8} className="w-auto min-w-50 gap-0 p-1.5">
-        {item.links.map((link) => (
+        {item.overview && (
           <a
-            key={link.href}
-            href={link.href}
-            className={cn(
-              "flex min-h-10 items-center rounded-md px-3 text-sm font-medium hover:bg-muted",
-              link.href === item.href && "mb-1 rounded-b-none border-b border-border",
-            )}
+            href={item.overview.href}
+            className={cn(ROW, "mb-1 rounded-b-none border-b border-border")}
           >
+            {item.overview.label}
+          </a>
+        )}
+        {item.links.map((link) => (
+          <a key={menuKey(link)} href={link.href} className={ROW}>
             {link.label}
           </a>
         ))}

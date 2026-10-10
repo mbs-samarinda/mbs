@@ -12,8 +12,7 @@ import {
 import { cn } from "cn";
 import { ChevronDownIcon, MenuIcon, XIcon } from "lucide-react";
 
-import type { Site } from "../../cms.ts";
-import { NAV_LINK } from "./nav-link.ts";
+import { NAV_LINK, menuKey, type MenuEntry } from "./nav-link.ts";
 import { ThemeSelect } from "./theme.tsx";
 
 /**
@@ -33,7 +32,7 @@ export function MobileMenu({
   admissionCta,
   cookieSuffix,
 }: {
-  items: Site["menu"];
+  items: readonly MenuEntry[];
   owner: string;
   admissionCta: string;
   /** Passed through to the theme control; see `theme-script.tsx` for why. */
@@ -66,10 +65,10 @@ export function MobileMenu({
             reach. */}
         <nav aria-label="Halaman" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4">
           {items.map((item) =>
-            item.links.length > 0 ? (
+            "links" in item ? (
               // Native disclosure: it opens with no script and announces its
               // state. Closed by default, so the list stays as short as before.
-              <details key={item.label} className="group">
+              <details key={menuKey(item)} className="group">
                 <summary
                   className={cn(
                     "flex h-11 cursor-pointer list-none items-center justify-between group-open:text-primary [&::-webkit-details-marker]:hidden",
@@ -84,9 +83,18 @@ export function MobileMenu({
                   />
                 </summary>
                 <div className="mb-1.5 ml-0.5 flex flex-col border-l border-border pl-3.5">
+                  {/* The overview first and set apart, as in the desktop popover. */}
+                  {item.overview && (
+                    <a
+                      href={item.overview.href}
+                      className={cn("flex h-11 items-center border-b border-border", NAV_LINK)}
+                    >
+                      {item.overview.label}
+                    </a>
+                  )}
                   {item.links.map((link) => (
                     <a
-                      key={link.href}
+                      key={menuKey(link)}
                       href={link.href}
                       className={cn("flex h-11 items-center", NAV_LINK)}
                     >
@@ -96,15 +104,13 @@ export function MobileMenu({
                 </div>
               </details>
             ) : (
-              item.href && (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className={cn("flex h-11 items-center", NAV_LINK)}
-                >
-                  {item.label}
-                </a>
-              )
+              <a
+                key={menuKey(item)}
+                href={item.href}
+                className={cn("flex h-11 items-center", NAV_LINK)}
+              >
+                {item.label}
+              </a>
             ),
           )}
         </nav>
