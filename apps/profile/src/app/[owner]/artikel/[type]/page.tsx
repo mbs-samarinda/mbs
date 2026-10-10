@@ -17,9 +17,9 @@ type RouteParams = Promise<{ owner: string; type: string }>;
 
 /** One line under each type's heading. Fixed in code: these pages have no CMS row. */
 const LEAD = {
-  berita: "Kabar kegiatan. Terbaru lebih dulu.",
-  pengumuman: "Pemberitahuan resmi. Yang sudah lewat masa berlakunya tidak tampil.",
-  opini: "Tulisan guru, siswa, dan pengurus atas nama sendiri.",
+  berita: "Kabar dan kegiatan terkini.",
+  pengumuman: "Pemberitahuan terkini.",
+  opini: "Tulisan bebas dari civitas sekolah.",
 } as const satisfies Record<ArticleType, string>;
 
 export function generateStaticParams() {

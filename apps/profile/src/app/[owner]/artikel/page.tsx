@@ -45,14 +45,7 @@ export default async function ArtikelPage({
 
   return (
     <main>
-      <PageHead
-        heading="Artikel"
-        body={
-          school
-            ? "Berita, pengumuman, dan opini. Terbaru lebih dulu."
-            : "Kabar yayasan dan ketiga sekolah. Terbaru lebih dulu."
-        }
-      />
+      <PageHead heading="Artikel" body="Berita, pengumuman, dan opini terkini." />
 
       <Suspense fallback={<ListingPlaceholder hasSidebar={Boolean(school)} hasFilters />}>
         <Listing owner={owner} schoolKey={school?.key} searchParams={searchParams} />
