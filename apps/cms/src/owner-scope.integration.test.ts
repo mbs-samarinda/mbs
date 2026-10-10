@@ -465,6 +465,7 @@ void describe("artikel", () => {
     await strapi.documents("api::site.site").update({
       documentId: site.documentId,
       data: {
+        menu: [],
         footerColumns: [{ heading: "Informasi", links: [{ label: "Berita", href: "/berita" }] }],
       },
     });
@@ -497,9 +498,13 @@ void describe("artikel", () => {
     const read = () =>
       strapi.documents("api::site.site").findOne({
         documentId: site.documentId,
-        populate: { footerColumns: { populate: ["links"] } },
+        populate: { menu: { populate: ["links"] }, footerColumns: { populate: ["links"] } },
       });
     const after = await read();
+    // An empty menu gets the seeded one, Artikel group included.
+    const artikel = after?.menu?.find((item: { label?: string }) => item.label === "Artikel");
+    assert.ok((after?.menu?.length ?? 0) > 1, "expected the seeded menu");
+    assert.equal(artikel?.links?.length, 4);
     assert.deepEqual(
       after?.footerColumns?.[0]?.links?.map((link: { href?: string }) => link.href),
       ["/artikel", "/artikel/berita", "/artikel/pengumuman", "/artikel/opini"],
