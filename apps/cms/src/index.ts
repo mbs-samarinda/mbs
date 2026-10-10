@@ -480,16 +480,16 @@ const SCHOOL_LINKS = [
 ] as const;
 
 /**
- * Galeri and Unduhan in the header and footer of a school site seeded before
- * either page existed — the `Site` half of what `backfillUmbrellaHome` does for
- * a page. `seedSites` never touches a row it finds, so without this a deploy
- * ships both pages with nothing linking to them.
+ * Galeri and Unduhan in the footer of a school site seeded before either page
+ * existed — the `Site` half of what `backfillUmbrellaHome` does for a page.
+ * `seedSites` never touches a row it finds, so without this a deploy ships both
+ * pages with nothing linking to them. The header half went with the old
+ * `navigation` field, once every environment had run it.
  *
  * Each link lands after the one it follows in `schoolSite`. A link already
- * present is left where it is. In the header, a missing anchor appends the link
- * rather than dropping it: a page nobody can reach is the failure this exists to
- * fix. In the footer, a missing anchor skips that column, because an editor
- * who removed it has rearranged the footer and a guess would undo their work.
+ * present is left where it is, and a missing anchor skips that column, because
+ * an editor who removed it has rearranged the footer and a guess would undo
+ * their work.
  *
  * Links are written back as label and href alone: they carry nothing else, and
  * `Site` has no draft, so this is live the moment it runs.
@@ -497,23 +497,18 @@ const SCHOOL_LINKS = [
 async function backfillSchoolLinks(strapi: Core.Strapi): Promise<boolean> {
   const sites = await strapi.documents("api::site.site").findMany({
     filters: { ownerKey: { $in: ["smp", "smk", "sma"] } },
-    populate: { navigation: true, footerColumns: { populate: ["links"] } },
+    populate: { footerColumns: { populate: ["links"] } },
   });
 
   let changed = false;
   for (const site of sites) {
-    let navigation = plain(site.navigation);
     let columns = (site.footerColumns ?? []).map((column) => ({
       heading: column.heading ?? "",
       links: plain(column.links),
     }));
-    const before = JSON.stringify({ navigation, columns });
+    const before = JSON.stringify(columns);
 
     for (const { link, after } of SCHOOL_LINKS) {
-      // An empty list is a site seeded after `menu` replaced it: nothing to repair.
-      if (navigation.length > 0 && !navigation.some((entry) => entry.href === link.href)) {
-        navigation = insertLink(navigation, link, after) ?? [...navigation, link];
-      }
       if (!columns.some((column) => column.links.some((entry) => entry.href === link.href))) {
         columns = columns.map((column) => ({
           ...column,
@@ -522,10 +517,10 @@ async function backfillSchoolLinks(strapi: Core.Strapi): Promise<boolean> {
       }
     }
 
-    if (JSON.stringify({ navigation, columns }) === before) continue;
+    if (JSON.stringify(columns) === before) continue;
     await strapi.documents("api::site.site").update({
       documentId: site.documentId,
-      data: { navigation, footerColumns: columns },
+      data: { footerColumns: columns },
     });
     changed = true;
   }
@@ -536,10 +531,6 @@ async function backfillSchoolLinks(strapi: Core.Strapi): Promise<boolean> {
 /**
  * Moves a database seeded before Opini onto the Artikel addresses.
  *
- * - `menu` is filled from the old flat `navigation`, with its `/berita` link
- *   turned into the Artikel menu (appended when an editor had removed it: a
- *   type nobody can reach is the failure this exists to fix). A site whose
- *   `menu` already has items is left alone.
  * - A footer `/berita` link becomes the four Artikel links, where it stood.
  * - The `berita` page row becomes `artikel`, keeping the editor's title and SEO.
  * - Each Kolaborasi copy of an address gains its type: `…/berita/x` becomes
@@ -548,10 +539,11 @@ async function backfillSchoolLinks(strapi: Core.Strapi): Promise<boolean> {
  *   holds the seeded value: its link now leads to `/artikel`, and its title
  *   and link text name all three types. A value an editor typed stays.
  *
- * `menu` is a new field rather than `navigation` changing component: Strapi
- * joins a component field to its rows by field name only, so old link rows
- * would be read back as menu items. `navigation` stays hidden until every
- * environment has booted this once, then goes.
+ * It also once copied the old flat `navigation` into `menu`. That half went
+ * with the field, once every environment had run it. `menu` had been a new
+ * field rather than `navigation` changing component because Strapi joins a
+ * component field to its rows by field name only, so old link rows would have
+ * been read back as menu items.
  *
  * Runs before `seedPages`, which would otherwise create a fresh `artikel` row
  * beside the `berita` one this renames.
@@ -560,7 +552,7 @@ async function backfillArtikel(strapi: Core.Strapi): Promise<boolean> {
   let changed = false;
 
   const sites = await strapi.documents("api::site.site").findMany({
-    populate: { menu: true, navigation: true, footerColumns: { populate: ["links"] } },
+    populate: { footerColumns: { populate: ["links"] } },
   });
 
   for (const site of sites) {
@@ -574,21 +566,10 @@ async function backfillArtikel(strapi: Core.Strapi): Promise<boolean> {
       plain(column.links).some((link) => link.href === "/berita"),
     );
 
-    const old = plain(site.navigation);
-    // An empty old list has nothing to carry over; a menu of Artikel alone
-    // would hide every other page.
-    const menuMissing = (site.menu ?? []).length === 0 && old.length > 0;
-    const menu = old.some((link) => link.href === "/berita")
-      ? old.map((link) => (link.href === "/berita" ? ARTIKEL_MENU : link))
-      : [...old, ARTIKEL_MENU];
-
-    if (!menuMissing && !footerChanged) continue;
+    if (!footerChanged) continue;
     await strapi.documents("api::site.site").update({
       documentId: site.documentId,
-      data: {
-        ...(menuMissing ? { menu } : {}),
-        ...(footerChanged ? { footerColumns: columns } : {}),
-      },
+      data: { footerColumns: columns },
     });
     changed = true;
   }
@@ -985,9 +966,8 @@ export default {
     await backfillOnce(strapi, "kolaborasi-permissions", () => grantKolaborasi(strapi));
     await grantPublicRead(strapi);
     await seedSites(strapi);
-    // Both read the old `navigation`, so Galeri and Unduhan land in it before
-    // it is copied into `menu`. Artikel also has to rename the `berita` page
-    // before `seedPages` sees no `artikel` row and makes one.
+    // Artikel has to rename the `berita` page before `seedPages` sees no
+    // `artikel` row and makes one.
     await backfillOnce(strapi, "galeri-unduhan-links", () => backfillSchoolLinks(strapi));
     await backfillOnce(strapi, "artikel", () => backfillArtikel(strapi));
 

@@ -465,12 +465,6 @@ void describe("artikel", () => {
     await strapi.documents("api::site.site").update({
       documentId: site.documentId,
       data: {
-        menu: [],
-        navigation: [
-          { label: "Beranda", href: "/" },
-          { label: "Berita", href: "/berita" },
-          { label: "Kontak", href: "/kontak" },
-        ],
         footerColumns: [{ heading: "Informasi", links: [{ label: "Berita", href: "/berita" }] }],
       },
     });
@@ -503,20 +497,9 @@ void describe("artikel", () => {
     const read = () =>
       strapi.documents("api::site.site").findOne({
         documentId: site.documentId,
-        populate: { menu: { populate: ["links"] }, footerColumns: { populate: ["links"] } },
+        populate: { footerColumns: { populate: ["links"] } },
       });
     const after = await read();
-    assert.deepEqual(
-      after?.menu?.map((item: { label?: string; links?: unknown[] }) => [
-        item.label,
-        item.links?.length,
-      ]),
-      [
-        ["Beranda", 0],
-        ["Artikel", 4],
-        ["Kontak", 0],
-      ],
-    );
     assert.deepEqual(
       after?.footerColumns?.[0]?.links?.map((link: { href?: string }) => link.href),
       ["/artikel", "/artikel/berita", "/artikel/pengumuman", "/artikel/opini"],
