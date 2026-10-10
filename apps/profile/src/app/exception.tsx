@@ -21,7 +21,7 @@ import type { Owner } from "../owners.ts";
 const SCHOOL_LINKS = [
   { label: "Pendaftaran", href: "/pendaftaran" },
   { label: "Program", href: "/program" },
-  { label: "Berita & Pengumuman", href: "/berita" },
+  { label: "Artikel", href: "/artikel" },
   { label: "Kontak", href: "/kontak" },
 ];
 
@@ -29,7 +29,7 @@ const SCHOOL_LINKS = [
 const UMBRELLA_LINKS = [
   { label: "Pendaftaran Bersama", href: "/pendaftaran" },
   { label: "Profil", href: "/profil" },
-  { label: "Berita & Pengumuman", href: "/berita" },
+  { label: "Artikel", href: "/artikel" },
   { label: "Kontak", href: "/kontak" },
 ];
 

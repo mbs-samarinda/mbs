@@ -45,7 +45,7 @@ readonly REGISTRY=ghcr.io/mbs-samarinda
 # The layout reads different CMS rows than these pages do, so a `/`-only check
 # would let a schema drift on any of them through.
 readonly OWNER_HOSTS=(smp sma smk)
-readonly OTHER_PAGES=(/profil /program /fasilitas /ekstrakurikuler /berita /pendaftaran /kontak)
+readonly OTHER_PAGES=(/profil /program /fasilitas /ekstrakurikuler /artikel /pendaftaran /kontak)
 
 log() { printf '\n== %s\n' "$*"; }
 

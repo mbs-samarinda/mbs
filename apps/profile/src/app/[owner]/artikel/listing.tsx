@@ -1,10 +1,8 @@
 import { isSchoolKey, SCHOOLS, type SchoolKey } from "@mbs/school-config";
-import { Badge } from "@mbs/ui/components/badge";
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { Suspense } from "react";
 
 import {
+  ARTICLE_KINDS,
+  ARTICLE_TYPES,
   filterArticles,
   isArticleType,
   monthsOf,
@@ -13,21 +11,19 @@ import {
   type ArticleType,
   type Month,
 } from "../../../articles.ts";
-import { getArticleIndex, getPage, type Article } from "../../../cms.ts";
-import { OWNERS, type Owner } from "../../../owners.ts";
+import { getArticleIndex, type Article } from "../../../cms.ts";
+import type { Owner } from "../../../owners.ts";
 import {
   AdmissionCardSection,
-  OwnerBadges,
-  PageHead,
+  ArticleMeta,
   Photo,
   SECTION,
   WIDTH,
   articleHref,
-  formatDate,
 } from "../sections.tsx";
 
 /** What the listing reads out of the URL. The params stay English; the copy does not. */
-type Params = {
+export type Params = {
   type?: string | undefined;
   month?: string | undefined;
   /** Umbrella only: a school's own site is already that school. */
@@ -35,73 +31,23 @@ type Params = {
   page?: string | undefined;
 };
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ owner: string }>;
-}): Promise<Metadata> {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) return {};
-
-  const page = await getPage(owner.key, "berita");
-  return {
-    title: page?.seo?.metaTitle ?? "Berita & Pengumuman",
-    description: page?.seo?.metaDescription ?? undefined,
-  };
-}
-
 /**
- * One listing over two collections, newest first.
+ * The article listing, for `/artikel` and for each `/artikel/<type>`.
  *
- * The type is named on every row rather than implied: across both previous
- * school sites there were no real Berita at all, and the one article that
- * existed was a Pengumuman. A listing that called everything "Berita" would be
- * named after the emptier of its two types.
- *
- * The page head is outside the `<Suspense>` boundary and the whole `Isi` section
- * is inside it, which is what keeps the shell prerendering: the filter reads
- * `searchParams` and the expiry cut reads the clock, and both of those live in
- * the streamed part.
+ * Given a `type`, it lists that one and drops the type chips, since the address
+ * already says which. Without one it lists all three and the chips filter in
+ * place through `?type=`. Both stay inside `<Suspense>` on their page: the
+ * filter reads `searchParams` and the expiry cut reads the clock.
  */
-export default async function BeritaPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ owner: string }>;
-  searchParams: Promise<Params>;
-}) {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) notFound();
-
-  const school = SCHOOLS.find((candidate) => candidate.key === owner.key);
-
-  return (
-    <main>
-      <PageHead
-        heading="Berita & Pengumuman"
-        body={
-          school
-            ? "Satu daftar, dua jenis. Terbaru lebih dulu."
-            : "Kabar tingkat yayasan dan kampanye pendaftaran bersama."
-        }
-      />
-
-      <Suspense fallback={<ListingPlaceholder hasSidebar={Boolean(school)} />}>
-        <Listing owner={owner} schoolKey={school?.key} searchParams={searchParams} />
-      </Suspense>
-    </main>
-  );
-}
-
-async function Listing({
+export async function Listing({
   owner,
   schoolKey,
+  type: fixed,
   searchParams,
 }: {
   owner: Owner;
   schoolKey: SchoolKey | undefined;
+  type?: ArticleType;
   searchParams: Promise<Params>;
 }) {
   // The umbrella's listing runs full width: it has no admission cycle of its
@@ -112,7 +58,7 @@ async function Listing({
     getArticleIndex(owner.key),
   ]);
 
-  const active = isArticleType(type) ? type : undefined;
+  const active = fixed ?? (isArticleType(type) ? type : undefined);
   const school =
     !schoolKey && requestedSchool && isSchoolKey(requestedSchool) ? requestedSchool : undefined;
   // The archive counts the type the visitor is looking at, so the number beside
@@ -121,40 +67,46 @@ async function Listing({
   const months = monthsOf(inType);
   // A month nobody published in is dropped rather than honoured, the same way a
   // bad `?type=` and a bad `?page=` are. An arsip link whose last entry has since
-  // expired would otherwise render "Belum ada berita atau pengumuman." at 200 —
+  // expired would otherwise render "Belum ada artikel." at 200 —
   // a page that reads as a school which publishes nothing.
   const month = months.some((entry) => entry.key === requested) ? requested : undefined;
   const listing = paginate(filterArticles(inType, { month }), pageParam(page));
 
+  const base = fixed ? `/artikel/${fixed}` : "/artikel";
   const href = (next: Partial<Params>) => {
     const query = new URLSearchParams();
     const merged = { type: active, month, school, ...next };
-    if (merged.type) query.set("type", merged.type);
+    if (merged.type && !fixed) query.set("type", merged.type);
     if (merged.month) query.set("month", merged.month);
     if (merged.school) query.set("school", merged.school);
     if (merged.page && merged.page !== "1") query.set("page", merged.page);
     const search = query.toString();
-    return search ? `/berita?${search}` : "/berita";
+    return search ? `${base}?${search}` : base;
   };
 
   return (
     <section className={SECTION}>
       <div className={`${WIDTH} flex flex-col gap-6`}>
-        {/* One row: type filters left, school filters right, wrapping on narrow screens. */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Filter active={active} month={month} href={href} />
-          {!schoolKey && <SchoolFilter active={school} month={month} href={href} />}
-        </div>
+        {/* One row: type filters left, school filters right, wrapping on narrow
+            screens. A school's type page has neither, so no row at all. */}
+        {(!fixed || !schoolKey) && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {!fixed && <Filter active={active} month={month} href={href} />}
+            {!schoolKey && <SchoolFilter active={school} month={month} href={href} />}
+          </div>
+        )}
 
         <div className={`flex flex-col gap-10 ${hasSidebar ? "lg:flex-row lg:gap-8" : ""}`}>
           <div className="flex flex-1 flex-col gap-6">
             {listing.entries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Belum ada berita atau pengumuman.</p>
+              <p className="text-sm text-muted-foreground">
+                Belum ada {active ? ARTICLE_KINDS[active].toLowerCase() : "artikel"}.
+              </p>
             ) : (
               <ul className="flex flex-col">
                 {listing.entries.map((entry) => (
                   <Row
-                    key={`${entry.kind}-${entry.ownerKey}-${entry.slug}`}
+                    key={`${entry.type}-${entry.ownerKey}-${entry.slug}`}
                     entry={entry}
                     site={owner.key}
                   />
@@ -176,9 +128,6 @@ async function Listing({
   );
 }
 
-/** The type label's own colour, from the shared status pairs. */
-const TYPE_VARIANT = { Berita: "info", Pengumuman: "warning" } as const;
-
 const Row = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
   <li className="border-b border-border first:border-t">
     <a
@@ -187,13 +136,7 @@ const Row = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
     >
       <Photo image={entry.cover} label="Sampul" className="aspect-3/2 w-full md:w-50 md:shrink-0" />
       <div className="flex flex-col gap-1.5">
-        <span className="flex items-center gap-2">
-          <Badge variant={TYPE_VARIANT[entry.kind]}>{entry.kind}</Badge>
-          <OwnerBadges article={entry} site={site} />
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {formatDate(entry.publishedAt)}
-          </span>
-        </span>
+        <ArticleMeta article={entry} site={site} />
         <h2 className="text-lg font-bold text-pretty">{entry.title}</h2>
         {entry.summary && (
           <p className="max-w-[70ch] text-sm text-pretty text-muted-foreground">{entry.summary}</p>
@@ -221,15 +164,9 @@ const Filter = ({
   href: (next: Partial<Params>) => string;
 }) => (
   <nav aria-label="Saring menurut jenis" className="flex flex-wrap gap-2">
-    {(
-      [
-        [undefined, "Semua"],
-        ["berita", "Berita"],
-        ["pengumuman", "Pengumuman"],
-      ] as const
-    ).map(([value, label]) => (
+    {[undefined, ...ARTICLE_TYPES].map((value) => (
       <a
-        key={label}
+        key={value ?? "semua"}
         // The page resets with the filter: page 3 of everything is rarely page 3
         // of one type, and a filter that lands on an empty page reads as a type
         // with no entries.
@@ -237,7 +174,7 @@ const Filter = ({
         aria-current={active === value ? "page" : undefined}
         className={pill(active === value)}
       >
-        {label}
+        {value ? ARTICLE_KINDS[value] : "Semua"}
       </a>
     ))}
   </nav>
@@ -342,10 +279,16 @@ const Pages = ({
 // the rows reflow sideways the moment it lands, which is the shift a placeholder
 // exists to prevent. It does not animate: nothing in this system repaints
 // continuously.
-const ListingPlaceholder = ({ hasSidebar }: { hasSidebar: boolean }) => (
+export const ListingPlaceholder = ({
+  hasSidebar,
+  hasFilters,
+}: {
+  hasSidebar: boolean;
+  hasFilters: boolean;
+}) => (
   <section className={SECTION}>
     <div className={`${WIDTH} flex flex-col gap-6`}>
-      <span className="h-11 w-64 rounded-4xl bg-muted" />
+      {hasFilters && <span className="h-11 w-80 rounded-4xl bg-muted" />}
       <div className={`flex flex-col gap-10 ${hasSidebar ? "lg:flex-row lg:gap-8" : ""}`}>
         <div className="flex flex-1 flex-col">
           {Array.from({ length: 5 }, (_, index) => (

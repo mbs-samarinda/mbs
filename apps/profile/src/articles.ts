@@ -3,24 +3,40 @@ import type { SchoolKey } from "@mbs/school-config";
 import type { Media } from "./cms.ts";
 import type { Owner } from "./owners.ts";
 
-/** One entry in the `/berita` listing, from either of the two types under it. */
+/** The three collections under `/artikel`: each one's address segment, and the label it wears. */
+export const ARTICLE_KINDS = {
+  berita: "Berita",
+  pengumuman: "Pengumuman",
+  opini: "Opini",
+} as const;
+export type ArticleType = keyof typeof ARTICLE_KINDS;
+
+/** The same three, in the order the filters and the menu list them. */
+export const ARTICLE_TYPES = ["berita", "pengumuman", "opini"] as const satisfies ArticleType[];
+
+export const isArticleType = (value: string | undefined): value is ArticleType =>
+  ARTICLE_TYPES.some((type) => type === value);
+
+/** One entry in the `/artikel` listing, from any of the three types under it. */
 export type Article = {
-  readonly kind: "Berita" | "Pengumuman";
+  readonly type: ArticleType;
   readonly slug: string;
   readonly title: string;
   readonly summary: string | null;
   readonly cover: Media | null;
   readonly publishedAt: string;
-  /** Pengumuman only, and optional there. A Berita article never expires. */
+  /** Pengumuman only, and optional there. Berita and Opini never expire. */
   readonly expiresAt: string | null;
+  /** Opini only: "Siti Aminah, Guru Fisika". */
+  readonly byline: string | null;
   /** The primary owner, the one site where the article's page lives. */
   readonly ownerKey: Owner["key"];
-  /** Schools that accepted the primary's invite, in `SCHOOLS` order. */
+  /** Schools that accepted the primary's invite, in `SCHOOLS` order. Never set on Opini. */
   readonly collaborators: readonly SchoolKey[];
 };
 
 /**
- * What `/berita` does to a list of entries once it has been read.
+ * What `/artikel` does to a list of entries once it has been read.
  *
  * These are pure on purpose. The expiry cut, the month counts and the page
  * window all have to agree with each other — an arsip that says "September 2026
@@ -29,13 +45,6 @@ export type Article = {
  * after one cut, against one clock. The clock is an argument rather than
  * `Date.now()` so the agreement is testable.
  */
-
-/** The two collections under `/berita`, as they appear in the URL. */
-export const ARTICLE_TYPES = ["berita", "pengumuman"] as const;
-export type ArticleType = (typeof ARTICLE_TYPES)[number];
-
-export const isArticleType = (value: string | undefined): value is ArticleType =>
-  ARTICLE_TYPES.some((type) => type === value);
 
 /** One archive row: the month, how it is written, and how many entries it holds. */
 export type Month = { readonly key: string; readonly label: string; readonly count: number };
@@ -86,12 +95,9 @@ export function filterArticles(
     school?: SchoolKey | undefined;
   },
 ): Article[] {
-  const kind =
-    filters.type === "berita" ? "Berita" : filters.type === "pengumuman" ? "Pengumuman" : null;
-
   return entries.filter(
     (entry) =>
-      (!kind || entry.kind === kind) &&
+      (!filters.type || entry.type === filters.type) &&
       (!filters.month || monthKey(entry.publishedAt) === filters.month) &&
       (!filters.school ||
         entry.ownerKey === filters.school ||

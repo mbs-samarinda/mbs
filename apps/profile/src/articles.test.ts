@@ -13,13 +13,14 @@ import {
 import type { Article } from "./cms.ts";
 
 const entry = (slug: string, publishedAt: string, extra: Partial<Article> = {}): Article => ({
-  kind: "Berita",
+  type: "berita",
   slug,
   title: slug,
   summary: null,
   cover: null,
   publishedAt,
   expiresAt: null,
+  byline: null,
   ownerKey: "smk",
   collaborators: [],
   ...extra,
@@ -31,11 +32,11 @@ describe("the expiry cut", () => {
   test("drops a notice whose time has passed and keeps one that has not", () => {
     const entries = [
       entry("gone", "2026-09-01T00:00:00Z", {
-        kind: "Pengumuman",
+        type: "pengumuman",
         expiresAt: "2026-09-14T01:59:00Z",
       }),
       entry("live", "2026-09-01T00:00:00Z", {
-        kind: "Pengumuman",
+        type: "pengumuman",
         expiresAt: "2026-09-14T02:01:00Z",
       }),
       entry("permanent", "2026-09-01T00:00:00Z"),
@@ -81,12 +82,16 @@ describe("months", () => {
 describe("filtering", () => {
   const entries = [
     entry("berita", "2026-09-02T03:00:00Z"),
-    entry("notice", "2026-09-01T03:00:00Z", { kind: "Pengumuman" }),
+    entry("notice", "2026-09-01T03:00:00Z", { type: "pengumuman" }),
+    entry("opinion", "2026-08-31T03:00:00Z", { type: "opini" }),
   ];
 
   test("keeps one collection", () => {
     expect(filterArticles(entries, { type: "pengumuman" }).map((item) => item.slug)).toEqual([
       "notice",
+    ]);
+    expect(filterArticles(entries, { type: "opini" }).map((item) => item.slug)).toEqual([
+      "opinion",
     ]);
   });
 

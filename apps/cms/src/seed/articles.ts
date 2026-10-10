@@ -1,8 +1,7 @@
 /**
  * The news and notices each owner starts with.
  *
- * `/berita` is one listing over two collections, so both are seeded together and
- * their addresses are checked against each other by `uniqueSlugPerOwner`.
+ * `/artikel` is one listing over three collections, so they are seeded together.
  *
  * Dates are relative to the boot that creates them, not fixed strings: a seed
  * with hard-coded dates is a site that looks abandoned the moment it is deployed
@@ -150,5 +149,44 @@ export const PENGUMUMAN_ENTRY_SEED: ArticleSeed[] = [
     attribution: HUMAS("SMA Madina Citra Insani"),
     daysAgo: 5,
     expiresInDays: 21,
+  },
+];
+
+/** Opini credits one named person instead of an `attribution`, and never takes collaborators. */
+export type OpiniSeed = Omit<ArticleSeed, "attribution" | "expiresInDays" | "collaborators"> & {
+  authorName: string;
+  authorRole: string;
+};
+
+export const OPINI_ENTRY_SEED: OpiniSeed[] = [
+  {
+    ownerKey: "mbs",
+    title: "Mengapa asrama tetap layak dipilih",
+    slug: "mengapa-asrama-tetap-layak-dipilih",
+    summary: "Hidup bersama mengajarkan hal yang tidak muat di jadwal pelajaran.",
+    body: "Orang tua sering bertanya apakah asrama tidak terlalu cepat bagi anak usia sekolah menengah.\n\nPengalaman kami justru sebaliknya. Mengatur waktu, mengurus barang sendiri, dan hidup berdampingan dengan teman dari latar yang berbeda adalah pelajaran yang paling lama melekat.\n\nTentu tidak semua anak siap pada waktu yang sama, dan itu wajar untuk dibicarakan sejak awal.",
+    authorName: "Ahmad Fauzi",
+    authorRole: "Ketua Yayasan",
+    daysAgo: 6,
+  },
+  {
+    ownerKey: "smp",
+    title: "Belajar fisika dari dapur asrama",
+    slug: "belajar-fisika-dari-dapur-asrama",
+    summary: "Panci, uap, dan termos ternyata alat peraga yang baik.",
+    body: "Konsep kalor sering terasa abstrak di papan tulis.\n\nSaat santri diajak mengamati dapur asrama, pertanyaannya datang sendiri: mengapa tutup panci bergetar, mengapa termos menahan panas.\n\nPelajaran terbaik kadang ada di tempat yang setiap hari kita lewati.",
+    authorName: "Siti Aminah",
+    authorRole: "Guru Fisika",
+    daysAgo: 4,
+  },
+  {
+    ownerKey: "sma",
+    title: "Catatan pertama saya sebagai ketua OSIS",
+    slug: "catatan-pertama-ketua-osis",
+    summary: "Memimpin teman sebaya lebih sulit dari yang saya bayangkan.",
+    body: "Sebulan pertama menjadi ketua OSIS mengajarkan saya bahwa rapat yang baik dimulai dari mendengar.\n\nBanyak usulan terbaik justru datang dari teman yang jarang bicara.\n\nSaya menulis ini agar adik kelas tahu: tidak harus paling lantang untuk bisa memimpin.",
+    authorName: "Rania",
+    authorRole: "Siswa Kelas XI",
+    daysAgo: 8,
   },
 ];

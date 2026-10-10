@@ -1,7 +1,7 @@
 /**
  * The `/ekstrakurikuler` page row each school starts with.
  *
- * It carries no blocks, for the same reason `/berita` does not: the listing is
+ * It carries no blocks, for the same reason `/artikel` does not: the listing is
  * drawn from the Ekstrakurikuler collection, and which activities appear is a
  * consequence of what has been published, not something an editor composes. What
  * the row is for is the title and the SEO fields.

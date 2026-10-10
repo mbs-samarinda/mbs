@@ -1,10 +1,10 @@
 import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
-import { Badge } from "@mbs/ui/components/badge";
 import { Mail, MessageCircle } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { ARTICLE_KINDS, isArticleType } from "../../../../../articles.ts";
 import {
   getArticle,
   getArticleIndex,
@@ -13,29 +13,30 @@ import {
   type Achievement,
   type Article,
   type FullArticle,
-} from "../../../../cms.ts";
-import { OWNERS, ownerUrl, type Owner } from "../../../../owners.ts";
-import { Prose } from "../../prose.tsx";
+} from "../../../../../cms.ts";
+import { OWNERS, ownerUrl, type Owner } from "../../../../../owners.ts";
+import { Prose } from "../../../prose.tsx";
 import {
   AdmissionCardSection,
   Photo,
   SECTION,
+  TypeBadge,
   WIDTH,
   articleHref,
   formatDate,
   formatLongDate,
-} from "../../sections.tsx";
-import { CopyLink } from "../copy-link.tsx";
+} from "../../../sections.tsx";
+import { CopyLink } from "../../copy-link.tsx";
 
-type Params = Promise<{ owner: string; slug: string }>;
+type Params = Promise<{ owner: string; type: string; slug: string }>;
 
 /** Resolves the owner and the article together, or gives up. */
 async function read(params: Params) {
-  const { owner: key, slug } = await params;
+  const { owner: key, type, slug } = await params;
   const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) return null;
+  if (!owner || !isArticleType(type)) return null;
 
-  const article = await getArticle(owner.key, slug);
+  const article = await getArticle(owner.key, type, slug);
   return article ? { owner, article } : null;
 }
 
@@ -56,7 +57,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       description,
       type: "article",
       publishedTime: article.publishedAt,
-      url: `${ownerUrl(owner)}berita/${article.slug}`,
+      url: `${ownerUrl(owner)}artikel/${article.type}/${article.slug}`,
       images: share ? [mediaUrl(share)] : undefined,
     },
   };
@@ -80,13 +81,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 export const instant = false;
 
 /**
- * One article, from either collection.
+ * One article, from the collection its address names.
  *
  * A slug this owner has never published is `notFound()` rather than an empty
  * article: the address is one a page owns but holds no record for, which is the
  * not-found state the page map asks every data-backed page to handle.
  *
- * The umbrella carries no "Berita lainnya" row and no related achievement — it
+ * The umbrella carries no "Artikel lainnya" row and no related achievement — it
  * publishes foundation-level notices, and pencapaian is a school's record.
  */
 export default async function ArticlePage({ params }: { params: Params }) {
@@ -114,7 +115,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
                 <AchievementOrAdmission
                   ownerKey={owner.key}
                   schoolKey={school?.key}
-                  slug={article.slug}
+                  slug={article.type === "berita" ? article.slug : null}
                 />
               </Suspense>
               <Share owner={owner} article={article} />
@@ -125,41 +126,55 @@ export default async function ArticlePage({ params }: { params: Params }) {
 
       {school && (
         <Suspense fallback={null}>
-          <MoreNews owner={owner} slug={article.slug} />
+          <MoreNews owner={owner} article={article} />
         </Suspense>
       )}
     </main>
   );
 }
 
-/** Where the visitor is, what this is, and when it was published. */
-const Head = ({ article }: { article: FullArticle }) => (
-  <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
-    <div className={`${WIDTH} flex flex-col gap-4`}>
-      <nav aria-label="Remah roti" className="flex flex-wrap items-center gap-1.5 text-[13px]">
-        <a href="/" className="text-muted-foreground underline underline-offset-4">
-          Beranda
-        </a>
-        <span aria-hidden className="text-muted-foreground">
-          /
-        </span>
-        <a href="/berita" className="text-muted-foreground underline underline-offset-4">
-          Berita
-        </a>
-        <span aria-hidden className="text-muted-foreground">
-          /
-        </span>
-        <span className="text-muted-foreground">{article.title}</span>
-      </nav>
+/**
+ * Where the visitor is, what this is, when it was published, and who wrote it.
+ * An Opini credits its author where the others carry an attribution.
+ */
+const Head = ({ article }: { article: FullArticle }) => {
+  const credit = article.byline ?? article.attribution;
+  return (
+    <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
+      <div className={`${WIDTH} flex flex-col gap-4`}>
+        <nav aria-label="Remah roti" className="flex flex-wrap items-center gap-1.5 text-[13px]">
+          <a href="/" className="text-muted-foreground underline underline-offset-4">
+            Beranda
+          </a>
+          <span aria-hidden className="text-muted-foreground">
+            /
+          </span>
+          <a href="/artikel" className="text-muted-foreground underline underline-offset-4">
+            Artikel
+          </a>
+          <span aria-hidden className="text-muted-foreground">
+            /
+          </span>
+          <a
+            href={`/artikel/${article.type}`}
+            className="text-muted-foreground underline underline-offset-4"
+          >
+            {ARTICLE_KINDS[article.type]}
+          </a>
+          <span aria-hidden className="text-muted-foreground">
+            /
+          </span>
+          <span className="text-muted-foreground">{article.title}</span>
+        </nav>
 
-      <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-        <Badge variant={article.kind === "Berita" ? "info" : "warning"}>{article.kind}</Badge>
-        {/* Long form here, short form in the listing: one date format per
+        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <TypeBadge type={article.type} />
+          {/* Long form here, short form in the listing: one date format per
             context, spelled out where it sits in prose. */}
-        <span className="text-sm text-muted-foreground tabular-nums">
-          {formatLongDate(article.publishedAt)}
-        </span>
-        {/* The byline sits in this row from tablet up and after the lead on a
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {formatLongDate(article.publishedAt)}
+          </span>
+          {/* The byline sits in this row from tablet up and after the lead on a
             phone, which is where the frames put it — so it is written twice and
             hidden once rather than moved, since no CSS order moves a child
             between two containers. `display:none` drops the hidden copy out of
@@ -167,25 +182,24 @@ const Head = ({ article }: { article: FullArticle }) => (
 
             The separator belongs to this form alone: inside the string it
             wrapped along with the name and left a dot starting a line. */}
-        {article.attribution && (
-          <span className="hidden text-sm text-muted-foreground md:inline">
-            · {article.attribution}
-          </span>
-        )}
-      </span>
+          {credit && (
+            <span className="hidden text-sm text-muted-foreground md:inline">· {credit}</span>
+          )}
+        </span>
 
-      <h1 className="max-w-[22ch] text-[32px] leading-tight font-extrabold text-balance md:text-[44px]">
-        {article.title}
-      </h1>
-      {article.summary && (
-        <p className="max-w-[65ch] text-lg text-pretty text-muted-foreground">{article.summary}</p>
-      )}
-      {article.attribution && (
-        <p className="text-sm text-muted-foreground md:hidden">{article.attribution}</p>
-      )}
-    </div>
-  </section>
-);
+        <h1 className="max-w-[22ch] text-[32px] leading-tight font-extrabold text-balance md:text-[44px]">
+          {article.title}
+        </h1>
+        {article.summary && (
+          <p className="max-w-[65ch] text-lg text-pretty text-muted-foreground">
+            {article.summary}
+          </p>
+        )}
+        {credit && <p className="text-sm text-muted-foreground md:hidden">{credit}</p>}
+      </div>
+    </section>
+  );
+};
 
 /**
  * What sits above the share links: the achievement this article tells the story
@@ -204,12 +218,12 @@ async function AchievementOrAdmission({
 }: {
   ownerKey: Owner["key"];
   schoolKey: SchoolKey | undefined;
-  slug: string;
+  /** `null` unless the article is a Berita, the one type a pencapaian can link to. */
+  slug: string | null;
 }) {
-  // Only a school publishes pencapaian, and only a Berita can be linked to one.
-  const achievement: Achievement | null = schoolKey
-    ? await getRelatedAchievement(ownerKey, slug)
-    : null;
+  // Only a school publishes pencapaian.
+  const achievement: Achievement | null =
+    schoolKey && slug ? await getRelatedAchievement(ownerKey, slug) : null;
 
   return achievement ? (
     <AchievementPanel achievement={achievement} />
@@ -241,7 +255,7 @@ const AchievementPanel = ({ achievement }: { achievement: Achievement }) => {
  * an icon alone names nothing to a screen reader.
  */
 const Share = ({ owner, article }: { owner: Owner; article: FullArticle }) => {
-  const url = `${ownerUrl(owner)}berita/${article.slug}`;
+  const url = `${ownerUrl(owner)}artikel/${article.type}/${article.slug}`;
   // No resting underline, unlike every other link in this app: the icon beside
   // each label is what carries the meaning without colour, which is the rule the
   // underline exists for. It appears on hover so the target still announces
@@ -282,9 +296,13 @@ const Share = ({ owner, article }: { owner: Owner; article: FullArticle }) => {
 };
 
 /** Three more entries, newest first, minus the one being read. */
-async function MoreNews({ owner, slug }: { owner: Owner; slug: string }) {
+async function MoreNews({ owner, article }: { owner: Owner; article: FullArticle }) {
+  // Type as well as slug: a slug may repeat across types now.
   const entries = (await getArticleIndex(owner.key))
-    .filter((entry) => entry.ownerKey !== owner.key || entry.slug !== slug)
+    .filter(
+      (entry) =>
+        entry.ownerKey !== owner.key || entry.type !== article.type || entry.slug !== article.slug,
+    )
     .slice(0, 3);
 
   if (entries.length === 0) return null;
@@ -293,19 +311,19 @@ async function MoreNews({ owner, slug }: { owner: Owner; slug: string }) {
     <section className={`${SECTION} bg-muted`}>
       <div className={`${WIDTH} flex flex-col gap-7`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <h2 className="text-[28px] font-bold text-balance">Berita lainnya</h2>
+          <h2 className="text-[28px] font-bold text-balance">Artikel lainnya</h2>
           <a
-            href="/berita"
+            href="/artikel"
             className="flex min-h-11 shrink-0 items-center text-sm font-semibold text-primary underline underline-offset-4"
           >
-            Lihat semua berita
+            Lihat semua artikel
           </a>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {entries.map((entry) => (
             <Card
-              key={`${entry.kind}-${entry.ownerKey}-${entry.slug}`}
+              key={`${entry.type}-${entry.ownerKey}-${entry.slug}`}
               entry={entry}
               site={owner.key}
             />
@@ -326,7 +344,8 @@ const Card = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
       <h3 className="text-[17px] font-bold text-pretty">{entry.title}</h3>
       {entry.summary && <p className="text-[13px] text-muted-foreground">{entry.summary}</p>}
       <p className="text-xs text-muted-foreground tabular-nums">
-        {entry.kind} · {formatDate(entry.publishedAt)}
+        {ARTICLE_KINDS[entry.type]} · {formatDate(entry.publishedAt)}
+        {entry.byline && ` · ${entry.byline}`}
       </p>
     </div>
   </a>

@@ -25,7 +25,7 @@ import Image from "next/image";
 import { Suspense, type ReactNode } from "react";
 
 import { getCycleFacts, isOpen, type CycleFacts } from "../../admission.ts";
-import { badgeOwners } from "../../articles.ts";
+import { ARTICLE_KINDS, badgeOwners } from "../../articles.ts";
 import {
   getArticles,
   getEntries,
@@ -74,9 +74,32 @@ export const formatDate = (iso: string) => DATE.format(new Date(iso));
  * everywhere else, because its page only exists on its primary's host.
  */
 export const articleHref = (article: Article, site: Owner["key"]) =>
-  article.ownerKey === site
-    ? `/berita/${article.slug}`
-    : `${ownerUrl(ownerOf(article.ownerKey))}berita/${article.slug}`;
+  `${article.ownerKey === site ? "/" : ownerUrl(ownerOf(article.ownerKey))}artikel/${article.type}/${article.slug}`;
+
+/**
+ * The type, named rather than implied: the mix leans to notices, and a listing
+ * that called everything by one type's name would be named after the emptiest.
+ * The status pairs are shared and fixed, so they keep their colours on every
+ * owner's site, SMK's blue one included. Opini takes success because alarm is
+ * kept for errors and DESIGN.md forbids inventing a fourth.
+ */
+const TYPE_VARIANT = { berita: "info", pengumuman: "warning", opini: "success" } as const;
+
+export const TypeBadge = ({ type }: { type: Article["type"] }) => (
+  <Badge variant={TYPE_VARIANT[type]}>{ARTICLE_KINDS[type]}</Badge>
+);
+
+/** A listing row's or card's top line: type, owners, date, and an Opini's author. */
+export const ArticleMeta = ({ article, site }: { article: Article; site: Owner["key"] }) => (
+  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+    <TypeBadge type={article.type} />
+    <OwnerBadges article={article} site={site} />
+    <span className="text-xs text-muted-foreground tabular-nums">
+      {formatDate(article.publishedAt)}
+    </span>
+    {article.byline && <span className="text-xs text-muted-foreground">· {article.byline}</span>}
+  </span>
+);
 
 const ownerOf = (key: Owner["key"]) => OWNERS.find((owner) => owner.key === key) ?? OWNERS[0];
 
@@ -503,7 +526,7 @@ function AdmissionTable({
 /**
  * The admission path as a sidebar card, for the pages that carry no band.
  *
- * `/berita` and its articles invite a visitor sideways rather than closing with
+ * `/artikel` and its articles invite a visitor sideways rather than closing with
  * a call to action, so the live cycle appears beside the content instead of
  * under it. Same three states as the band, and for the same reason: a cycle we
  * could not read is not a closed cycle, so the card still names the way in
@@ -1017,7 +1040,7 @@ export function BlockSection({
                   <span className="text-[13px] text-muted-foreground">{item.recipient}</span>
                   {item.berita && (
                     <a
-                      href={`/berita/${item.berita.slug}`}
+                      href={`/artikel/berita/${item.berita.slug}`}
                       className="text-[13px] font-semibold text-primary underline underline-offset-4"
                     >
                       Baca ceritanya
@@ -1120,7 +1143,7 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
   const articles = await getArticles(ownerKey, limit);
 
   if (articles.length === 0) {
-    return <p className="text-sm text-muted-foreground">Belum ada berita atau pengumuman.</p>;
+    return <p className="text-sm text-muted-foreground">Belum ada artikel.</p>;
   }
 
   return (
@@ -1128,29 +1151,13 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
       {articles.map((article) => (
         <a
           // Slugs are unique per owner only, and one list now holds several.
-          key={`${article.kind}-${article.ownerKey}-${article.slug}`}
-          // Both types live under `/berita`, which is one listing over two
-          // collections. `/berita/[slug]` therefore has to look in both; the
-          // CMS's `uniqueSlugPerOwner` lifecycle already treats them as one
-          // address space, so a slug cannot mean two articles on one site.
+          key={`${article.type}-${article.ownerKey}-${article.slug}`}
           href={articleHref(article, ownerKey)}
           className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
         >
           <Photo image={article.cover} label="Sampul" className="aspect-3/2 w-full" inCard />
           <div className="flex flex-col gap-1.5 px-1 pb-1">
-            <span className="flex items-center gap-2">
-              {/* The type is named rather than implied: the mix leans to
-                  notices, and a listing that called everything "Berita" would
-                  be named after the emptier of its two types. The two status
-                  pairs the canvas gives them — Information and Warning — are
-                  shared and fixed, so they stay teal and amber on every owner's
-                  site, including SMK's blue one. */}
-              <Badge variant={article.kind === "Berita" ? "info" : "warning"}>{article.kind}</Badge>
-              <OwnerBadges article={article} site={ownerKey} />
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {formatDate(article.publishedAt)}
-              </span>
-            </span>
+            <ArticleMeta article={article} site={ownerKey} />
             <h3 className="text-[17px] font-bold text-pretty">{article.title}</h3>
             {article.summary && (
               <p className="text-[13px] text-muted-foreground">{article.summary}</p>
