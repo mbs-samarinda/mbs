@@ -10,12 +10,11 @@ import {
   SheetTrigger,
 } from "@mbs/ui/components/sheet";
 import { cn } from "cn";
-import { MenuIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, MenuIcon, XIcon } from "lucide-react";
 
+import type { Site } from "../../cms.ts";
 import { NAV_LINK } from "./nav-link.ts";
 import { ThemeSelect } from "./theme.tsx";
-
-type Item = { readonly href: string; readonly label: string };
 
 /**
  * The phone header's navigation, in a sheet.
@@ -34,7 +33,7 @@ export function MobileMenu({
   admissionCta,
   cookieSuffix,
 }: {
-  items: readonly Item[];
+  items: Site["menu"];
   owner: string;
   admissionCta: string;
   /** Passed through to the theme control; see `theme-script.tsx` for why. */
@@ -66,11 +65,48 @@ export function MobileMenu({
             than the viewport, and a fixed panel would put the action out of
             reach. */}
         <nav aria-label="Halaman" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4">
-          {items.map((item) => (
-            <a key={item.href} href={item.href} className={cn("flex h-11 items-center", NAV_LINK)}>
-              {item.label}
-            </a>
-          ))}
+          {items.map((item) =>
+            item.links.length > 0 ? (
+              // Native disclosure: it opens with no script and announces its
+              // state. Closed by default, so the list stays as short as before.
+              <details key={item.label} className="group">
+                <summary
+                  className={cn(
+                    "flex h-11 cursor-pointer list-none items-center justify-between group-open:text-primary [&::-webkit-details-marker]:hidden",
+                    NAV_LINK,
+                  )}
+                >
+                  {item.label}
+                  <ChevronDownIcon
+                    aria-hidden
+                    strokeWidth={1.75}
+                    className="size-5 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none"
+                  />
+                </summary>
+                <div className="mb-1.5 ml-0.5 flex flex-col border-l border-border pl-3.5">
+                  {item.links.map((link) => (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      className={cn("flex h-11 items-center", NAV_LINK)}
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </details>
+            ) : (
+              item.href && (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className={cn("flex h-11 items-center", NAV_LINK)}
+                >
+                  {item.label}
+                </a>
+              )
+            ),
+          )}
         </nav>
         {/* The theme control follows the admission action rather than staying
             in the bar: below `md` the bar holds the identity alone, and a
