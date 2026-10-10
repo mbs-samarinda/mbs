@@ -1,11 +1,11 @@
 {
   "kind": "collectionType",
-  "collectionName": "berita",
+  "collectionName": "opini",
   "info": {
-    "singularName": "berita",
-    "pluralName": "berita-list",
-    "displayName": "Berita",
-    "description": "Artikel berita. Tampil di Artikel bersama Pengumuman dan Opini."
+    "singularName": "opini",
+    "pluralName": "opini-list",
+    "displayName": "Opini",
+    "description": "Tulisan satu orang atas namanya sendiri. Tampil di Artikel bersama Berita dan Pengumuman."
   },
   "options": {
     "draftAndPublish": true
@@ -23,6 +23,15 @@
     "slug": {
       "type": "string"
     },
+    "authorName": {
+      "type": "string",
+      "required": true
+    },
+    "authorRole": {
+      "type": "string",
+      "required": true,
+      "description": "Peran penulis, misalnya Guru Fisika atau Siswa Kelas XI."
+    },
     "summary": {
       "type": "text",
       "maxLength": 300
@@ -36,25 +45,10 @@
       "type": "richtext",
       "required": true
     },
-    "attribution": {
-      "type": "string"
-    },
     "seo": {
       "type": "component",
       "repeatable": false,
       "component": "shared.seo"
-    },
-    "collaborators": {
-      "type": "component",
-      "repeatable": true,
-      "component": "shared.owner-key"
-    },
-    "kolaborasi": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::kolaborasi.kolaborasi",
-      "mappedBy": "berita",
-      "visible": false
     }
   }
 }

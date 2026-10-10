@@ -54,7 +54,7 @@ const sectionHead = (
 
 const news = (description: string): Block => ({
   __component: "blocks.news",
-  head: sectionHead("Berita & Pengumuman", description, "Lihat semua berita", "/berita"),
+  head: sectionHead("Artikel", description, "Lihat semua artikel", "/artikel"),
   limit: 3,
 });
 

@@ -8,8 +8,14 @@ import {
   registerOwnerScope,
   seedEditorRole,
 } from "./owner-scope";
-import { BERITA_ENTRY_SEED, PENGUMUMAN_ENTRY_SEED, type ArticleSeed } from "./seed/articles";
-import { BERITA_SEED, type BeritaSeed } from "./seed/berita-page";
+import {
+  BERITA_ENTRY_SEED,
+  OPINI_ENTRY_SEED,
+  PENGUMUMAN_ENTRY_SEED,
+  type ArticleSeed,
+  type OpiniSeed,
+} from "./seed/articles";
+import { ARTIKEL_SEED, type ArtikelSeed } from "./seed/artikel-page";
 import { EKSTRAKURIKULER_SEED, type EntrySeed } from "./seed/ekstrakurikuler";
 import { EKSTRAKURIKULER_PAGE_SEED, type EkstrakurikulerSeed } from "./seed/ekstrakurikuler-page";
 import { FASILITAS_SEED } from "./seed/fasilitas";
@@ -57,6 +63,16 @@ const SOCIALS = [
   { label: "Facebook", href: "https://facebook.com/" },
 ];
 
+/** The four ways into the articles, shared by the Artikel menu and the footer. */
+const ARTIKEL_LINKS = [
+  { label: "Semua artikel", href: "/artikel" },
+  { label: "Berita", href: "/artikel/berita" },
+  { label: "Pengumuman", href: "/artikel/pengumuman" },
+  { label: "Opini", href: "/artikel/opini" },
+];
+
+const ARTIKEL_MENU = { label: "Artikel", href: "/artikel", links: ARTIKEL_LINKS };
+
 const schoolSite = (
   ownerKey: OwnerKey,
   name: string,
@@ -78,14 +94,14 @@ const schoolSite = (
   hours: "Senin–Jumat 07.00–15.00 WITA",
   legal: LEGAL,
   copyright: `© 2026 ${name}`,
-  navigation: [
+  menu: [
     { label: "Beranda", href: "/" },
     { label: "Profil", href: "/profil" },
     { label: "Program", href: "/program" },
     { label: "Ekstrakurikuler", href: "/ekstrakurikuler" },
     { label: "Fasilitas", href: "/fasilitas" },
     { label: "Galeri", href: "/galeri" },
-    { label: "Berita", href: "/berita" },
+    ARTIKEL_MENU,
     { label: "Unduhan", href: "/unduhan" },
     { label: "Pendaftaran", href: "/pendaftaran" },
     { label: "Kontak", href: "/kontak" },
@@ -106,7 +122,7 @@ const schoolSite = (
     {
       heading: "Informasi",
       links: [
-        { label: "Berita & Pengumuman", href: "/berita" },
+        ...ARTIKEL_LINKS,
         { label: "Unduhan", href: "/unduhan" },
         { label: "Pendaftaran", href: "/pendaftaran" },
         { label: "Kontak", href: "/kontak" },
@@ -140,11 +156,11 @@ const OWNER_SEED = [
     socials: SOCIALS,
     legal: LEGAL,
     copyright: "© 2026 Madina Boarding School Samarinda",
-    navigation: [
+    menu: [
       { label: "Beranda", href: "/" },
       { label: "Profil", href: "/profil" },
       { label: "Pendaftaran", href: "/pendaftaran" },
-      { label: "Berita", href: "/berita" },
+      ARTIKEL_MENU,
       { label: "Kontak", href: "/kontak" },
     ],
     footerColumns: [
@@ -153,7 +169,7 @@ const OWNER_SEED = [
         links: [
           { label: "Profil yayasan", href: "/profil" },
           { label: "Pendaftaran bersama", href: "/pendaftaran" },
-          { label: "Berita & Pengumuman", href: "/berita" },
+          ...ARTIKEL_LINKS,
           { label: "Kontak", href: "/kontak" },
         ],
       },
@@ -201,6 +217,7 @@ const PUBLIC_READ = [
   "api::page.page",
   "api::berita.berita",
   "api::pengumuman.pengumuman",
+  "api::opini.opini",
   "api::ekstrakurikuler.ekstrakurikuler",
   "api::fasilitas.fasilitas",
   "api::pencapaian.pencapaian",
@@ -294,7 +311,7 @@ async function seedPages(
     | "unduhan"
     | "pendaftaran"
     | "kontak"
-    | "berita",
+    | "artikel",
   // Partial, because `/program` is the first route only the schools own: an
   // owner with no seed here has no such page, and the profile app answers 404
   // for it rather than rendering an empty one.
@@ -309,7 +326,7 @@ async function seedPages(
       | ListingSeed
       | AdmissionSeed
       | KontakSeed
-      | BeritaSeed
+      | ArtikelSeed
     >
   >,
 ) {
@@ -493,7 +510,8 @@ async function backfillSchoolLinks(strapi: Core.Strapi): Promise<boolean> {
     const before = JSON.stringify({ navigation, columns });
 
     for (const { link, after } of SCHOOL_LINKS) {
-      if (!navigation.some((entry) => entry.href === link.href)) {
+      // An empty list is a site seeded after `menu` replaced it: nothing to repair.
+      if (navigation.length > 0 && !navigation.some((entry) => entry.href === link.href)) {
         navigation = insertLink(navigation, link, after) ?? [...navigation, link];
       }
       if (!columns.some((column) => column.links.some((entry) => entry.href === link.href))) {
@@ -508,6 +526,101 @@ async function backfillSchoolLinks(strapi: Core.Strapi): Promise<boolean> {
     await strapi.documents("api::site.site").update({
       documentId: site.documentId,
       data: { navigation, footerColumns: columns },
+    });
+    changed = true;
+  }
+
+  return changed;
+}
+
+/**
+ * Moves a database seeded before Opini onto the Artikel addresses.
+ *
+ * - `menu` is filled from the old flat `navigation`, with its `/berita` link
+ *   turned into the Artikel menu (appended when an editor had removed it: a
+ *   type nobody can reach is the failure this exists to fix). A site whose
+ *   `menu` already has items is left alone.
+ * - A footer `/berita` link becomes the four Artikel links, where it stood.
+ * - The `berita` page row becomes `artikel`, keeping the editor's title and SEO.
+ * - Each Kolaborasi copy of an address gains its type: `…/berita/x` becomes
+ *   `…/artikel/berita/x` or `…/artikel/pengumuman/x`.
+ * - The homepage news section's head, field by field, only where it still
+ *   holds the seeded value: its link now leads to `/artikel`, and its title
+ *   and link text name all three types. A value an editor typed stays.
+ *
+ * `menu` is a new field rather than `navigation` changing component: Strapi
+ * joins a component field to its rows by field name only, so old link rows
+ * would be read back as menu items. `navigation` stays hidden until every
+ * environment has booted this once, then goes.
+ *
+ * Runs before `seedPages`, which would otherwise create a fresh `artikel` row
+ * beside the `berita` one this renames.
+ */
+async function backfillArtikel(strapi: Core.Strapi): Promise<boolean> {
+  let changed = false;
+
+  const sites = await strapi.documents("api::site.site").findMany({
+    populate: { menu: true, navigation: true, footerColumns: { populate: ["links"] } },
+  });
+
+  for (const site of sites) {
+    const columns = (site.footerColumns ?? []).map((column) => ({
+      heading: column.heading ?? "",
+      links: plain(column.links).flatMap((link) =>
+        link.href === "/berita" ? ARTIKEL_LINKS : [link],
+      ),
+    }));
+    const footerChanged = (site.footerColumns ?? []).some((column) =>
+      plain(column.links).some((link) => link.href === "/berita"),
+    );
+
+    const menuMissing = (site.menu ?? []).length === 0;
+    const old = plain(site.navigation);
+    const menu = old.some((link) => link.href === "/berita")
+      ? old.map((link) => (link.href === "/berita" ? ARTIKEL_MENU : link))
+      : [...old, ARTIKEL_MENU];
+
+    if (!menuMissing && !footerChanged) continue;
+    await strapi.documents("api::site.site").update({
+      documentId: site.documentId,
+      data: {
+        ...(menuMissing ? { menu } : {}),
+        ...(footerChanged ? { footerColumns: columns } : {}),
+      },
+    });
+    changed = true;
+  }
+
+  // Both rows of each document, draft and published, in one write.
+  const pages = await strapi.db
+    .query("api::page.page")
+    .updateMany({ where: { slug: "berita" }, data: { slug: "artikel" } });
+  if (pages.count > 0) changed = true;
+
+  // Draft and published rows each own a copy of the component, so both move.
+  for (const [field, from, to] of [
+    ["linkHref", "/berita", "/artikel"],
+    ["linkLabel", "Lihat semua berita", "Lihat semua artikel"],
+    ["heading", "Berita & Pengumuman", "Artikel"],
+  ] as const) {
+    const heads = await strapi.db
+      .query("shared.section-head")
+      .updateMany({ where: { [field]: from }, data: { [field]: to } });
+    if (heads.count > 0) changed = true;
+  }
+
+  const invites: { id: number; alamat: string; berita: { id: number } | null }[] = await strapi.db
+    .query(KOLABORASI_UID)
+    .findMany({
+      where: { alamat: { $contains: "/berita/" } },
+      select: ["id", "alamat"],
+      populate: { berita: { select: ["id"] } },
+    });
+  for (const invite of invites) {
+    const type = invite.berita ? "berita" : "pengumuman";
+    await strapi.db.query(KOLABORASI_UID).update({
+      where: { id: invite.id },
+      data: { alamat: invite.alamat.replace("/berita/", `/artikel/${type}/`) },
     });
     changed = true;
   }
@@ -554,8 +667,8 @@ const daysFromNow = (days: number) => new Date(Date.now() + days * DAY).toISOStr
  */
 async function seedArticles(
   strapi: Core.Strapi,
-  uid: "api::berita.berita" | "api::pengumuman.pengumuman",
-  rows: readonly ArticleSeed[],
+  uid: "api::berita.berita" | "api::pengumuman.pengumuman" | "api::opini.opini",
+  rows: readonly (ArticleSeed | OpiniSeed)[],
 ) {
   for (const ownerKey of OWNER_KEYS) {
     const owned = rows.filter((row) => row.ownerKey === ownerKey);
@@ -564,11 +677,21 @@ async function seedArticles(
     const existing = await strapi.documents(uid).findFirst({ filters: { ownerKey } });
     if (existing) continue;
 
-    for (const { daysAgo, expiresInDays, collaborators = [], ...row } of owned) {
+    for (const seed of owned) {
+      // The defaults give every seed both optional fields, so one destructure
+      // serves Opini too, which has neither.
+      const { daysAgo, expiresInDays, collaborators, ...row } = {
+        expiresInDays: undefined,
+        collaborators: [],
+        ...seed,
+      };
       const created = await strapi.documents(uid).create({
         data: {
           ...row,
-          collaborators: collaborators.map((key) => ({ ownerKey: key })),
+          // Only when there are some: Opini has no such field to write an empty list to.
+          ...(collaborators.length > 0
+            ? { collaborators: collaborators.map((key) => ({ ownerKey: key })) }
+            : {}),
           ...(expiresInDays === undefined ? {} : { expiresAt: daysFromNow(expiresInDays) }),
         },
         status: "published",
@@ -576,7 +699,7 @@ async function seedArticles(
 
       // Publishing just invited them as `menunggu`; the seed answers for them.
       // Ids first: `updateMany` cannot filter through a relation.
-      if (collaborators.length > 0) {
+      if (collaborators.length > 0 && uid !== "api::opini.opini") {
         const invites: { id: number }[] = await strapi.db.query(KOLABORASI_UID).findMany({
           where: { [ARTICLES[uid]]: { documentId: created.documentId } },
           select: ["id"],
@@ -850,6 +973,11 @@ export default {
     await backfillOnce(strapi, "kolaborasi-permissions", () => grantKolaborasi(strapi));
     await grantPublicRead(strapi);
     await seedSites(strapi);
+    // Both read the old `navigation`, so Galeri and Unduhan land in it before
+    // it is copied into `menu`. Artikel also has to rename the `berita` page
+    // before `seedPages` sees no `artikel` row and makes one.
+    await backfillOnce(strapi, "galeri-unduhan-links", () => backfillSchoolLinks(strapi));
+    await backfillOnce(strapi, "artikel", () => backfillArtikel(strapi));
 
     // Sample content is a development fixture and never reaches a real server.
     //
@@ -871,6 +999,7 @@ export default {
       await seedEntries(strapi, "api::fasilitas.fasilitas", FASILITAS_SEED);
       await seedArticles(strapi, "api::berita.berita", BERITA_ENTRY_SEED);
       await seedArticles(strapi, "api::pengumuman.pengumuman", PENGUMUMAN_ENTRY_SEED);
+      await seedArticles(strapi, "api::opini.opini", OPINI_ENTRY_SEED);
       await seedAchievements(strapi, PENCAPAIAN_SEED);
     }
 
@@ -891,15 +1020,17 @@ export default {
     await seedPages(strapi, "unduhan", UNDUHAN_PAGE_SEED);
     await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
     await seedPages(strapi, "kontak", KONTAK_SEED);
-    await seedPages(strapi, "berita", BERITA_SEED);
+    await seedPages(strapi, "artikel", ARTIKEL_SEED);
 
     // After the seeds, and once per database: the rows above are only created
     // when missing, so a section added to a seed later needs this to reach an
     // environment that has already booted.
     await backfillOnce(strapi, "umbrella-home-sections", () => backfillUmbrellaHome(strapi));
-    await backfillOnce(strapi, "galeri-unduhan-links", () => backfillSchoolLinks(strapi));
     await backfillOnce(strapi, "galeri-unduhan-editors", () =>
       grantEditorTypes(strapi, ["api::album.album", "api::berkas.berkas"]),
+    );
+    await backfillOnce(strapi, "opini-editors", () =>
+      grantEditorTypes(strapi, ["api::opini.opini"]),
     );
   },
 };

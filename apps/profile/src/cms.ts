@@ -2,7 +2,7 @@ import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
 import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 
-import { cutExpired, umbrellaNews, type Article } from "./articles.ts";
+import { cutExpired, umbrellaNews, type Article, type ArticleType } from "./articles.ts";
 import { config } from "./config/env.ts";
 import type { Owner } from "./owners.ts";
 
@@ -40,7 +40,12 @@ export type Site = {
   readonly legal: string | null;
   readonly copyright: string | null;
   readonly admissionCta: string;
-  readonly navigation: readonly CmsLink[];
+  /** An item with `links` is a dropdown; one without is a plain link. */
+  readonly menu: readonly {
+    readonly label: string;
+    readonly href: string | null;
+    readonly links: readonly CmsLink[];
+  }[];
   readonly headerPhone: CmsLink | null;
   readonly headerWhatsapp: CmsLink | null;
   readonly footerColumns: readonly {
@@ -375,7 +380,7 @@ export async function getSite(ownerKey: Owner["key"]): Promise<Site> {
 
   const sites = await cms<Site[]>("site-list", [
     ["filters[ownerKey][$eq]", ownerKey],
-    ["populate[navigation]", "true"],
+    ["populate[menu][populate]", "links"],
     ["populate[headerPhone]", "true"],
     ["populate[headerWhatsapp]", "true"],
     ["populate[contacts]", "true"],
@@ -395,7 +400,7 @@ export async function getSite(ownerKey: Owner["key"]): Promise<Site> {
   // there is one read, and a dozen places that iterate what it returns.
   return {
     ...site,
-    navigation: site.navigation ?? [],
+    menu: (site.menu ?? []).map((item) => ({ ...item, links: item.links ?? [] })),
     footerColumns: site.footerColumns ?? [],
     contacts: site.contacts ?? [],
     socials: site.socials ?? [],
@@ -417,15 +422,18 @@ export async function getPage(ownerKey: Owner["key"], slug: string): Promise<Pag
 
   const page = pages[0];
   // Same defaulting as `getSite` and `toBlock`: an empty dynamic zone arrives
-  // missing rather than empty, and `/berita` is the first page whose row has no
+  // missing rather than empty, and `/artikel` is the first page whose row has no
   // blocks at all — the listing is not something an editor composes.
   return page ? { ...page, blocks: (page.blocks ?? []).map(toBlock) } : null;
 }
 
 /** An index row as Strapi returns it, before the collaborators are flattened. */
-type IndexRow = Omit<Article, "kind" | "collaborators"> & {
+type IndexRow = Omit<Article, "type" | "collaborators" | "byline"> & {
   readonly kolaborasi: readonly { readonly ownerKey: SchoolKey }[];
 };
+
+/** Opini's two author fields, as both its index rows and its full rows carry them. */
+type Author = { readonly authorName?: string | null; readonly authorRole?: string | null };
 
 // Fixed order rather than acceptance order, so a card's badges read the same
 // on every site.
@@ -437,15 +445,16 @@ const withCollaborators = ({ kolaborasi, ...entry }: IndexRow) => ({
 });
 
 /**
- * Every entry an owner lists, both types, newest first, with the expiry not yet
- * applied.
+ * Every entry an owner lists, all three types, newest first, with the expiry not
+ * yet applied.
  *
  * A school lists what it owns plus what it accepted as a collaborator; the
  * umbrella lists everything, no invite needed. Accepted collaborators come
  * along for the badges. A pending invite is filtered out in both places, so an
- * article a school has not agreed to never carries its name.
+ * article a school has not agreed to never carries its name. Opini is never a
+ * collab, so it is read by owner alone and without the relation it does not have.
  *
- * One read serves the whole `/berita` page — the listing, the archive counts and
+ * One read serves the whole `/artikel` page — the listing, the archive counts and
  * the page total — because those three have to agree with each other. Counting
  * from a separate query would let the arsip say "September 2026 (3)" above a
  * month that renders two.
@@ -475,8 +484,16 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
           ["filters[$or][1][kolaborasi][status][$eq]", "diterima"],
         ];
 
+  // Asking Opini for `kolaborasi` would be a 400: Strapi refuses an unknown relation.
+  const collab: [string, string][] = [
+    ...scope,
+    ["populate[kolaborasi][filters][status][$eq]", "diterima"],
+    ["populate[kolaborasi][fields][0]", "ownerKey"],
+  ];
+  const own: [string, string][] = ownerKey === "mbs" ? [] : [["filters[ownerKey][$eq]", ownerKey]];
+
   /** Walks Strapi's pages until a short one says there are no more. */
-  async function all<T>(collection: string): Promise<T[]> {
+  async function all<T>(collection: string, fields: [string, string][]): Promise<T[]> {
     const rows: T[] = [];
 
     for (let page = 1; ; page += 1) {
@@ -484,13 +501,11 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
       // previous one's length, so there is nothing to run in parallel.
       // oxlint-disable-next-line eslint/no-await-in-loop
       const batch = await cms<T[]>(collection, [
-        ...scope,
+        ...fields,
         ["sort[0]", "publishedAt:desc"],
         ["pagination[page]", String(page)],
         ["pagination[pageSize]", String(PAGE_LIMIT)],
         ["populate[cover]", "true"],
-        ["populate[kolaborasi][filters][status][$eq]", "diterima"],
-        ["populate[kolaborasi][fields][0]", "ownerKey"],
       ]);
 
       rows.push(...batch);
@@ -498,18 +513,31 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
     }
   }
 
-  const [berita, pengumuman] = await Promise.all([
-    all<Omit<IndexRow, "expiresAt">>("berita-list"),
-    all<IndexRow>("pengumuman-list"),
+  const [berita, pengumuman, opini] = await Promise.all([
+    all<Omit<IndexRow, "expiresAt">>("berita-list", collab),
+    all<IndexRow>("pengumuman-list", collab),
+    all<Omit<IndexRow, "expiresAt" | "kolaborasi"> & Author>("opini-list", own),
   ]);
 
   return [
-    // Only a Pengumuman can expire; a Berita article is permanent by type.
+    // Only a Pengumuman can expire; Berita and Opini are permanent by type.
     ...berita.map((entry) => ({
       ...withCollaborators({ ...entry, expiresAt: null }),
-      kind: "Berita" as const,
+      type: "berita" as const,
+      byline: null,
     })),
-    ...pengumuman.map((entry) => ({ ...withCollaborators(entry), kind: "Pengumuman" as const })),
+    ...pengumuman.map((entry) => ({
+      ...withCollaborators(entry),
+      type: "pengumuman" as const,
+      byline: null,
+    })),
+    ...opini.map(({ authorName, authorRole, ...entry }) => ({
+      ...entry,
+      expiresAt: null,
+      collaborators: [],
+      type: "opini" as const,
+      byline: authorName && authorRole ? `${authorName}, ${authorRole}` : null,
+    })),
   ].toSorted((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
 
@@ -556,11 +584,8 @@ export type FullArticle = Omit<Article, "collaborators"> & {
 };
 
 /**
- * One entry by address, looked for in both collections.
- *
- * `/berita` is one listing over two types, so a slug there is one address space:
- * the CMS's `uniqueSlugPerOwner` lifecycle checks Berita and Pengumuman against
- * each other, which is what makes "whichever answers" safe rather than a guess.
+ * One entry by address. The type is part of the address, so only that one
+ * collection is asked, and a slug may repeat across types.
  *
  * No expiry cut here, deliberately. `expiresAt` means "drops out of listings" —
  * the schema says so — and a notice somebody bookmarked or was sent by WhatsApp
@@ -569,11 +594,12 @@ export type FullArticle = Omit<Article, "collaborators"> & {
  */
 export async function getArticle(
   ownerKey: Owner["key"],
+  type: ArticleType,
   slug: string,
 ): Promise<FullArticle | null> {
   "use cache";
   cacheLife("hours");
-  cacheTag(CMS_TAG, `article:${ownerKey}:${slug}`);
+  cacheTag(CMS_TAG, `article:${ownerKey}:${type}:${slug}`);
 
   const fields: [string, string][] = [
     ["filters[ownerKey][$eq]", ownerKey],
@@ -582,16 +608,20 @@ export async function getArticle(
     ["populate[seo][populate]", "*"],
   ];
 
-  const [berita, pengumuman] = await Promise.all([
-    cms<Omit<FullArticle, "kind" | "expiresAt">[]>("berita-list", fields),
-    cms<Omit<FullArticle, "kind">[]>("pengumuman-list", fields),
-  ]);
+  // Each type omits a field or two the others have; Strapi just leaves them out.
+  type Row = Omit<FullArticle, "type" | "byline" | "expiresAt" | "attribution"> &
+    Author & { readonly expiresAt?: string | null; readonly attribution?: string | null };
+  const [row] = await cms<Row[]>(`${type}-list`, fields);
+  if (!row) return null;
 
-  const article = berita[0];
-  if (article) return { ...article, kind: "Berita", expiresAt: null };
-
-  const notice = pengumuman[0];
-  return notice ? { ...notice, kind: "Pengumuman" } : null;
+  const { authorName, authorRole, ...article } = row;
+  return {
+    ...article,
+    type,
+    expiresAt: article.expiresAt ?? null,
+    attribution: article.attribution ?? null,
+    byline: authorName && authorRole ? `${authorName}, ${authorRole}` : null,
+  };
 }
 
 /**
@@ -634,7 +664,7 @@ export type EntryCollection = "ekstrakurikuler-list" | "fasilitas-list";
 /**
  * Everything an owner has published in one collection, for its listing page.
  *
- * Unpaged, unlike `/berita`: a school runs a handful of activities and owns a
+ * Unpaged, unlike `/artikel`: a school runs a handful of activities and owns a
  * handful of buildings, the canvas draws them all on one screen, and `PAGE_LIMIT`
  * is the ceiling either would have to pass before that stops being true.
  */

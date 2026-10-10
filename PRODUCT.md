@@ -104,7 +104,7 @@ but all belong to one product. A visitor should quickly find what the school is
 and whom it serves, its programs, values, facilities and activities, news and
 contact details, whether admission is open, and how to start. School pages are
 `/`, `/profil`, `/program`, `/ekstrakurikuler`, `/fasilitas`, `/galeri`,
-`/berita`, `/unduhan`, `/pendaftaran`, `/kontak`. `program` is the academic offering and carries SMK's
+`/artikel`, `/unduhan`, `/pendaftaran`, `/kontak`. `program` is the academic offering and carries SMK's
 jurusan; `ekstrakurikuler` is activities. They are separate pages because they
 answer separate questions.
 
@@ -118,8 +118,11 @@ identity of it. Its admission page reads every school's facts through
 `public.admission.getCurrentCycle`, once per school; the cycle is one shared row
 so the answers cannot disagree.
 
-`/berita` is one listing over two content types, Berita and Pengumuman, each
-with a visible type label. `Pengumuman` carries an optional `expiresAt`.
+`/artikel` lists three content types, Berita, Pengumuman and Opini, each with a
+visible type label; each type also has its own listing at `/artikel/<type>`, and
+every article lives at `/artikel/<type>/<slug>`. `Pengumuman` carries an
+optional `expiresAt`. `Opini` is a signed piece by one person, credited by
+`authorName` and `authorRole`, and is never a collab.
 `Pencapaian` is a record browsed by level and year rather than a feed entry, and
 may optionally point at one Berita article telling the story behind it. The name
 is `Pencapaian` and not `Prestasi` because the admission domain uses Prestasi for

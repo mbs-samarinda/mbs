@@ -68,6 +68,6 @@ test("a school keeps its own school-only paths", () => {
 
 // The umbrella owns every other route, so the rewrite must not widen.
 test("the apex keeps the paths it does own", () => {
-  const response = proxy(request("mbss.sch.id", "/berita"));
-  expect(response.headers.get("x-middleware-rewrite")).toBe("http://mbss.sch.id/mbs/berita");
+  const response = proxy(request("mbss.sch.id", "/artikel"));
+  expect(response.headers.get("x-middleware-rewrite")).toBe("http://mbss.sch.id/mbs/artikel");
 });

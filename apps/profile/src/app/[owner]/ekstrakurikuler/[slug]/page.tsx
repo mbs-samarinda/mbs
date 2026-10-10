@@ -53,7 +53,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 /**
  * Blocking, and a slug nobody owns answers 200 rather than 404 — the same two
- * facts `/berita/[slug]` records at length. There is no `generateStaticParams`
+ * facts `/artikel/[type]/[slug]` records at length. There is no `generateStaticParams`
  * because the set of activities changes whenever an editor publishes, and once a
  * response has started streaming its headers are gone, so `notFound()` after an
  * `await` can only add `<meta name="robots" content="noindex">`. That is what

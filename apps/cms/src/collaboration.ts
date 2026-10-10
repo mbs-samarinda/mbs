@@ -21,8 +21,9 @@ const isArticle = (uid: string): uid is ArticleUid => uid in ARTICLES;
 // invitee reading it needs to recognise.
 const APEX = process.env.PROFILE_APEX || "mbss.sch.id";
 
-const articleUrl = (ownerKey: string, slug: string) =>
-  `https://${ownerKey === "mbs" ? APEX : `${ownerKey}.${APEX}`}/berita/${slug}`;
+// The Kolaborasi field names double as the address segment, `/artikel/berita/…`.
+const articleUrl = (uid: ArticleUid, ownerKey: string, slug: string) =>
+  `https://${ownerKey === "mbs" ? APEX : `${ownerKey}.${APEX}`}/artikel/${ARTICLES[uid]}/${slug}`;
 
 /**
  * The schools an article may invite: never the umbrella, never its own owner,
@@ -108,7 +109,7 @@ async function reconcile(strapi: Core.Strapi, uid: ArticleUid, documentId: strin
   const copies = {
     status: "menunggu",
     judul: article.title,
-    alamat: articleUrl(article.ownerKey, article.slug ?? ""),
+    alamat: articleUrl(uid, article.ownerKey, article.slug ?? ""),
     [ARTICLES[uid]]: article.id,
   };
 

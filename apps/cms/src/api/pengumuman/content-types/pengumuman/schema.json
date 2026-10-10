@@ -5,7 +5,7 @@
     "singularName": "pengumuman",
     "pluralName": "pengumuman-list",
     "displayName": "Pengumuman",
-    "description": "Seperti Berita, dengan masa berlaku opsional. Setelah lewat, hilang dari listing."
+    "description": "Seperti Berita, dengan masa berlaku opsional. Setelah lewat, hilang dari daftar."
   },
   "options": {
     "draftAndPublish": true

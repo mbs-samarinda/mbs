@@ -276,7 +276,10 @@ void describe("collaboration", () => {
         { ownerKey: "smp", status: "menunggu" },
       ],
     );
-    assert.match(invites[0]?.alamat ?? "", /^https:\/\/sma\.[^/]+\/berita\/uji-kolaborasi-/);
+    assert.match(
+      invites[0]?.alamat ?? "",
+      /^https:\/\/sma\.[^/]+\/artikel\/berita\/uji-kolaborasi-/,
+    );
 
     await accept(invites[0]);
     await strapi.documents("api::berita.berita").publish({ documentId });
@@ -346,8 +349,7 @@ void describe("collaboration", () => {
   // what the public REST endpoint reads. The suite has no HTTP listener, so the
   // public role's permission is checked separately.
   // Pengumuman runs through the same hooks. Its own case proves the second
-  // relation is wired, and that its address is `/berita/` too: the profile has no
-  // `/pengumuman` route, both kinds share one listing and one detail page.
+  // relation is wired, and that its address names its own type.
   void it("invites, lists and clears a pengumuman the same way", async () => {
     const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const { documentId } = await strapi.documents("api::pengumuman.pengumuman").create({
@@ -369,7 +371,10 @@ void describe("collaboration", () => {
 
     const [invite] = await invites();
     assert.equal(invite?.ownerKey, "smk");
-    assert.match(invite?.alamat ?? "", /^https:\/\/sma\.[^/]+\/berita\/uji-pengumuman-/);
+    assert.match(
+      invite?.alamat ?? "",
+      /^https:\/\/sma\.[^/]+\/artikel\/pengumuman\/uji-pengumuman-/,
+    );
     await accept(invite);
 
     const listed = await strapi.documents("api::pengumuman.pengumuman").findMany({
@@ -427,5 +432,118 @@ void describe("collaboration", () => {
       .query("plugin::users-permissions.permission")
       .findOne({ where: { action: `${KOLABORASI}.find`, role: role.id } });
     assert.ok(find, "the public role must be able to find Kolaborasi");
+  });
+});
+
+void describe("artikel", () => {
+  // The type is in the address now, so two types may share a slug.
+  void it("lets an opini reuse a berita's slug on the same owner", async () => {
+    const slug = `uji-slug-${Date.now()}`;
+    const fields = { ownerKey: "smp" as const, title: "Uji slug", slug, body: "Isi uji." };
+
+    await strapi.documents("api::berita.berita").create({ data: fields });
+    await assert.doesNotReject(
+      strapi.documents("api::opini.opini").create({
+        data: { ...fields, authorName: "Uji", authorRole: "Guru" },
+      }),
+    );
+    await assert.rejects(
+      strapi.documents("api::opini.opini").create({
+        data: { ...fields, authorName: "Uji", authorRole: "Guru" },
+      }),
+      /sudah dipakai/,
+    );
+  });
+
+  // Plants a database as it stood before Opini, clears the marker, and boots
+  // again through the app's own bootstrap — the path a real deploy takes.
+  void it("moves a pre-Opini database onto the Artikel addresses, once", async () => {
+    const site = await strapi
+      .documents("api::site.site")
+      .findFirst({ filters: { ownerKey: "sma" } });
+    assert.ok(site, "expected the sma site");
+    await strapi.documents("api::site.site").update({
+      documentId: site.documentId,
+      data: {
+        menu: [],
+        navigation: [
+          { label: "Beranda", href: "/" },
+          { label: "Berita", href: "/berita" },
+          { label: "Kontak", href: "/kontak" },
+        ],
+        footerColumns: [{ heading: "Informasi", links: [{ label: "Berita", href: "/berita" }] }],
+      },
+    });
+
+    const page = await strapi
+      .documents("api::page.page")
+      .findFirst({ filters: { ownerKey: "sma", slug: "artikel" }, status: "draft" });
+    assert.ok(page, "expected the sma artikel page");
+    await strapi.db
+      .query("api::page.page")
+      .updateMany({ where: { documentId: page.documentId }, data: { slug: "berita" } });
+
+    const documentId = await publishedArticle(["smk"]);
+    const [invite] = await invitesOf(documentId);
+    assert.ok(invite, "expected an invite");
+    await strapi.db.query(KOLABORASI).update({
+      where: { id: invite.id },
+      data: { alamat: invite.alamat.replace("/artikel/berita/", "/berita/") },
+    });
+
+    await strapi.db
+      .query("shared.section-head")
+      .updateMany({ where: { linkHref: "/artikel" }, data: { linkHref: "/berita" } });
+
+    const store = strapi.store({ type: "plugin", name: "mbs-seed" });
+    await store.delete({ key: "artikel" });
+    const app = strapi.app as { bootstrap: (context: { strapi: Core.Strapi }) => Promise<void> };
+    await app.bootstrap({ strapi });
+
+    const read = () =>
+      strapi.documents("api::site.site").findOne({
+        documentId: site.documentId,
+        populate: { menu: { populate: ["links"] }, footerColumns: { populate: ["links"] } },
+      });
+    const after = await read();
+    assert.deepEqual(
+      after?.menu?.map((item: { label?: string; links?: unknown[] }) => [
+        item.label,
+        item.links?.length,
+      ]),
+      [
+        ["Beranda", 0],
+        ["Artikel", 4],
+        ["Kontak", 0],
+      ],
+    );
+    assert.deepEqual(
+      after?.footerColumns?.[0]?.links?.map((link: { href?: string }) => link.href),
+      ["/artikel", "/artikel/berita", "/artikel/pengumuman", "/artikel/opini"],
+    );
+
+    const pages: { slug: string }[] = await strapi.db
+      .query("api::page.page")
+      .findMany({ where: { documentId: page.documentId }, select: ["slug"] });
+    assert.ok(pages.length > 0 && pages.every((row) => row.slug === "artikel"));
+    assert.equal(
+      await strapi.db
+        .query("api::page.page")
+        .count({ where: { ownerKey: "sma", slug: "artikel", publishedAt: null } }),
+      1,
+      "the seed must not add a second artikel page beside the renamed one",
+    );
+
+    assert.equal(
+      await strapi.db.query("shared.section-head").count({ where: { linkHref: "/berita" } }),
+      0,
+    );
+
+    const [moved] = await invitesOf(documentId);
+    assert.match(moved?.alamat ?? "", /\/artikel\/berita\/uji-kolaborasi-/);
+
+    // A second boot with the marker set changes nothing.
+    await app.bootstrap({ strapi });
+    assert.deepEqual(await read(), after);
   });
 });

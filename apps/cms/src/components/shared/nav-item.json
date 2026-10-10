@@ -1,0 +1,15 @@
+{
+  "collectionName": "components_shared_nav_items",
+  "info": { "displayName": "Menu", "icon": "bulletList" },
+  "options": {},
+  "attributes": {
+    "label": { "type": "string", "required": true },
+    "href": { "type": "string" },
+    "links": {
+      "type": "component",
+      "repeatable": true,
+      "component": "shared.link",
+      "description": "Isi untuk menjadikan menu ini daftar turun."
+    }
+  }
+}

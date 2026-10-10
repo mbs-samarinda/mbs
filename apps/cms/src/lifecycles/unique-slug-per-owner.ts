@@ -39,14 +39,10 @@ const text = (value: unknown) => (typeof value === "string" && value !== "" ? va
  * `required` in the schemas: Strapi checks that before this lifecycle runs,
  * so a required slug forces editors to type one by hand.
  *
- * `siblings` covers the case where two collections share one address space:
- * Berita and Pengumuman are separate types rendered in one `/berita` listing,
- * so an address taken in either is taken in both.
- *
  * Draft-and-publish gives one document two rows, so the check excludes the
  * document being saved rather than the row.
  */
-export function uniqueSlugPerOwner(uid: string, siblings: readonly string[] = []) {
+export function uniqueSlugPerOwner(uid: string) {
   async function ensure(event: LifecycleEvent) {
     const data = event.params.data;
     if (!data) return;
@@ -75,17 +71,15 @@ export function uniqueSlugPerOwner(uid: string, siblings: readonly string[] = []
 
     const documentId = text(data.documentId) ?? current?.documentId;
 
-    for (const collection of [uid, ...siblings]) {
-      const clash: { id: number } | null = await strapi.db.query(collection).findOne({
-        where: { ownerKey, slug, ...(documentId ? { documentId: { $ne: documentId } } : {}) },
-        select: ["id"],
-      });
+    const clash: { id: number } | null = await strapi.db.query(uid).findOne({
+      where: { ownerKey, slug, ...(documentId ? { documentId: { $ne: documentId } } : {}) },
+      select: ["id"],
+    });
 
-      if (clash) {
-        throw new errors.ApplicationError(
-          `Alamat "${slug}" sudah dipakai pada ${ownerKey}. Ubah judul atau alamatnya.`,
-        );
-      }
+    if (clash) {
+      throw new errors.ApplicationError(
+        `Alamat "${slug}" sudah dipakai pada ${ownerKey}. Ubah judul atau alamatnya.`,
+      );
     }
   }
 

@@ -25,7 +25,7 @@ export async function generateMetadata({
 /**
  * Every facility a school has, each linking to its own page.
  *
- * Not composed, the arrangement `/ekstrakurikuler` and `/berita` already use:
+ * Not composed, the arrangement `/ekstrakurikuler` and `/artikel` already use:
  * the listing is what has been published in the Fasilitas collection, and the
  * `Page` row exists for the title and the SEO fields. It describes buildings;
  * photographs of what happens in them belong to `/galeri`.

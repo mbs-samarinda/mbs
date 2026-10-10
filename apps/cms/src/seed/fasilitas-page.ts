@@ -1,7 +1,7 @@
 /**
  * The `/fasilitas` page row each school starts with.
  *
- * It carries no blocks, for the same reason `/ekstrakurikuler` and `/berita` do
+ * It carries no blocks, for the same reason `/ekstrakurikuler` and `/artikel` do
  * not: the listing is drawn from the Fasilitas collection, and which buildings
  * appear is a consequence of what has been published rather than something an
  * editor composes. What the row is for is the title and the SEO fields.

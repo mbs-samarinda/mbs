@@ -53,7 +53,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 /**
  * Blocking, and a slug nobody owns answers 200 rather than 404 — the two facts
- * `/berita/[slug]` records at length and `/ekstrakurikuler/[slug]` repeats. The
+ * `/artikel/[type]/[slug]` records at length and `/ekstrakurikuler/[slug]` repeats. The
  * answer lives behind an `await`, and once a response has started streaming its
  * headers are gone, so `notFound()` can only add `noindex`.
  */
