@@ -540,7 +540,14 @@ void describe("artikel", () => {
     );
 
     const [moved] = await invitesOf(documentId);
-    assert.match(moved?.alamat ?? "", /\/artikel\/berita\/uji-kolaborasi-/);
+    assert.match(moved?.alamat ?? "", /^https:\/\/sma\.[^/]+\/artikel\/berita\/uji-kolaborasi-/);
+    assert.equal(
+      await strapi.db
+        .query(KOLABORASI)
+        .count({ where: { alamat: { $contains: "/artikel/artikel/" } } }),
+      0,
+      "an address already moved must not move again",
+    );
 
     // A second boot with the marker set changes nothing.
     await app.bootstrap({ strapi });

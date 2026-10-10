@@ -59,6 +59,7 @@ type PermissionService = {
   actionProvider: { values(): Action[] };
   createMany(permissions: (SeedPermission & { role: number })[]): Promise<unknown>;
   conditionProvider: {
+    has(id: string): boolean;
     register(condition: {
       name: string;
       displayName: string;
@@ -140,9 +141,16 @@ const isActor = (value: unknown): value is AdminActor =>
  * It has to be registered before the role is seeded: `addPermissions` sanitizes
  * away any condition the provider does not know, so a late registration seeds
  * the permission unconditioned — the same hole reached from the other side.
+ *
+ * A second bootstrap in one process finds it registered and stops there:
+ * Strapi refuses any registration once loaded, and the integration suite
+ * re-runs bootstrap to exercise the one-time backfills.
  */
 export async function registerOwnerScope(strapi: Core.Strapi) {
-  await permissionService(strapi).conditionProvider.register({
+  const { conditionProvider } = permissionService(strapi);
+  if (conditionProvider.has(OWNER_SCOPE_CONDITION)) return;
+
+  await conditionProvider.register({
     name: "owner-scope",
     displayName: "Hanya pemilik yang ditugaskan",
     handler: async (user) => {

@@ -60,9 +60,10 @@ function LogoSlot({ logo, className }: { logo: Site["logo"]; className: string }
  * goes with it so the bar holds the identity alone.
  */
 export function Header({ owner, site }: { owner: Owner; site: Site }) {
-  // ponytail: flat until the Artikel dropdown is built. Each item shows as its
-  // own link and a dropdown's children wait; one without an address is skipped.
-  const links = site.menu.flatMap(({ label, href }) => (href ? [{ label, href }] : []));
+  // ponytail: flat until the Artikel dropdown is built. An item with an address
+  // shows as one link; one without shows its children instead, so nothing an
+  // editor adds goes missing.
+  const flat = site.menu.flatMap(({ label, href, links }) => (href ? [{ label, href }] : links));
 
   return (
     // Both rows stay put while the page scrolls: the switcher says which site
@@ -129,14 +130,14 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
         </a>
 
         <MobileMenu
-          items={links}
+          items={flat}
           owner={owner.name}
           admissionCta={site.admissionCta}
           cookieSuffix={COOKIE_SUFFIX}
         />
 
         <NavScroller
-          items={links}
+          items={flat}
           // The tablet row is its own 44px-tall band, so an arrow sitting over
           // it has somewhere to be. On a desktop page the row is inline and the
           // 76px main bar gives the arrow its height instead. No rule between

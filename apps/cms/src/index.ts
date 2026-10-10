@@ -574,8 +574,10 @@ async function backfillArtikel(strapi: Core.Strapi): Promise<boolean> {
       plain(column.links).some((link) => link.href === "/berita"),
     );
 
-    const menuMissing = (site.menu ?? []).length === 0;
     const old = plain(site.navigation);
+    // An empty old list has nothing to carry over; a menu of Artikel alone
+    // would hide every other page.
+    const menuMissing = (site.menu ?? []).length === 0 && old.length > 0;
     const menu = old.some((link) => link.href === "/berita")
       ? old.map((link) => (link.href === "/berita" ? ARTIKEL_MENU : link))
       : [...old, ARTIKEL_MENU];
@@ -609,15 +611,23 @@ async function backfillArtikel(strapi: Core.Strapi): Promise<boolean> {
     if (heads.count > 0) changed = true;
   }
 
-  const invites: { id: number; alamat: string; berita: { id: number } | null }[] = await strapi.db
-    .query(KOLABORASI_UID)
-    .findMany({
-      where: { alamat: { $contains: "/berita/" } },
-      select: ["id", "alamat"],
-      populate: { berita: { select: ["id"] } },
-    });
+  // Old addresses only: a migrated `/artikel/berita/x` contains `/berita/` too,
+  // and rewriting it again would give `/artikel/artikel/berita/x`.
+  type Invite = {
+    id: number;
+    alamat: string;
+    berita: { id: number } | null;
+    pengumuman: { id: number } | null;
+  };
+  const invites: Invite[] = await strapi.db.query(KOLABORASI_UID).findMany({
+    where: { alamat: { $contains: "/berita/", $notContains: "/artikel/" } },
+    select: ["id", "alamat"],
+    populate: { berita: { select: ["id"] }, pengumuman: { select: ["id"] } },
+  });
   for (const invite of invites) {
-    const type = invite.berita ? "berita" : "pengumuman";
+    // A row whose article is gone names no type; the next publish rewrites it anyway.
+    const type = invite.berita ? "berita" : invite.pengumuman ? "pengumuman" : null;
+    if (!type) continue;
     await strapi.db.query(KOLABORASI_UID).update({
       where: { id: invite.id },
       data: { alamat: invite.alamat.replace("/berita/", `/artikel/${type}/`) },
@@ -625,6 +635,8 @@ async function backfillArtikel(strapi: Core.Strapi): Promise<boolean> {
     changed = true;
   }
 
+  // These writes skip the document middleware, so the profile is told directly.
+  if (changed) void notifyProfile(strapi);
   return changed;
 }
 

@@ -435,6 +435,10 @@ type IndexRow = Omit<Article, "type" | "collaborators" | "byline"> & {
 /** Opini's two author fields, as both its index rows and its full rows carry them. */
 type Author = { readonly authorName?: string | null; readonly authorRole?: string | null };
 
+/** "Siti Aminah, Guru Fisika", or `null` for the types that carry no author. */
+const bylineOf = ({ authorName, authorRole }: Author) =>
+  authorName && authorRole ? `${authorName}, ${authorRole}` : null;
+
 // Fixed order rather than acceptance order, so a card's badges read the same
 // on every site.
 const withCollaborators = ({ kolaborasi, ...entry }: IndexRow) => ({
@@ -531,12 +535,12 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
       type: "pengumuman" as const,
       byline: null,
     })),
-    ...opini.map(({ authorName, authorRole, ...entry }) => ({
-      ...entry,
+    ...opini.map((row) => ({
+      ...row,
       expiresAt: null,
       collaborators: [],
       type: "opini" as const,
-      byline: authorName && authorRole ? `${authorName}, ${authorRole}` : null,
+      byline: bylineOf(row),
     })),
   ].toSorted((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
@@ -614,13 +618,12 @@ export async function getArticle(
   const [row] = await cms<Row[]>(`${type}-list`, fields);
   if (!row) return null;
 
-  const { authorName, authorRole, ...article } = row;
   return {
-    ...article,
+    ...row,
     type,
-    expiresAt: article.expiresAt ?? null,
-    attribution: article.attribution ?? null,
-    byline: authorName && authorRole ? `${authorName}, ${authorRole}` : null,
+    expiresAt: row.expiresAt ?? null,
+    attribution: row.attribution ?? null,
+    byline: bylineOf(row),
   };
 }
 
