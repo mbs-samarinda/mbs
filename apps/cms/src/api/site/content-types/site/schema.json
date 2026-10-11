@@ -35,13 +35,6 @@
     "copyright": { "type": "string" },
     "admissionCta": { "type": "string", "required": true },
     "menu": { "type": "component", "repeatable": true, "component": "shared.nav-item" },
-    "navigation": {
-      "type": "component",
-      "repeatable": true,
-      "component": "shared.link",
-      "visible": false,
-      "description": "Digantikan oleh menu. Dibaca sekali untuk memindahkan isinya, lalu dihapus."
-    },
     "headerPhone": { "type": "component", "repeatable": false, "component": "shared.link" },
     "headerWhatsapp": { "type": "component", "repeatable": false, "component": "shared.link" },
     "footerColumns": {
