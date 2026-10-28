@@ -64,7 +64,9 @@ function LogoSlot({ logo, className }: { logo: Site["logo"]; className: string }
  * The umbrella has no navigation at all: its home is its only page, so a menu
  * there would hold one link to where the visitor already is. With no sheet to
  * carry them, its theme control and admission action stay in the bar at every
- * width.
+ * width. On a phone they share the brand's row as an icon and a one-word
+ * "Daftar", and the name wraps to make room rather than the buttons taking a
+ * row of their own.
  */
 export function Header({ owner, site }: { owner: Owner; site: Site }) {
   const menu = owner.subdomain ? toMenu(site.menu) : [];
@@ -121,15 +123,36 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
       </div>
 
       <div
-        className={`flex flex-wrap items-center justify-between gap-x-6 border-b border-border lg:flex-nowrap ${GUTTER}`}
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-x-6 border-b border-border lg:flex-nowrap",
+          // The umbrella's phone row is shared with its buttons; 12px instead
+          // of 24 keeps the name on one line on a 393px phone.
+          menu.length === 0 && "max-md:gap-x-3",
+          GUTTER,
+        )}
       >
         {/* The identity never wraps: a school's name broken over two lines
             changes the height of the bar and reads as two names. Below 20rem,
             which no phone reaches unless zoomed, a one-line name would widen
-            the page past the screen, so there it wraps instead. */}
-        <a href="/" className="flex shrink-0 items-center gap-3 py-3 max-[20rem]:shrink lg:order-1">
+            the page past the screen, so there it wraps instead. The umbrella
+            on a phone wraps too, below 393px: there the choice is a two-line
+            name or a second row for its buttons, and the name costs less. */}
+        <a
+          href="/"
+          className={cn(
+            "flex shrink-0 items-center gap-3 py-3 max-[20rem]:shrink lg:order-1",
+            // `flex-1` (a zero basis), not `shrink`: the bar breaks rows by the
+            // one-line width, so only a zero basis lets the name wrap first.
+            menu.length === 0 && "max-md:flex-1",
+          )}
+        >
           <LogoSlot logo={site.logo} className="size-8 shrink-0 md:size-9.5 lg:size-10" />
-          <span className="flex flex-col gap-0.5 whitespace-nowrap max-[20rem]:whitespace-normal">
+          <span
+            className={cn(
+              "flex flex-col gap-0.5 whitespace-nowrap max-[20rem]:whitespace-normal",
+              menu.length === 0 && "max-md:whitespace-normal",
+            )}
+          >
             <span className="text-sm font-bold md:text-base">{owner.name}</span>
             {site.brandSubline && (
               <span className="text-[11px] text-muted-foreground">{site.brandSubline}</span>
@@ -165,22 +188,19 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
         <div
           className={cn(
             "order-2 shrink-0 items-center gap-2 lg:order-3",
-            // On a phone the umbrella's pair takes the row under the brand, as
-            // it sat at the foot of the sheet, and wraps rather than running
-            // off a zoomed screen.
-            menu.length > 0 ? "hidden md:flex" : "flex w-full flex-wrap pb-3 md:w-auto md:pb-0",
+            menu.length > 0 ? "hidden md:flex" : "flex",
           )}
         >
-          <ThemeSelect cookieSuffix={COOKIE_SUFFIX} />
-          <a
-            href="/pendaftaran"
-            className={cn(
-              buttonVariants({ size: "touch" }),
-              "shrink-0",
-              menu.length === 0 && "flex-1 md:flex-none",
+          <ThemeSelect cookieSuffix={COOKIE_SUFFIX} compact={menu.length === 0} />
+          <a href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "shrink-0")}>
+            {menu.length > 0 ? (
+              site.admissionCta
+            ) : (
+              <>
+                <span className="md:hidden">Daftar</span>
+                <span className="max-md:hidden">{site.admissionCta}</span>
+              </>
             )}
-          >
-            {site.admissionCta}
           </a>
         </div>
       </div>
