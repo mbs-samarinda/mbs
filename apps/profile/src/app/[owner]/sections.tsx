@@ -1187,7 +1187,7 @@ function SchoolCard({ card }: { card: Extract<Block, { kind: "schools" }>["items
   return (
     <a
       href={ownerUrl(school)}
-      className="flex flex-col overflow-hidden rounded-xl border border-border bg-background transition-colors duration-150 ease-out hover:border-primary"
+      className="flex flex-col overflow-hidden rounded-xl border border-border bg-background transition-colors duration-150 ease-[ease] hover:border-primary"
     >
       <Photo image={card.photo} label="Foto" className="aspect-43/20 w-full rounded-none!" inCard />
       <div className="flex flex-col gap-2.5 p-5">
