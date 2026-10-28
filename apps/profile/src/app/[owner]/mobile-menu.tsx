@@ -64,41 +64,37 @@ export function MobileMenu({
             than the viewport, and a fixed panel would put the action out of
             reach. */}
         {/* The apex has no menu: an empty landmark would still be announced. */}
+        {/* Block, not a flex column: in a column the links shrink below 44px
+            to fit an open group instead of the list scrolling. */}
         {items.length > 0 && (
-          <nav aria-label="Halaman" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4">
+          <nav aria-label="Halaman" className="min-h-0 flex-1 overflow-y-auto px-4">
             {items.map((item) =>
               "links" in item ? (
                 // Native disclosure: it opens with no script and announces its
-                // state. Closed by default, so the list stays as short as before.
+                // state. Closed by default, so the list stays short. The
+                // children are muted and indented rather than ruled off, so
+                // they read as part of the group without extra lines.
                 <details key={menuKey(item)} className="group">
                   <summary
                     className={cn(
-                      "flex h-11 cursor-pointer list-none items-center justify-between group-open:text-primary [&::-webkit-details-marker]:hidden",
                       NAV_LINK,
+                      "flex h-11 cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden",
                     )}
                   >
                     {item.label}
                     <ChevronDownIcon
                       aria-hidden
                       strokeWidth={1.75}
-                      className="size-5 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none"
+                      className="size-4 text-muted-foreground transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none"
                     />
                   </summary>
-                  <div className="mb-1.5 ml-0.5 flex flex-col border-l border-border pl-3.5">
-                    {/* The overview first and set apart, as in the desktop popover. */}
-                    {item.overview && (
-                      <a
-                        href={item.overview.href}
-                        className={cn("flex h-11 items-center border-b border-border", NAV_LINK)}
-                      >
-                        {item.overview.label}
-                      </a>
-                    )}
-                    {item.links.map((link) => (
+                  <div className="flex flex-col pb-1 pl-4">
+                    {/* The overview first, as in the desktop popover. */}
+                    {[...(item.overview ? [item.overview] : []), ...item.links].map((link) => (
                       <a
                         key={menuKey(link)}
                         href={link.href}
-                        className={cn("flex h-11 items-center", NAV_LINK)}
+                        className={cn(NAV_LINK, "flex h-11 items-center text-muted-foreground")}
                       >
                         {link.label}
                       </a>
@@ -119,8 +115,10 @@ export function MobileMenu({
         )}
         {/* The theme control follows the admission action rather than staying
             in the bar: below `md` the bar holds the identity alone, and a
-            second control there is one too many at the width with least room. */}
-        <div className="flex items-center gap-2 p-4">
+            second control there is one too many at the width with least room.
+            It wraps so that at 200% zoom the action drops to its own line
+            instead of running off the screen. */}
+        <div className="flex flex-wrap items-center gap-2 p-4">
           <ThemeSelect cookieSuffix={cookieSuffix} className="shrink-0" />
           <a href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "flex-1")}>
             {admissionCta}
