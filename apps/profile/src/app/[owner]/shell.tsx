@@ -119,10 +119,12 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
         className={`flex flex-wrap items-center justify-between gap-x-6 border-b border-border lg:flex-nowrap ${GUTTER}`}
       >
         {/* The identity never wraps: a school's name broken over two lines
-            changes the height of the bar and reads as two names. */}
-        <a href="/" className="flex shrink-0 items-center gap-3 py-3 lg:order-1">
+            changes the height of the bar and reads as two names. Below 20rem,
+            which no phone reaches unless zoomed, a one-line name would widen
+            the page past the screen, so there it wraps instead. */}
+        <a href="/" className="flex shrink-0 items-center gap-3 py-3 max-[20rem]:shrink lg:order-1">
           <LogoSlot logo={site.logo} className="size-8 shrink-0 md:size-9.5 lg:size-10" />
-          <span className="flex flex-col gap-0.5 whitespace-nowrap">
+          <span className="flex flex-col gap-0.5 whitespace-nowrap max-[20rem]:whitespace-normal">
             <span className="text-sm font-bold md:text-base">{owner.name}</span>
             {site.brandSubline && (
               <span className="text-[11px] text-muted-foreground">{site.brandSubline}</span>

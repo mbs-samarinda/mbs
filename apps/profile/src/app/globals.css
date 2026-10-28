@@ -144,3 +144,12 @@
    stroke !important` under `prefers-reduced-motion`, so the height transition
    drops out and the fade survives — which is the gentler variant this would
    have written by hand, and an `!important` rule would have beaten it anyway. */
+
+/* Display headings break a word only when it cannot fit on a line of its own.
+   At 200% zoom on a phone, a single word like "Ekstrakurikuler" at heading
+   size is wider than the screen, and without this the whole page scrolls
+   sideways — taking the menu's admission button partly off screen with it.
+   At normal widths no heading word is that long, so nothing changes there. */
+:is(h1, h2, h3) {
+  overflow-wrap: break-word;
+}
