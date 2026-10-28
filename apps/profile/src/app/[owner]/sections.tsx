@@ -988,7 +988,9 @@ export function BlockSection({
         <section className={SECTION}>
           <div className={`${WIDTH} flex flex-col gap-7`}>
             <SectionHeading head={block.head} />
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+            {/* One column below 20rem (200% zoom on a phone): two columns
+                there are narrower than a word like "Kewirausahaan". */}
+            <div className="grid grid-cols-2 gap-3 max-[20rem]:grid-cols-1 md:grid-cols-3 lg:grid-cols-6">
               {block.items.map((item) => {
                 // `bintang` twice, for two different holes. A row created
                 // before the field existed arrives null, since Strapi's default
