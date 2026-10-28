@@ -1,6 +1,7 @@
 "use client";
 
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@mbs/ui/components/select";
+import { cn } from "cn";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
@@ -97,7 +98,7 @@ export function ThemeSelect({
   className,
 }: {
   cookieSuffix: string;
-  /** Icon only below `md`, for a phone bar with no room for the label. */
+  /** A 44px icon square below `md`, for a phone bar with no room for the label. */
   compact?: boolean;
   className?: string;
 }) {
@@ -120,7 +121,14 @@ export function ThemeSelect({
           "Sistem" and "Gelap" are not guessable from a glyph. A compact
           trigger drops it on a phone and accepts that cost; the name still
           says the mode, and the list it opens is labelled. */}
-      <SelectTrigger size="touch" aria-label={`Tampilan: ${current.label}`} className={className}>
+      <SelectTrigger
+        size="touch"
+        aria-label={`Tampilan: ${current.label}`}
+        className={cn(
+          compact && "max-md:w-11 max-md:justify-center max-md:[&>svg:last-child]:hidden",
+          className,
+        )}
+      >
         <span className="flex items-center gap-1.5">
           <current.Icon aria-hidden className="size-4" strokeWidth={1.75} />
           <span className={compact ? "max-md:hidden" : undefined}>{current.label}</span>
