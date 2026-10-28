@@ -93,9 +93,12 @@ function readTheme(): Theme {
  */
 export function ThemeSelect({
   cookieSuffix,
+  compact = false,
   className,
 }: {
   cookieSuffix: string;
+  /** Icon only below `md`, for a phone bar with no room for the label. */
+  compact?: boolean;
   className?: string;
 }) {
   const theme = useSyncExternalStore(subscribe, readTheme, () => SERVER_THEME);
@@ -113,13 +116,14 @@ export function ThemeSelect({
 
   return (
     <Select value={theme} onValueChange={choose}>
-      {/* Labelled for assistive technology, and the visible label is the
-          current mode rather than a bare icon — "Sistem" and "Gelap" are not
-          guessable from a glyph. */}
-      <SelectTrigger size="touch" aria-label="Tampilan" className={className}>
+      {/* The visible label is the current mode rather than a bare icon —
+          "Sistem" and "Gelap" are not guessable from a glyph. A compact
+          trigger drops it on a phone and accepts that cost; the name still
+          says the mode, and the list it opens is labelled. */}
+      <SelectTrigger size="touch" aria-label={`Tampilan: ${current.label}`} className={className}>
         <span className="flex items-center gap-1.5">
           <current.Icon aria-hidden className="size-4" strokeWidth={1.75} />
-          {current.label}
+          <span className={compact ? "max-md:hidden" : undefined}>{current.label}</span>
         </span>
       </SelectTrigger>
       <SelectContent>

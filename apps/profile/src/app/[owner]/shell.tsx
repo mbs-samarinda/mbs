@@ -64,7 +64,8 @@ function LogoSlot({ logo, className }: { logo: Site["logo"]; className: string }
  * The umbrella has no navigation at all: its home is its only page, so a menu
  * there would hold one link to where the visitor already is. With no sheet to
  * carry them, its theme control and admission action stay in the bar at every
- * width.
+ * width — on a phone as an icon and a one-word "Daftar", so the pair holds one
+ * row under the brand down to 200% zoom.
  */
 export function Header({ owner, site }: { owner: Owner; site: Site }) {
   const menu = owner.subdomain ? toMenu(site.menu) : [];
@@ -166,12 +167,12 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
           className={cn(
             "order-2 shrink-0 items-center gap-2 lg:order-3",
             // On a phone the umbrella's pair takes the row under the brand, as
-            // it sat at the foot of the sheet, and wraps rather than running
-            // off a zoomed screen.
-            menu.length > 0 ? "hidden md:flex" : "flex w-full flex-wrap pb-3 md:w-auto md:pb-0",
+            // it sat at the foot of the sheet. The brand row has no room for
+            // it: the name alone is 209px of a 361px phone row.
+            menu.length > 0 ? "hidden md:flex" : "flex w-full pb-3 md:w-auto md:pb-0",
           )}
         >
-          <ThemeSelect cookieSuffix={COOKIE_SUFFIX} />
+          <ThemeSelect cookieSuffix={COOKIE_SUFFIX} compact={menu.length === 0} />
           <a
             href="/pendaftaran"
             className={cn(
@@ -180,7 +181,14 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
               menu.length === 0 && "flex-1 md:flex-none",
             )}
           >
-            {site.admissionCta}
+            {menu.length > 0 ? (
+              site.admissionCta
+            ) : (
+              <>
+                <span className="md:hidden">Daftar</span>
+                <span className="max-md:hidden">{site.admissionCta}</span>
+              </>
+            )}
           </a>
         </div>
       </div>
