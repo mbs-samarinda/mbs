@@ -40,7 +40,7 @@ test("an unknown host is refused", () => {
 // `global-not-found.tsx` only answers a URL that matches no route, so the proxy
 // has to send the apex to one.
 test("every apex path but the home is rewritten to an unclaimed path", () => {
-  const paths = ["/profil", "/kontak", "/artikel", "/artikel/berita/x", "/program", "/galeri/a"];
+  const paths = ["/profil", "/kontak", "/artikel", "/artikel/berita", "/artikel/x/y", "/galeri/a"];
   for (const path of paths) {
     const response = proxy(request("mbss.sch.id", path));
     expect(response.headers.get("x-middleware-rewrite"), path).toBe(
@@ -49,10 +49,11 @@ test("every apex path but the home is rewritten to an unclaimed path", () => {
   }
 });
 
-test("the apex keeps its home and its favicon", () => {
+test("the apex keeps its home, its favicon and its own articles", () => {
   for (const [path, rewrite] of [
     ["/", "http://mbss.sch.id/mbs"],
     ["/favicon.ico", "http://mbss.sch.id/mbs/favicon.ico"],
+    ["/artikel/opini/x", "http://mbss.sch.id/mbs/artikel/opini/x"],
   ] as const) {
     const response = proxy(request("mbss.sch.id", path));
     expect(response.headers.get("x-middleware-rewrite"), path).toBe(rewrite);

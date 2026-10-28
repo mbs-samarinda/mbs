@@ -110,8 +110,9 @@ answer separate questions.
 
 The apex, `mbss.sch.id`, is a home page and nothing else: the umbrella's
 identity, the three schools with a way into each school's site, every school's
-latest articles, and the joint cycle's dates and fees. It has no pages of its
-own and publishes no articles; every other path answers the branded 404, and
+latest articles, and the joint cycle's dates and fees. Its only other pages
+are its own articles, listed on that home beside the schools'; every other path
+answers the branded 404, and
 `/pendaftaran` redirects to the admission app so the shared "Pendaftaran
 Bersama" button works. A visitor landing there is choosing a school. Yapendis
 Nurul Haq is content on it, never the identity of it.

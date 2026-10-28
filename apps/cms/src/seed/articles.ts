@@ -1,6 +1,5 @@
 /**
- * The news and notices each school starts with. The umbrella publishes none:
- * the apex only lists the schools' articles.
+ * The news and notices each owner starts with.
  *
  * `/artikel` is one listing over three collections, so they are seeded together.
  *
@@ -35,6 +34,24 @@ export type ArticleSeed = {
 const HUMAS = (name: string) => `Humas ${name}`;
 
 export const BERITA_ENTRY_SEED: ArticleSeed[] = [
+  {
+    ownerKey: "mbs",
+    title: "Wisuda tahfiz angkatan kesembilan",
+    slug: "wisuda-tahfiz-angkatan-kesembilan",
+    summary: "Santri dari tiga sekolah menuntaskan setoran hafalan tahun ini.",
+    body: "Wisuda tahfiz angkatan kesembilan berlangsung di masjid kampus, diikuti santri dari ketiga sekolah di bawah Madina Boarding School.\n\nAcara dibuka dengan sima'an bersama, dilanjutkan penyerahan sertifikat capaian hafalan kepada tiap santri. Orang tua/wali hadir mendampingi.\n\nPembina tahfiz menyampaikan bahwa capaian tahun ini disusun dari setoran harian sepanjang tahun ajaran, bukan dari persiapan menjelang acara.",
+    attribution: "Sekretariat Yayasan",
+    daysAgo: 9,
+  },
+  {
+    ownerKey: "mbs",
+    title: "Pembangunan asrama putri tahap dua dimulai",
+    slug: "pembangunan-asrama-putri-tahap-dua",
+    summary: "Kapasitas bertambah untuk penerimaan tahun depan.",
+    body: "Pembangunan asrama putri tahap dua dimulai pekan ini di sisi timur kampus.\n\nTahap ini menambah kamar dan ruang belajar bersama, dan dikerjakan di luar jam kegiatan santri agar tidak mengganggu pelajaran.\n\nPenambahan kapasitas disiapkan untuk penerimaan tahun ajaran berikutnya.",
+    attribution: "Sekretariat Yayasan",
+    daysAgo: 21,
+  },
   {
     ownerKey: "smp",
     title: "Karya ilmiah santri masuk babak akhir lomba kota",
@@ -94,6 +111,16 @@ export const BERITA_ENTRY_SEED: ArticleSeed[] = [
 
 export const PENGUMUMAN_ENTRY_SEED: ArticleSeed[] = [
   {
+    ownerKey: "mbs",
+    title: "Jadwal libur dan layanan sekretariat",
+    slug: "jadwal-libur-layanan-sekretariat",
+    summary: "Sekretariat yayasan tutup pada tanggal merah nasional.",
+    body: "Sekretariat yayasan mengikuti tanggal merah nasional dan tutup pada hari libur.\n\nDi luar hari tersebut, layanan berjalan pada jam kerja. Pertanyaan pendaftaran tetap dijawab panitia lewat WhatsApp.",
+    attribution: "Sekretariat Yayasan",
+    daysAgo: 2,
+    expiresInDays: 45,
+  },
+  {
     ownerKey: "smp",
     title: "Perubahan jam layanan tata usaha",
     slug: "perubahan-jam-layanan-tata-usaha",
@@ -132,6 +159,16 @@ export type OpiniSeed = Omit<ArticleSeed, "attribution" | "expiresInDays" | "col
 };
 
 export const OPINI_ENTRY_SEED: OpiniSeed[] = [
+  {
+    ownerKey: "mbs",
+    title: "Mengapa asrama tetap layak dipilih",
+    slug: "mengapa-asrama-tetap-layak-dipilih",
+    summary: "Hidup bersama mengajarkan hal yang tidak muat di jadwal pelajaran.",
+    body: "Orang tua sering bertanya apakah asrama tidak terlalu cepat bagi anak usia sekolah menengah.\n\nPengalaman kami justru sebaliknya. Mengatur waktu, mengurus barang sendiri, dan hidup berdampingan dengan teman dari latar yang berbeda adalah pelajaran yang paling lama melekat.\n\nTentu tidak semua anak siap pada waktu yang sama, dan itu wajar untuk dibicarakan sejak awal.",
+    authorName: "Ahmad Fauzi",
+    authorRole: "Ketua Yayasan",
+    daysAgo: 6,
+  },
   {
     ownerKey: "smp",
     title: "Belajar fisika dari dapur asrama",

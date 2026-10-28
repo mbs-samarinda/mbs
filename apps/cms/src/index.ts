@@ -517,9 +517,7 @@ const isApexDead = (href: string) => href.startsWith("/") && href !== "/";
  * anchors an editor added stay; a footer column left with no links goes.
  *
  * The home's news section loses its "see all" link for the same reason, in both
- * the draft and the published copy. The orphaned `mbs` page rows for `/profil`,
- * `/pendaftaran`, `/kontak` and `/artikel` are left alone: deleting content is
- * not a backfill's call.
+ * the draft and the published copy.
  */
 async function backfillApexHomeOnly(strapi: Core.Strapi): Promise<boolean> {
   let changed = false;
@@ -574,6 +572,24 @@ async function backfillApexHomeOnly(strapi: Core.Strapi): Promise<boolean> {
   // The section-head write skips the document middleware, so the profile is told directly.
   if (changed) void notifyProfile(strapi);
   return changed;
+}
+
+/**
+ * Deletes the umbrella's page rows for the routes the apex no longer has. Nothing
+ * renders them, and an editor finding them in the CMS would edit a page no one
+ * can open. The umbrella's articles are not pages and stay: the apex home lists
+ * them and each keeps its own page there.
+ */
+async function deleteApexPages(strapi: Core.Strapi): Promise<boolean> {
+  const pages = await strapi.documents("api::page.page").findMany({
+    filters: { ownerKey: "mbs", slug: { $in: ["profil", "pendaftaran", "kontak", "artikel"] } },
+    fields: ["documentId"],
+  });
+
+  for (const page of pages) {
+    await strapi.documents("api::page.page").delete({ documentId: page.documentId });
+  }
+  return pages.length > 0;
 }
 
 /**
@@ -1073,6 +1089,7 @@ export default {
     // environment that has already booted.
     await backfillOnce(strapi, "umbrella-home-sections", () => backfillUmbrellaHome(strapi));
     await backfillOnce(strapi, "apex-home-only", () => backfillApexHomeOnly(strapi));
+    await backfillOnce(strapi, "apex-pages-deleted", () => deleteApexPages(strapi));
     await backfillOnce(strapi, "galeri-unduhan-editors", () =>
       grantEditorTypes(strapi, ["api::album.album", "api::berkas.berkas"]),
     );

@@ -1,16 +1,18 @@
 import { SCHOOLS } from "@mbs/school-config";
 
+import { isArticleType } from "./articles.ts";
+
 /**
  * The four owners a profile site can serve. An owner is not a school: the
- * umbrella has a home page and a palette of its own, but no other pages, no
- * admission cycle, no staff scope and no row in the schools table. `SCHOOLS`
+ * umbrella has a home page, its own articles and a palette, but no other pages,
+ * no admission cycle, no staff scope and no row in the schools table. `SCHOOLS`
  * stays the three-school list the admission side means by the word.
  */
 const UMBRELLA = {
   key: "mbs",
   name: "Madina Boarding School",
-  // `level` is the short label a school's tab and badge wear. The umbrella has
-  // neither, but keeps one so every owner has the same shape.
+  // `level` is the short label an owner's badge wears, on a school card for an
+  // umbrella article the school collaborated on. The tabs are schools only.
   level: "MBS",
   subdomain: null,
 } as const;
@@ -24,10 +26,10 @@ export type Owner = (typeof OWNERS)[number];
 const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
 
 /**
- * The paths the apex answers. The umbrella has no pages of its own: its home is
- * the front door to the three school sites, and every other page is a school's.
- * The favicon is here because the proxy rewrites it to the owner's
- * `public/<owner>/` file like any other path.
+ * The paths the apex answers: its home, and the umbrella's own articles, which
+ * its home lists beside the schools'. Every other page is a school's. The
+ * favicon is here because the proxy rewrites it to the owner's `public/<owner>/`
+ * file like any other path.
  */
 const UMBRELLA_PATHS = new Set(["/", "/favicon.ico"]);
 
@@ -43,7 +45,11 @@ const UMBRELLA_PATHS = new Set(["/", "/favicon.ico"]);
 export function ownerLacksPath(owner: Owner, pathname: string): boolean {
   // Only the umbrella lacks pages, and it is the one owner with no subdomain.
   if (owner.subdomain) return false;
-  return !UMBRELLA_PATHS.has(pathname);
+  if (UMBRELLA_PATHS.has(pathname)) return false;
+  const [, section, type, slug, ...rest] = pathname.split("/");
+  const isArticle =
+    section === "artikel" && isArticleType(type) && Boolean(slug) && rest.length === 0;
+  return !isArticle;
 }
 
 /** The public hostname an owner is served on. */
