@@ -8,7 +8,6 @@ import {
   monthsOf,
   paginate,
   PAGE_SIZE,
-  umbrellaNews,
 } from "./articles.ts";
 import type { Article } from "./cms.ts";
 
@@ -94,18 +93,6 @@ describe("filtering", () => {
       "opinion",
     ]);
   });
-
-  test("a school keeps its own articles and the collabs it joined", () => {
-    const mixed = [
-      entry("own", "2026-09-03T03:00:00Z", { ownerKey: "smp" }),
-      entry("joined", "2026-09-02T03:00:00Z", { ownerKey: "sma", collaborators: ["smp"] }),
-      entry("other", "2026-09-01T03:00:00Z", { ownerKey: "smk" }),
-    ];
-    expect(filterArticles(mixed, { school: "smp" }).map((item) => item.slug)).toEqual([
-      "own",
-      "joined",
-    ]);
-  });
 });
 
 describe("paging", () => {
@@ -143,29 +130,5 @@ describe("owner badges", () => {
 
   test("a solo article seen from another site names its owner", () => {
     expect(badgeOwners(entry("solo", "2026-09-01T00:00:00Z"), "mbs")).toEqual(["smk"]);
-  });
-});
-
-describe("the umbrella's news block", () => {
-  const school = (slug: string, day: number) =>
-    entry(slug, `2026-09-${day}T00:00:00Z`, { ownerKey: "smp" });
-  const umbrella = (slug: string, day: number) =>
-    entry(slug, `2026-09-${day}T00:00:00Z`, { ownerKey: "mbs" });
-
-  test("umbrella posts lead, up to half rounded up, then schools by date", () => {
-    const entries = [
-      school("s1", 20),
-      school("s2", 19),
-      umbrella("u1", 18),
-      school("s3", 17),
-      umbrella("u2", 16),
-      umbrella("u3", 15),
-    ];
-    expect(umbrellaNews(entries, 3).map((item) => item.slug)).toEqual(["u1", "u2", "s1"]);
-  });
-
-  test("older umbrella posts fill in when the schools run short", () => {
-    const entries = [umbrella("u1", 18), school("s1", 17), umbrella("u2", 16), umbrella("u3", 15)];
-    expect(umbrellaNews(entries, 4).map((item) => item.slug)).toEqual(["u1", "u2", "s1", "u3"]);
   });
 });

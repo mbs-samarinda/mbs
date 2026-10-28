@@ -1,4 +1,4 @@
-import { isSchoolKey, SCHOOLS, type SchoolKey } from "@mbs/school-config";
+import type { SchoolKey } from "@mbs/school-config";
 
 import {
   ARTICLE_KINDS,
@@ -26,8 +26,6 @@ import {
 export type Params = {
   type?: string | undefined;
   month?: string | undefined;
-  /** Umbrella only: a school's own site is already that school. */
-  school?: string | undefined;
   page?: string | undefined;
 };
 
@@ -46,24 +44,19 @@ export async function Listing({
   searchParams,
 }: {
   owner: Owner;
-  schoolKey: SchoolKey | undefined;
+  schoolKey: SchoolKey;
   type?: ArticleType;
   searchParams: Promise<Params>;
 }) {
-  // The umbrella's listing runs full width: it has no admission cycle of its
-  // own, and an archive beside four entries is furniture.
-  const hasSidebar = Boolean(schoolKey);
-  const [{ type, month: requested, school: requestedSchool, page }, entries] = await Promise.all([
+  const [{ type, month: requested, page }, entries] = await Promise.all([
     searchParams,
     getArticleIndex(owner.key),
   ]);
 
   const active = fixed ?? (isArticleType(type) ? type : undefined);
-  const school =
-    !schoolKey && requestedSchool && isSchoolKey(requestedSchool) ? requestedSchool : undefined;
   // The archive counts the type the visitor is looking at, so the number beside
   // a month is the number of entries that link actually renders.
-  const inType = filterArticles(entries, { type: active, school });
+  const inType = filterArticles(entries, { type: active });
   const months = monthsOf(inType);
   // A month nobody published in is dropped rather than honoured, the same way a
   // bad `?type=` and a bad `?page=` are. An arsip link whose last entry has since
@@ -75,10 +68,9 @@ export async function Listing({
   const base = fixed ? `/artikel/${fixed}` : "/artikel";
   const href = (next: Partial<Params>) => {
     const query = new URLSearchParams();
-    const merged = { type: active, month, school, ...next };
+    const merged = { type: active, month, ...next };
     if (merged.type && !fixed) query.set("type", merged.type);
     if (merged.month) query.set("month", merged.month);
-    if (merged.school) query.set("school", merged.school);
     if (merged.page && merged.page !== "1") query.set("page", merged.page);
     const search = query.toString();
     return search ? `${base}?${search}` : base;
@@ -87,16 +79,9 @@ export async function Listing({
   return (
     <section className={SECTION}>
       <div className={`${WIDTH} flex flex-col gap-6`}>
-        {/* One row: type filters left, school filters right, wrapping on narrow
-            screens. A school's type page has neither, so no row at all. */}
-        {(!fixed || !schoolKey) && (
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {!fixed && <Filter active={active} month={month} href={href} />}
-            {!schoolKey && <SchoolFilter active={school} month={month} href={href} />}
-          </div>
-        )}
+        {!fixed && <Filter active={active} month={month} href={href} />}
 
-        <div className={`flex flex-col gap-10 ${hasSidebar ? "lg:flex-row lg:gap-8" : ""}`}>
+        <div className="flex flex-col gap-10 lg:flex-row lg:gap-8">
           <div className="flex flex-1 flex-col gap-6">
             {listing.entries.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -116,12 +101,10 @@ export async function Listing({
             <Pages listing={listing} href={href} />
           </div>
 
-          {hasSidebar && (
-            <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
-              <AdmissionCardSection schoolKey={schoolKey} />
-              <Archive months={months} active={month} href={href} />
-            </div>
-          )}
+          <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
+            <AdmissionCardSection schoolKey={schoolKey} />
+            <Archive months={months} active={month} href={href} />
+          </div>
         </div>
       </div>
     </section>
@@ -172,44 +155,13 @@ const Filter = ({
         // with no entries.
         href={href({ type: value, month, page: "1" })}
         aria-current={active === value ? "page" : undefined}
-        className={pill(active === value)}
+        className={`flex min-h-11 items-center rounded-4xl border px-4 text-sm font-semibold ${
+          active === value
+            ? "border-foreground bg-foreground text-background"
+            : "border-border hover:bg-muted"
+        }`}
       >
         {value ? ARTICLE_KINDS[value] : "Semua"}
-      </a>
-    ))}
-  </nav>
-);
-
-/** One filter link. Shared so the type and school rows can never drift apart. */
-const pill = (on: boolean) =>
-  `flex min-h-11 items-center rounded-4xl border px-4 text-sm font-semibold ${
-    on ? "border-foreground bg-foreground text-background" : "border-border hover:bg-muted"
-  }`;
-
-/**
- * The umbrella's school filter, one school at a time, built like the type filter.
- *
- * It narrows this list and stays on the umbrella, so a reader comparing schools
- * never leaves the page. Cards still lead to each article's home site.
- */
-const SchoolFilter = ({
-  active,
-  month,
-  href,
-}: {
-  active: SchoolKey | undefined;
-  month: string | undefined;
-  href: (next: Partial<Params>) => string;
-}) => (
-  <nav aria-label="Saring menurut sekolah" className="flex flex-wrap gap-2">
-    {[{ key: undefined, level: "Semua sekolah" }, ...SCHOOLS].map((school) => (
-      <a
-        key={school.level}
-        href={href({ school: school.key, month, page: "1" })}
-        aria-current={active === school.key ? "page" : undefined}
-        className={pill(active === school.key)}
-      >
-        {school.level}
       </a>
     ))}
   </nav>
@@ -279,23 +231,17 @@ const Pages = ({
 // the rows reflow sideways the moment it lands, which is the shift a placeholder
 // exists to prevent. It does not animate: nothing in this system repaints
 // continuously.
-export const ListingPlaceholder = ({
-  hasSidebar,
-  hasFilters,
-}: {
-  hasSidebar: boolean;
-  hasFilters: boolean;
-}) => (
+export const ListingPlaceholder = ({ hasFilters }: { hasFilters: boolean }) => (
   <section className={SECTION}>
     <div className={`${WIDTH} flex flex-col gap-6`}>
       {hasFilters && <span className="h-11 w-80 rounded-4xl bg-muted" />}
-      <div className={`flex flex-col gap-10 ${hasSidebar ? "lg:flex-row lg:gap-8" : ""}`}>
+      <div className="flex flex-col gap-10 lg:flex-row lg:gap-8">
         <div className="flex flex-1 flex-col">
           {Array.from({ length: 5 }, (_, index) => (
             <span key={index} className="h-42 border-b border-border first:border-t" />
           ))}
         </div>
-        {hasSidebar && <span className="h-64 rounded-xl bg-muted lg:w-80 lg:shrink-0" />}
+        <span className="h-64 rounded-xl bg-muted lg:w-80 lg:shrink-0" />
       </div>
     </div>
   </section>

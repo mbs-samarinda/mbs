@@ -2,7 +2,7 @@ import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
 import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 
-import { cutExpired, umbrellaNews, type Article, type ArticleType } from "./articles.ts";
+import { cutExpired, type Article, type ArticleType } from "./articles.ts";
 import { config } from "./config/env.ts";
 import type { Owner } from "./owners.ts";
 
@@ -453,7 +453,8 @@ const withCollaborators = ({ kolaborasi, ...entry }: IndexRow) => ({
  * yet applied.
  *
  * A school lists what it owns plus what it accepted as a collaborator; the
- * umbrella lists everything, no invite needed. Accepted collaborators come
+ * umbrella lists every school's, no invite needed. A row the umbrella owns is
+ * skipped everywhere. Accepted collaborators come
  * along for the badges. A pending invite is filtered out in both places, so an
  * article a school has not agreed to never carries its name. Opini is never a
  * collab, so it is read by owner alone and without the relation it does not have.
@@ -479,10 +480,14 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
   cacheLife("hours");
   cacheTag(CMS_TAG, `articles:${ownerKey}`);
 
+  // Never an umbrella-owned row, on any site: its own page would be at the
+  // apex, which has none, so even a school's collab card would lead nowhere.
+  const notUmbrella: [string, string] = ["filters[ownerKey][$ne]", "mbs"];
   const scope: [string, string][] =
     ownerKey === "mbs"
-      ? []
+      ? [notUmbrella]
       : [
+          notUmbrella,
           ["filters[$or][0][ownerKey][$eq]", ownerKey],
           ["filters[$or][1][kolaborasi][ownerKey][$eq]", ownerKey],
           ["filters[$or][1][kolaborasi][status][$eq]", "diterima"],
@@ -494,7 +499,9 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
     ["populate[kolaborasi][filters][status][$eq]", "diterima"],
     ["populate[kolaborasi][fields][0]", "ownerKey"],
   ];
-  const own: [string, string][] = ownerKey === "mbs" ? [] : [["filters[ownerKey][$eq]", ownerKey]];
+  const own: [string, string][] = [
+    ownerKey === "mbs" ? notUmbrella : ["filters[ownerKey][$eq]", ownerKey],
+  ];
 
   /** Walks Strapi's pages until a short one says there are no more. */
   async function all<T>(collection: string, fields: [string, string][]): Promise<T[]> {
@@ -575,8 +582,7 @@ export async function getArticleIndex(ownerKey: Owner["key"]): Promise<Article[]
  * that nobody promised would be full.
  */
 export async function getArticles(ownerKey: Owner["key"], limit: number): Promise<Article[]> {
-  const entries = await getArticleIndex(ownerKey);
-  return ownerKey === "mbs" ? umbrellaNews(entries, limit) : entries.slice(0, limit);
+  return (await getArticleIndex(ownerKey)).slice(0, limit);
 }
 
 /** One article, with the parts only its own page renders. */
@@ -633,7 +639,7 @@ export async function getArticle(
  * Read backwards through `Pencapaian.berita` rather than added as a field on
  * Berita: the relation already exists in that direction, and a second one would
  * be a schema change for something a filter does. A Pengumuman can never have
- * one, which is why the panel is absent from the umbrella's article frames.
+ * one.
  */
 export async function getRelatedAchievement(
   ownerKey: Owner["key"],

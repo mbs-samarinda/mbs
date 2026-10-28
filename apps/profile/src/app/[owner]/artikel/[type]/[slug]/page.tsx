@@ -30,14 +30,15 @@ import { CopyLink } from "../../copy-link.tsx";
 
 type Params = Promise<{ owner: string; type: string; slug: string }>;
 
-/** Resolves the owner and the article together, or gives up. */
+/** Resolves the school and the article together, or gives up. Apex articles do not exist. */
 async function read(params: Params) {
   const { owner: key, type, slug } = await params;
   const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner || !isArticleType(type)) return null;
+  const school = SCHOOLS.find((candidate) => candidate.key === key);
+  if (!owner || !school || !isArticleType(type)) return null;
 
   const article = await getArticle(owner.key, type, slug);
-  return article ? { owner, article } : null;
+  return article ? { owner, school, article } : null;
 }
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
@@ -86,16 +87,12 @@ export const instant = false;
  * A slug this owner has never published is `notFound()` rather than an empty
  * article: the address is one a page owns but holds no record for, which is the
  * not-found state the page map asks every data-backed page to handle.
- *
- * The umbrella carries no "Artikel lainnya" row and no related achievement — it
- * publishes foundation-level notices, and pencapaian is a school's record.
  */
 export default async function ArticlePage({ params }: { params: Params }) {
   const found = await read(params);
   if (!found) notFound();
 
-  const { owner, article } = found;
-  const school = SCHOOLS.find((candidate) => candidate.key === owner.key);
+  const { owner, school, article } = found;
 
   return (
     <main>
@@ -114,7 +111,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
               <Suspense fallback={null}>
                 <AchievementOrAdmission
                   ownerKey={owner.key}
-                  schoolKey={school?.key}
+                  schoolKey={school.key}
                   slug={article.type === "berita" ? article.slug : null}
                 />
               </Suspense>
@@ -124,11 +121,9 @@ export default async function ArticlePage({ params }: { params: Params }) {
         </div>
       </section>
 
-      {school && (
-        <Suspense fallback={null}>
-          <MoreNews owner={owner} article={article} />
-        </Suspense>
-      )}
+      <Suspense fallback={null}>
+        <MoreNews owner={owner} article={article} />
+      </Suspense>
     </main>
   );
 }
@@ -205,9 +200,7 @@ const Head = ({ article }: { article: FullArticle }) => {
  * What sits above the share links: the achievement this article tells the story
  * of, or the admission card when there is none.
  *
- * The canvas draws a school article with a pencapaian panel and the umbrella's
- * with an admission card, which is the same slot filled by whichever the page
- * has. The relation is opt-in from the achievement's side, so most articles have
+ * One slot, filled by whichever the page has. The relation is opt-in from the achievement's side, so most articles have
  * none — and a sidebar that then held only "Bagikan" would leave the page with
  * no answer to what a reader does next.
  */
@@ -217,13 +210,11 @@ async function AchievementOrAdmission({
   slug,
 }: {
   ownerKey: Owner["key"];
-  schoolKey: SchoolKey | undefined;
+  schoolKey: SchoolKey;
   /** `null` unless the article is a Berita, the one type a pencapaian can link to. */
   slug: string | null;
 }) {
-  // Only a school publishes pencapaian.
-  const achievement: Achievement | null =
-    schoolKey && slug ? await getRelatedAchievement(ownerKey, slug) : null;
+  const achievement: Achievement | null = slug ? await getRelatedAchievement(ownerKey, slug) : null;
 
   return achievement ? (
     <AchievementPanel achievement={achievement} />

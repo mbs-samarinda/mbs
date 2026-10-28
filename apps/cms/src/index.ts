@@ -22,7 +22,7 @@ import { FASILITAS_SEED } from "./seed/fasilitas";
 import { FASILITAS_PAGE_SEED, type FasilitasSeed } from "./seed/fasilitas-page";
 import { GALERI_PAGE_SEED, UNDUHAN_PAGE_SEED, type ListingSeed } from "./seed/galeri-page";
 import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home-page";
-import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
+import { HUMAS, KONTAK_SEED, PPDB, type KontakSeed } from "./seed/kontak-page";
 import { PENCAPAIAN_SEED, type AchievementSeed } from "./seed/pencapaian";
 import { ADMISSION_SEED, type AdmissionSeed } from "./seed/pendaftaran-page";
 import { PROFIL_SEED, type ProfilSeed } from "./seed/profil-page";
@@ -51,12 +51,12 @@ const ADDRESS = "Jl. Contoh Alamat No. 00, Samarinda, Kalimantan Timur 75000";
 const LEGAL = "Yayasan Pendidikan dan Dakwah Islam Nurul Haq Samarinda";
 const PANITIA = {
   label: "Panitia Pendaftaran",
-  value: "0812 0000 0000 · WhatsApp",
-  href: "https://wa.me/628120000000",
+  value: `${PPDB.phone} · WhatsApp`,
+  href: PPDB.whatsapp,
 };
 
-// Official accounts, shown on `/kontak` only. Placeholders like every other
-// handle here: no school has confirmed which accounts are theirs.
+// Official accounts, shown on a school's `/kontak` only. Placeholders like every
+// other handle here: no school has confirmed which accounts are theirs.
 const SOCIALS = [
   { label: "Instagram", href: "https://instagram.com/" },
   { label: "YouTube", href: "https://youtube.com/" },
@@ -131,11 +131,7 @@ const schoolSite = (
   ],
   contacts: [
     PANITIA,
-    {
-      label: "Humas Sekolah",
-      value: "0812 1111 1111 · WhatsApp",
-      href: "https://wa.me/628121111111",
-    },
+    { label: "Humas Sekolah", value: `${HUMAS.phone} · WhatsApp`, href: HUMAS.whatsapp },
     {
       label: "Email",
       value: `halo@${subdomain}.mbss.sch.id`,
@@ -152,28 +148,12 @@ const OWNER_SEED = [
     brandSubline: "Samarinda",
     address: ADDRESS,
     hours: "Senin–Jumat 07.00–15.00 WITA",
-    mapsCoordinates: "-0.4669401,117.1951261",
-    socials: SOCIALS,
     legal: LEGAL,
     copyright: "© 2026 Madina Boarding School Samarinda",
-    menu: [
-      { label: "Beranda", href: "/" },
-      { label: "Profil", href: "/profil" },
-      { label: "Pendaftaran", href: "/pendaftaran" },
-      ARTIKEL_MENU,
-      { label: "Kontak", href: "/kontak" },
-    ],
-    footerColumns: [
-      {
-        heading: "Informasi",
-        links: [
-          { label: "Profil yayasan", href: "/profil" },
-          { label: "Pendaftaran bersama", href: "/pendaftaran" },
-          ...ARTIKEL_LINKS,
-          { label: "Kontak", href: "/kontak" },
-        ],
-      },
-    ],
+    // The apex has no pages besides its home, so nothing to navigate to. The
+    // school switcher and the footer's school column are built in code.
+    menu: [],
+    footerColumns: [],
     contacts: [
       PANITIA,
       { label: "Sekretariat Yayasan", value: "0541 123456", href: "tel:+62541123456" },
@@ -527,6 +507,75 @@ async function backfillSchoolLinks(strapi: Core.Strapi): Promise<boolean> {
   return changed;
 }
 
+/** A path on the apex other than its home. Absolute links and anchors are not paths. */
+const isApexDead = (href: string) => href.startsWith("/") && href !== "/";
+
+/**
+ * Strips the umbrella's links to pages the apex no longer has, on a database
+ * seeded while it still had them. The apex now serves only its home, so every
+ * other path in its menu and footer leads to the 404. Absolute links and
+ * anchors an editor added stay; a footer column left with no links goes.
+ *
+ * The home's news section loses its "see all" link for the same reason, in both
+ * the draft and the published copy. The orphaned `mbs` page rows for `/profil`,
+ * `/pendaftaran`, `/kontak` and `/artikel` are left alone: deleting content is
+ * not a backfill's call.
+ */
+async function backfillApexHomeOnly(strapi: Core.Strapi): Promise<boolean> {
+  let changed = false;
+  const site = await strapi.documents("api::site.site").findFirst({
+    filters: { ownerKey: "mbs" },
+    populate: { menu: { populate: ["links"] }, footerColumns: { populate: ["links"] } },
+  });
+
+  const allLinks = [
+    ...(site?.menu ?? []).flatMap((item) => [{ href: item.href ?? "" }, ...plain(item.links)]),
+    ...(site?.footerColumns ?? []).flatMap((column) => plain(column.links)),
+  ];
+  if (site && allLinks.some((link) => isApexDead(link.href))) {
+    const menu = (site.menu ?? [])
+      .map((item) => ({
+        label: item.label ?? "",
+        href: item.href && !isApexDead(item.href) ? item.href : undefined,
+        links: plain(item.links).filter((link) => !isApexDead(link.href)),
+      }))
+      // An item with neither a live address nor a live dropdown link goes.
+      .filter((item) => item.href || item.links.length > 0);
+    const footerColumns = (site.footerColumns ?? [])
+      .map((column) => ({
+        heading: column.heading ?? "",
+        links: plain(column.links).filter((link) => !isApexDead(link.href)),
+      }))
+      .filter((column) => column.links.length > 0);
+
+    await strapi
+      .documents("api::site.site")
+      .update({ documentId: site.documentId, data: { menu, footerColumns } });
+    changed = true;
+  }
+
+  for (const status of ["draft", "published"] as const) {
+    const home = await strapi.documents("api::page.page").findFirst({
+      filters: { ownerKey: "mbs", slug: "home" },
+      status,
+      populate: { blocks: { on: { "blocks.news": { populate: ["head"] } } } },
+    });
+
+    for (const block of home?.blocks ?? []) {
+      // oxlint-disable-next-line eslint/no-underscore-dangle
+      if (block.__component !== "blocks.news" || block.head?.linkHref !== "/artikel") continue;
+      await strapi.db
+        .query("shared.section-head")
+        .update({ where: { id: block.head.id }, data: { linkLabel: null, linkHref: null } });
+      changed = true;
+    }
+  }
+
+  // The section-head write skips the document middleware, so the profile is told directly.
+  if (changed) void notifyProfile(strapi);
+  return changed;
+}
+
 /**
  * Moves a database seeded before Opini onto the Artikel addresses.
  *
@@ -847,7 +896,10 @@ async function homeSeed(strapi: Core.Strapi, ownerKey: OwnerKey): Promise<HomeSe
  * referenced by document id, and those exist only once the records do. The
  * section closes the page, which is where the canvas draws it.
  */
-async function profilSeed(strapi: Core.Strapi, ownerKey: OwnerKey): Promise<ProfilSeed> {
+async function profilSeed(
+  strapi: Core.Strapi,
+  ownerKey: Exclude<OwnerKey, "mbs">,
+): Promise<ProfilSeed> {
   const seed = PROFIL_SEED[ownerKey];
   const pencapaian = await strapi
     .documents("api::pencapaian.pencapaian")
@@ -1003,7 +1055,6 @@ export default {
     // second branch.
     await seedPages(strapi, "home", await homeSeeds(strapi));
     await seedPages(strapi, "profil", {
-      mbs: await profilSeed(strapi, "mbs"),
       smp: await profilSeed(strapi, "smp"),
       smk: await profilSeed(strapi, "smk"),
       sma: await profilSeed(strapi, "sma"),
@@ -1021,6 +1072,7 @@ export default {
     // when missing, so a section added to a seed later needs this to reach an
     // environment that has already booted.
     await backfillOnce(strapi, "umbrella-home-sections", () => backfillUmbrellaHome(strapi));
+    await backfillOnce(strapi, "apex-home-only", () => backfillApexHomeOnly(strapi));
     await backfillOnce(strapi, "galeri-unduhan-editors", () =>
       grantEditorTypes(strapi, ["api::album.album", "api::berkas.berkas"]),
     );

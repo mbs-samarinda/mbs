@@ -176,7 +176,13 @@ export const HOME_SEED: Record<OwnerKey, HomeSeed> = {
           { label: "Lokasi", value: "Samarinda, Kalimantan Timur" },
         ],
       },
-      news("Kabar dari ketiga sekolah, terbaru lebih dulu."),
+      {
+        // No "see all" link: the apex has no article listing. Each card leads to
+        // its article on the school's own site.
+        __component: "blocks.news",
+        head: { heading: "Artikel", description: "Kabar dari ketiga sekolah, terbaru lebih dulu." },
+        limit: 3,
+      },
     ],
   },
   smp: schoolHome(

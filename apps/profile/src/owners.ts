@@ -2,15 +2,15 @@ import { SCHOOLS } from "@mbs/school-config";
 
 /**
  * The four owners a profile site can serve. An owner is not a school: the
- * umbrella has a site, a palette and content of its own, but no admission
- * cycle, no staff scope and no row in the schools table. `SCHOOLS` stays the
- * three-school list the admission side means by the word.
+ * umbrella has a home page and a palette of its own, but no other pages, no
+ * admission cycle, no staff scope and no row in the schools table. `SCHOOLS`
+ * stays the three-school list the admission side means by the word.
  */
 const UMBRELLA = {
   key: "mbs",
   name: "Madina Boarding School",
-  // `level` is the school switcher's tab label. The umbrella has no jenjang, so
-  // it wears its own key — which is what the tabs read on the canvas.
+  // `level` is the short label a school's tab and badge wear. The umbrella has
+  // neither, but keeps one so every owner has the same shape.
   level: "MBS",
   subdomain: null,
 } as const;
@@ -24,15 +24,12 @@ export type Owner = (typeof OWNERS)[number];
 const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
 
 /**
- * The paths only the schools own. The umbrella teaches no classes, lists no
- * activities and keeps no photographs or files of its own, so it has no page at any of them: its navigation carries no entry
- * for one and the CMS seeds it no row.
- *
- * A path no route file claims already answers `global-not-found.tsx` on its
- * own; a path listed here is one a route *does* claim, which the apex has to be
- * steered away from.
+ * The paths the apex answers. The umbrella has no pages of its own: its home is
+ * the front door to the three school sites, and every other page is a school's.
+ * The favicon is here because the proxy rewrites it to the owner's
+ * `public/<owner>/` file like any other path.
  */
-const SCHOOL_ONLY = ["/program", "/ekstrakurikuler", "/fasilitas", "/galeri", "/unduhan"] as const;
+const UMBRELLA_PATHS = new Set(["/", "/favicon.ico"]);
 
 /**
  * Whether this owner has no page at this path.
@@ -44,9 +41,9 @@ const SCHOOL_ONLY = ["/program", "/ekstrakurikuler", "/fasilitas", "/galeri", "/
  * URL that matches no route at all, so the apex has to be sent to one.
  */
 export function ownerLacksPath(owner: Owner, pathname: string): boolean {
-  // Only the umbrella lacks these, and it is the one owner with no subdomain.
+  // Only the umbrella lacks pages, and it is the one owner with no subdomain.
   if (owner.subdomain) return false;
-  return SCHOOL_ONLY.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  return !UMBRELLA_PATHS.has(pathname);
 }
 
 /** The public hostname an owner is served on. */

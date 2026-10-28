@@ -41,17 +41,15 @@ export default async function TypePage({
 }) {
   const { owner: key, type } = await params;
   const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner || !isArticleType(type)) notFound();
-
-  const school = SCHOOLS.find((candidate) => candidate.key === owner.key);
+  const school = SCHOOLS.find((candidate) => candidate.key === key);
+  if (!owner || !school || !isArticleType(type)) notFound();
 
   return (
     <main>
       <PageHead heading={ARTICLE_KINDS[type]} body={LEAD[type]} />
 
-      {/* Only the umbrella keeps a filter row here, for its school chips. */}
-      <Suspense fallback={<ListingPlaceholder hasSidebar={Boolean(school)} hasFilters={!school} />}>
-        <Listing owner={owner} schoolKey={school?.key} type={type} searchParams={searchParams} />
+      <Suspense fallback={<ListingPlaceholder hasFilters={false} />}>
+        <Listing owner={owner} schoolKey={school.key} type={type} searchParams={searchParams} />
       </Suspense>
     </main>
   );

@@ -108,15 +108,13 @@ contact details, whether admission is open, and how to start. School pages are
 jurusan; `ekstrakurikuler` is activities. They are separate pages because they
 answer separate questions.
 
-The apex, `mbss.sch.id`, is the umbrella site: identity, the three schools, and
-the joint admission campaign. It is not a fourth school profile, so it carries
-no program, facilities, activities, staff or achievements — a visitor landing
-there is choosing a school. A route only the schools own answers 404 at the
-apex rather than rendering an empty page: its navigation carries no entry for
-one and the CMS seeds it no row. Yapendis Nurul Haq is content on it, never the
-identity of it. Its admission page reads every school's facts through
-`public.admission.getCurrentCycle`, once per school; the cycle is one shared row
-so the answers cannot disagree.
+The apex, `mbss.sch.id`, is a home page and nothing else: the umbrella's
+identity, the three schools with a way into each school's site, every school's
+latest articles, and the joint cycle's dates and fees. It has no pages of its
+own and publishes no articles; every other path answers the branded 404, and
+`/pendaftaran` redirects to the admission app so the shared "Pendaftaran
+Bersama" button works. A visitor landing there is choosing a school. Yapendis
+Nurul Haq is content on it, never the identity of it.
 
 `/artikel` lists three content types, Berita, Pengumuman and Opini, each with a
 visible type label; each type also has its own listing at `/artikel/<type>`, and
@@ -335,8 +333,8 @@ Each owner's `<title>` and description are its own, from `generateMetadata` in
 the same layout that already resolved the owner, so the pages stay static. The
 description is a placeholder until the CMS owns SEO defaults.
 
-An owner is not a school. The umbrella has a site, a palette and content but no
-admission cycle, no staff scope and no row in the schools table, so `OWNERS`
+An owner is not a school. The umbrella has a home page and a palette but no
+other pages, no admission cycle, no staff scope and no row in the schools table, so `OWNERS`
 lives in `apps/profile` and `SCHOOLS` stays the three-school list the admission
 side means by the word. `schoolFromHostname` is gone; owner resolution replaced
 its only caller, and an unknown host resolves to nobody rather than falling

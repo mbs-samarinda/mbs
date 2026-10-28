@@ -356,8 +356,8 @@ const BandFact = ({ label, children }: { label: string; children: ReactNode }) =
 /**
  * The band, with the live facts streamed in behind it.
  *
- * The umbrella takes no applications of its own, so its band carries no cycle
- * and sends a visitor to the joint campaign page instead.
+ * The umbrella takes no applications of its own, so its band carries no cycle.
+ * Its `/pendaftaran` link is sent on to the admission app by the proxy.
  */
 export function AdmissionBandSection({
   schoolKey,
@@ -401,8 +401,7 @@ async function LiveAdmissionTable({ description }: { description: string | null 
  *
  * Four columns, not the five the frame draws. The fifth is *Biaya pendaftaran*,
  * Rp 250.000 — and no registration fee exists anywhere in `packages/db` or the
- * contract. It is invented placeholder copy, the umbrella `/pendaftaran` table
- * already ships without it, and printing a number to make a layout match is the
+ * contract. It is invented placeholder copy, and printing a number to make a layout match is the
  * failure §5 forbids. If the schools do charge one, it needs a schema change
  * first.
  */
@@ -430,8 +429,10 @@ function AdmissionTable({
             description: unavailable
               ? "Status, tanggal, dan biaya dibaca dari sistem pendaftaran dan sedang tidak dapat dihubungi. Kami tidak menampilkan tanggal lama."
               : description,
-            linkLabel: "Buka halaman pendaftaran",
-            linkHref: "/pendaftaran",
+            // No link: the apex has no admission page, and its buttons above
+            // and below already lead to the admission app.
+            linkLabel: null,
+            linkHref: null,
           }}
         />
 
@@ -1244,13 +1245,7 @@ async function SchoolStatus({ schoolKey }: { schoolKey: SchoolKey }) {
  * Status never rides on colour alone either: the badge carries the word, so
  * "Ditutup" reads the same to someone who cannot tell the two fills apart.
  */
-export function SchoolStatusBadge({
-  facts,
-  className,
-}: {
-  facts: CycleFacts | null;
-  className?: string;
-}) {
+function SchoolStatusBadge({ facts, className }: { facts: CycleFacts | null; className?: string }) {
   if (facts === null)
     return <span className={`block h-5 w-20 rounded-4xl bg-muted ${className ?? ""}`} />;
   if (facts.state === "unavailable")

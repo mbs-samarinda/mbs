@@ -1,5 +1,5 @@
 /**
- * The `/artikel` page row each owner starts with.
+ * The `/artikel` page row each school starts with.
  *
  * It carries no blocks. The listing itself — the type filter, the entries, the
  * archive, the admission card — is drawn by the page from the Berita,
@@ -17,8 +17,8 @@ import type { OwnerKey } from "./home-page";
 
 export type ArtikelSeed = { title: string };
 
-export const ARTIKEL_SEED: Record<OwnerKey, ArtikelSeed> = {
-  mbs: { title: "Artikel Madina Boarding School" },
+// Schools only: the apex has no such page.
+export const ARTIKEL_SEED: Partial<Record<OwnerKey, ArtikelSeed>> = {
   smp: { title: "Artikel SMP Islam Terpadu Madina" },
   smk: { title: "Artikel SMK Terpadu Madina" },
   sma: { title: "Artikel SMA Madina Citra Insani" },

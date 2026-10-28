@@ -1,15 +1,13 @@
 /**
- * The blocks each owner's `/profil` page starts with.
+ * The blocks each school's `/profil` page starts with.
  *
- * The page map gives this route four jobs on a school — identity, history,
- * values, leadership — and three at the apex, where "history" is the yayasan's
- * and the middle one is the structure behind the name. Each is its own block so
- * an editor can reorder or drop one; none of them is code.
+ * The page map gives this route four jobs — identity, history, values,
+ * leadership. Each is its own block so an editor can reorder or drop one; none
+ * of them is code.
  *
  * Every string is a placeholder with the right shape, like the rest of the
- * seeds. Two exceptions state something real because they are facts about the
- * organisation rather than about a school's daily life: the legal name of the
- * yayasan and the three layers under it. Both already appear in the brand guide.
+ * seeds. The legal name of the yayasan is the exception: it is a fact about the
+ * organisation, and it already appears in the brand guide.
  *
  * Pencapaian is not here. It is a relation, stored by document id, so its
  * section is built at boot in `index.ts` from whatever records the owner has —
@@ -102,47 +100,8 @@ const schoolProfil = (name: string, jenjang: string, kelas: string, lead: string
   ],
 });
 
-export const PROFIL_SEED: Record<OwnerKey, ProfilSeed> = {
-  mbs: {
-    title: "Profil Madina Boarding School",
-    blocks: [
-      {
-        __component: "blocks.facts",
-        heading: YAYASAN,
-        body: `Yayasan berdiri di Samarinda dan bergerak di pendidikan dan dakwah. Madina Boarding School adalah nama publik untuk sekolah-sekolah yang dinaunginya.\n\nMadina Boarding School bukan sekolah keempat. Ia payung bagi SMP Islam Terpadu Madina, SMK Terpadu Madina, dan SMA Madina Citra Insani.`,
-        items: [
-          { label: "Nama legal", value: YAYASAN },
-          { label: "Nama publik", value: "Madina Boarding School Samarinda" },
-          { label: "Berdiri", value: "2008" },
-          { label: "Alamat", value: ALAMAT },
-        ],
-      },
-      {
-        __component: "blocks.layers",
-        head: {
-          heading: "Struktur",
-          description: "Tiga lapis identitas: yayasan, payung, lalu sekolah.",
-        },
-        items: [
-          { title: YAYASAN, description: "Identitas legal dan organisasi." },
-          {
-            title: "Madina Boarding School",
-            description: "Payung publik untuk sekolah dan kampanye pendaftaran bersama.",
-          },
-          {
-            title: "SMP IT Madina · SMK Terpadu Madina · SMA MCI",
-            description: "Tiap sekolah memimpin situs dan kegiatannya sendiri.",
-          },
-        ],
-      },
-      timeline("Perjalanan singkat", "Ditulis administrator konten yayasan.", [
-        [2008, "Yayasan berdiri dan membuka pesantren putra pertama."],
-        [2012, "SMP Islam Terpadu Madina menerima angkatan pertama."],
-        [2014, "SMK Terpadu Madina berdiri."],
-        [2019, "SMA Madina Citra Insani melengkapi tiga jenjang."],
-      ]),
-    ],
-  },
+// Schools only: the apex has no `/profil`.
+export const PROFIL_SEED: Record<Exclude<OwnerKey, "mbs">, ProfilSeed> = {
   smp: schoolProfil(
     "SMP Islam Terpadu Madina",
     "SMP",

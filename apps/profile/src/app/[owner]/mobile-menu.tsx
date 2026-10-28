@@ -63,57 +63,60 @@ export function MobileMenu({
             200% zoom on a phone, eight rows and the admission action are taller
             than the viewport, and a fixed panel would put the action out of
             reach. */}
-        <nav aria-label="Halaman" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4">
-          {items.map((item) =>
-            "links" in item ? (
-              // Native disclosure: it opens with no script and announces its
-              // state. Closed by default, so the list stays as short as before.
-              <details key={menuKey(item)} className="group">
-                <summary
-                  className={cn(
-                    "flex h-11 cursor-pointer list-none items-center justify-between group-open:text-primary [&::-webkit-details-marker]:hidden",
-                    NAV_LINK,
-                  )}
+        {/* The apex has no menu: an empty landmark would still be announced. */}
+        {items.length > 0 && (
+          <nav aria-label="Halaman" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4">
+            {items.map((item) =>
+              "links" in item ? (
+                // Native disclosure: it opens with no script and announces its
+                // state. Closed by default, so the list stays as short as before.
+                <details key={menuKey(item)} className="group">
+                  <summary
+                    className={cn(
+                      "flex h-11 cursor-pointer list-none items-center justify-between group-open:text-primary [&::-webkit-details-marker]:hidden",
+                      NAV_LINK,
+                    )}
+                  >
+                    {item.label}
+                    <ChevronDownIcon
+                      aria-hidden
+                      strokeWidth={1.75}
+                      className="size-5 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none"
+                    />
+                  </summary>
+                  <div className="mb-1.5 ml-0.5 flex flex-col border-l border-border pl-3.5">
+                    {/* The overview first and set apart, as in the desktop popover. */}
+                    {item.overview && (
+                      <a
+                        href={item.overview.href}
+                        className={cn("flex h-11 items-center border-b border-border", NAV_LINK)}
+                      >
+                        {item.overview.label}
+                      </a>
+                    )}
+                    {item.links.map((link) => (
+                      <a
+                        key={menuKey(link)}
+                        href={link.href}
+                        className={cn("flex h-11 items-center", NAV_LINK)}
+                      >
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                </details>
+              ) : (
+                <a
+                  key={menuKey(item)}
+                  href={item.href}
+                  className={cn("flex h-11 items-center", NAV_LINK)}
                 >
                   {item.label}
-                  <ChevronDownIcon
-                    aria-hidden
-                    strokeWidth={1.75}
-                    className="size-5 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none"
-                  />
-                </summary>
-                <div className="mb-1.5 ml-0.5 flex flex-col border-l border-border pl-3.5">
-                  {/* The overview first and set apart, as in the desktop popover. */}
-                  {item.overview && (
-                    <a
-                      href={item.overview.href}
-                      className={cn("flex h-11 items-center border-b border-border", NAV_LINK)}
-                    >
-                      {item.overview.label}
-                    </a>
-                  )}
-                  {item.links.map((link) => (
-                    <a
-                      key={menuKey(link)}
-                      href={link.href}
-                      className={cn("flex h-11 items-center", NAV_LINK)}
-                    >
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              </details>
-            ) : (
-              <a
-                key={menuKey(item)}
-                href={item.href}
-                className={cn("flex h-11 items-center", NAV_LINK)}
-              >
-                {item.label}
-              </a>
-            ),
-          )}
-        </nav>
+                </a>
+              ),
+            )}
+          </nav>
+        )}
         {/* The theme control follows the admission action rather than staying
             in the bar: below `md` the bar holds the identity alone, and a
             second control there is one too many at the width with least room. */}

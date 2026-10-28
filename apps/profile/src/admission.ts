@@ -70,18 +70,6 @@ export async function getCycleFacts(schoolKey: SchoolKey): Promise<CycleFacts> {
 export const isOpen = (cycle: PublicCycle) => cycle.status === "OPEN" && cycle.isEnabled;
 
 /**
- * Whether any school is taking applications right now.
- *
- * The umbrella asks this, and it cannot read one school's answer for all three:
- * the cycle's `status` is global, but `isEnabled` is that school's own settings
- * row, so a school joined-but-disabled still returns a cycle. Reading the first
- * school would disable the joint CTA while the table under it says two schools
- * are open.
- */
-export const anySchoolOpen = (facts: readonly CycleFacts[]) =>
-  facts.some((entry) => entry.state === "cycle" && isOpen(entry.cycle));
-
-/**
  * What a family reads on the page for each document type the committee set.
  *
  * The list is closed in the database, so this map is exhaustive by type rather

@@ -1,9 +1,10 @@
+import { SCHOOLS } from "@mbs/school-config";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
 import Image from "next/image";
 
 import { mediaUrl, type Site } from "../../cms.ts";
-import { OWNERS, ownerUrl, type Owner } from "../../owners.ts";
+import { ownerUrl, type Owner } from "../../owners.ts";
 import { MobileMenu } from "./mobile-menu.tsx";
 import { toMenu } from "./nav-link.ts";
 import { NavScroller } from "./nav-scroller.tsx";
@@ -72,8 +73,10 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
       <div
         className={`flex items-center justify-between gap-4 border-b border-border bg-muted ${GUTTER}`}
       >
+        {/* Schools only: the apex is a front door, not a site of its own, so on
+            it no tab is current. */}
         <nav aria-label="Situs MBSS" className="flex items-center gap-0.5">
-          {OWNERS.map((candidate) => {
+          {SCHOOLS.map((candidate) => {
             const current = candidate.key === owner.key;
             return (
               <a
@@ -134,15 +137,17 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
           cookieSuffix={COOKIE_SUFFIX}
         />
 
-        <NavScroller
-          items={menu}
-          // The tablet row is its own 44px-tall band, so an arrow sitting over
-          // it has somewhere to be. On a desktop page the row is inline and the
-          // 76px main bar gives the arrow its height instead. No rule between
-          // the two rows: they are one header, and the bar's own bottom border
-          // already closes it.
-          className="order-3 hidden w-full py-3 md:flex lg:order-2 lg:w-auto lg:min-w-0 lg:flex-1 lg:py-0"
-        />
+        {menu.length > 0 && (
+          <NavScroller
+            items={menu}
+            // The tablet row is its own 44px-tall band, so an arrow sitting over
+            // it has somewhere to be. On a desktop page the row is inline and the
+            // 76px main bar gives the arrow its height instead. No rule between
+            // the two rows: they are one header, and the bar's own bottom border
+            // already closes it.
+            className="order-3 hidden w-full py-3 md:flex lg:order-2 lg:w-auto lg:min-w-0 lg:flex-1 lg:py-0"
+          />
+        )}
 
         {/* The wrapper itself is hidden below `md`, not just its children: an
             empty flex item still takes a slot, and `justify-between` would hand
@@ -176,7 +181,7 @@ export function Footer({ owner, site }: { owner: Owner; site: Site }) {
       ? [
           {
             heading: "Sekolah",
-            links: OWNERS.filter((candidate) => candidate.subdomain).map((school) => ({
+            links: SCHOOLS.map((school) => ({
               label: school.name,
               href: ownerUrl(school),
             })),

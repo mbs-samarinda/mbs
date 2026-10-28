@@ -1,4 +1,4 @@
-import { SCHOOLS, type School, type SchoolKey } from "@mbs/school-config";
+import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
 import { Badge } from "@mbs/ui/components/badge";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
@@ -7,21 +7,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import {
-  anySchoolOpen,
-  getCycleFacts,
-  isOpen,
-  splitDocuments,
-  type CycleFacts,
-} from "../../../admission.ts";
+import { getCycleFacts, isOpen, splitDocuments, type CycleFacts } from "../../../admission.ts";
 import { getPage, getSite, type Block, type Site } from "../../../cms.ts";
-import { OWNERS, admissionUrl } from "../../../owners.ts";
+import { admissionUrl } from "../../../owners.ts";
 import {
   Fact,
   FactStrip,
   PageHead,
   SECTION,
-  SchoolStatusBadge,
   SectionHeading,
   WIDTH,
   formatDate,
@@ -34,10 +27,10 @@ export async function generateMetadata({
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
   const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) return {};
+  const school = SCHOOLS.find((candidate) => candidate.key === key);
+  if (!school) return {};
 
-  const page = await getPage(owner.key, "pendaftaran");
+  const page = await getPage(school.key, "pendaftaran");
   return {
     title: page?.seo?.metaTitle ?? "Pendaftaran",
     description: page?.seo?.metaDescription ?? undefined,
@@ -45,47 +38,21 @@ export async function generateMetadata({
 }
 
 /**
- * The admission page, for a school and for the umbrella.
- *
- * Both read the same live cycle facts; they differ in how many. A school asks
- * about itself, the umbrella asks about all three — one shared cycle row per
- * intake, so the three answers cannot disagree about dates, only about fee and
- * whether that school joined.
+ * The admission page, on a school site only. The apex sends `/pendaftaran` to
+ * the admission app in the proxy, so it never renders this.
  *
  * The page never renders a date it did not just read. Editors own the words
  * around the facts — the FAQ and any extra text block — and nothing else here.
  */
 export default async function AdmissionPage({ params }: { params: Promise<{ owner: string }> }) {
   const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) notFound();
+  const school = SCHOOLS.find((candidate) => candidate.key === key);
+  if (!school) notFound();
 
-  const [site, page] = await Promise.all([getSite(owner.key), getPage(owner.key, "pendaftaran")]);
-  const school = SCHOOLS.find((candidate) => candidate.key === owner.key);
-  const blocks = page?.blocks ?? [];
+  const [site, page] = await Promise.all([getSite(school.key), getPage(school.key, "pendaftaran")]);
 
   return (
     <main>
-      {school ? (
-        <SchoolAdmission school={school} site={site} blocks={blocks} />
-      ) : (
-        <UmbrellaAdmission site={site} blocks={blocks} />
-      )}
-    </main>
-  );
-}
-
-function SchoolAdmission({
-  school,
-  site,
-  blocks,
-}: {
-  school: School;
-  site: Site;
-  blocks: readonly Block[];
-}) {
-  return (
-    <>
       <PageHead
         heading="Pendaftaran santri baru"
         body="Tanggal, biaya, dan syarat di halaman ini dibaca langsung dari sistem pendaftaran."
@@ -96,37 +63,13 @@ function SchoolAdmission({
       <Suspense fallback={<StatusPanel facts={null} admissionCta={site.admissionCta} />}>
         <LiveStatus schoolKey={school.key} admissionCta={site.admissionCta} />
       </Suspense>
-      <Steps
-        steps={SCHOOL_STEPS}
-        heading="Alur pendaftaran"
-        description="Lima langkah. Data yang sudah diisi tidak hilang bila berhenti di tengah jalan."
-      />
+      <Steps />
       <Suspense fallback={<DocumentsSection facts={null} />}>
         <Documents schoolKey={school.key} />
       </Suspense>
-      <EditorBlocks blocks={blocks} />
+      <EditorBlocks blocks={page?.blocks ?? []} />
       <Contacts site={site} />
-    </>
-  );
-}
-
-function UmbrellaAdmission({ site, blocks }: { site: Site; blocks: readonly Block[] }) {
-  return (
-    <>
-      <PageHead
-        heading="Pendaftaran bersama"
-        body="Satu siklus, tiga sekolah. Semua angka di halaman ini dibaca dari sistem pendaftaran."
-      />
-      <Suspense fallback={<UmbrellaStatus facts={null} admissionCta={site.admissionCta} />}>
-        <LiveUmbrellaStatus admissionCta={site.admissionCta} />
-      </Suspense>
-      <Steps
-        steps={UMBRELLA_STEPS}
-        heading="Cara mendaftar"
-        description="Sama untuk ketiga sekolah. Sekolah dipilih di langkah pertama."
-      />
-      <EditorBlocks blocks={blocks} />
-    </>
+    </main>
   );
 }
 
@@ -226,7 +169,7 @@ type ActionState = "loading" | "open" | "closed" | "unknown";
 
 function Actions({ state, admissionCta }: { state: ActionState; admissionCta: string }) {
   return (
-    // `shrink-0` because both callers put this beside a `lg:max-w-[65ch]` copy
+    // `shrink-0` because the status panel puts this beside a `lg:max-w-[65ch]` copy
     // column in a `lg:flex-row` row. Without it the row squeezes this box below
     // its content width and `flex-wrap` does as it is told, stacking the two
     // buttons on a 1440 page where the canvas draws them side by side (`bh1UE`,
@@ -369,28 +312,20 @@ const SCHOOL_STEPS = [
   ["Kirim", "Kirim aplikasi, lalu ikuti wawancara."],
 ] as const;
 
-const UMBRELLA_STEPS = [
-  ["Pilih sekolah", "Tentukan SMP, SMK, atau SMA lalu isi data anak."],
-  ["Masuk akun", "Google atau kode dari email. Satu akun untuk beberapa anak."],
-  ["Lengkapi berkas", "Unggah dokumen yang diminta panitia sekolah."],
-  ["Bayar", "Pembayaran lewat Midtrans; status dibaca dari sistem."],
-  ["Kirim", "Kirim aplikasi lalu ikuti jadwal wawancara."],
-] as const;
-
-const Steps = ({
-  steps,
-  heading,
-  description,
-}: {
-  steps: readonly (readonly [string, string])[];
-  heading: string;
-  description: string;
-}) => (
+const Steps = () => (
   <section className={SECTION}>
     <div className={`${WIDTH} flex flex-col gap-7`}>
-      <SectionHeading head={{ heading, description, linkLabel: null, linkHref: null }} />
+      <SectionHeading
+        head={{
+          heading: "Alur pendaftaran",
+          description:
+            "Lima langkah. Data yang sudah diisi tidak hilang bila berhenti di tengah jalan.",
+          linkLabel: null,
+          linkHref: null,
+        }}
+      />
       <ol className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        {steps.map(([title, body], index) => (
+        {SCHOOL_STEPS.map(([title, body], index) => (
           <li key={title} className="flex flex-col gap-2 rounded-xl border border-border p-4">
             <span className="bg-surface-brand flex size-7 items-center justify-center rounded-4xl text-[13px] font-bold tabular-nums">
               {index + 1}
@@ -403,141 +338,6 @@ const Steps = ({
     </div>
   </section>
 );
-
-async function LiveUmbrellaStatus({ admissionCta }: { admissionCta: string }) {
-  // One call per school, three times. There is no multi-school endpoint and
-  // asking for one would be asking three answers to agree when they already
-  // cannot disagree: the cycle row they read is shared.
-  const facts = await Promise.all(SCHOOLS.map((school) => getCycleFacts(school.key)));
-  return <UmbrellaStatus facts={facts} admissionCta={admissionCta} />;
-}
-
-/**
- * Every school's cycle, as a table on a desktop page and as one card per school
- * below it. Six columns do not fit 834px, and a squeezed table is how a parent
- * reads the wrong school's closing date.
- */
-function UmbrellaStatus({
-  facts,
-  admissionCta,
-}: {
-  facts: readonly CycleFacts[] | null;
-  admissionCta: string;
-}) {
-  const rows = facts
-    ? SCHOOLS.map((school, index) => ({ school, facts: facts[index]! }))
-    : SCHOOLS.map((school) => ({ school, facts: null }));
-
-  // Whichever school answers, it answers with the same cycle: membership is
-  // implicit in the database, so a cycle no longer depends on a settings row and
-  // the three schools cannot land on different ones. The banner can take the
-  // first answer it gets. The table still speaks per school for fee and status,
-  // which do differ.
-  const cycle =
-    (facts ?? []).flatMap((entry) => (entry.state === "cycle" ? [entry.cycle] : []))[0] ?? null;
-  const unavailable = facts?.every((entry) => entry.state === "unavailable") ?? false;
-
-  return (
-    <section className={SECTION}>
-      <div className={`${WIDTH} flex flex-col gap-6`}>
-        <div className="flex flex-col gap-5 rounded-xl border border-border p-6 md:p-8 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex flex-col gap-2 lg:max-w-[65ch]">
-            <h2 className="text-2xl font-bold text-balance">
-              {cycle ? `Pendaftaran bersama ${cycle.name}` : "Pendaftaran bersama"}
-            </h2>
-            <p className="text-sm text-pretty text-muted-foreground">
-              {unavailable
-                ? "Status, tanggal, dan biaya dibaca dari sistem pendaftaran dan sedang tidak dapat dihubungi. Kami tidak menampilkan tanggal lama."
-                : cycle
-                  ? `Hasil diumumkan serentak ${formatDate(cycle.resultPublishAt)} untuk ketiga sekolah.`
-                  : "Jadwal pendaftaran berikutnya diumumkan di halaman ini."}
-            </p>
-          </div>
-          <Actions
-            state={
-              facts === null
-                ? "loading"
-                : unavailable
-                  ? "unknown"
-                  : anySchoolOpen(facts)
-                    ? "open"
-                    : "closed"
-            }
-            admissionCta={admissionCta}
-          />
-        </div>
-
-        <div className="hidden lg:block">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-muted text-left">
-                {["Sekolah", "Status", "Dibuka", "Ditutup", "Biaya sekolah"].map((column) => (
-                  <th
-                    key={column}
-                    className="px-4 py-3 text-xs font-bold tracking-wide text-muted-foreground uppercase"
-                  >
-                    {column}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ school, facts: entry }) => {
-                const row = entry?.state === "cycle" ? entry.cycle : null;
-                return (
-                  <tr key={school.key} className="border-b border-border">
-                    <th scope="row" className="px-4 py-4 text-left font-semibold">
-                      {school.name}
-                    </th>
-                    <td className="px-4 py-4">
-                      <SchoolStatusBadge facts={entry} />
-                    </td>
-                    <td className="px-4 py-4 tabular-nums">
-                      {row ? formatDate(row.registrationOpenAt) : "—"}
-                    </td>
-                    <td className="px-4 py-4 tabular-nums">
-                      {row ? formatDate(row.registrationCloseAt) : "—"}
-                    </td>
-                    <td className="px-4 py-4 tabular-nums">
-                      {row ? formatFee(row.effectiveFee) : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:hidden">
-          {rows.map(({ school, facts: entry }) => {
-            const row = entry?.state === "cycle" ? entry.cycle : null;
-            return (
-              <article
-                key={school.key}
-                className="flex flex-col gap-3 rounded-xl border border-border p-4"
-              >
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <SchoolStatusBadge facts={entry} />
-                  {row && (
-                    <span className="text-[13px] text-muted-foreground tabular-nums">
-                      {formatDate(row.registrationOpenAt)} – {formatDate(row.registrationCloseAt)}
-                    </span>
-                  )}
-                </div>
-                <h3 className="text-[17px] font-bold text-pretty">{school.name}</h3>
-                {row && (
-                  <FactStrip>
-                    <Fact label="Biaya sekolah">{formatFee(row.effectiveFee)}</Fact>
-                  </FactStrip>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
 
 /**
  * What an editor owns on this page: the FAQ, and any extra prose. Every other
