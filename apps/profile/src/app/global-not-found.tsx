@@ -53,7 +53,15 @@ export default async function GlobalNotFound() {
           kind="not-found"
           code="404"
           title={owner ? `Halaman ini tidak ada di situs ${owner.name}` : "Halaman ini tidak ada"}
-          body="Tautannya mungkin sudah berubah. Coba mulai dari beranda, atau tanyakan langsung kepada panitia."
+          // Only a school's page offers a contact button. The apex points at the
+          // school tabs in its header; an unknown host has no header at all.
+          body={
+            owner?.subdomain
+              ? "Tautannya mungkin sudah berubah. Coba mulai dari beranda, atau tanyakan langsung kepada panitia."
+              : owner
+                ? "Tautannya mungkin sudah berubah. Coba mulai dari beranda, atau pilih sekolah di atas."
+                : "Tautannya mungkin sudah berubah. Coba mulai dari beranda."
+          }
           owner={owner}
         />
         {owner && site && <Footer owner={owner} site={site} />}

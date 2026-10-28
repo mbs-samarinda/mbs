@@ -103,7 +103,9 @@ export async function Listing({
     <section id={schoolKey ? undefined : "artikel"} className={`${SECTION} scroll-mt-28`}>
       <div className={`${WIDTH} flex flex-col gap-6`}>
         {!schoolKey && <h2 className="text-[28px] font-bold">Artikel</h2>}
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Twice the gap between the two chip groups as within one, so on a
+            phone, where they wrap, the owner chips do not read as more types. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-4">
           {!fixed && <Filter active={active} month={month} href={href} />}
           {!schoolKey && <OwnerFilter active={byOwner} href={href} />}
         </div>
@@ -112,7 +114,10 @@ export async function Listing({
           <div className="flex flex-1 flex-col gap-6">
             {listing.entries.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Belum ada {active ? ARTICLE_KINDS[active].toLowerCase() : "artikel"}.
+                Belum ada {active ? ARTICLE_KINDS[active].toLowerCase() : "artikel"}
+                {byOwner &&
+                  ` dari ${OWNER_FILTERS.find((candidate) => candidate.key === byOwner)?.level}`}
+                .
               </p>
             ) : (
               <ul className="flex flex-col">
