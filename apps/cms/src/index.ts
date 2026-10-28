@@ -370,66 +370,58 @@ const keep = (block: PageBlock) => ({ __component: block.__component, id: block.
 /** One entry of a page's dynamic zone, as a read returns it. */
 type PageBlock = { __component: string; id?: number | string };
 
+/** The sections the apex home dropped when it became the main menu. */
+const CAMPAIGN_BLOCKS = new Set([
+  "blocks.hero",
+  "blocks.admission-table",
+  "blocks.facts",
+  "blocks.news",
+]);
+
 /**
- * The umbrella home page's school cards and joint-admission table, on a database
- * that was seeded before either existed.
+ * Turns an umbrella home seeded as a campaign page into the apex's main menu.
+ * The profile app lists every article below the school cards on its own, so
+ * the hero, the joint cycle table, the yayasan section and the news section go.
+ * Any other block an editor added stays. A database seeded before the cards
+ * existed gets the seeded ones.
  *
- * Both sections and the hero's second action shipped inside `HOME_SEED`, which
- * only ever reaches a row being created — so every environment past its first
- * boot shows the page exactly as it was. This puts them in once.
+ * Both copies are checked, since an editor may have cleaned the draft without
+ * publishing; the write publishes the cleaned draft.
  *
- * **Untouched blocks are passed back by reference**, `__component` and `id`
- * alone. A dynamic zone can only be written whole, and re-sending a block from a
- * shallow read is how an editor's images and relations get dropped on the way
- * out; a reference asks Strapi to keep the component it already has.
- *
- * Position rather than order: each missing section is inserted after the one it
- * follows on the canvas, so anything an editor has added or reordered stays
- * where they put it.
+ * **Kept blocks are passed back by reference**, `__component` and `id` alone. A
+ * dynamic zone can only be written whole, and re-sending a block from a shallow
+ * read is how an editor's images get dropped on the way out; a reference asks
+ * Strapi to keep the component it already has.
  */
-async function backfillUmbrellaHome(strapi: Core.Strapi): Promise<boolean> {
-  const page = await strapi
-    .documents("api::page.page")
-    .findFirst({ filters: { ownerKey: "mbs", slug: "home" }, status: "draft", populate: "blocks" });
+async function backfillApexMainMenu(strapi: Core.Strapi): Promise<boolean> {
+  const read = (status: "draft" | "published") =>
+    strapi.documents("api::page.page").findFirst({
+      filters: { ownerKey: "mbs", slug: "home" },
+      status,
+      populate: "blocks",
+    });
+  const [draft, published] = await Promise.all([read("draft"), read("published")]);
+  if (!draft?.blocks) return false;
 
-  if (!page?.blocks) return false;
-
-  const blocks: readonly PageBlock[] = page.blocks;
-  const has = (kind: string) => blocks.some((block) => block.__component === kind);
-  const seeded = HOME_SEED.mbs.blocks;
-  const fromSeed = (kind: string) => seeded.find((block) => block.__component === kind);
-
-  const hero = fromSeed("blocks.hero");
-  const schools = fromSeed("blocks.schools");
-  const table = fromSeed("blocks.admission-table");
-  if (!schools || !table || !hero) return false;
-  if (has("blocks.schools") && has("blocks.admission-table")) return false;
+  const stale = [draft, published].some((page) =>
+    (page?.blocks ?? []).some((block: PageBlock) => CAMPAIGN_BLOCKS.has(block.__component)),
+  );
+  const blocks: readonly PageBlock[] = draft.blocks;
+  const hasSchools = blocks.some((block) => block.__component === "blocks.schools");
+  if (!stale && hasSchools) return false;
 
   // The generated input type describes a component being *written*, so it wants
   // every field. A reference deliberately carries none — that is the point of it
   // — so this is the one place the shape is asserted rather than proved.
-  const references = blocks.map((block) =>
-    // The hero keeps everything it has and gains the second action: a component
-    // named by id takes the fields given and leaves the rest alone.
-    block.__component === "blocks.hero"
-      ? { ...keep(block), secondaryLabel: "Pilih Sekolah", secondaryHref: "#sekolah" }
-      : keep(block),
-  );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const next = references as unknown as HomeSeed["blocks"];
-
-  /** Puts a section straight after the one it follows on the canvas. */
-  const insertAfter = (kind: string, block: HomeSeed["blocks"][number]) => {
-    const at = next.findIndex((entry) => entry.__component === kind);
-    next.splice(at === -1 ? next.length : at + 1, 0, block);
-  };
-
-  if (!has("blocks.schools")) insertAfter("blocks.hero", schools);
-  if (!has("blocks.admission-table")) insertAfter("blocks.schools", table);
+  const kept = blocks
+    .filter((block) => !CAMPAIGN_BLOCKS.has(block.__component))
+    .map(keep) as unknown as HomeSeed["blocks"];
+  const next = hasSchools ? kept : [...HOME_SEED.mbs.blocks, ...kept];
 
   await strapi
     .documents("api::page.page")
-    .update({ documentId: page.documentId, data: { blocks: next }, status: "published" });
+    .update({ documentId: draft.documentId, data: { blocks: next }, status: "published" });
 
   return true;
 }
@@ -461,8 +453,7 @@ const SCHOOL_LINKS = [
 
 /**
  * Galeri and Unduhan in the footer of a school site seeded before either page
- * existed — the `Site` half of what `backfillUmbrellaHome` does for a page.
- * `seedSites` never touches a row it finds, so without this a deploy ships both
+ * existed. `seedSites` never touches a row it finds, so without this a deploy ships both
  * pages with nothing linking to them.
  *
  * Each link lands after the one it follows in `schoolSite`. A link already
@@ -515,9 +506,6 @@ const isApexDead = (href: string) => href.startsWith("/") && href !== "/";
  * seeded while it still had them. The apex now serves only its home, so every
  * other path in its menu and footer leads to the 404. Absolute links and
  * anchors an editor added stay; a footer column left with no links goes.
- *
- * The home's news section loses its "see all" link for the same reason, in both
- * the draft and the published copy.
  */
 async function backfillApexHomeOnly(strapi: Core.Strapi): Promise<boolean> {
   let changed = false;
@@ -552,25 +540,6 @@ async function backfillApexHomeOnly(strapi: Core.Strapi): Promise<boolean> {
     changed = true;
   }
 
-  for (const status of ["draft", "published"] as const) {
-    const home = await strapi.documents("api::page.page").findFirst({
-      filters: { ownerKey: "mbs", slug: "home" },
-      status,
-      populate: { blocks: { on: { "blocks.news": { populate: ["head"] } } } },
-    });
-
-    for (const block of home?.blocks ?? []) {
-      // oxlint-disable-next-line eslint/no-underscore-dangle
-      if (block.__component !== "blocks.news" || block.head?.linkHref !== "/artikel") continue;
-      await strapi.db
-        .query("shared.section-head")
-        .update({ where: { id: block.head.id }, data: { linkLabel: null, linkHref: null } });
-      changed = true;
-    }
-  }
-
-  // The section-head write skips the document middleware, so the profile is told directly.
-  if (changed) void notifyProfile(strapi);
   return changed;
 }
 
@@ -1087,7 +1056,7 @@ export default {
     // After the seeds, and once per database: the rows above are only created
     // when missing, so a section added to a seed later needs this to reach an
     // environment that has already booted.
-    await backfillOnce(strapi, "umbrella-home-sections", () => backfillUmbrellaHome(strapi));
+    await backfillOnce(strapi, "apex-main-menu", () => backfillApexMainMenu(strapi));
     await backfillOnce(strapi, "apex-home-only", () => backfillApexHomeOnly(strapi));
     await backfillOnce(strapi, "apex-pages-deleted", () => deleteApexPages(strapi));
     await backfillOnce(strapi, "galeri-unduhan-editors", () =>

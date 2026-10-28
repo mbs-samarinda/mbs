@@ -46,7 +46,7 @@ export default async function ArtikelPage({
     <main>
       <PageHead heading="Artikel" body="Berita, pengumuman, dan opini terkini." />
 
-      <Suspense fallback={<ListingPlaceholder hasFilters />}>
+      <Suspense fallback={<ListingPlaceholder hasSidebar hasFilters />}>
         <Listing owner={owner} schoolKey={school.key} searchParams={searchParams} />
       </Suspense>
     </main>

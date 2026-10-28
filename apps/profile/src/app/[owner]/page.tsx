@@ -1,9 +1,11 @@
 import { SCHOOLS } from "@mbs/school-config";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { getPage, getSite } from "../../cms.ts";
 import { OWNERS } from "../../owners.ts";
+import { Listing, ListingPlaceholder, type Params } from "./artikel/listing.tsx";
 import { AdmissionBandSection, BlockSection } from "./sections.tsx";
 
 export async function generateMetadata({
@@ -25,7 +27,19 @@ export async function generateMetadata({
   };
 }
 
-export default async function OwnerHomePage({ params }: { params: Promise<{ owner: string }> }) {
+/**
+ * An owner's home. A school's is the blocks its editors composed, closed by the
+ * admission band. The apex's is a menu for all four sites: its blocks — the
+ * school cards — then every article on every site, each opening where it lives.
+ * It takes no applications, so it carries no band.
+ */
+export default async function OwnerHomePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ owner: string }>;
+  searchParams: Promise<Params>;
+}) {
   const { owner: key } = await params;
   // The layout above rejects a key that is no owner's before this renders, so
   // this cannot fire. It raises rather than falling back to an owner, because
@@ -39,6 +53,12 @@ export default async function OwnerHomePage({ params }: { params: Promise<{ owne
 
   return (
     <main>
+      {/* The apex's school cards open with their own section heading, so the
+          page title is for assistive technology alone — unless an editor gave
+          it a hero, which carries the page's h1 itself. */}
+      {!school && !page?.blocks.some((block) => block.kind === "hero") && (
+        <h1 className="sr-only">{owner.name}</h1>
+      )}
       {(page?.blocks ?? []).map((block) => (
         <BlockSection
           // Component ids are unique per component table, not across the zone,
@@ -51,9 +71,15 @@ export default async function OwnerHomePage({ params }: { params: Promise<{ owne
         />
       ))}
 
-      {/* The admission path is never removable, so the band is the page's own
-          and not a block an editor can delete. */}
-      <AdmissionBandSection schoolKey={school?.key} admissionCta={site.admissionCta} />
+      {school ? (
+        // The admission path is never removable, so the band is the page's own
+        // and not a block an editor can delete.
+        <AdmissionBandSection schoolKey={school.key} admissionCta={site.admissionCta} />
+      ) : (
+        <Suspense fallback={<ListingPlaceholder hasSidebar={false} hasFilters />}>
+          <Listing owner={owner} schoolKey={undefined} searchParams={searchParams} />
+        </Suspense>
+      )}
     </main>
   );
 }

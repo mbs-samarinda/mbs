@@ -12,7 +12,7 @@ import {
   type Month,
 } from "../../../articles.ts";
 import { getArticleIndex, type Article } from "../../../cms.ts";
-import type { Owner } from "../../../owners.ts";
+import { OWNERS, type Owner } from "../../../owners.ts";
 import {
   AdmissionCardSection,
   ArticleMeta,
@@ -26,11 +26,22 @@ import {
 export type Params = {
   type?: string | undefined;
   month?: string | undefined;
+  /** Apex only: a school's own site is already that school. */
+  owner?: string | undefined;
   page?: string | undefined;
 };
 
+/** The apex's owner chips: the three schools, then the umbrella's own articles. */
+const OWNER_FILTERS = [...OWNERS.slice(1), OWNERS[0]];
+
 /**
- * The article listing, for `/artikel` and for each `/artikel/<type>`.
+ * The article listing, for `/artikel`, for each `/artikel/<type>`, and for the
+ * apex home.
+ *
+ * On a school site it carries a sidebar with the admission card and the month
+ * archive. The apex has neither — it takes no applications and is a menu, not
+ * an archive — and filters by owner instead, so a reader can narrow to one
+ * school without leaving. Every card still opens on its owner's own site.
  *
  * Given a `type`, it lists that one and drops the type chips, since the address
  * already says which. Without one it lists all three and the chips filter in
@@ -44,42 +55,58 @@ export async function Listing({
   searchParams,
 }: {
   owner: Owner;
-  schoolKey: SchoolKey;
+  schoolKey: SchoolKey | undefined;
   type?: ArticleType;
   searchParams: Promise<Params>;
 }) {
-  const [{ type, month: requested, page }, entries] = await Promise.all([
+  const [{ type, month: requested, owner: requestedOwner, page }, entries] = await Promise.all([
     searchParams,
     getArticleIndex(owner.key),
   ]);
 
   const active = fixed ?? (isArticleType(type) ? type : undefined);
+  const byOwner = schoolKey
+    ? undefined
+    : OWNER_FILTERS.find((candidate) => candidate.key === requestedOwner)?.key;
   // The archive counts the type the visitor is looking at, so the number beside
   // a month is the number of entries that link actually renders.
-  const inType = filterArticles(entries, { type: active });
+  const inType = filterArticles(entries, { type: active, owner: byOwner });
   const months = monthsOf(inType);
-  // A month nobody published in is dropped rather than honoured, the same way a
+  // A month nobody published in is dropped rather than honoured, and the apex,
+  // which has no archive to show or clear one, honours none at all, the same way a
   // bad `?type=` and a bad `?page=` are. An arsip link whose last entry has since
   // expired would otherwise render "Belum ada artikel." at 200 —
   // a page that reads as a school which publishes nothing.
-  const month = months.some((entry) => entry.key === requested) ? requested : undefined;
+  const month =
+    schoolKey && months.some((entry) => entry.key === requested) ? requested : undefined;
   const listing = paginate(filterArticles(inType, { month }), pageParam(page));
 
-  const base = fixed ? `/artikel/${fixed}` : "/artikel";
+  // The apex lists on its home, so a filter link lands back on the list rather
+  // than at the top of the school cards.
+  const [base, anchor] = !schoolKey
+    ? ["/", "#artikel"]
+    : [fixed ? `/artikel/${fixed}` : "/artikel", ""];
   const href = (next: Partial<Params>) => {
     const query = new URLSearchParams();
-    const merged = { type: active, month, ...next };
+    const merged = { type: active, month, owner: byOwner, ...next };
     if (merged.type && !fixed) query.set("type", merged.type);
     if (merged.month) query.set("month", merged.month);
+    if (merged.owner) query.set("owner", merged.owner);
     if (merged.page && merged.page !== "1") query.set("page", merged.page);
     const search = query.toString();
-    return search ? `${base}?${search}` : base;
+    return `${search ? `${base}?${search}` : base}${anchor}`;
   };
 
   return (
-    <section className={SECTION}>
+    // The scroll margin clears the sticky two-row header when a filter link
+    // jumps here.
+    <section id={schoolKey ? undefined : "artikel"} className={`${SECTION} scroll-mt-28`}>
       <div className={`${WIDTH} flex flex-col gap-6`}>
-        {!fixed && <Filter active={active} month={month} href={href} />}
+        {!schoolKey && <h2 className="text-[28px] font-bold">Artikel</h2>}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {!fixed && <Filter active={active} month={month} href={href} />}
+          {!schoolKey && <OwnerFilter active={byOwner} href={href} />}
+        </div>
 
         <div className="flex flex-col gap-10 lg:flex-row lg:gap-8">
           <div className="flex flex-1 flex-col gap-6">
@@ -94,6 +121,7 @@ export async function Listing({
                     key={`${entry.type}-${entry.ownerKey}-${entry.slug}`}
                     entry={entry}
                     site={owner.key}
+                    nested={!schoolKey}
                   />
                 ))}
               </ul>
@@ -101,33 +129,45 @@ export async function Listing({
             <Pages listing={listing} href={href} />
           </div>
 
-          <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
-            <AdmissionCardSection schoolKey={schoolKey} />
-            <Archive months={months} active={month} href={href} />
-          </div>
+          {schoolKey && (
+            <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
+              <AdmissionCardSection schoolKey={schoolKey} />
+              <Archive months={months} active={month} href={href} />
+            </div>
+          )}
         </div>
       </div>
     </section>
   );
 }
 
-const Row = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
-  <li className="border-b border-border first:border-t">
-    <a
-      href={articleHref(entry, site)}
-      className="flex flex-col gap-3 py-5 hover:opacity-90 md:flex-row md:items-start md:gap-5"
-    >
-      <Photo image={entry.cover} label="Sampul" className="aspect-3/2 w-full md:w-50 md:shrink-0" />
-      <div className="flex flex-col gap-1.5">
-        <ArticleMeta article={entry} site={site} />
-        <h2 className="text-lg font-bold text-pretty">{entry.title}</h2>
-        {entry.summary && (
-          <p className="max-w-[70ch] text-sm text-pretty text-muted-foreground">{entry.summary}</p>
-        )}
-      </div>
-    </a>
-  </li>
-);
+/** `nested` puts the title under the apex's own "Artikel" heading, one level down. */
+const Row = ({ entry, site, nested }: { entry: Article; site: Owner["key"]; nested: boolean }) => {
+  const Title = nested ? "h3" : "h2";
+  return (
+    <li className="border-b border-border first:border-t">
+      <a
+        href={articleHref(entry, site)}
+        className="flex flex-col gap-3 py-5 hover:opacity-90 md:flex-row md:items-start md:gap-5"
+      >
+        <Photo
+          image={entry.cover}
+          label="Sampul"
+          className="aspect-3/2 w-full md:w-50 md:shrink-0"
+        />
+        <div className="flex flex-col gap-1.5">
+          <ArticleMeta article={entry} site={site} />
+          <Title className="text-lg font-bold text-pretty">{entry.title}</Title>
+          {entry.summary && (
+            <p className="max-w-[70ch] text-sm text-pretty text-muted-foreground">
+              {entry.summary}
+            </p>
+          )}
+        </div>
+      </a>
+    </li>
+  );
+};
 
 /**
  * The type filter, as links rather than a control.
@@ -155,13 +195,42 @@ const Filter = ({
         // with no entries.
         href={href({ type: value, month, page: "1" })}
         aria-current={active === value ? "page" : undefined}
-        className={`flex min-h-11 items-center rounded-4xl border px-4 text-sm font-semibold ${
-          active === value
-            ? "border-foreground bg-foreground text-background"
-            : "border-border hover:bg-muted"
-        }`}
+        className={pill(active === value)}
       >
         {value ? ARTICLE_KINDS[value] : "Semua"}
+      </a>
+    ))}
+  </nav>
+);
+
+/**
+ * One filter link. Shared so the type and owner rows can never drift apart.
+ *
+ * Presses like the shared `Button`, so a tap is acknowledged before the page
+ * reloads. Reduced motion keeps the colour fade and drops the press.
+ */
+const pill = (on: boolean) =>
+  `flex min-h-11 items-center rounded-4xl border px-4 text-sm font-semibold transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.96] motion-reduce:active:scale-100 ${
+    on ? "border-foreground bg-foreground text-background" : "border-border hover:bg-muted"
+  }`;
+
+/** The apex's owner filter, one owner at a time, built like the type filter. */
+const OwnerFilter = ({
+  active,
+  href,
+}: {
+  active: Owner["key"] | undefined;
+  href: (next: Partial<Params>) => string;
+}) => (
+  <nav aria-label="Saring menurut sekolah" className="flex flex-wrap gap-2">
+    {[undefined, ...OWNER_FILTERS].map((owner) => (
+      <a
+        key={owner?.key ?? "semua"}
+        href={href({ owner: owner?.key, page: "1" })}
+        aria-current={active === owner?.key ? "page" : undefined}
+        className={pill(active === owner?.key)}
+      >
+        {owner?.level ?? "Semua sekolah"}
       </a>
     ))}
   </nav>
@@ -231,9 +300,18 @@ const Pages = ({
 // the rows reflow sideways the moment it lands, which is the shift a placeholder
 // exists to prevent. It does not animate: nothing in this system repaints
 // continuously.
-export const ListingPlaceholder = ({ hasFilters }: { hasFilters: boolean }) => (
+export const ListingPlaceholder = ({
+  hasSidebar,
+  hasFilters,
+}: {
+  hasSidebar: boolean;
+  hasFilters: boolean;
+}) => (
   <section className={SECTION}>
     <div className={`${WIDTH} flex flex-col gap-6`}>
+      {/* The apex's listing opens with its own heading; a school page's title
+          sits outside the boundary. */}
+      {!hasSidebar && <span className="h-9 w-32 rounded-md bg-muted" />}
       {hasFilters && <span className="h-11 w-80 rounded-4xl bg-muted" />}
       <div className="flex flex-col gap-10 lg:flex-row lg:gap-8">
         <div className="flex flex-1 flex-col">
@@ -241,7 +319,7 @@ export const ListingPlaceholder = ({ hasFilters }: { hasFilters: boolean }) => (
             <span key={index} className="h-42 border-b border-border first:border-t" />
           ))}
         </div>
-        <span className="h-64 rounded-xl bg-muted lg:w-80 lg:shrink-0" />
+        {hasSidebar && <span className="h-64 rounded-xl bg-muted lg:w-80 lg:shrink-0" />}
       </div>
     </div>
   </section>

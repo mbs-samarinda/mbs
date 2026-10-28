@@ -11,8 +11,8 @@ import { isArticleType } from "./articles.ts";
 const UMBRELLA = {
   key: "mbs",
   name: "Madina Boarding School",
-  // `level` is the short label an owner's badge wears, on a school card for an
-  // umbrella article the school collaborated on. The tabs are schools only.
+  // `level` is the short label an owner's badge and filter chip wear. The
+  // school switcher's tabs are schools only, so this one never names a tab.
   level: "MBS",
   subdomain: null,
 } as const;

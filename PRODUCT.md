@@ -108,10 +108,10 @@ contact details, whether admission is open, and how to start. School pages are
 jurusan; `ekstrakurikuler` is activities. They are separate pages because they
 answer separate questions.
 
-The apex, `mbss.sch.id`, is a home page and nothing else: the umbrella's
-identity, the three schools with a way into each school's site, every school's
-latest articles, and the joint cycle's dates and fees. Its only other pages
-are its own articles, listed on that home beside the schools'; every other path
+The apex, `mbss.sch.id`, is a main menu for the four sites: the three school
+cards, each the way into that school's site, then every article on every site,
+newest first, filterable by type and owner, each opening on the site that owns
+it. Its only other pages are the umbrella's own articles; every other path
 answers the branded 404, and
 `/pendaftaran` redirects to the admission app so the shared "Pendaftaran
 Bersama" button works. A visitor landing there is choosing a school. Yapendis

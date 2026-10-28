@@ -82,18 +82,26 @@ export function monthKey(iso: string): string {
 export const cutExpired = (entries: readonly Article[], now: number): Article[] =>
   entries.filter((entry) => !entry.expiresAt || Date.parse(entry.expiresAt) > now);
 
-/** Narrows by collection and month, in either mix. Newest first throughout. */
+/**
+ * Narrows by collection, month and owner, in any mix. Newest first throughout.
+ * An owner matches its own articles and the collabs it accepted, the same set
+ * its own listing shows.
+ */
 export function filterArticles(
   entries: readonly Article[],
   filters: {
     type?: ArticleType | undefined;
     month?: string | undefined;
+    owner?: Owner["key"] | undefined;
   },
 ): Article[] {
   return entries.filter(
     (entry) =>
       (!filters.type || entry.type === filters.type) &&
-      (!filters.month || monthKey(entry.publishedAt) === filters.month),
+      (!filters.month || monthKey(entry.publishedAt) === filters.month) &&
+      (!filters.owner ||
+        entry.ownerKey === filters.owner ||
+        entry.collaborators.some((key) => key === filters.owner)),
   );
 }
 
@@ -162,22 +170,3 @@ export const badgeOwners = (article: Article, site: Owner["key"]): Owner["key"][
   article.collaborators.length === 0 && article.ownerKey === site
     ? []
     : [article.ownerKey, ...article.collaborators];
-
-/**
- * The umbrella homepage's news block.
- *
- * The umbrella's own posts take the first slots, up to half rounded up, so its
- * news is never pushed off its own homepage by three busy schools. The rest are
- * school posts by date. When the schools have too few, older umbrella posts
- * fill in, because an empty slot says less than an older post.
- */
-export function umbrellaNews(entries: readonly Article[], limit: number): Article[] {
-  const own = entries.filter((entry) => entry.ownerKey === "mbs").slice(0, Math.ceil(limit / 2));
-  // A stable sort, so schools stay in date order and leftover umbrella posts
-  // come after every school post.
-  const rest = entries
-    .filter((entry) => !own.includes(entry))
-    .toSorted((a, b) => Number(a.ownerKey === "mbs") - Number(b.ownerKey === "mbs"))
-    .slice(0, limit - own.length);
-  return [...own, ...rest];
-}

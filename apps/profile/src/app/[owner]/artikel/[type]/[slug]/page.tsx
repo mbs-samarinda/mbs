@@ -137,7 +137,8 @@ export default async function ArticlePage({ params }: { params: Params }) {
  * Where the visitor is, what this is, when it was published, and who wrote it.
  * An Opini credits its author where the others carry an attribution.
  *
- * `listed` is false at the apex, which has no article listings to lead back to.
+ * `listed` is false at the apex: its one listing sits on its home, and it has
+ * no per-type page to name.
  */
 const Head = ({ article, listed }: { article: FullArticle; listed: boolean }) => {
   const credit = article.byline ?? article.attribution;
@@ -148,14 +149,17 @@ const Head = ({ article, listed }: { article: FullArticle; listed: boolean }) =>
           <a href="/" className="text-muted-foreground underline underline-offset-4">
             Beranda
           </a>
+          <span aria-hidden className="text-muted-foreground">
+            /
+          </span>
+          <a
+            href={listed ? "/artikel" : "/#artikel"}
+            className="text-muted-foreground underline underline-offset-4"
+          >
+            Artikel
+          </a>
           {listed && (
             <>
-              <span aria-hidden className="text-muted-foreground">
-                /
-              </span>
-              <a href="/artikel" className="text-muted-foreground underline underline-offset-4">
-                Artikel
-              </a>
               <span aria-hidden className="text-muted-foreground">
                 /
               </span>

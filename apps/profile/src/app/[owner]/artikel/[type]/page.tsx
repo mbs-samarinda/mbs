@@ -48,7 +48,7 @@ export default async function TypePage({
     <main>
       <PageHead heading={ARTICLE_KINDS[type]} body={LEAD[type]} />
 
-      <Suspense fallback={<ListingPlaceholder hasFilters={false} />}>
+      <Suspense fallback={<ListingPlaceholder hasSidebar hasFilters={false} />}>
         <Listing owner={owner} schoolKey={school.key} type={type} searchParams={searchParams} />
       </Suspense>
     </main>

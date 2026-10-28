@@ -356,20 +356,15 @@ const BandFact = ({ label, children }: { label: string; children: ReactNode }) =
 /**
  * The band, with the live facts streamed in behind it.
  *
- * The umbrella takes no applications of its own, so its band carries no cycle.
- * Its `/pendaftaran` link is sent on to the admission app by the proxy.
+ * School pages only: the apex takes no applications and carries no band.
  */
 export function AdmissionBandSection({
   schoolKey,
   admissionCta,
 }: {
-  schoolKey: SchoolKey | undefined;
+  schoolKey: SchoolKey;
   admissionCta: string;
 }) {
-  if (!schoolKey) {
-    return <AdmissionBand facts={{ state: "none" }} admissionCta={admissionCta} />;
-  }
-
   return (
     <Suspense fallback={<AdmissionBand facts={null} admissionCta={admissionCta} />}>
       <LiveAdmissionBand schoolKey={schoolKey} admissionCta={admissionCta} />
@@ -641,7 +636,7 @@ export function BlockSection({
       return (
         <Hero
           // `||`, not `??`: a heading an editor cleared comes back as an
-          // empty string, and an empty `h1` is the umbrella home's only one.
+          // empty string, and an empty `h1` leaves the page with no title.
           heading={block.heading || site.tagline}
           body={block.body}
           image={block.image}
@@ -680,10 +675,9 @@ export function BlockSection({
     // this is the page's real navigation rather than a list of links.
     case "schools":
       return (
-        // The hero's second action points here, so the section needs a name to
-        // be pointed at — and a scroll margin, because the header is sticky and
-        // two rows tall: without it the heading lands behind the header and the
-        // visitor arrives halfway down the card grid.
+        // Named so an editor's `#sekolah` link can point here, with a scroll
+        // margin because the header is sticky and two rows tall: without it the
+        // heading lands behind the header.
         <section id="sekolah" className={`${SECTION} scroll-mt-28 bg-muted`}>
           <div className={`${WIDTH} flex flex-col gap-7`}>
             <SectionHeading head={block.head} />
@@ -1193,7 +1187,7 @@ function SchoolCard({ card }: { card: Extract<Block, { kind: "schools" }>["items
   return (
     <a
       href={ownerUrl(school)}
-      className="flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
+      className="flex flex-col overflow-hidden rounded-xl border border-border bg-background transition-colors duration-150 ease-out hover:border-primary"
     >
       <Photo image={card.photo} label="Foto" className="aspect-43/20 w-full rounded-none!" inCard />
       <div className="flex flex-col gap-2.5 p-5">
