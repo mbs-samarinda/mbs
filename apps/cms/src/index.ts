@@ -22,7 +22,7 @@ import { FASILITAS_SEED } from "./seed/fasilitas";
 import { FASILITAS_PAGE_SEED, type FasilitasSeed } from "./seed/fasilitas-page";
 import { GALERI_PAGE_SEED, UNDUHAN_PAGE_SEED, type ListingSeed } from "./seed/galeri-page";
 import { HOME_SEED, OWNER_KEYS, type HomeSeed, type OwnerKey } from "./seed/home-page";
-import { KONTAK_SEED, type KontakSeed } from "./seed/kontak-page";
+import { HUMAS, KONTAK_SEED, PPDB, type KontakSeed } from "./seed/kontak-page";
 import { PENCAPAIAN_SEED, type AchievementSeed } from "./seed/pencapaian";
 import { ADMISSION_SEED, type AdmissionSeed } from "./seed/pendaftaran-page";
 import { PROFIL_SEED, type ProfilSeed } from "./seed/profil-page";
@@ -51,12 +51,12 @@ const ADDRESS = "Jl. Contoh Alamat No. 00, Samarinda, Kalimantan Timur 75000";
 const LEGAL = "Yayasan Pendidikan dan Dakwah Islam Nurul Haq Samarinda";
 const PANITIA = {
   label: "Panitia Pendaftaran",
-  value: "0812 0000 0000 · WhatsApp",
-  href: "https://wa.me/628120000000",
+  value: `${PPDB.phone} · WhatsApp`,
+  href: PPDB.whatsapp,
 };
 
-// Official accounts, shown on `/kontak` only. Placeholders like every other
-// handle here: no school has confirmed which accounts are theirs.
+// Official accounts, shown on a school's `/kontak` only. Placeholders like every
+// other handle here: no school has confirmed which accounts are theirs.
 const SOCIALS = [
   { label: "Instagram", href: "https://instagram.com/" },
   { label: "YouTube", href: "https://youtube.com/" },
@@ -131,11 +131,7 @@ const schoolSite = (
   ],
   contacts: [
     PANITIA,
-    {
-      label: "Humas Sekolah",
-      value: "0812 1111 1111 · WhatsApp",
-      href: "https://wa.me/628121111111",
-    },
+    { label: "Humas Sekolah", value: `${HUMAS.phone} · WhatsApp`, href: HUMAS.whatsapp },
     {
       label: "Email",
       value: `halo@${subdomain}.mbss.sch.id`,
@@ -152,28 +148,12 @@ const OWNER_SEED = [
     brandSubline: "Samarinda",
     address: ADDRESS,
     hours: "Senin–Jumat 07.00–15.00 WITA",
-    mapsCoordinates: "-0.4669401,117.1951261",
-    socials: SOCIALS,
     legal: LEGAL,
     copyright: "© 2026 Madina Boarding School Samarinda",
-    menu: [
-      { label: "Beranda", href: "/" },
-      { label: "Profil", href: "/profil" },
-      { label: "Pendaftaran", href: "/pendaftaran" },
-      ARTIKEL_MENU,
-      { label: "Kontak", href: "/kontak" },
-    ],
-    footerColumns: [
-      {
-        heading: "Informasi",
-        links: [
-          { label: "Profil yayasan", href: "/profil" },
-          { label: "Pendaftaran bersama", href: "/pendaftaran" },
-          ...ARTIKEL_LINKS,
-          { label: "Kontak", href: "/kontak" },
-        ],
-      },
-    ],
+    // The apex has no pages besides its home, so nothing to navigate to. The
+    // school switcher and the footer's school column are built in code.
+    menu: [],
+    footerColumns: [],
     contacts: [
       PANITIA,
       { label: "Sekretariat Yayasan", value: "0541 123456", href: "tel:+62541123456" },
@@ -390,66 +370,58 @@ const keep = (block: PageBlock) => ({ __component: block.__component, id: block.
 /** One entry of a page's dynamic zone, as a read returns it. */
 type PageBlock = { __component: string; id?: number | string };
 
+/** The sections the apex home dropped when it became the main menu. */
+const CAMPAIGN_BLOCKS = new Set([
+  "blocks.hero",
+  "blocks.admission-table",
+  "blocks.facts",
+  "blocks.news",
+]);
+
 /**
- * The umbrella home page's school cards and joint-admission table, on a database
- * that was seeded before either existed.
+ * Turns an umbrella home seeded as a campaign page into the apex's main menu.
+ * The profile app lists every article below the school cards on its own, so
+ * the hero, the joint cycle table, the yayasan section and the news section go.
+ * Any other block an editor added stays. A database seeded before the cards
+ * existed gets the seeded ones.
  *
- * Both sections and the hero's second action shipped inside `HOME_SEED`, which
- * only ever reaches a row being created — so every environment past its first
- * boot shows the page exactly as it was. This puts them in once.
+ * Both copies are checked, since an editor may have cleaned the draft without
+ * publishing; the write publishes the cleaned draft.
  *
- * **Untouched blocks are passed back by reference**, `__component` and `id`
- * alone. A dynamic zone can only be written whole, and re-sending a block from a
- * shallow read is how an editor's images and relations get dropped on the way
- * out; a reference asks Strapi to keep the component it already has.
- *
- * Position rather than order: each missing section is inserted after the one it
- * follows on the canvas, so anything an editor has added or reordered stays
- * where they put it.
+ * **Kept blocks are passed back by reference**, `__component` and `id` alone. A
+ * dynamic zone can only be written whole, and re-sending a block from a shallow
+ * read is how an editor's images get dropped on the way out; a reference asks
+ * Strapi to keep the component it already has.
  */
-async function backfillUmbrellaHome(strapi: Core.Strapi): Promise<boolean> {
-  const page = await strapi
-    .documents("api::page.page")
-    .findFirst({ filters: { ownerKey: "mbs", slug: "home" }, status: "draft", populate: "blocks" });
+async function backfillApexMainMenu(strapi: Core.Strapi): Promise<boolean> {
+  const read = (status: "draft" | "published") =>
+    strapi.documents("api::page.page").findFirst({
+      filters: { ownerKey: "mbs", slug: "home" },
+      status,
+      populate: "blocks",
+    });
+  const [draft, published] = await Promise.all([read("draft"), read("published")]);
+  if (!draft?.blocks) return false;
 
-  if (!page?.blocks) return false;
-
-  const blocks: readonly PageBlock[] = page.blocks;
-  const has = (kind: string) => blocks.some((block) => block.__component === kind);
-  const seeded = HOME_SEED.mbs.blocks;
-  const fromSeed = (kind: string) => seeded.find((block) => block.__component === kind);
-
-  const hero = fromSeed("blocks.hero");
-  const schools = fromSeed("blocks.schools");
-  const table = fromSeed("blocks.admission-table");
-  if (!schools || !table || !hero) return false;
-  if (has("blocks.schools") && has("blocks.admission-table")) return false;
+  const stale = [draft, published].some((page) =>
+    (page?.blocks ?? []).some((block: PageBlock) => CAMPAIGN_BLOCKS.has(block.__component)),
+  );
+  const blocks: readonly PageBlock[] = draft.blocks;
+  const hasSchools = blocks.some((block) => block.__component === "blocks.schools");
+  if (!stale && hasSchools) return false;
 
   // The generated input type describes a component being *written*, so it wants
   // every field. A reference deliberately carries none — that is the point of it
   // — so this is the one place the shape is asserted rather than proved.
-  const references = blocks.map((block) =>
-    // The hero keeps everything it has and gains the second action: a component
-    // named by id takes the fields given and leaves the rest alone.
-    block.__component === "blocks.hero"
-      ? { ...keep(block), secondaryLabel: "Pilih Sekolah", secondaryHref: "#sekolah" }
-      : keep(block),
-  );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const next = references as unknown as HomeSeed["blocks"];
-
-  /** Puts a section straight after the one it follows on the canvas. */
-  const insertAfter = (kind: string, block: HomeSeed["blocks"][number]) => {
-    const at = next.findIndex((entry) => entry.__component === kind);
-    next.splice(at === -1 ? next.length : at + 1, 0, block);
-  };
-
-  if (!has("blocks.schools")) insertAfter("blocks.hero", schools);
-  if (!has("blocks.admission-table")) insertAfter("blocks.schools", table);
+  const kept = blocks
+    .filter((block) => !CAMPAIGN_BLOCKS.has(block.__component))
+    .map(keep) as unknown as HomeSeed["blocks"];
+  const next = hasSchools ? kept : [...HOME_SEED.mbs.blocks, ...kept];
 
   await strapi
     .documents("api::page.page")
-    .update({ documentId: page.documentId, data: { blocks: next }, status: "published" });
+    .update({ documentId: draft.documentId, data: { blocks: next }, status: "published" });
 
   return true;
 }
@@ -481,8 +453,7 @@ const SCHOOL_LINKS = [
 
 /**
  * Galeri and Unduhan in the footer of a school site seeded before either page
- * existed — the `Site` half of what `backfillUmbrellaHome` does for a page.
- * `seedSites` never touches a row it finds, so without this a deploy ships both
+ * existed. `seedSites` never touches a row it finds, so without this a deploy ships both
  * pages with nothing linking to them.
  *
  * Each link lands after the one it follows in `schoolSite`. A link already
@@ -525,6 +496,69 @@ async function backfillSchoolLinks(strapi: Core.Strapi): Promise<boolean> {
   }
 
   return changed;
+}
+
+/** A path on the apex other than its home. Absolute links and anchors are not paths. */
+const isApexDead = (href: string) => href.startsWith("/") && href !== "/";
+
+/**
+ * Strips the umbrella's links to pages the apex no longer has, on a database
+ * seeded while it still had them. The apex now serves only its home, so every
+ * other path in its menu and footer leads to the 404. Absolute links and
+ * anchors an editor added stay; a footer column left with no links goes.
+ */
+async function backfillApexHomeOnly(strapi: Core.Strapi): Promise<boolean> {
+  let changed = false;
+  const site = await strapi.documents("api::site.site").findFirst({
+    filters: { ownerKey: "mbs" },
+    populate: { menu: { populate: ["links"] }, footerColumns: { populate: ["links"] } },
+  });
+
+  const allLinks = [
+    ...(site?.menu ?? []).flatMap((item) => [{ href: item.href ?? "" }, ...plain(item.links)]),
+    ...(site?.footerColumns ?? []).flatMap((column) => plain(column.links)),
+  ];
+  if (site && allLinks.some((link) => isApexDead(link.href))) {
+    const menu = (site.menu ?? [])
+      .map((item) => ({
+        label: item.label ?? "",
+        href: item.href && !isApexDead(item.href) ? item.href : undefined,
+        links: plain(item.links).filter((link) => !isApexDead(link.href)),
+      }))
+      // An item with neither a live address nor a live dropdown link goes.
+      .filter((item) => item.href || item.links.length > 0);
+    const footerColumns = (site.footerColumns ?? [])
+      .map((column) => ({
+        heading: column.heading ?? "",
+        links: plain(column.links).filter((link) => !isApexDead(link.href)),
+      }))
+      .filter((column) => column.links.length > 0);
+
+    await strapi
+      .documents("api::site.site")
+      .update({ documentId: site.documentId, data: { menu, footerColumns } });
+    changed = true;
+  }
+
+  return changed;
+}
+
+/**
+ * Deletes the umbrella's page rows for the routes the apex no longer has. Nothing
+ * renders them, and an editor finding them in the CMS would edit a page no one
+ * can open. The umbrella's articles are not pages and stay: the apex home lists
+ * them and each keeps its own page there.
+ */
+async function deleteApexPages(strapi: Core.Strapi): Promise<boolean> {
+  const pages = await strapi.documents("api::page.page").findMany({
+    filters: { ownerKey: "mbs", slug: { $in: ["profil", "pendaftaran", "kontak", "artikel"] } },
+    fields: ["documentId"],
+  });
+
+  for (const page of pages) {
+    await strapi.documents("api::page.page").delete({ documentId: page.documentId });
+  }
+  return pages.length > 0;
 }
 
 /**
@@ -847,7 +881,10 @@ async function homeSeed(strapi: Core.Strapi, ownerKey: OwnerKey): Promise<HomeSe
  * referenced by document id, and those exist only once the records do. The
  * section closes the page, which is where the canvas draws it.
  */
-async function profilSeed(strapi: Core.Strapi, ownerKey: OwnerKey): Promise<ProfilSeed> {
+async function profilSeed(
+  strapi: Core.Strapi,
+  ownerKey: Exclude<OwnerKey, "mbs">,
+): Promise<ProfilSeed> {
   const seed = PROFIL_SEED[ownerKey];
   const pencapaian = await strapi
     .documents("api::pencapaian.pencapaian")
@@ -1003,7 +1040,6 @@ export default {
     // second branch.
     await seedPages(strapi, "home", await homeSeeds(strapi));
     await seedPages(strapi, "profil", {
-      mbs: await profilSeed(strapi, "mbs"),
       smp: await profilSeed(strapi, "smp"),
       smk: await profilSeed(strapi, "smk"),
       sma: await profilSeed(strapi, "sma"),
@@ -1020,7 +1056,9 @@ export default {
     // After the seeds, and once per database: the rows above are only created
     // when missing, so a section added to a seed later needs this to reach an
     // environment that has already booted.
-    await backfillOnce(strapi, "umbrella-home-sections", () => backfillUmbrellaHome(strapi));
+    await backfillOnce(strapi, "apex-main-menu", () => backfillApexMainMenu(strapi));
+    await backfillOnce(strapi, "apex-home-only", () => backfillApexHomeOnly(strapi));
+    await backfillOnce(strapi, "apex-pages-deleted", () => deleteApexPages(strapi));
     await backfillOnce(strapi, "galeri-unduhan-editors", () =>
       grantEditorTypes(strapi, ["api::album.album", "api::berkas.berkas"]),
     );

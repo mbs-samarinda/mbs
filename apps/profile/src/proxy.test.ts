@@ -34,23 +34,13 @@ test("an unknown host is refused", () => {
   expect(proxy(request("sd.mbss.sch.id")).status).toBe(404);
 });
 
-// The apex has no `/program`, `/ekstrakurikuler`, `/fasilitas`, `/galeri` or
-// `/unduhan` page, and the pages' own `notFound()` cannot produce the branded
-// 404: with the root layout inside `[owner]` there is no not-found boundary in
-// the tree, so Next renders its built-in page instead. `global-not-found.tsx`
-// only answers a URL that matches no route, so the proxy has to send the apex
-// to one.
-test("a school-only path on the apex is rewritten to an unclaimed path", () => {
-  const paths = [
-    "/program",
-    "/ekstrakurikuler",
-    "/ekstrakurikuler/panahan",
-    "/fasilitas",
-    "/fasilitas/perpustakaan",
-    "/galeri",
-    "/galeri/upacara-hut-ri",
-    "/unduhan",
-  ];
+// The apex has only its home, and the pages' own `notFound()` cannot produce
+// the branded 404: with the root layout inside `[owner]` there is no not-found
+// boundary in the tree, so Next renders its built-in page instead.
+// `global-not-found.tsx` only answers a URL that matches no route, so the proxy
+// has to send the apex to one.
+test("every apex path but the home is rewritten to an unclaimed path", () => {
+  const paths = ["/profil", "/kontak", "/artikel", "/artikel/berita", "/artikel/x/y", "/galeri/a"];
   for (const path of paths) {
     const response = proxy(request("mbss.sch.id", path));
     expect(response.headers.get("x-middleware-rewrite"), path).toBe(
@@ -59,15 +49,28 @@ test("a school-only path on the apex is rewritten to an unclaimed path", () => {
   }
 });
 
-test("a school keeps its own school-only paths", () => {
-  const response = proxy(request("smk.mbss.sch.id", "/ekstrakurikuler/panahan"));
-  expect(response.headers.get("x-middleware-rewrite")).toBe(
-    "http://smk.mbss.sch.id/smk/ekstrakurikuler/panahan",
-  );
+test("the apex keeps its home, its favicon and its own articles", () => {
+  for (const [path, rewrite] of [
+    ["/", "http://mbss.sch.id/mbs"],
+    ["/favicon.ico", "http://mbss.sch.id/mbs/favicon.ico"],
+    ["/artikel/opini/x", "http://mbss.sch.id/mbs/artikel/opini/x"],
+  ] as const) {
+    const response = proxy(request("mbss.sch.id", path));
+    expect(response.headers.get("x-middleware-rewrite"), path).toBe(rewrite);
+  }
 });
 
-// The umbrella owns every other route, so the rewrite must not widen.
-test("the apex keeps the paths it does own", () => {
-  const response = proxy(request("mbss.sch.id", "/artikel"));
-  expect(response.headers.get("x-middleware-rewrite")).toBe("http://mbss.sch.id/mbs/artikel");
+test("the apex sends its admission path to the admission app", () => {
+  const response = proxy(request("mbss.sch.id", "/pendaftaran?utm_source=ig"));
+  expect(response.status).toBe(307);
+  expect(response.headers.get("location")).toBe("https://admission.mbss.sch.id/?utm_source=ig");
+});
+
+test("a school keeps every path", () => {
+  for (const path of ["/ekstrakurikuler/panahan", "/pendaftaran"]) {
+    const response = proxy(request("smk.mbss.sch.id", path));
+    expect(response.headers.get("x-middleware-rewrite"), path).toBe(
+      `http://smk.mbss.sch.id/smk${path}`,
+    );
+  }
 });

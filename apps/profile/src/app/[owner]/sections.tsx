@@ -356,20 +356,15 @@ const BandFact = ({ label, children }: { label: string; children: ReactNode }) =
 /**
  * The band, with the live facts streamed in behind it.
  *
- * The umbrella takes no applications of its own, so its band carries no cycle
- * and sends a visitor to the joint campaign page instead.
+ * School pages only: the apex takes no applications and carries no band.
  */
 export function AdmissionBandSection({
   schoolKey,
   admissionCta,
 }: {
-  schoolKey: SchoolKey | undefined;
+  schoolKey: SchoolKey;
   admissionCta: string;
 }) {
-  if (!schoolKey) {
-    return <AdmissionBand facts={{ state: "none" }} admissionCta={admissionCta} />;
-  }
-
   return (
     <Suspense fallback={<AdmissionBand facts={null} admissionCta={admissionCta} />}>
       <LiveAdmissionBand schoolKey={schoolKey} admissionCta={admissionCta} />
@@ -401,8 +396,7 @@ async function LiveAdmissionTable({ description }: { description: string | null 
  *
  * Four columns, not the five the frame draws. The fifth is *Biaya pendaftaran*,
  * Rp 250.000 — and no registration fee exists anywhere in `packages/db` or the
- * contract. It is invented placeholder copy, the umbrella `/pendaftaran` table
- * already ships without it, and printing a number to make a layout match is the
+ * contract. It is invented placeholder copy, and printing a number to make a layout match is the
  * failure §5 forbids. If the schools do charge one, it needs a schema change
  * first.
  */
@@ -430,8 +424,10 @@ function AdmissionTable({
             description: unavailable
               ? "Status, tanggal, dan biaya dibaca dari sistem pendaftaran dan sedang tidak dapat dihubungi. Kami tidak menampilkan tanggal lama."
               : description,
-            linkLabel: "Buka halaman pendaftaran",
-            linkHref: "/pendaftaran",
+            // No link: the apex has no admission page, and its buttons above
+            // and below already lead to the admission app.
+            linkLabel: null,
+            linkHref: null,
           }}
         />
 
@@ -640,7 +636,7 @@ export function BlockSection({
       return (
         <Hero
           // `||`, not `??`: a heading an editor cleared comes back as an
-          // empty string, and an empty `h1` is the umbrella home's only one.
+          // empty string, and an empty `h1` leaves the page with no title.
           heading={block.heading || site.tagline}
           body={block.body}
           image={block.image}
@@ -679,10 +675,9 @@ export function BlockSection({
     // this is the page's real navigation rather than a list of links.
     case "schools":
       return (
-        // The hero's second action points here, so the section needs a name to
-        // be pointed at — and a scroll margin, because the header is sticky and
-        // two rows tall: without it the heading lands behind the header and the
-        // visitor arrives halfway down the card grid.
+        // Named so an editor's `#sekolah` link can point here, with a scroll
+        // margin because the header is sticky and two rows tall: without it the
+        // heading lands behind the header.
         <section id="sekolah" className={`${SECTION} scroll-mt-28 bg-muted`}>
           <div className={`${WIDTH} flex flex-col gap-7`}>
             <SectionHeading head={block.head} />
@@ -1192,7 +1187,7 @@ function SchoolCard({ card }: { card: Extract<Block, { kind: "schools" }>["items
   return (
     <a
       href={ownerUrl(school)}
-      className="flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
+      className="flex flex-col overflow-hidden rounded-xl border border-border bg-background transition-colors duration-150 ease-[ease] hover:border-primary"
     >
       <Photo image={card.photo} label="Foto" className="aspect-43/20 w-full rounded-none!" inCard />
       <div className="flex flex-col gap-2.5 p-5">
@@ -1244,13 +1239,7 @@ async function SchoolStatus({ schoolKey }: { schoolKey: SchoolKey }) {
  * Status never rides on colour alone either: the badge carries the word, so
  * "Ditutup" reads the same to someone who cannot tell the two fills apart.
  */
-export function SchoolStatusBadge({
-  facts,
-  className,
-}: {
-  facts: CycleFacts | null;
-  className?: string;
-}) {
+function SchoolStatusBadge({ facts, className }: { facts: CycleFacts | null; className?: string }) {
   if (facts === null)
     return <span className={`block h-5 w-20 rounded-4xl bg-muted ${className ?? ""}`} />;
   if (facts.state === "unavailable")

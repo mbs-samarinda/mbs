@@ -99,7 +99,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
 
   return (
     <main>
-      <Head article={article} />
+      <Head article={article} listed={Boolean(school)} />
 
       <section className={SECTION}>
         <div className={`${WIDTH} flex flex-col gap-8`}>
@@ -136,8 +136,11 @@ export default async function ArticlePage({ params }: { params: Params }) {
 /**
  * Where the visitor is, what this is, when it was published, and who wrote it.
  * An Opini credits its author where the others carry an attribution.
+ *
+ * `listed` is false at the apex: its one listing sits on its home, and it has
+ * no per-type page to name.
  */
-const Head = ({ article }: { article: FullArticle }) => {
+const Head = ({ article, listed }: { article: FullArticle; listed: boolean }) => {
   const credit = article.byline ?? article.attribution;
   return (
     <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
@@ -149,18 +152,25 @@ const Head = ({ article }: { article: FullArticle }) => {
           <span aria-hidden className="text-muted-foreground">
             /
           </span>
-          <a href="/artikel" className="text-muted-foreground underline underline-offset-4">
-            Artikel
-          </a>
-          <span aria-hidden className="text-muted-foreground">
-            /
-          </span>
           <a
-            href={`/artikel/${article.type}`}
+            href={listed ? "/artikel" : "/#artikel"}
             className="text-muted-foreground underline underline-offset-4"
           >
-            {ARTICLE_KINDS[article.type]}
+            Artikel
           </a>
+          {listed && (
+            <>
+              <span aria-hidden className="text-muted-foreground">
+                /
+              </span>
+              <a
+                href={`/artikel/${article.type}`}
+                className="text-muted-foreground underline underline-offset-4"
+              >
+                {ARTICLE_KINDS[article.type]}
+              </a>
+            </>
+          )}
           <span aria-hidden className="text-muted-foreground">
             /
           </span>

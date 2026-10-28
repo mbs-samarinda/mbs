@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { ownerFromHostname, ownerHost, ownerLacksPath } from "./owners.ts";
+import { admissionUrl, ownerFromHostname, ownerHost, ownerLacksPath } from "./owners.ts";
 
 /**
  * Where a path its owner has no page for is sent, so that `global-not-found.tsx`
@@ -13,7 +13,7 @@ const UNCLAIMED = "/__not-found";
 
 /**
  * Turns the hostname into a route segment: sma.mbss.sch.id/foo becomes
- * /sma/foo internally, and the apex becomes /mbs/foo. The owner key is then
+ * /sma/foo internally, and the apex home becomes /mbs. The owner key is then
  * part of every cache key, so two owners can never share a cached page for the
  * same path.
  *
@@ -33,6 +33,15 @@ export function proxy(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
+
+  // The apex has no admission page, but its header, hero and band all say
+  // "Pendaftaran Bersama" and point here, like every school's do. Sending the
+  // path on keeps those buttons one shared component instead of four branches.
+  // 307, not 308: where the joint campaign lives is a choice that may change.
+  if (!owner.subdomain && pathname === "/pendaftaran") {
+    return NextResponse.redirect(`${admissionUrl()}${request.nextUrl.search}`, 307);
+  }
+
   const url = request.nextUrl.clone();
   url.pathname = ownerLacksPath(owner, pathname)
     ? `/${owner.key}${UNCLAIMED}`

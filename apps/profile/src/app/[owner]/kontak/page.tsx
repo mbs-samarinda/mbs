@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { Fragment, type ReactNode } from "react";
 
 import { getPage, getSite, type Block, type Site } from "../../../cms.ts";
-import { OWNERS, ownerUrl, type Owner } from "../../../owners.ts";
+import { OWNERS, type Owner } from "../../../owners.ts";
 import { AdmissionBandSection, PageHead, SECTION, SectionHeading, WIDTH } from "../sections.tsx";
 
 export async function generateMetadata({
@@ -15,10 +15,10 @@ export async function generateMetadata({
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
   const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) return {};
+  const school = SCHOOLS.find((candidate) => candidate.key === key);
+  if (!school) return {};
 
-  const page = await getPage(owner.key, "kontak");
+  const page = await getPage(school.key, "kontak");
   return {
     title: page?.seo?.metaTitle ?? "Kontak",
     description: page?.seo?.metaDescription ?? undefined,
@@ -26,7 +26,7 @@ export async function generateMetadata({
 }
 
 /**
- * The contact page, for a school and for the umbrella.
+ * The contact page, on a school site only.
  *
  * Asking is the primary action here rather than a footnote: the old site's two
  * most-used pages by a wide margin were both question forms, neither carrying a
@@ -41,41 +41,28 @@ export async function generateMetadata({
 export default async function ContactPage({ params }: { params: Promise<{ owner: string }> }) {
   const { owner: key } = await params;
   const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) notFound();
+  const school = SCHOOLS.find((candidate) => candidate.key === key);
+  if (!owner || !school) notFound();
 
   const [site, page] = await Promise.all([getSite(owner.key), getPage(owner.key, "kontak")]);
-  const school = SCHOOLS.find((candidate) => candidate.key === owner.key);
 
   return (
     <main>
       <PageHead
         heading="Kontak"
-        body={
-          school
-            ? "Pertanyaan pendaftaran dan pertanyaan umum ditangani dua orang berbeda. Pilih yang sesuai."
-            : "Pertanyaan pendaftaran dijawab panitia bersama; urusan yayasan lewat sekretariat."
-        }
+        body="Pertanyaan pendaftaran dan pertanyaan umum ditangani dua orang berbeda. Pilih yang sesuai."
       />
 
       {(page?.blocks ?? []).map((block) =>
         block.kind !== "contact" ? null : (
           <Fragment key={`${block.kind}-${block.id}`}>
             <AskCards items={block.items} />
-            {school ? (
-              <Address owner={owner} site={site} head={block.head} showMap={block.showMap} />
-            ) : (
-              <SchoolDirectory
-                owner={owner}
-                site={site}
-                head={block.head}
-                showMap={block.showMap}
-              />
-            )}
+            <Address owner={owner} site={site} head={block.head} showMap={block.showMap} />
           </Fragment>
         ),
       )}
 
-      {school && <AdmissionBandSection schoolKey={school.key} admissionCta={site.admissionCta} />}
+      <AdmissionBandSection schoolKey={school.key} admissionCta={site.admissionCta} />
     </main>
   );
 }
@@ -184,94 +171,6 @@ function Address({
                   <a href={email.href}>{email.value}</a>
                 </Fact>
               )}
-              {site.hours && <Fact label="Jam layanan">{site.hours}</Fact>}
-            </Facts>
-            <Socials links={site.socials} />
-          </div>
-          {coordinates && <Map name={owner.name} coordinates={coordinates} />}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/**
- * Each school's own number and email, read from that school's `Site` row.
- *
- * Read rather than typed into the umbrella's CMS: these are school-owned facts,
- * and a second copy at the apex is a second place to forget when a number
- * changes. This is the one page that reads across owners, and it reads only what
- * every school already publishes on its own contact page.
- */
-async function SchoolDirectory({
-  owner,
-  site,
-  head,
-  showMap,
-}: {
-  owner: Owner;
-  site: Site;
-  head: ContactBlock["head"];
-  showMap: boolean;
-}) {
-  // Tolerated per school, unlike everywhere else `getSite` is called. A missing
-  // row is still a broken deployment, but this is the one page that reads
-  // another owner's, and one unreadable school must not take the apex's contact
-  // page down with it. The school keeps its row and says what is missing.
-  const schools = await Promise.all(
-    SCHOOLS.map(async (school) => {
-      try {
-        return { school, site: await getSite(school.key) };
-      } catch {
-        return { school, site: null };
-      }
-    }),
-  );
-  const coordinates = showMap ? site.mapsCoordinates : null;
-
-  return (
-    <section className={`${SECTION} bg-muted`}>
-      <div className={`${WIDTH} flex flex-col gap-7`}>
-        <SectionHeading head={head} />
-        <div className={`grid gap-6 ${coordinates ? "lg:grid-cols-2" : ""}`}>
-          <div className="flex flex-col gap-6">
-            <Facts>
-              {schools.map(({ school, site: schoolSite }) => {
-                const phone = schoolSite?.headerPhone;
-                const email = schoolSite?.contacts.find((contact) =>
-                  contact.href.startsWith("mailto:"),
-                );
-                return (
-                  <Fact key={school.key} label={school.name}>
-                    {schoolSite ? (
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        {phone && (
-                          <a href={phone.href} className="tabular-nums">
-                            {phone.label}
-                          </a>
-                        )}
-                        {phone && email && (
-                          <span aria-hidden className="text-muted-foreground">
-                            ·
-                          </span>
-                        )}
-                        {email && <a href={email.href}>{email.value}</a>}
-                      </span>
-                    ) : (
-                      // The school stays on the page: dropping the row would
-                      // read as a school that has no contact rather than one we
-                      // could not read.
-                      <span className="text-muted-foreground">
-                        Kontak belum bisa dibaca.{" "}
-                        <a href={ownerUrl(school)} className="underline underline-offset-4">
-                          Buka situs sekolah
-                        </a>
-                      </span>
-                    )}
-                  </Fact>
-                );
-              })}
-              {site.address && <Fact label="Alamat kampus">{site.address}</Fact>}
               {site.hours && <Fact label="Jam layanan">{site.hours}</Fact>}
             </Facts>
             <Socials links={site.socials} />

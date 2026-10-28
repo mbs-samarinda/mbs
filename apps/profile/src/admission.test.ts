@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { anySchoolOpen, isOpen, splitDocuments } from "./admission.ts";
+import { isOpen, splitDocuments } from "./admission.ts";
 
 // `documents` sits outside the frozen literal: `as const` would make it a
 // readonly array, which the cycle type does not accept.
@@ -29,30 +29,6 @@ describe("isOpen", () => {
     expect(isOpen({ ...cycle, status: "CLOSED" })).toBe(false);
     expect(isOpen({ ...cycle, status: "DRAFT" })).toBe(false);
     expect(isOpen({ ...cycle, status: "ARCHIVED" })).toBe(false);
-  });
-});
-
-describe("anySchoolOpen", () => {
-  // The umbrella's CTA. `status` is the shared cycle's, but `isEnabled` is per
-  // school, so the first school's answer is not the page's answer: SMP disabled
-  // must not shut the button while SMK is taking applications.
-  it("is open when any school is open, whatever the first one says", () => {
-    expect(
-      anySchoolOpen([
-        { state: "cycle", cycle: { ...cycle, schoolKey: "smp", isEnabled: false } },
-        { state: "cycle", cycle: { ...cycle, schoolKey: "smk" } },
-      ]),
-    ).toBe(true);
-  });
-
-  it("is closed when no school is taking applications", () => {
-    expect(
-      anySchoolOpen([
-        { state: "cycle", cycle: { ...cycle, status: "CLOSED" } },
-        { state: "none" },
-        { state: "unavailable" },
-      ]),
-    ).toBe(false);
   });
 });
 

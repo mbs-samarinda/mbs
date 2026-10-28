@@ -18,17 +18,9 @@ import type { Owner } from "../owners.ts";
  * read is what failed.
  */
 
-const SCHOOL_LINKS = [
+const LINKS = [
   { label: "Pendaftaran", href: "/pendaftaran" },
   { label: "Program", href: "/program" },
-  { label: "Artikel", href: "/artikel" },
-  { label: "Kontak", href: "/kontak" },
-];
-
-// The umbrella carries no `program`; a visitor there is choosing a school.
-const UMBRELLA_LINKS = [
-  { label: "Pendaftaran Bersama", href: "/pendaftaran" },
-  { label: "Profil", href: "/profil" },
   { label: "Artikel", href: "/artikel" },
   { label: "Kontak", href: "/kontak" },
 ];
@@ -53,7 +45,9 @@ export function Exception({
   reference?: string | undefined;
 }) {
   const Icon = kind === "not-found" ? SearchXIcon : TriangleAlertIcon;
-  const links = owner && owner.key !== "mbs" ? SCHOOL_LINKS : UMBRELLA_LINKS;
+  // The apex has only its home. Its way on is to a school, which the switcher
+  // above already offers, so it gets no page suggestions and no contact page.
+  const atSchool = owner !== null && owner.subdomain !== null;
 
   return (
     <main className="mx-auto flex w-full max-w-300 flex-col gap-8 px-4 py-16 md:px-12 md:py-20 lg:px-30 lg:py-24">
@@ -77,27 +71,31 @@ export function Exception({
         <a href="/" className={buttonVariants({ size: "touch" })}>
           Kembali ke Beranda
         </a>
-        <a href="/kontak" className={cn(buttonVariants({ variant: "outline", size: "touch" }))}>
-          Hubungi Panitia
-        </a>
+        {atSchool && (
+          <a href="/kontak" className={cn(buttonVariants({ variant: "outline", size: "touch" }))}>
+            Hubungi Panitia
+          </a>
+        )}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-border pt-6">
-        <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
-          Halaman yang mungkin Anda cari
-        </h2>
-        <nav aria-label="Halaman" className="flex flex-wrap gap-x-7 gap-y-1">
-          {links.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="flex min-h-11 items-center text-sm font-semibold text-primary underline underline-offset-4"
-            >
-              {link.label}
-            </a>
-          ))}
-        </nav>
-      </div>
+      {atSchool && (
+        <div className="flex flex-col gap-3 border-t border-border pt-6">
+          <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
+            Halaman yang mungkin Anda cari
+          </h2>
+          <nav aria-label="Halaman" className="flex flex-wrap gap-x-7 gap-y-1">
+            {LINKS.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="flex min-h-11 items-center text-sm font-semibold text-primary underline underline-offset-4"
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        </div>
+      )}
 
       {reference && (
         <p className="text-xs text-muted-foreground tabular-nums">

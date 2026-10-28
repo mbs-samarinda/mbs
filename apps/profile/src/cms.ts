@@ -2,7 +2,7 @@ import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
 import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 
-import { cutExpired, umbrellaNews, type Article, type ArticleType } from "./articles.ts";
+import { cutExpired, type Article, type ArticleType } from "./articles.ts";
 import { config } from "./config/env.ts";
 import type { Owner } from "./owners.ts";
 
@@ -575,8 +575,7 @@ export async function getArticleIndex(ownerKey: Owner["key"]): Promise<Article[]
  * that nobody promised would be full.
  */
 export async function getArticles(ownerKey: Owner["key"], limit: number): Promise<Article[]> {
-  const entries = await getArticleIndex(ownerKey);
-  return ownerKey === "mbs" ? umbrellaNews(entries, limit) : entries.slice(0, limit);
+  return (await getArticleIndex(ownerKey)).slice(0, limit);
 }
 
 /** One article, with the parts only its own page renders. */

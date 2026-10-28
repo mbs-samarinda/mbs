@@ -14,10 +14,10 @@ export async function generateMetadata({
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
   const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) return {};
+  const school = SCHOOLS.find((candidate) => candidate.key === key);
+  if (!school) return {};
 
-  const page = await getPage(owner.key, "artikel");
+  const page = await getPage(school.key, "artikel");
   return {
     title: page?.seo?.metaTitle ?? "Artikel",
     description: page?.seo?.metaDescription ?? undefined,
@@ -25,7 +25,7 @@ export async function generateMetadata({
 }
 
 /**
- * Every article, all three types, newest first.
+ * Every article, all three types, newest first, on a school site only.
  *
  * The page head is outside the `<Suspense>` boundary and the listing inside it,
  * which is what keeps the shell prerendering.
@@ -39,16 +39,15 @@ export default async function ArtikelPage({
 }) {
   const { owner: key } = await params;
   const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) notFound();
-
-  const school = SCHOOLS.find((candidate) => candidate.key === owner.key);
+  const school = SCHOOLS.find((candidate) => candidate.key === key);
+  if (!owner || !school) notFound();
 
   return (
     <main>
       <PageHead heading="Artikel" body="Berita, pengumuman, dan opini terkini." />
 
-      <Suspense fallback={<ListingPlaceholder hasSidebar={Boolean(school)} hasFilters />}>
-        <Listing owner={owner} schoolKey={school?.key} searchParams={searchParams} />
+      <Suspense fallback={<ListingPlaceholder hasSidebar hasFilters />}>
+        <Listing owner={owner} schoolKey={school.key} searchParams={searchParams} />
       </Suspense>
     </main>
   );
