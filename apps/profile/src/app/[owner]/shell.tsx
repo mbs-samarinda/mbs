@@ -60,9 +60,14 @@ function LogoSlot({ logo, className }: { logo: Site["logo"]; className: string }
  * the navigation between its own row at tablet and the brand's row on a desktop
  * page. Below `md` the navigation moves into a sheet, and the admission action
  * goes with it so the bar holds the identity alone.
+ *
+ * The umbrella has no navigation at all: its home is its only page, so a menu
+ * there would hold one link to where the visitor already is. With no sheet to
+ * carry them, its theme control and admission action stay in the bar at every
+ * width.
  */
 export function Header({ owner, site }: { owner: Owner; site: Site }) {
-  const menu = toMenu(site.menu);
+  const menu = owner.subdomain ? toMenu(site.menu) : [];
 
   return (
     // Both rows stay put while the page scrolls: the switcher says which site
@@ -132,12 +137,14 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
           </span>
         </a>
 
-        <MobileMenu
-          items={menu}
-          owner={owner.name}
-          admissionCta={site.admissionCta}
-          cookieSuffix={COOKIE_SUFFIX}
-        />
+        {menu.length > 0 && (
+          <MobileMenu
+            items={menu}
+            owner={owner.name}
+            admissionCta={site.admissionCta}
+            cookieSuffix={COOKIE_SUFFIX}
+          />
+        )}
 
         {menu.length > 0 && (
           <NavScroller
@@ -155,9 +162,24 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
             empty flex item still takes a slot, and `justify-between` would hand
             it the right-hand end — leaving the menu button stranded in the
             middle of the bar. */}
-        <div className="order-2 hidden shrink-0 items-center gap-2 md:flex lg:order-3">
+        <div
+          className={cn(
+            "order-2 shrink-0 items-center gap-2 lg:order-3",
+            // On a phone the umbrella's pair takes the row under the brand, as
+            // it sat at the foot of the sheet, and wraps rather than running
+            // off a zoomed screen.
+            menu.length > 0 ? "hidden md:flex" : "flex w-full flex-wrap pb-3 md:w-auto md:pb-0",
+          )}
+        >
           <ThemeSelect cookieSuffix={COOKIE_SUFFIX} />
-          <a href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "shrink-0")}>
+          <a
+            href="/pendaftaran"
+            className={cn(
+              buttonVariants({ size: "touch" }),
+              "shrink-0",
+              menu.length === 0 && "flex-1 md:flex-none",
+            )}
+          >
             {site.admissionCta}
           </a>
         </div>
