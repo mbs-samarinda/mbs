@@ -30,6 +30,10 @@ readonly ENV_FILE=$ROOT/.env
 # Separate from .env because this file is machine-written on each deploy and
 # .env holds hand-placed secrets that nothing should ever rewrite.
 readonly IMAGES_FILE=$ROOT/images.env
+# A copy of images.env, taken only once a deploy has passed every check below.
+# images.env itself is rewritten before anything is proven, so after a failure
+# this is the only record of what last worked.
+readonly LAST_GOOD_FILE=$ROOT/images.last-good.env
 readonly COMPOSE=(
   "docker" "compose"
   "--env-file" "$ENV_FILE"
@@ -52,7 +56,33 @@ log() { printf '\n== %s\n' "$*"; }
 cleanup_candidate() {
   docker rm -f "$CANDIDATE" >/dev/null 2>&1 || true
 }
-trap cleanup_candidate EXIT
+
+# Set once images.env holds this deploy's untested pins. Before that, a failure
+# changed nothing worth restoring.
+pinned=false
+
+on_exit() {
+  local status=$?
+  cleanup_candidate
+  ((status != 0)) && $pinned || return "$status"
+  if [[ ! -f $LAST_GOOD_FILE ]]; then
+    echo "No deploy has passed since $LAST_GOOD_FILE was introduced, so there are no older pins to restore." >&2
+    return "$status"
+  fi
+  local tags
+  # shellcheck disable=SC1090
+  tags=$(source "$LAST_GOOD_FILE" && echo "${PROFILE_IMAGE##*:} ${CMS_IMAGE##*:} ${API_IMAGE##*:}")
+  {
+    echo
+    echo "$IMAGES_FILE now pins images that did not pass. To put the last good pins back:"
+    echo "  cp $LAST_GOOD_FILE $IMAGES_FILE"
+    echo "To run those images again, through every check in this script:"
+    echo "  $ROOT/deploy.sh $tags"
+    echo "Do not do that past a commit that added a CMS component; that destroys its content. Roll forward instead."
+  } >&2
+  return "$status"
+}
+trap on_exit EXIT
 
 # ---------------------------------------------------------------------------
 
@@ -83,6 +113,7 @@ PROFILE_IMAGE=$REGISTRY/mbs-profile:$PROFILE_TAG
 CMS_IMAGE=$REGISTRY/mbs-cms:$CMS_TAG
 API_IMAGE=$REGISTRY/mbs-api:$API_TAG
 PINS
+pinned=true
 
 log "Pulling images"
 docker pull -q "$REGISTRY/mbs-profile:$PROFILE_TAG"
@@ -112,6 +143,9 @@ log "Backing up both databases"
 backup_dir=$ROOT/backups
 mkdir -p "$backup_dir"
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
+# Left behind when a dump dies under set -e, before the empty-file check below
+# can remove it. Cleared here so re-running after a crash does not pile them up.
+find "$backup_dir" -name '.*.dump.part' -delete
 for db in mbs_core mbs_cms; do
   # Written to a .part name and renamed only once it has content. The shell
   # creates a redirect target before the command runs, so a failed pg_dump left
@@ -145,9 +179,10 @@ log "Starting cms and api"
 # --wait: the candidate below is a plain `docker run` that skips depends_on, so
 # without it a new cms image is still booting when the smoke check runs. The
 # 7-minute cap covers the cms healthcheck's full budget (90s start + 30 × 10s),
-# so a cms stuck in a restart loop fails the deploy instead of hanging it.
+# so a cms stuck in a restart loop fails the deploy instead of hanging it. The
+# api's healthcheck gives up far sooner, in under two minutes.
 if ! timeout 7m "${COMPOSE[@]}" up -d --wait cms api; then
-  echo "The new cms did not become healthy. The running profile was not touched." >&2
+  echo "The new cms or api did not become healthy. The running profile was not touched." >&2
   exit 1
 fi
 
@@ -284,8 +319,40 @@ log "Verifying the live container"
 # these are a check that the swap worked rather than a warm-up. They stay
 # because the swap is the one step nothing else verifies.
 if ! smoke profile; then
-  echo "The deployed profile is not answering. Roll forward; do not roll back past a" >&2
-  echo "commit that added a CMS component, which would destroy that content." >&2
+  echo "The deployed profile is not answering." >&2
+  exit 1
+fi
+
+log "Checking the public site through Caddy and TLS"
+# Every probe above talks to profile:3002 inside the compose network, so a broken
+# Caddyfile, a stopped caddy or a missing certificate all pass them. This one
+# goes the way a visitor does: port 443 on this host, real certificate check.
+# --resolve pins the name to this box, so it tests this box and not whatever DNS
+# says. Retried for 90s because a first deploy is still fetching certificates.
+# No -L: a redirect would answer without the marker, and that should fail.
+public_probe() {
+  local host=$1 owner=$2 deadline=$((SECONDS + 90)) body
+  while ((SECONDS < deadline)); do
+    if body=$(curl -fsS --max-time 10 --resolve "$host:443:127.0.0.1" "https://$host/" 2>/tmp/public.err) &&
+      [[ $body == *"data-owner=\"$owner\""* ]]; then
+      echo "  ok   https://$host/"
+      return 0
+    fi
+    sleep 3
+  done
+  echo "  FAIL https://$host/ — $(tail -1 /tmp/public.err 2>/dev/null || true)" >&2
+  return 1
+}
+
+public_smoke() {
+  local owner
+  public_probe "$PROFILE_APEX" mbs || return 1
+  for owner in "${OWNER_HOSTS[@]}"; do
+    public_probe "$owner.$PROFILE_APEX" "$owner" || return 1
+  done
+}
+if ! public_smoke; then
+  echo "The new profile is live but visitors cannot reach it through Caddy." >&2
   exit 1
 fi
 
@@ -295,3 +362,9 @@ log "Deployed $deployed"
   echo "Running image is $deployed, expected tag $PROFILE_TAG" >&2
   exit 1
 }
+
+# Last, so it only ever names images that passed everything above. Written to a
+# temporary name and renamed, so a crash mid-write cannot leave half a file.
+cp "$IMAGES_FILE" "$LAST_GOOD_FILE.tmp"
+mv "$LAST_GOOD_FILE.tmp" "$LAST_GOOD_FILE"
+log "Recorded $LAST_GOOD_FILE"

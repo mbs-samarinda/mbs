@@ -141,6 +141,22 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET}
       ADMIN_APP_URL: ${ADMIN_APP_URL:?set ADMIN_APP_URL}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+    # Without one, `up --wait` counts a crash-looping api as started and the
+    # deploy goes green. /ready rather than /health so a wrong database password
+    # fails the deploy too. 127.0.0.1, not localhost: node may resolve that to
+    # ::1, and the api listens on IPv4 only.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     oom_score_adj: 200
 
   profile:
