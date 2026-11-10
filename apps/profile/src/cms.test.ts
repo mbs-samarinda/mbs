@@ -147,7 +147,7 @@ describe("a CMS that ignores the page parameter", () => {
 
   test("throws, naming the collection, when every page is full", async () => {
     const calls = repeat(Array.from({ length: 100 }, (_, i) => article(`a${i}`)));
-    await expect(getArticleIndex("smp")).rejects.toThrow("berita-list");
+    await expect(getArticleIndex("smp")).rejects.toThrow("full pages of berita-list");
     expect(calls()).toBeLessThan(1000);
   });
 });
