@@ -96,6 +96,7 @@ on_exit() {
     echo
     echo "$IMAGES_FILE now pins images that did not pass. To put the last good ones back:"
     echo "  $ROOT/deploy.sh $tags"
+    echo "The workflow logs the box out of ghcr.io after every run, so if a pull is denied, docker login ghcr.io first."
     echo "Not past a commit that added a CMS component; that destroys its content. Roll forward instead."
     if $migrated; then
       echo "Core migrations ran in this run, and the redeploy cannot undo them. If one applied, the old api"
@@ -205,7 +206,7 @@ log "Starting cms and api"
 # without it a new cms image is still booting when the smoke check runs. The
 # 7-minute cap covers the cms healthcheck's full budget (90s start + 30 × 10s),
 # so a cms stuck in a restart loop fails the deploy instead of hanging it. The
-# api's healthcheck gives up far sooner, in under two minutes.
+# api's healthcheck gives up far sooner, within 140s (20s start + 12 × 10s).
 if ! timeout 7m "${COMPOSE[@]}" up -d --wait cms api; then
   echo "The new cms or api did not become healthy. Both now run (or restart) on the new images," >&2
   echo "and the old profile keeps serving against them." >&2
