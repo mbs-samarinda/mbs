@@ -1,9 +1,7 @@
-import { SCHOOLS } from "@mbs/school-config";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
 import { getEntries, getPage } from "../../../cms.ts";
-import { OWNERS } from "../../../owners.ts";
+import { requireSchool } from "../../../owners.ts";
 import { EntryCard, PageHead, SECTION, WIDTH } from "../sections.tsx";
 
 export async function generateMetadata({
@@ -11,9 +9,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
-  const { owner: key } = await params;
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!school) return {};
+  const school = await requireSchool(params);
 
   const page = await getPage(school.key, "fasilitas");
   return {
@@ -31,16 +27,12 @@ export async function generateMetadata({
  * photographs of what happens in them belong to `/galeri`.
  *
  * School-only. The umbrella owns no buildings, so the apex answers 404 rather
- * than an empty grid; `ownerLacksPath` sends it to an unclaimed path before this
- * renders, and the guard below is what narrows `school` for the code after it.
+ * than an empty grid.
  */
 export default async function FasilitasPage({ params }: { params: Promise<{ owner: string }> }) {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!owner || !school) notFound();
+  const school = await requireSchool(params);
 
-  const entries = await getEntries(owner.key, "fasilitas-list");
+  const entries = await getEntries(school.key, "fasilitas-list");
 
   return (
     <main>

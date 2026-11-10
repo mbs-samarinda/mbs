@@ -12,15 +12,8 @@ import {
   type Month,
 } from "../../../articles.ts";
 import { getArticleIndex, type Article } from "../../../cms.ts";
-import { OWNERS, type Owner } from "../../../owners.ts";
-import {
-  AdmissionCardSection,
-  ArticleMeta,
-  Photo,
-  SECTION,
-  WIDTH,
-  articleHref,
-} from "../sections.tsx";
+import { articleHref, type Owner, OWNERS } from "../../../owners.ts";
+import { AdmissionCardSection, ArticleMeta, Photo, SECTION, WIDTH } from "../sections.tsx";
 
 /** What the listing reads out of the URL. The params stay English; the copy does not. */
 export type Params = {

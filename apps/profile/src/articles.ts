@@ -170,3 +170,26 @@ export const badgeOwners = (article: Article, site: Owner["key"]): Owner["key"][
   article.collaborators.length === 0 && article.ownerKey === site
     ? []
     : [article.ownerKey, ...article.collaborators];
+
+const DATE = new Intl.DateTimeFormat("id-ID", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  // Pinned, not left to the server's clock. A close time of 17.00 UTC is the
+  // 31st on a UTC host and the 1st in Samarinda, and a wrong admission date is
+  // the failure this whole product is built against.
+  timeZone: "Asia/Makassar",
+});
+
+/** Short form, for fact strips and tables. Prose and headlines spell the month. */
+export const formatDate = (iso: string) => DATE.format(new Date(iso));
+
+const LONG_DATE = new Intl.DateTimeFormat("id-ID", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "Asia/Makassar",
+});
+
+/** Spelled out, for prose and for an article's byline. One format per context. */
+export const formatLongDate = (iso: string) => LONG_DATE.format(new Date(iso));

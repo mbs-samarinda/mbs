@@ -1,6 +1,7 @@
 import { SCHOOLS } from "@mbs/school-config";
+import { notFound } from "next/navigation";
 
-import { isArticleType } from "./articles.ts";
+import { isArticleType, type Article } from "./articles.ts";
 
 /**
  * The four owners a profile site can serve. An owner is not a school: the
@@ -20,6 +21,36 @@ const UMBRELLA = {
 export const OWNERS = [UMBRELLA, ...SCHOOLS] as const;
 
 export type Owner = (typeof OWNERS)[number];
+
+/** Every key comes from this same list, so the fallback never runs; it only narrows the type. */
+export const ownerByKey = (key: Owner["key"]) =>
+  OWNERS.find((owner) => owner.key === key) ?? UMBRELLA;
+
+/** The one owner with no subdomain, no admission and no pages beyond its home and articles. */
+export const isUmbrella = (owner: Owner): owner is typeof UMBRELLA => owner.key === UMBRELLA.key;
+
+/**
+ * The owner a route's `[owner]` segment names. The proxy only rewrites to a
+ * known owner, so the 404 here is unreachable; it exists to narrow the type,
+ * and it raises rather than falling back because one owner's content under
+ * another owner's hostname is the failure this boundary exists to stop.
+ */
+export async function requireOwner(params: Promise<{ owner: string }>): Promise<Owner> {
+  const { owner: key } = await params;
+  const owner = OWNERS.find((candidate) => candidate.key === key);
+  if (!owner) notFound();
+  return owner;
+}
+
+/**
+ * The same, for a page only a school has. The proxy sends the apex to a 404
+ * before it reaches one (`ownerLacksPath`), so this too only narrows the type.
+ */
+export async function requireSchool(params: Promise<{ owner: string }>) {
+  const owner = await requireOwner(params);
+  if (isUmbrella(owner)) notFound();
+  return owner;
+}
 
 // Overridable so a staging deploy on another domain resolves owners the same
 // way; the default is production and nothing else needs setting.
@@ -43,8 +74,7 @@ const UMBRELLA_PATHS = new Set(["/", "/favicon.ico"]);
  * URL that matches no route at all, so the apex has to be sent to one.
  */
 export function ownerLacksPath(owner: Owner, pathname: string): boolean {
-  // Only the umbrella lacks pages, and it is the one owner with no subdomain.
-  if (owner.subdomain) return false;
+  if (!isUmbrella(owner)) return false;
   if (UMBRELLA_PATHS.has(pathname)) return false;
   const [, section, type, slug, ...rest] = pathname.split("/");
   const isArticle =
@@ -119,3 +149,26 @@ export function ownerFromHostname(hostname: string): Owner | null {
   const label = host.slice(0, -`.${root}`.length);
   return SCHOOLS.find((school) => school.subdomain === label) ?? null;
 }
+
+/**
+ * The owner for the page's own hostname, in the browser. `ownerFromHostname`
+ * cannot run there: `PROFILE_APEX` is not inlined into a client bundle, so it
+ * would see only the production apex and resolve every staging host to nobody.
+ * The first label is enough, because the proxy has already checked the host.
+ * `^www.` is stripped as the proxy strips it, or a `www.` visitor would get the
+ * umbrella on their school's page.
+ */
+export function ownerFromBrowserHost(hostname: string | undefined): Owner | null {
+  const label = hostname?.replace(/^www\./, "").split(".")[0];
+  return OWNERS.find((candidate) => candidate.subdomain === label) ?? null;
+}
+
+/**
+ * Where a card leads. Relative on the article's home site; the full address
+ * everywhere else, because its page only exists on its primary's host.
+ */
+export const articleHref = (
+  article: Pick<Article, "ownerKey" | "type" | "slug">,
+  site: Owner["key"],
+) =>
+  `${article.ownerKey === site ? "/" : ownerUrl(ownerByKey(article.ownerKey))}artikel/${article.type}/${article.slug}`;

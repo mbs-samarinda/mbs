@@ -143,7 +143,7 @@ app stays in that app. Import them by path:
 
 ```ts
 import { Button } from "@mbs/ui/components/button";
-import { cn } from "@mbs/ui/lib/utils";
+import { cn } from "cn";
 ```
 
 Design tokens and the Tailwind entry point live in

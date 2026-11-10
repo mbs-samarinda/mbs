@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { admissionUrl, ownerFromHostname, ownerHost, ownerLacksPath } from "./owners.ts";
+import {
+  admissionUrl,
+  isUmbrella,
+  ownerFromHostname,
+  ownerHost,
+  ownerLacksPath,
+} from "./owners.ts";
 
 /**
  * Where a path its owner has no page for is sent, so that `global-not-found.tsx`
@@ -38,7 +44,7 @@ export function proxy(request: NextRequest) {
   // "Pendaftaran Bersama" and point here, like every school's do. Sending the
   // path on keeps those buttons one shared component instead of four branches.
   // 307, not 308: where the joint campaign lives is a choice that may change.
-  if (!owner.subdomain && pathname === "/pendaftaran") {
+  if (isUmbrella(owner) && pathname === "/pendaftaran") {
     return NextResponse.redirect(`${admissionUrl()}${request.nextUrl.search}`, 307);
   }
 

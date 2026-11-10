@@ -96,3 +96,11 @@ export function splitDocuments(documents: PublicCycle["documents"]) {
     optional: documents.filter((document) => !document.required).map(label),
   };
 }
+
+/** Whole rupiah. The API carries no fractional fee and none is ever displayed. */
+export const formatFee = (amount: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);

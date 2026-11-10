@@ -15,6 +15,9 @@ import Markdown, { type Components } from "react-markdown";
  * defines.
  */
 const COMPONENTS: Components = {
+  // The page title is the page's one h1, so an editor's `#` heading is drawn
+  // one level down rather than as a second title.
+  h1: ({ children }) => <h2 className="mt-3 text-2xl font-bold text-balance">{children}</h2>,
   h2: ({ children }) => <h2 className="mt-3 text-2xl font-bold text-balance">{children}</h2>,
   h3: ({ children }) => <h3 className="mt-2 text-xl font-bold text-balance">{children}</h3>,
   ul: ({ children }) => <ul className="flex list-disc flex-col gap-2 pl-5">{children}</ul>,

@@ -1,10 +1,15 @@
-import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
+import type { SchoolKey } from "@mbs/school-config";
 import { Mail, MessageCircle } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { ARTICLE_KINDS, isArticleType } from "../../../../../articles.ts";
+import {
+  ARTICLE_KINDS,
+  formatDate,
+  formatLongDate,
+  isArticleType,
+} from "../../../../../articles.ts";
 import {
   getArticle,
   getArticleIndex,
@@ -14,27 +19,24 @@ import {
   type Article,
   type FullArticle,
 } from "../../../../../cms.ts";
-import { OWNERS, ownerUrl, type Owner } from "../../../../../owners.ts";
-import { Prose } from "../../../prose.tsx";
 import {
-  AdmissionCardSection,
-  Photo,
-  SECTION,
-  TypeBadge,
-  WIDTH,
   articleHref,
-  formatDate,
-  formatLongDate,
-} from "../../../sections.tsx";
+  isUmbrella,
+  type Owner,
+  ownerUrl,
+  requireOwner,
+} from "../../../../../owners.ts";
+import { Prose } from "../../../prose.tsx";
+import { AdmissionCardSection, Photo, SECTION, TypeBadge, WIDTH } from "../../../sections.tsx";
 import { CopyLink } from "../../copy-link.tsx";
 
 type Params = Promise<{ owner: string; type: string; slug: string }>;
 
 /** Resolves the owner and the article together, or gives up. */
 async function read(params: Params) {
-  const { owner: key, type, slug } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner || !isArticleType(type)) return null;
+  const { type, slug } = await params;
+  const owner = await requireOwner(params);
+  if (!isArticleType(type)) return null;
 
   const article = await getArticle(owner.key, type, slug);
   return article ? { owner, article } : null;
@@ -95,7 +97,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
   if (!found) notFound();
 
   const { owner, article } = found;
-  const school = SCHOOLS.find((candidate) => candidate.key === owner.key);
+  const school = isUmbrella(owner) ? null : owner;
 
   return (
     <main>

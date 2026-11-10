@@ -1,4 +1,3 @@
-import { SCHOOLS } from "@mbs/school-config";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -9,7 +8,7 @@ import {
   isArticleType,
   type ArticleType,
 } from "../../../../articles.ts";
-import { OWNERS } from "../../../../owners.ts";
+import { requireSchool } from "../../../../owners.ts";
 import { PageHead } from "../../sections.tsx";
 import { Listing, ListingPlaceholder, type Params } from "../listing.tsx";
 
@@ -39,17 +38,16 @@ export default async function TypePage({
   params: RouteParams;
   searchParams: Promise<Params>;
 }) {
-  const { owner: key, type } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!owner || !school || !isArticleType(type)) notFound();
+  const { type } = await params;
+  const school = await requireSchool(params);
+  if (!isArticleType(type)) notFound();
 
   return (
     <main>
       <PageHead heading={ARTICLE_KINDS[type]} body={LEAD[type]} />
 
       <Suspense fallback={<ListingPlaceholder hasSidebar hasFilters={false} />}>
-        <Listing owner={owner} schoolKey={school.key} type={type} searchParams={searchParams} />
+        <Listing owner={school} schoolKey={school.key} type={type} searchParams={searchParams} />
       </Suspense>
     </main>
   );

@@ -1,20 +1,17 @@
-import { SCHOOLS } from "@mbs/school-config";
 import { DownloadIcon, FileTextIcon } from "lucide-react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
+import { formatDate } from "../../../articles.ts";
 import { getFiles, getPage, mediaUrl, type Berkas } from "../../../cms.ts";
-import { OWNERS } from "../../../owners.ts";
-import { PageHead, SECTION, WIDTH, formatDate } from "../sections.tsx";
+import { requireSchool } from "../../../owners.ts";
+import { PageHead, SECTION, WIDTH } from "../sections.tsx";
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
-  const { owner: key } = await params;
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!school) return {};
+  const school = await requireSchool(params);
 
   const page = await getPage(school.key, "unduhan");
   return {
@@ -45,12 +42,9 @@ function fileType({ ext, size }: Berkas["file"]) {
  * School-only, like `/galeri`.
  */
 export default async function UnduhanPage({ params }: { params: Promise<{ owner: string }> }) {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!owner || !school) notFound();
+  const school = await requireSchool(params);
 
-  const files = await getFiles(owner.key);
+  const files = await getFiles(school.key);
 
   return (
     <main>

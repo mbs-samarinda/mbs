@@ -1,12 +1,10 @@
-import { SCHOOLS } from "@mbs/school-config";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { ExternalLink, MessageCircle, Phone } from "lucide-react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { Fragment, type ReactNode } from "react";
 
 import { getPage, getSite, type Block, type Site } from "../../../cms.ts";
-import { OWNERS, type Owner } from "../../../owners.ts";
+import { type Owner, requireSchool } from "../../../owners.ts";
 import { AdmissionBandSection, PageHead, SECTION, SectionHeading, WIDTH } from "../sections.tsx";
 
 export async function generateMetadata({
@@ -14,9 +12,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
-  const { owner: key } = await params;
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!school) return {};
+  const school = await requireSchool(params);
 
   const page = await getPage(school.key, "kontak");
   return {
@@ -39,12 +35,9 @@ export async function generateMetadata({
  * deferred rather than rejected.
  */
 export default async function ContactPage({ params }: { params: Promise<{ owner: string }> }) {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!owner || !school) notFound();
+  const school = await requireSchool(params);
 
-  const [site, page] = await Promise.all([getSite(owner.key), getPage(owner.key, "kontak")]);
+  const [site, page] = await Promise.all([getSite(school.key), getPage(school.key, "kontak")]);
 
   return (
     <main>
@@ -57,7 +50,7 @@ export default async function ContactPage({ params }: { params: Promise<{ owner:
         block.kind !== "contact" ? null : (
           <Fragment key={`${block.kind}-${block.id}`}>
             <AskCards items={block.items} />
-            <Address owner={owner} site={site} head={block.head} showMap={block.showMap} />
+            <Address owner={school} site={site} head={block.head} showMap={block.showMap} />
           </Fragment>
         ),
       )}

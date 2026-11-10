@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { getSite } from "../../cms.ts";
-import { OWNERS, ownerHost } from "../../owners.ts";
+import { ownerHost, OWNERS, requireOwner } from "../../owners.ts";
 import { Footer, Header } from "./shell.tsx";
 import { ThemeScript } from "./theme-script.tsx";
 
@@ -16,9 +15,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) return { title: "MBSS" };
+  const owner = await requireOwner(params);
 
   const site = await getSite(owner.key);
 
@@ -54,9 +51,7 @@ export default async function OwnerLayout({
   children: ReactNode;
   params: Promise<{ owner: string }>;
 }) {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) notFound();
+  const owner = await requireOwner(params);
 
   const site = await getSite(owner.key);
 

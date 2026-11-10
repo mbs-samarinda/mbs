@@ -4,7 +4,7 @@ import { cn } from "cn";
 import Image from "next/image";
 
 import { mediaUrl, type Site } from "../../cms.ts";
-import { ownerUrl, type Owner } from "../../owners.ts";
+import { isUmbrella, type Owner, ownerUrl } from "../../owners.ts";
 import { MobileMenu } from "./mobile-menu.tsx";
 import { toMenu } from "./nav-link.ts";
 import { NavScroller } from "./nav-scroller.tsx";
@@ -69,7 +69,7 @@ function LogoSlot({ logo, className }: { logo: Site["logo"]; className: string }
  * row of their own.
  */
 export function Header({ owner, site }: { owner: Owner; site: Site }) {
-  const menu = owner.subdomain ? toMenu(site.menu) : [];
+  const menu = isUmbrella(owner) ? [] : toMenu(site.menu);
 
   return (
     // Both rows stay put while the page scrolls: the switcher says which site
@@ -220,19 +220,18 @@ export function Footer({ owner, site }: { owner: Owner; site: Site }) {
   // The links from the apex to the three school sites cross hostnames, so they
   // are built here from the domain this deploy was made under, not typed into
   // the CMS where they would be a production URL on every staging page.
-  const columns =
-    owner.key === "mbs"
-      ? [
-          {
-            heading: "Sekolah",
-            links: SCHOOLS.map((school) => ({
-              label: school.name,
-              href: ownerUrl(school),
-            })),
-          },
-          ...site.footerColumns,
-        ]
-      : site.footerColumns;
+  const columns = isUmbrella(owner)
+    ? [
+        {
+          heading: "Sekolah",
+          links: SCHOOLS.map((school) => ({
+            label: school.name,
+            href: ownerUrl(school),
+          })),
+        },
+        ...site.footerColumns,
+      ]
+    : site.footerColumns;
 
   return (
     <footer className="border-t border-border bg-background">
