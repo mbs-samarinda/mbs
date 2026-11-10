@@ -82,29 +82,31 @@ on_exit() {
   cleanup_candidate
   rm -f "$probe_err"
   ((status != 0)) && $pinned || return "$status"
-  if [[ ! -f $LAST_GOOD_FILE ]]; then
+  if [[ -f $LAST_GOOD_FILE ]]; then
+    local tags
+    # shellcheck disable=SC1090
+    tags=$(source "$LAST_GOOD_FILE" && echo "${PROFILE_IMAGE##*:} ${CMS_IMAGE##*:} ${API_IMAGE##*:}")
+    # A redeploy rather than a copy of the file: by now cms, api or profile may
+    # already run the new images, and pins that disagree with them would let the
+    # next `compose up` swap images with no checks at all.
+    {
+      echo
+      echo "$IMAGES_FILE now pins images that did not pass. To put the last good ones back:"
+      echo "  $ROOT/deploy.sh $tags"
+      echo "The workflow logs the box out of ghcr.io after every run, so if a pull is denied, docker login ghcr.io first."
+      echo "Not past a commit that added a CMS component; that destroys its content. Roll forward instead."
+    } >&2
+  else
     echo "No deploy has passed since $LAST_GOOD_FILE was introduced, so there are no older pins to restore." >&2
-    return "$status"
   fi
-  local tags
-  # shellcheck disable=SC1090
-  tags=$(source "$LAST_GOOD_FILE" && echo "${PROFILE_IMAGE##*:} ${CMS_IMAGE##*:} ${API_IMAGE##*:}")
-  # A redeploy rather than a copy of the file: by now cms, api or profile may
-  # already run the new images, and pins that disagree with them would let the
-  # next `compose up` swap images with no checks at all.
-  {
-    echo
-    echo "$IMAGES_FILE now pins images that did not pass. To put the last good ones back:"
-    echo "  $ROOT/deploy.sh $tags"
-    echo "The workflow logs the box out of ghcr.io after every run, so if a pull is denied, docker login ghcr.io first."
-    echo "Not past a commit that added a CMS component; that destroys its content. Roll forward instead."
-    if $migrated; then
-      echo "Core migrations ran in this run, and the redeploy cannot undo them. If one applied, the old api"
-      echo "runs against the new schema: compare drizzle.__drizzle_migrations in mbs_core with"
+  if $migrated; then
+    {
+      echo "Core migrations ran in this run, and redeploying older images cannot undo them. If one applied,"
+      echo "an older api runs against the new schema: compare drizzle.__drizzle_migrations in mbs_core with"
       echo "packages/db/drizzle/meta/_journal.json at the last good commit. The full rollback also"
       echo "restores $backup_dir/mbs_core-$stamp.dump."
-    fi
-  } >&2
+    } >&2
+  fi
   return "$status"
 }
 trap on_exit EXIT
