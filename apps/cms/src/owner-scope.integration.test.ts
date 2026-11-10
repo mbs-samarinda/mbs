@@ -324,6 +324,60 @@ void describe("owner scope", () => {
     assert.match(String(error), /milik "sma"/);
   });
 
+  // Only the collaboration hooks link an invite to an article. An editor who
+  // could would pull another school's invite onto their own article.
+  void it("refuses an editor linking an invite to an article", async () => {
+    const stamp = unique();
+    const { documentId: smkArticle } = await strapi.documents("api::berita.berita").create({
+      data: {
+        ownerKey: "smk",
+        title: `Uji undang sma ${stamp}`,
+        slug: `uji-undang-sma-${stamp}`,
+        body: "Isi.",
+        collaborators: [{ ownerKey: "sma" }],
+      },
+    });
+    await strapi.documents("api::berita.berita").publish({ documentId: smkArticle });
+    const invite: { documentId: string } | null = await strapi.db
+      .query(KOLABORASI)
+      .findOne({ where: { berita: { documentId: smkArticle } }, select: ["documentId"] });
+    assert.ok(invite, "expected an sma invite");
+    const own = await strapi.documents("api::berita.berita").create({
+      data: { ownerKey: "smp", title: `Uji ${stamp}`, slug: `uji-${stamp}`, body: "Isi." },
+    });
+
+    await assert.rejects(
+      contentManager(
+        editor,
+        "update",
+        { model: "api::berita.berita", id: own.documentId },
+        { kolaborasi: { connect: [{ documentId: invite.documentId }] } },
+      ),
+      /undangan/i,
+    );
+    const after: { berita?: { documentId?: string } } | null = await strapi.db
+      .query(KOLABORASI)
+      .findOne({ where: { documentId: invite.documentId }, populate: ["berita"] });
+    assert.equal(after?.berita?.documentId, smkArticle, "the invite must stay on its article");
+  });
+
+  void it("refuses an owner that is present but not an owner key", async () => {
+    const draft = await strapi.documents("api::berita.berita").create({
+      data: { ownerKey: "smp", title: `Uji ${unique()}`, slug: `uji-${unique()}`, body: "Isi." },
+    });
+    const write = (ownerKey: unknown) => () =>
+      strapi
+        .documents("api::berita.berita")
+        .update({ documentId: draft.documentId, data: { ownerKey } as never });
+
+    await assert.rejects(as(editor, write(null)), /pemilik/i);
+    await assert.rejects(as(editor, write(7)), /pemilik/i);
+    const row: { ownerKey: string } | null = await strapi.db
+      .query("api::berita.berita")
+      .findOne({ where: { documentId: draft.documentId }, select: ["ownerKey"] });
+    assert.equal(row?.ownerKey, "smp");
+  });
+
   // Publishing writes the invitees' rows from inside the editor's request. They
   // carry other owners' keys, so they must not reach the owner check.
   void it("lets an sma editor publish an article that invites smk", async () => {
