@@ -60,7 +60,8 @@ packages/
   api-contract       The oRPC contract and its Zod schemas. Browser-safe.
   db                 Drizzle client, schema, and migrations. Used by api only.
   ui                 shadcn/ui components on Base UI, plus the design tokens.
-  school-config      The fixed school list and compile-time facts.
+  school-config      The fixed school list, the shared enum values, and other
+                     compile-time facts.
   typescript-config  Shared tsconfig bases.
 ```
 
