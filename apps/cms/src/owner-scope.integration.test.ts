@@ -788,6 +788,28 @@ void describe("links", () => {
     "tel:+62541",
   ];
 
+  // Every link field carries the rule, so a typo in one copy of the pattern
+  // shows here rather than on a live page. The hero allows site paths only.
+  void it("gives every link field the same rule", () => {
+    const fields = Object.values(strapi.components).flatMap((component) =>
+      Object.entries(component.attributes)
+        .filter(([name]) => /href/i.test(name))
+        .map(([name, attribute]) => ({
+          field: `${component.uid}.${name}`,
+          regex: "regex" in attribute ? attribute.regex : undefined,
+        })),
+    );
+    assert.ok(fields.length >= 6, "expected the link fields");
+
+    for (const { field, regex } of fields) {
+      assert.ok(typeof regex === "string", `${field} has no regex`);
+      const pattern = new RegExp(regex);
+      for (const href of UNSAFE) assert.ok(!pattern.test(href), `${field} accepts ${href}`);
+      const safe = field === "blocks.hero.secondaryHref" ? ["", "/", "/kontak", "#daftar"] : SAFE;
+      for (const href of safe) assert.ok(pattern.test(href), `${field} refuses ${href}`);
+    }
+  });
+
   void it("refuses a menu link with any other scheme", async () => {
     const site = await strapi
       .documents("api::site.site")
@@ -799,7 +821,7 @@ void describe("links", () => {
         data: { menu: [{ label: "Uji", href, links: [{ label: "Uji", href }] }] },
       });
 
-    for (const href of UNSAFE) await assert.rejects(save(href), undefined, href);
+    for (const href of UNSAFE) await assert.rejects(save(href), { name: "ValidationError" }, href);
     for (const href of SAFE.filter(Boolean)) await assert.doesNotReject(save(href), href);
   });
 
@@ -826,7 +848,7 @@ void describe("links", () => {
       await strapi.documents("api::page.page").publish({ documentId: page.documentId });
     };
 
-    for (const href of UNSAFE) await assert.rejects(save(href), undefined, href);
+    for (const href of UNSAFE) await assert.rejects(save(href), { name: "ValidationError" }, href);
     for (const href of SAFE) await assert.doesNotReject(save(href), href);
   });
 });
