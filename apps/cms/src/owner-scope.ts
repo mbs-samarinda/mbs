@@ -240,7 +240,7 @@ function withoutSlug(fields: string[] | undefined): string[] {
 
 /**
  * What an editor may do with the invites to their own schools: read them, accept
- * one by changing `status`, and decline or leave by deleting it. Never create —
+ * one by changing `keputusan`, and decline or leave by deleting it. Never create —
  * a row only ever comes from the inviting article's publish.
  *
  * Unlike every other type this one names its fields, because the invitee must
@@ -251,13 +251,13 @@ const KOLABORASI_PERMISSIONS: SeedPermission[] = [
   {
     action: READ,
     subject: KOLABORASI_UID,
-    properties: { fields: ["ownerKey", "berita", "pengumuman", "status", "judul", "alamat"] },
+    properties: { fields: ["ownerKey", "berita", "pengumuman", "keputusan", "judul", "alamat"] },
     conditions: [OWNER_SCOPE_CONDITION],
   },
   {
     action: UPDATE,
     subject: KOLABORASI_UID,
-    properties: { fields: ["status"] },
+    properties: { fields: ["keputusan"] },
     conditions: [OWNER_SCOPE_CONDITION],
   },
   { action: DELETE, subject: KOLABORASI_UID, conditions: [OWNER_SCOPE_CONDITION] },

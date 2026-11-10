@@ -5,7 +5,7 @@
     "singularName": "kolaborasi",
     "pluralName": "kolaborasi-list",
     "displayName": "Kolaborasi",
-    "description": "Undangan kolaborasi dari sekolah lain. Ubah status menjadi diterima untuk menampilkan artikelnya di situs sekolah Anda, atau hapus untuk menolak."
+    "description": "Undangan kolaborasi dari sekolah lain. Ubah keputusan menjadi diterima untuk menampilkan artikelnya di situs sekolah Anda, atau hapus untuk menolak."
   },
   "options": {
     "draftAndPublish": false
@@ -28,7 +28,7 @@
       "target": "api::pengumuman.pengumuman",
       "inversedBy": "kolaborasi"
     },
-    "status": {
+    "keputusan": {
       "type": "enumeration",
       "enum": ["menunggu", "diterima"],
       "default": "menunggu",
