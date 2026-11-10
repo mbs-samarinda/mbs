@@ -93,7 +93,8 @@ let tags: Tags | null = null;
  * Only a missing file is an empty manifest. Any other failure throws, and
  * `tags` keeps the last good copy: read as empty, a transient EIO would make
  * `updateTags` overwrite every recorded publish. Readers catch it and serve on
- * the last good copy; only `updateTags` lets it fail the publish.
+ * the last good copy, or miss when there is none; only `updateTags` lets it
+ * fail the publish.
  */
 async function loadTags(): Promise<Tags> {
   const text = await readFile(TAGS, "utf8").catch((error: unknown) => {
@@ -263,7 +264,10 @@ const handler: CacheHandler = {
     // Soft tags are checked here too, because `getExpiration` returns Infinity.
     // This is how the CMS publish webhook reaches entries that a previous
     // container wrote.
-    const manifest = tags ?? (await loadTags().catch((): Tags => ({})));
+    // With no last good copy there is no way to know what a publish replaced,
+    // so an unreadable manifest is a miss.
+    const manifest = tags ?? (await loadTags().catch(() => undefined));
+    if (!manifest) return undefined;
     const marks = [...meta.tags, ...softTags].map((tag) => manifest[tag]);
     if (marks.some((mark) => isExpired(mark, meta.timestamp))) return undefined;
 
