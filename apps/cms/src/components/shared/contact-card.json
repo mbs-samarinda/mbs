@@ -13,7 +13,8 @@
     "channelHref": {
       "type": "string",
       "required": true,
-      "description": "Tautan kanal: https://wa.me/... untuk WhatsApp, tel:+62... untuk telepon."
+      "description": "Tautan kanal: https://wa.me/... untuk WhatsApp, tel:+62... untuk telepon.",
+      "regex": "^$|^/(?![/\\\\])\\S*$|^#\\S*$|^(https://|mailto:|tel:)\\S+$"
     },
     "ctaLabel": { "type": "string", "required": true },
     "hours": { "type": "string" },

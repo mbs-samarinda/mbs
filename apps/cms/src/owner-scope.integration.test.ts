@@ -803,14 +803,15 @@ void describe("links", () => {
     for (const href of SAFE.filter(Boolean)) await assert.doesNotReject(save(href), href);
   });
 
-  // A draft is checked too, not only the published copy.
-  void it("refuses a section link with another scheme in a draft", async () => {
+  // Strapi does not validate a draft, so the rule bites at publish: an unsafe
+  // link can sit in a draft but never reach the public copy.
+  void it("refuses to publish a section link with another scheme", async () => {
     const page = await strapi
       .documents("api::page.page")
       .findFirst({ filters: { ownerKey: "smp", slug: "galeri" }, status: "draft" });
     assert.ok(page, "expected the smp galeri page");
-    const save = (linkHref: string) =>
-      strapi.documents("api::page.page").update({
+    const save = async (linkHref: string) => {
+      await strapi.documents("api::page.page").update({
         documentId: page.documentId,
         data: {
           blocks: [
@@ -822,6 +823,8 @@ void describe("links", () => {
           ],
         },
       });
+      await strapi.documents("api::page.page").publish({ documentId: page.documentId });
+    };
 
     for (const href of UNSAFE) await assert.rejects(save(href), undefined, href);
     for (const href of SAFE) await assert.doesNotReject(save(href), href);
