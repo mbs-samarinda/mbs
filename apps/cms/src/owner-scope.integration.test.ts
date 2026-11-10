@@ -452,20 +452,25 @@ void describe("collaboration", () => {
 
     assert.deepEqual([...new Set(await listedOwners(smkEditor, KOLABORASI))], ["smk"]);
 
-    const { documentId }: { documentId: string } = await strapi.db
-      .query(KOLABORASI)
-      .findOne({ where: { id: invite.id }, select: ["documentId"] });
-    await contentManager(
-      smkEditor,
-      "update",
-      { model: KOLABORASI, id: documentId },
-      { status: "diterima", judul: "Diubah penerima" },
+    // Through the permission checker rather than the update route: the Content
+    // Manager reads a body field named `status` as the publication status and
+    // refuses "diterima" before any permission is consulted.
+    const permissions = strapi.service("admin::permission") as unknown as {
+      engine: { generateUserAbility(user: AdminUser): Promise<unknown> };
+    };
+    const checker = strapi
+      .plugin("content-manager")
+      .service("permission-checker")
+      .create({
+        userAbility: await permissions.engine.generateUserAbility(smkEditor),
+        model: KOLABORASI,
+      }) as {
+      sanitizeUpdateInput(entity: unknown): (body: unknown) => Promise<Record<string, unknown>>;
+    };
+    assert.deepEqual(
+      await checker.sanitizeUpdateInput(invite)({ status: "diterima", judul: "Diubah penerima" }),
+      { status: "diterima" },
     );
-    const saved: { status: string; judul: string } | null = await strapi.db
-      .query(KOLABORASI)
-      .findOne({ where: { id: invite.id }, select: ["status", "judul"] });
-    assert.equal(saved?.status, "diterima");
-    assert.equal(saved?.judul, invite.judul);
 
     const rules = (await rulesFor(smkEditor)).filter((rule) => rule.subject === KOLABORASI);
     assert.ok(rules.some((rule) => rule.action === DELETE));

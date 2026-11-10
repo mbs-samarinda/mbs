@@ -43,6 +43,18 @@ database, so it works on a fresh clone with nothing running. It does still load
 the database driver, which is why `config/database.ts` defaults to postgres:
 sqlite is not installed and a missing `.env` would otherwise crash the build.
 
+## Changing a schema
+
+Bootstrap (`src/index.ts`) only adds content: seeds create rows that are
+missing, and `backfillOnce` repairs rows that exist. Renaming a field or
+changing its type goes in `database/migrations`. Strapi syncs the schema
+before bootstrap runs and drops the old column, so a backfill that copies the
+old values runs too late and finds nothing. Migrations run before that sync.
+
+Permissions are code too. The editor role and the Public role's content
+grants are rebuilt from `src/owner-scope.ts` and `PUBLIC_READ` on every boot,
+so a change made to either in the admin panel is reverted on the next start.
+
 ## ⚙️ Deployment
 
 Strapi gives you many possible deployment options for your project including [Strapi Cloud](https://cloud.strapi.io). Browse the [deployment section of the documentation](https://docs.strapi.io/dev-docs/deployment) to find the best solution for your use case.
