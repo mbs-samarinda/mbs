@@ -37,9 +37,12 @@ turbo_hash=$(pnpm exec turbo run build --filter="@mbs/$app" --dry=json \
 #   api and cms images run `pnpm install` from it at docker build time, so
 #   without it a `pnpm update` for a security patch would match the published
 #   tag, skip the build, and leave the old version running.
+# - package.json, pnpm-workspace.yaml, .npmrc: the api and cms Dockerfiles COPY
+#   them next to the lockfile for that same install, and turbo does not move
+#   either tag when they change (measured). Keep this list in step with the
+#   root files those Dockerfiles COPY.
 printf '%s' \
   "$turbo_hash" \
-  "$(sha256sum "apps/$app/Dockerfile" | cut -d' ' -f1)" \
-  "$(sha256sum .dockerignore | cut -d' ' -f1)" \
-  "$(sha256sum pnpm-lock.yaml | cut -d' ' -f1)" \
+  "$(sha256sum "apps/$app/Dockerfile" .dockerignore pnpm-lock.yaml \
+    package.json pnpm-workspace.yaml .npmrc | cut -d' ' -f1)" \
   | sha256sum | cut -c1-16
