@@ -76,6 +76,20 @@ test("a deleted file breaks every field in it", () => {
   );
 });
 
+test("turning off draft and publish breaks", () => {
+  const before = { ...page, options: { draftAndPublish: true } };
+  const breaks = (after: Schema) =>
+    findBreaks(new Map([[file, before]]), new Map([[file, after]])).map(({ field, reason }) => ({
+      field,
+      reason,
+    }));
+  assert.deepEqual(breaks({ ...page, options: { draftAndPublish: false } }), [
+    { field: "draftAndPublish", reason: "drafts-dropped" },
+  ]);
+  assert.deepEqual(breaks(page), [{ field: "draftAndPublish", reason: "drafts-dropped" }]);
+  assert.deepEqual(breaks(before), []);
+});
+
 test("an added field passes", () => {
   assert.deepEqual(check(edit({ subtitle: { type: "string" } })), []);
 });
