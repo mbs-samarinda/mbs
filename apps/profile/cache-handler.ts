@@ -93,7 +93,7 @@ let tags: Tags | null = null;
  * Only a missing file is an empty manifest. Any other failure throws, and
  * `tags` keeps the last good copy: read as empty, a transient EIO would make
  * `updateTags` overwrite every recorded publish. Readers catch it and serve on
- * the last good copy, or miss when there is none; only `updateTags` lets it
+ * the last good copy, or serve stale when there is none; only `updateTags` lets it
  * fail the publish.
  */
 async function loadTags(): Promise<Tags> {
@@ -264,16 +264,18 @@ const handler: CacheHandler = {
     // Soft tags are checked here too, because `getExpiration` returns Infinity.
     // This is how the CMS publish webhook reaches entries that a previous
     // container wrote.
-    // With no last good copy there is no way to know what a publish replaced,
-    // so an unreadable manifest is a miss.
+    // With no last good copy there is no way to know what a publish replaced.
+    // The entry is served as stale rather than missed: Next refills it in the
+    // background, so a live CMS replaces it on the next request, and a CMS that
+    // is down still leaves visitors the old page instead of a 500.
     const manifest = tags ?? (await loadTags().catch(() => undefined));
-    if (!manifest) return undefined;
-    const marks = [...meta.tags, ...softTags].map((tag) => manifest[tag]);
+    const marks = manifest ? [...meta.tags, ...softTags].map((tag) => manifest[tag]) : [];
     if (marks.some((mark) => isExpired(mark, meta.timestamp))) return undefined;
+    const stale = !manifest || marks.some((mark) => isStale(mark, meta.timestamp));
 
     return {
       ...meta,
-      revalidate: marks.some((mark) => isStale(mark, meta.timestamp)) ? -1 : meta.revalidate,
+      revalidate: stale ? -1 : meta.revalidate,
       // A fresh stream per call: a ReadableStream is consumed once, and this
       // entry may be served many times.
       value: new Response(new Uint8Array(body)).body!,
