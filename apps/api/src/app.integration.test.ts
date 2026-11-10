@@ -169,6 +169,20 @@ describe("unexpected errors", () => {
     expect(line).not.toContain(secret);
   });
 
+  it("keeps the status of a client error thrown outside oRPC", async () => {
+    const { watched, logged } = await buildWatchedApp((target) => {
+      target.get("/missing", () => {
+        throw Object.assign(new Error("no such thing"), { status: 404 });
+      });
+    });
+
+    const response = await watched.inject({ method: "GET", url: "/missing" });
+    await watched.close();
+
+    expect(response.statusCode).toBe(404);
+    expect(logged).toEqual([]);
+  });
+
   it("logs nothing at error level for a rejected request", async () => {
     const { watched, logged } = await buildWatchedApp();
 
