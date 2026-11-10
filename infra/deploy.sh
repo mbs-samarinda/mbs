@@ -98,12 +98,13 @@ trap on_exit EXIT
 # ---------------------------------------------------------------------------
 
 log "Checking $ENV_FILE"
-# lib.sh has read it. compose enforces its own `${VAR:?}` guards when it parses
-# this file, but the candidate below is a plain `docker run`, which does no interpolation and no
-# such check. A variable missing from the file would reach the candidate unset,
-# and an unset PROFILE_APEX is not an error — it is a 404 on every host, which
-# reads as a failed smoke check rather than as a misconfigured box. So they are
-# asserted here, once, before anything starts.
+# lib.sh has already sourced $ENV_FILE. compose enforces its own `${VAR:?}`
+# guards when it parses that file, but the candidate below is a plain
+# `docker run`, which does no interpolation and no such check. A variable
+# missing from the file would reach the candidate unset, and an unset
+# PROFILE_APEX is not an error — it is a 404 on every host, which reads as a
+# failed smoke check rather than as a misconfigured box. So they are asserted
+# here, once, before anything starts.
 for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD; do
   if [[ -z ${!required:-} ]]; then
     echo "$ENV_FILE is missing $required" >&2
@@ -112,7 +113,8 @@ for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_P
 done
 
 log "Pinning $IMAGES_FILE"
-# Written before any compose command runs, for the reason above.
+# Written before any compose command runs: compose interpolates the whole file
+# on every command, so every one of them needs these pins (see lib.sh).
 cat > "$IMAGES_FILE" <<PINS
 # Written by deploy.sh on every deploy. Do not edit by hand.
 PROFILE_IMAGE=$REGISTRY/mbs-profile:$PROFILE_TAG
