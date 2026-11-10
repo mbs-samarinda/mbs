@@ -86,7 +86,7 @@ describe("findCurrentCycleForSchool", () => {
 
   // Two schools ask separately, so the answer has to be the same every time a
   // tie could be broken differently.
-  it("picks the same cycle for every school when two open on one day", async () => {
+  it("picks the same cycle for every school when two qualify on one day", async () => {
     const sameDay = new Date("2026-01-01T00:00:00Z");
     await joinSchoolToCycle("2026/2027", "CLOSED", sameDay);
     await joinSchoolToCycle("2027/2028", "OPEN", sameDay);

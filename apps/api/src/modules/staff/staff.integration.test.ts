@@ -426,7 +426,7 @@ describe("staff management", () => {
         schools: ["sma"],
       });
       // oxlint-disable-next-line eslint/no-await-in-loop
-      await Promise.allSettled([
+      const results = await Promise.allSettled([
         updateStaffAccess(db, actor, { staffId: created.id, role: "STAFF", schools: ["smp"] }),
         updateStaffAccess(db, smaOnly, {
           staffId: created.id,
@@ -434,6 +434,9 @@ describe("staff management", () => {
           schools: ["sma"],
         }),
       ]);
+      for (const result of results) {
+        if (result.status === "rejected") expect(result.reason).toBeInstanceOf(ForbiddenError);
+      }
       // oxlint-disable-next-line eslint/no-await-in-loop
       const [after] = await listStaff(db, created.id);
       expect(after?.schools).toEqual(["smp"]);

@@ -156,7 +156,8 @@ export async function findSchoolIdsByKeys(db: Executor, keys: readonly string[])
 const STAFF_WRITES_LOCK = 4820193;
 
 /**
- * Serializes staff writes until the transaction ends. Take it before the first
+ * Serializes the staff writes that check scope or the administrator count
+ * (update, activate, bootstrap) until the transaction ends. Take it before the first
  * read, or a scope check can pass on a profile another save just moved. One
  * advisory lock, not row locks: the writes read overlapping sets, and row
  * locks taken in different orders deadlock.
