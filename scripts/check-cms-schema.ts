@@ -3,11 +3,11 @@
 //
 // Strapi syncs its tables to these files on boot. A removed or retyped field
 // loses its column, a field pointed at another component or relation target,
-// or switched to another relation kind, loses its links, a component taken out
-// of a dynamic zone loses those entries, and a new collectionName starts an
-// empty table. Renames and retypes are a new field plus a backfill instead. A
-// deliberate break is let through by the PR label the workflow checks, not by
-// this script.
+// or switched to another relation kind or owning side, loses its links, a
+// component taken out of a dynamic zone loses those entries, and a new
+// collectionName starts an empty table. Renames and retypes are a new field
+// plus a backfill instead. A deliberate break is let through by the PR label
+// the workflow checks, not by this script.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
@@ -17,6 +17,7 @@ type Attribute = {
   components?: string[];
   target?: string;
   relation?: string;
+  mappedBy?: string;
   [setting: string]: unknown;
 };
 export type Schema = { collectionName?: string; attributes: Record<string, Attribute> };
@@ -31,10 +32,12 @@ const schemaFile =
   /^apps\/cms\/src\/(components\/.+\.json|api\/.+\/content-types\/.+\/schema\.json)$/;
 
 // Where a field's data lives: which table, and for a relation, its kind
-// (oneToOne -> manyToMany changes how Strapi stores the links). Anything else
+// (oneToOne -> manyToMany changes how Strapi stores the links) and which side
+// owns the join table (adding or dropping mappedBy hands it over). inversedBy
+// is left out: it names the other side without moving the links. Anything else
 // (regex, required, default, labels) is a constraint or display setting and
 // safe to change.
-const storageKeys = ["component", "target", "relation"] as const;
+const storageKeys = ["component", "target", "relation", "mappedBy"] as const;
 
 // A file missing from `head` counts as every one of its fields removed.
 export function findBreaks(base: Map<string, Schema>, head: Map<string, Schema>): Break[] {
