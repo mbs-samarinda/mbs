@@ -14,7 +14,7 @@
 //
 // The assertions below reach into two places TypeScript cannot follow: a Koa
 // context stood up by hand, and `admin::permission`, which lives outside the
-// generated UID union. Both are confined to the helpers.
+// generated UID union. Both are confined to the two helpers.
 /* oxlint-disable typescript/no-unsafe-type-assertion -- a CommonJS bridge into Strapi's untyped admin surface */
 import type { Core } from "@strapi/strapi";
 
@@ -608,7 +608,7 @@ void describe("collaboration", () => {
     const invites = (): Promise<Invite[]> =>
       strapi.db.query(KOLABORASI).findMany({
         where: { pengumuman: { documentId } },
-        select: ["id", "ownerKey", "keputusan", "judul", "alamat"],
+        select: ["id", "documentId", "ownerKey", "keputusan", "judul", "alamat"],
       });
 
     const [invite] = await invites();
