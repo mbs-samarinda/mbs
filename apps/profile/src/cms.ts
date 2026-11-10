@@ -18,8 +18,10 @@ import type { Owner } from "./owners.ts";
  * the fields that crash a render are parsed at runtime: lists that get mapped,
  * media in those lists, and icon enums used as map keys. A full schema here
  * would be the content model written a second time, drifting from the first.
- * The parse degrades instead of throwing. A strict one would only move the 500
- * from render time to fetch time, when the page could still show the rest.
+ * Rows degrade instead of throwing. A strict parse would only move the 500
+ * from render time to fetch time, when the page could still show the rest. A
+ * response with no `data` list does throw: read as empty it would become a
+ * cached 404, and a throw is not cached.
  */
 
 export type Media = {
@@ -389,13 +391,14 @@ async function cms<T>(
     throw new Error(`CMS returned ${response.status} for ${collection}`);
   }
 
-  // `data` itself must be a list. Read as `[]`, a broken answer becomes "no
-  // page", a 404 that "use cache" would keep; a throw is not cached.
-  const { data } = z.looseObject({ data: z.array(z.unknown()) }).parse(await response.json());
+  const envelope = z
+    .looseObject({ data: z.array(z.unknown()) })
+    .safeParse(await response.json().catch(() => null));
+  if (!envelope.success) throw new Error(`CMS sent no data list for ${collection}`);
   // The one assertion in this module. `row` checked the fields that crash a
   // render; the rest of `T` is trusted to the CMS schema.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return list(row).parse(data) as T[];
+  return list(row).parse(envelope.data.data) as T[];
 }
 
 /**
@@ -558,7 +561,10 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
   ];
   const own: [string, string][] = ownerKey === "mbs" ? [] : [["filters[ownerKey][$eq]", ownerKey]];
 
-  /** Walks Strapi's pages until a short one says there are no more. */
+  /**
+   * Walks Strapi's pages until an empty one says there are no more. Not a short
+   * one: `cms` drops rows that fail `row`, so a full page can come back short.
+   */
   async function all<T>(
     collection: string,
     fields: [string, string][],
@@ -567,8 +573,8 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
     const rows: T[] = [];
 
     for (let page = 1; ; page += 1) {
-      // Sequential on purpose: how many pages exist is only known from the
-      // previous one's length, so there is nothing to run in parallel.
+      // Sequential on purpose: the last page is only known when one comes
+      // back empty, so there is nothing to run in parallel.
       // oxlint-disable-next-line eslint/no-await-in-loop
       const batch = await cms<T>(
         collection,
@@ -582,8 +588,8 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
         row,
       );
 
+      if (batch.length === 0) return rows;
       rows.push(...batch);
-      if (batch.length < PAGE_LIMIT) return rows;
     }
   }
 
@@ -626,9 +632,9 @@ const PAGE_LIMIT = 100;
  * October 2025. An expired Pengumuman drops out for the same reason.
  *
  * `connection()` says out loud what this does: it reads the clock, so it must
- * never be prerendered. The compile-mode build does not check this (it builds
- * without the call), so this line is what keeps a prerender from freezing the
- * cutoff into a static shell. Cutting inside the cached function instead would
+ * never be prerendered. The deploy's `next build --experimental-build-mode
+ * compile` builds fine without the call, so this line, not the build, is what
+ * keeps a prerender from freezing the cutoff into a static shell. Cutting inside the cached function instead would
  * freeze it for an hour. Callers put it behind `<Suspense>`,
  * so only the listing waits; the entries are still served from the cache above.
  */
