@@ -5,6 +5,13 @@
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "next-env.d.ts", "next.config.ts", ".next/types/**/*.ts"],
+  "include": [
+    "src",
+    "next-env.d.ts",
+    "next.config.ts",
+    "cache-handler.ts",
+    "cache-handler.test.ts",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }

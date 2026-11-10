@@ -224,13 +224,9 @@ test("a write whose stream never ends does not hang later reads of that key", as
     const never = new ReadableStream<Uint8Array>({ start: () => {} });
     void handler.set("page:smp:hung", Promise.resolve({ ...entry("", []), value: never }));
 
-    let settled = false;
-    const pendingRead = handler.get("page:smp:hung", []).then((result) => {
-      settled = true;
-      return result;
-    });
+    // Without the limit this read never settles and the test times out.
+    const pendingRead = handler.get("page:smp:hung", []);
     await vi.advanceTimersByTimeAsync(5 * 60_000);
-    expect(settled).toBe(true);
     expect(await pendingRead).toBeUndefined();
   } finally {
     vi.useRealTimers();
