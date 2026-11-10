@@ -65,7 +65,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       // oRPC answers an unexpected error with a bare 500 and logs nothing.
       onError((error, { context }) => {
         if (error instanceof ORPCError && error.status < 500) return;
-        context.log.error({ err: error }, "unexpected error in procedure");
+        context.log.error({ err: redactError(error) }, "unexpected error in procedure");
       }),
     ],
   });
@@ -87,4 +87,23 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   });
 
   return app;
+}
+
+/**
+ * Drizzle puts the query parameters, emails among them, in its message and on
+ * the error itself. So the log keeps each error's type and code, and the
+ * message and stack of the innermost one only, which comes from the driver.
+ */
+function redactError(error: unknown) {
+  const chain: Error[] = [];
+  for (let current = error; current instanceof Error; current = current.cause) chain.push(current);
+  const innermost = chain.at(-1);
+  return {
+    chain: chain.map((link) => ({
+      type: link.constructor.name,
+      code: "code" in link ? link.code : undefined,
+    })),
+    message: innermost?.message ?? String(error),
+    stack: innermost?.stack,
+  };
 }

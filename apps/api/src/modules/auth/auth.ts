@@ -49,9 +49,16 @@ export function createAuth(db: Database, config: Config) {
           // Replace it with a `hooks.before` on /sign-in/social, which can read
           // ctx.body.callbackURL and tell the committee app from the parent
           // app.
+          //
+          // Better Auth lowercases the email before this hook runs. It
+          // redirects to errorURL only when the error carries a code, and
+          // admission-admin's index route matches this one.
           before: async (user) => {
-            if (!(await isApprovedLoginEmail(db, user.email.toLowerCase()))) {
-              throw new APIError("FORBIDDEN", { message: "This account has no access." });
+            if (!(await isApprovedLoginEmail(db, user.email))) {
+              throw new APIError("FORBIDDEN", {
+                code: "account_not_approved",
+                message: "This account has no access.",
+              });
             }
           },
         },
