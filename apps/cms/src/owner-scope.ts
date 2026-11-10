@@ -409,6 +409,8 @@ async function ownerWritten(
     throw new errors.ApplicationError(`Pemilik ${JSON.stringify(next)} tidak dikenal.`);
   }
   if (action === "create") return next === undefined ? [] : [next];
+  // An update that does not carry the field is not a move.
+  if (action === "update" && next === undefined) return [];
 
   const { documentId } = params;
   const current: { ownerKey?: string } | null = documentId
@@ -419,8 +421,6 @@ async function ownerWritten(
     return [next, current?.ownerKey].filter((key) => typeof key === "string");
   }
 
-  // An update that does not carry the field, or carries the same value, is not
-  // a move.
   if (next === undefined || !current || current.ownerKey === next) return [];
   if (documentId && (await everPublished(strapi, uid, documentId))) {
     throw new errors.ApplicationError(
