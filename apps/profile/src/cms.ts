@@ -625,10 +625,11 @@ const PAGE_LIMIT = 100;
  * up telling parents a 2026/2027 intake was open on a page last touched in
  * October 2025. An expired Pengumuman drops out for the same reason.
  *
- * `connection()` says out loud what this does: it reads the clock, so it cannot
- * be prerendered. Without it the build refuses — `Date.now()` is an unstable
- * value during prerender — and the alternative, cutting inside the cached
- * function, freezes the cutoff for an hour. Callers put it behind `<Suspense>`,
+ * `connection()` says out loud what this does: it reads the clock, so it must
+ * never be prerendered. The compile-mode build does not check this (it builds
+ * without the call), so this line is what keeps a prerender from freezing the
+ * cutoff into a static shell. Cutting inside the cached function instead would
+ * freeze it for an hour. Callers put it behind `<Suspense>`,
  * so only the listing waits; the entries are still served from the cache above.
  */
 export async function getArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
