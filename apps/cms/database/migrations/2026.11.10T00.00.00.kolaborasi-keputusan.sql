@@ -7,6 +7,11 @@
 -- Field lists in admin permissions name the field too, and Strapi strips
 -- names it no longer knows, which would leave editors unable to answer.
 -- A fresh database has neither table yet, so both steps check first.
+--
+-- Strapi cannot run a .sql migration down. Reverting this change alone would
+-- let the sync drop `keputusan` and add an empty `status`, so a revert must
+-- ship a new migration that first runs the reverse: rename `keputusan` back to
+-- `status`, and the same field-list update with the two names swapped.
 do $$
 begin
   if exists (

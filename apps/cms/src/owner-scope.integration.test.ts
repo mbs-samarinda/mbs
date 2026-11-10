@@ -14,7 +14,7 @@
 //
 // The assertions below reach into two places TypeScript cannot follow: a Koa
 // context stood up by hand, and `admin::permission`, which lives outside the
-// generated UID union. Both are confined to the two helpers.
+// generated UID union. Both are confined to the helpers.
 /* oxlint-disable typescript/no-unsafe-type-assertion -- a CommonJS bridge into Strapi's untyped admin surface */
 import type { Core } from "@strapi/strapi";
 
@@ -77,7 +77,14 @@ const KOLABORASI = "api::kolaborasi.kolaborasi";
 
 type AdminUser = { id: number; roles?: { code?: string }[] };
 type Rule = { action: string; subject: string };
-type Invite = { id: number; ownerKey: string; keputusan: string; judul: string; alamat: string };
+type Invite = {
+  id: number;
+  documentId: string;
+  ownerKey: string;
+  keputusan: string;
+  judul: string;
+  alamat: string;
+};
 
 let strapi: Core.Strapi;
 let editor: AdminUser;
@@ -424,7 +431,7 @@ const publishedArticle = async (collaborators: ("smp" | "smk" | "sma" | "mbs")[]
 const invitesOf = (documentId: string): Promise<Invite[]> =>
   strapi.db.query(KOLABORASI).findMany({
     where: { berita: { documentId } },
-    select: ["id", "ownerKey", "keputusan", "judul", "alamat"],
+    select: ["id", "documentId", "ownerKey", "keputusan", "judul", "alamat"],
     orderBy: { ownerKey: "asc" },
   });
 
@@ -447,9 +454,7 @@ void describe("collaboration", () => {
   // named `status`, which the Content Manager reads as the publication status.
   void it("lets an smk editor accept an invite from the edit view", async () => {
     const documentId = await publishedArticle(["smk"]);
-    const invite: { documentId: string } | null = await strapi.db
-      .query(KOLABORASI)
-      .findOne({ where: { berita: { documentId } }, select: ["documentId"] });
+    const [invite] = await invitesOf(documentId);
     assert.ok(invite, "expected an smk invite");
 
     await contentManager(
