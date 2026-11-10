@@ -23,11 +23,9 @@ export type SchoolKey = School["key"];
 export const SCHOOL_KEYS = SCHOOLS.map((school) => school.key);
 
 /**
- * The closed lists both the database enums and the API contract are built
- * from. They sit here, beside the school keys, for the same reason: this
- * package imports nothing, so a browser bundle, Drizzle and Zod can all read
- * one copy. Adding a value still needs a migration, which `pnpm db:generate`
- * writes from these tuples.
+ * Drizzle's pgEnum and the contract's z.enum both read these. They live here
+ * because this package imports nothing, so browser code can import it too.
+ * Adding a value needs a migration: run `pnpm db:generate`.
  */
 export const CYCLE_STATUSES = ["DRAFT", "OPEN", "CLOSED", "ARCHIVED"] as const;
 export const DOCUMENT_TYPES = [
