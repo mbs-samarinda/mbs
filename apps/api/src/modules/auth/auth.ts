@@ -11,8 +11,11 @@ import { isApprovedLoginEmail } from "../staff/repository.ts";
  * tables, the Google handshake, and the session cookie. It owns no
  * authorization — who a signed-in person is allowed to be is resolved from the
  * staff tables in `../staff`.
+ *
+ * `logger` is optional so tests can build an auth instance without one; the
+ * server always passes the redacting logger from app.ts.
  */
-export function createAuth(db: Database, config: Config, logger: BetterAuthOptions["logger"]) {
+export function createAuth(db: Database, config: Config, logger?: BetterAuthOptions["logger"]) {
   return betterAuth({
     logger,
     database: drizzleAdapter(db, { provider: "pg" }),
