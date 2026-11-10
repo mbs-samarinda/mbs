@@ -25,7 +25,7 @@ jobs:
       # see it.
       - run: pnpm exec oxfmt --check -c .oxfmtrc.json scripts
       - run: pnpm exec oxlint -c .oxlintrc.json scripts
-      - run: node --test scripts/
+      - run: node --test 'scripts/*.test.ts'
       - name: No CMS schema change drops stored content
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'schema-break-ok') }}
         run: node scripts/check-cms-schema.ts HEAD^1
