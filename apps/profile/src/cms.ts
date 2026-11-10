@@ -389,11 +389,13 @@ async function cms<T>(
     throw new Error(`CMS returned ${response.status} for ${collection}`);
   }
 
-  const body = z.looseObject({ data: list(row) }).parse(await response.json());
+  // `data` itself must be a list. Read as `[]`, a broken answer becomes "no
+  // page", a 404 that "use cache" would keep; a throw is not cached.
+  const { data } = z.looseObject({ data: z.array(z.unknown()) }).parse(await response.json());
   // The one assertion in this module. `row` checked the fields that crash a
   // render; the rest of `T` is trusted to the CMS schema.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return body.data as T[];
+  return list(row).parse(data) as T[];
 }
 
 /**
