@@ -220,7 +220,7 @@ function editorPermissions(strapi: Core.Strapi): SeedPermission[] {
               action,
               subject,
               properties: {
-                fields: (properties?.fields ?? []).filter((field) => field !== "slug"),
+                fields: withoutSlug(properties?.fields),
               },
               conditions: [OWNER_SCOPE_CONDITION],
             }
@@ -229,6 +229,13 @@ function editorPermissions(strapi: Core.Strapi): SeedPermission[] {
             { action, subject, conditions: [OWNER_SCOPE_CONDITION] },
       )
   );
+}
+
+// Failing the boot beats either fallback: no list means every field, slug
+// included, and an empty list means an editor's page saves change nothing.
+function withoutSlug(fields: string[] | undefined): string[] {
+  if (!fields) throw new Error("Strapi returned no field list for Page update.");
+  return fields.filter((field) => field !== "slug");
 }
 
 /**
