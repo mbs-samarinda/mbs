@@ -203,6 +203,25 @@ test.skipIf(process.getuid?.() === 0)(
   },
 );
 
+// A fresh container has no last good copy. Serving without the manifest would
+// ignore a publish and serve the pages it replaced.
+test.skipIf(process.getuid?.() === 0)(
+  "a fresh container that cannot read the manifest misses",
+  async () => {
+    const writer = await newContainer();
+    await writer.set("page:smp:replaced", Promise.resolve(entry("old", ["cms"])));
+    await writer.updateTags(["cms"]);
+    const tags = join(dir, "tags.json");
+
+    await chmod(tags, 0o000);
+    try {
+      expect(await (await newContainer()).get("page:smp:replaced", [])).toBeUndefined();
+    } finally {
+      await chmod(tags, 0o600);
+    }
+  },
+);
+
 test("a restart deep in an outage keeps entries still inside their expire", async () => {
   const writer = await newContainer();
   await writer.set(
