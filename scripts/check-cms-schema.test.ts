@@ -10,6 +10,7 @@ const page: Schema = {
     title: { type: "string" },
     href: { type: "string", regex: "^/.*$" },
     seo: { type: "component", component: "shared.seo" },
+    author: { type: "relation", relation: "oneToOne", target: "api::staff.staff" },
     blocks: { type: "dynamiczone", components: ["blocks.hero", "blocks.faq"] },
   },
 };
@@ -41,6 +42,11 @@ test("a component field pointed elsewhere breaks", () => {
   ]);
 });
 
+test("a relation changed to another kind breaks", () => {
+  const author = { type: "relation", relation: "manyToMany", target: "api::staff.staff" };
+  assert.deepEqual(check(edit({ author })), [{ field: "author", reason: "retargeted" }]);
+});
+
 test("a component taken out of a dynamic zone breaks", () => {
   assert.deepEqual(check(edit({ blocks: { type: "dynamiczone", components: ["blocks.faq"] } })), [
     { field: "blocks", reason: "zone-shrunk" },
@@ -56,7 +62,7 @@ test("a new collectionName breaks", () => {
 test("a deleted file breaks every field in it", () => {
   assert.deepEqual(
     check(undefined).map((b) => b.field),
-    ["title", "href", "seo", "blocks"],
+    ["title", "href", "seo", "author", "blocks"],
   );
 });
 
