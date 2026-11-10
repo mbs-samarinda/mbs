@@ -93,3 +93,29 @@ test("a key never written is a miss rather than a throw", async () => {
   const handler = await newContainer();
   expect(await handler.get("site:absent", [])).toBeUndefined();
 });
+
+test("content a day and a half old is still served, so a Strapi outage past a day keeps pages up", async () => {
+  const { default: config } = await import("./next.config.ts");
+  const content = config.cacheLife?.content;
+  const handler = await newContainer();
+  await handler.set(
+    "site:outage",
+    Promise.resolve({
+      ...entry("kept", ["cms"]),
+      timestamp: Date.now() - 36 * 3600_000,
+      revalidate: content?.revalidate ?? 0,
+      expire: content?.expire ?? 0,
+    }),
+  );
+
+  expect(await read(await handler.get("site:outage", []))).toBe("kept");
+});
+
+test("two publishes at once both record their tags", async () => {
+  const handler = await newContainer();
+  await Promise.all([handler.updateTags(["cms"]), handler.updateTags(["site:smp"])]);
+
+  const replacement = await newContainer();
+  expect(await replacement.getExpiration(["cms"])).toBeGreaterThan(0);
+  expect(await replacement.getExpiration(["site:smp"])).toBeGreaterThan(0);
+});
