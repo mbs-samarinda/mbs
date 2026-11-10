@@ -51,7 +51,7 @@ services:
         condition: service_healthy
     environment:
       PUBLIC_URL: https://${CMS_HOST:?set CMS_HOST}
-      # config/database.ts refuses to start in production without these.
+      # config/database.ts refuses to start without these unless NODE_ENV is development or test.
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
       DATABASE_NAME: mbs_cms

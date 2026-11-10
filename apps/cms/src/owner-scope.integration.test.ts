@@ -885,11 +885,9 @@ const setEnv = (values: Record<string, string | undefined>) => {
 };
 
 void describe("database config", () => {
-  type DatabaseConfig = (params: { env: unknown }) => unknown;
-  const { env } = require("@strapi/utils") as { env: unknown };
-  const { default: databaseConfig } = require("../config/database.ts") as {
-    default: DatabaseConfig;
-  };
+  const { env } = require("@strapi/utils") as Core.Config.Shared.ConfigParams;
+  const { default: databaseConfig } =
+    require("../config/database.ts") as typeof import("../config/database.ts");
   const loadWith = (changes: Record<string, string | undefined>) => {
     const saved = Object.fromEntries(Object.keys(changes).map((name) => [name, process.env[name]]));
     setEnv(changes);
@@ -908,6 +906,7 @@ void describe("database config", () => {
         () => loadWith({ NODE_ENV: mode, DATABASE_HOST: undefined }),
         /Missing database settings: DATABASE_HOST/,
       );
+      assert.throws(() => loadWith({ NODE_ENV: mode, DATABASE_HOST: "" }), /DATABASE_HOST/);
     }
     for (const mode of ["development", "test"]) {
       assert.doesNotThrow(() => loadWith({ NODE_ENV: mode, DATABASE_HOST: undefined }));
@@ -915,9 +914,10 @@ void describe("database config", () => {
   });
 
   void it("refuses a DATABASE_CLIENT other than postgres", () => {
-    assert.throws(() => loadWith({ DATABASE_CLIENT: "sqlite" }), /DATABASE_CLIENT/);
-    assert.throws(() => loadWith({ DATABASE_CLIENT: "mysql" }), /DATABASE_CLIENT/);
-    assert.doesNotThrow(() => loadWith({ DATABASE_CLIENT: "postgres" }));
-    assert.doesNotThrow(() => loadWith({ DATABASE_CLIENT: undefined }));
+    const client = (value: string | undefined) => () =>
+      loadWith({ NODE_ENV: "development", DATABASE_CLIENT: value });
+    assert.throws(client("sqlite"), /DATABASE_CLIENT/);
+    assert.throws(client("mysql"), /DATABASE_CLIENT/);
+    for (const value of ["postgres", "", undefined]) assert.doesNotThrow(client(value));
   });
 });

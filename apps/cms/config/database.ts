@@ -6,7 +6,7 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Database 
   // pg is the only driver installed. An old .env naming sqlite or mysql would
   // otherwise land on Postgres without a word.
   const client = env("DATABASE_CLIENT");
-  if (client !== undefined && client !== "postgres") {
+  if (client && client !== "postgres") {
     throw new Error(`DATABASE_CLIENT is "${client}", but the CMS only runs on postgres.`);
   }
 
