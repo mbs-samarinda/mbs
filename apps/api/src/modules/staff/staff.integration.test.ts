@@ -66,10 +66,11 @@ afterAll(() => db.$client.end());
 
 /** Resolves once some session on this database is blocked waiting for a lock. */
 async function waitForLockWait() {
-  for (let waited = 0; waited < 5_000; waited += 20) {
+  for (let waited = 0; waited < 3_000; waited += 20) {
     // oxlint-disable-next-line eslint/no-await-in-loop
     const [row] = await db.execute<{ waiting: number }>(
-      sql`select count(*)::int as waiting from pg_locks where not granted`,
+      sql`select count(*)::int as waiting from pg_stat_activity
+          where datname = current_database() and wait_event_type = 'Lock'`,
     );
     if (row?.waiting) return;
     // oxlint-disable-next-line eslint/no-await-in-loop
@@ -240,7 +241,7 @@ describe("resolveStaff", () => {
       db
         .insert(schema.staffLoginEmails)
         .values({ staffId: staff.id, email: "Panitia@mbss.sch.id", kind: "INSTITUTIONAL" }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ cause: { constraint_name: "staff_login_emails_email_lowercase" } });
   });
 
   it("refuses an address nobody approved", async () => {
@@ -471,9 +472,12 @@ describe("staff management", () => {
       () => "saved",
       (error: unknown) => error,
     );
-    await waitForLockWait();
-    release();
-    await move;
+    try {
+      await waitForLockWait();
+    } finally {
+      release();
+      await move;
+    }
 
     expect(await outcome).toBeInstanceOf(ForbiddenError);
     const [after] = await listStaff(db, created.id);
