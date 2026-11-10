@@ -561,13 +561,13 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
       : [
           ["filters[$or][0][ownerKey][$eq]", ownerKey],
           ["filters[$or][1][kolaborasi][ownerKey][$eq]", ownerKey],
-          ["filters[$or][1][kolaborasi][status][$eq]", "diterima"],
+          ["filters[$or][1][kolaborasi][keputusan][$eq]", "diterima"],
         ];
 
   // Asking Opini for `kolaborasi` would be a 400: Strapi refuses an unknown relation.
   const collab: [string, string][] = [
     ...scope,
-    ["populate[kolaborasi][filters][status][$eq]", "diterima"],
+    ["populate[kolaborasi][filters][keputusan][$eq]", "diterima"],
     ["populate[kolaborasi][fields][0]", "ownerKey"],
   ];
   const own: [string, string][] = ownerKey === "mbs" ? [] : [["filters[ownerKey][$eq]", ownerKey]];
