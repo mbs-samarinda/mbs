@@ -2,7 +2,6 @@ import type { Core } from "@strapi/strapi";
 
 const REQUIRED_IN_PRODUCTION = [
   "DATABASE_HOST",
-  "DATABASE_PORT",
   "DATABASE_NAME",
   "DATABASE_USERNAME",
   "DATABASE_PASSWORD",

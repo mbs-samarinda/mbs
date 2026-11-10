@@ -402,6 +402,8 @@ async function homeSeeds(strapi: Core.Strapi): Promise<Record<OwnerKey, HomeSeed
   };
 }
 
+// Any number works, as long as every CMS instance uses the same one. It only
+// has to differ from the API's, which shares the Postgres server.
 const BOOT_LOCK = 4820194;
 
 /**

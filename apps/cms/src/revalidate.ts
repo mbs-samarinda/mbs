@@ -54,6 +54,3 @@ export async function notifyProfile(strapi: Core.Strapi) {
     strapi.log.warn(`Profile revalidation failed: ${String(error)}`);
   }
 }
-
-// Any number works, as long as every CMS instance uses the same one. It only
-// has to differ from the API's, which shares the Postgres server.

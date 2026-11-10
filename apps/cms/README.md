@@ -13,8 +13,8 @@ pnpm --filter @mbs/cms typecheck
 pnpm --filter @mbs/cms test:integration  # needs Postgres, see below
 ```
 
-Copy `.env.example` to `.env` first. In production every `DATABASE_*`
-variable is required. Locally they fall back to `localhost:5432/strapi`.
+Copy `.env.example` to `.env` first. In production the database host, name,
+user and password are required. Locally they fall back to `localhost:5432/strapi`.
 
 The integration suite boots Strapi against a database whose name must end in
 `_test` (default `mbs_cms_test` on `localhost:5432`, override with the
