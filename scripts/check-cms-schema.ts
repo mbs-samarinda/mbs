@@ -29,7 +29,14 @@ export type Schema = {
 type Break = {
   file: string;
   field: string;
-  reason: "removed" | "retyped" | "retargeted" | "zone-shrunk" | "table-renamed" | "drafts-dropped";
+  reason:
+    | "removed"
+    | "retyped"
+    | "retargeted"
+    | "zone-shrunk"
+    | "table-renamed"
+    | "drafts-dropped"
+    | "reserved";
   detail: string;
 };
 
@@ -43,6 +50,12 @@ const schemaFile =
 // (regex, required, default, labels) is a constraint or display setting and
 // safe to change.
 const storageKeys = ["component", "target", "relation", "mappedBy"] as const;
+
+// The Content Manager reads these keys in a save as its own: a field named
+// `status` is taken for the publish state and every save of it fails with
+// "Invalid status" (Kolaborasi had exactly this, #78). Only new fields are
+// reported, so a field that predates the check does not fail every PR.
+const reservedNames = new Set(["status", "locale", "localizations", "publishedAt", "documentId"]);
 
 // A file missing from `head` counts as every one of its fields removed.
 export function findBreaks(base: Map<string, Schema>, head: Map<string, Schema>): Break[] {
@@ -77,6 +90,14 @@ export function findBreaks(base: Map<string, Schema>, head: Map<string, Schema>)
         for (const gone of (was.components ?? []).filter((c) => !now.components?.includes(c))) {
           breaks.push({ file, field, reason: "zone-shrunk", detail: `dropped ${gone}` });
         }
+      }
+    }
+  }
+  for (const [file, after] of head) {
+    const before = base.get(file)?.attributes ?? {};
+    for (const field of Object.keys(after.attributes)) {
+      if (reservedNames.has(field) && !(field in before)) {
+        breaks.push({ file, field, reason: "reserved", detail: "is a Content Manager key" });
       }
     }
   }
@@ -130,8 +151,9 @@ if (import.meta.main) {
   }
   if (breaks.length > 0) {
     console.error(
-      "\nStrapi drops this content on boot. Add a new field and backfill it instead, or add" +
-        "\nthe schema-break-ok label if losing the content is intended.",
+      "\nStrapi drops removed or moved content on boot: add a new field and backfill it" +
+        "\ninstead. Rename a field that uses a Content Manager key. Add the schema-break-ok" +
+        "\nlabel only if the break is intended.",
     );
     process.exit(1);
   }
