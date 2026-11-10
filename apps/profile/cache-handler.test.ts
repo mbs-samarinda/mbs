@@ -113,8 +113,15 @@ test("content a day and a half old is still served, so a Strapi outage past a da
 
 test("two publishes at once both record their tags", async () => {
   const handler = await newContainer();
-  await handler.set("publish:a", Promise.resolve(entry("a", ["publish:a"])));
-  await handler.set("publish:b", Promise.resolve(entry("b", ["publish:b"])));
+  const before = Date.now() - 1000;
+  await handler.set(
+    "publish:a",
+    Promise.resolve({ ...entry("a", ["publish:a"]), timestamp: before }),
+  );
+  await handler.set(
+    "publish:b",
+    Promise.resolve({ ...entry("b", ["publish:b"]), timestamp: before }),
+  );
   await Promise.all([handler.updateTags(["publish:a"]), handler.updateTags(["publish:b"])]);
 
   const replacement = await newContainer();
@@ -177,20 +184,24 @@ test("a manifest written before tags had a stale mark still reads", async () => 
   expect(await newContainer().then((h) => h.get("page:smp:legacy", []))).toBeUndefined();
 });
 
-test("a manifest that cannot be read fails the publish instead of being overwritten", async () => {
-  const handler = await newContainer();
-  await handler.updateTags(["kept"]);
-  const tags = join(dir, "tags.json");
-  const before = await readFile(tags, "utf8");
+// Root reads a mode-000 file anyway, so there is nothing to observe as root.
+test.skipIf(process.getuid?.() === 0)(
+  "a manifest that cannot be read fails the publish instead of being overwritten",
+  async () => {
+    const handler = await newContainer();
+    await handler.updateTags(["kept"]);
+    const tags = join(dir, "tags.json");
+    const before = await readFile(tags, "utf8");
 
-  await chmod(tags, 0o000);
-  try {
-    await expect((await newContainer()).updateTags(["other"])).rejects.toThrow();
-  } finally {
-    await chmod(tags, 0o600);
-  }
-  expect(await readFile(tags, "utf8")).toBe(before);
-});
+    await chmod(tags, 0o000);
+    try {
+      await expect((await newContainer()).updateTags(["other"])).rejects.toThrow();
+    } finally {
+      await chmod(tags, 0o600);
+    }
+    expect(await readFile(tags, "utf8")).toBe(before);
+  },
+);
 
 test("a restart deep in an outage keeps entries still inside their expire", async () => {
   const writer = await newContainer();
@@ -213,8 +224,11 @@ test("a restart deep in an outage keeps entries still inside their expire", asyn
 
   const restarted = await newContainer();
   await restarted.refreshTags();
+  // The sweep runs in the background, so wait for the expired entry to go.
+  await vi.waitFor(async () => {
+    expect((await readdir(join(dir, "entries"))).length).toBeLessThan(before);
+  });
   expect(await read(await restarted.get("page:smp:outage", []))).toBe("kept");
-  expect((await readdir(join(dir, "entries"))).length).toBeLessThan(before);
 });
 
 test("a write whose stream never ends does not hang later reads of that key", async () => {

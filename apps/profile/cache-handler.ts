@@ -90,10 +90,10 @@ type Tags = Record<string, Mark>;
 let tags: Tags | null = null;
 
 /**
- * Only a missing file is an empty manifest. Any other failure throws: read as
- * empty, a transient EIO would make `updateTags` overwrite every recorded
- * publish. Writes are atomic renames, so there is no half-written file to
- * forgive.
+ * Only a missing file is an empty manifest. Any other failure throws, and
+ * `tags` keeps the last good copy: read as empty, a transient EIO would make
+ * `updateTags` overwrite every recorded publish. Readers catch it and serve on
+ * the last good copy; only `updateTags` lets it fail the publish.
  */
 async function loadTags(): Promise<Tags> {
   const text = await readFile(TAGS, "utf8").catch((error: unknown) => {
@@ -104,12 +104,18 @@ async function loadTags(): Promise<Tags> {
   return tags;
 }
 
+/**
+ * Next stamps `timestamp` from this clock, not `Date.now()`, and the marks are
+ * compared against it, so they use the same one.
+ */
+const now = () => performance.timeOrigin + performance.now();
+
 const isStale = (tag: Mark | undefined, timestamp: Timestamp) => (tag?.stale ?? 0) > timestamp;
 
 // `expired` can lie in the future: a publish with a profile sets it to now plus
 // the profile's `expire`. It counts once it has arrived.
 const isExpired = (tag: Mark | undefined, timestamp: Timestamp) =>
-  tag?.expired !== undefined && tag.expired > timestamp && tag.expired <= Date.now();
+  tag?.expired !== undefined && tag.expired > timestamp && tag.expired <= now();
 
 /**
  * `set` hands us a promise that may still be streaming. A `get` for the same
@@ -173,10 +179,9 @@ async function writeAtomically(path: string, data: Buffer | string): Promise<voi
 
 let counter = 0;
 
-/** An entry file, or `undefined` when it is absent, truncated, or an older shape. */
-async function readEntry(path: string): Promise<{ meta: Meta; body: Buffer } | undefined> {
+/** An entry file's parts, or `undefined` when it is truncated or an older shape. */
+function parseEntry(file: Buffer): { meta: Meta; body: Buffer } | undefined {
   try {
-    const file = await readFile(path);
     const headerEnd = 4 + file.readUInt32BE(0);
     const meta = MetaSchema.parse(JSON.parse(file.subarray(4, headerEnd).toString("utf8")));
     return { meta, body: file.subarray(headerEnd) };
@@ -185,7 +190,7 @@ async function readEntry(path: string): Promise<{ meta: Meta; body: Buffer } | u
   }
 }
 
-const isPastExpire = (meta: Meta) => Date.now() - meta.timestamp > meta.expire * 1000;
+const isPastExpire = (meta: Meta) => now() - meta.timestamp > meta.expire * 1000;
 
 /**
  * Removes entry files past their own `expire`, once per process.
@@ -204,29 +209,36 @@ const isPastExpire = (meta: Meta) => Date.now() - meta.timestamp > meta.expire *
 const SWEEP_TMP_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 let swept = false;
 
+/**
+ * One file at a time, and not awaited by `refreshTags`: it reads every entry,
+ * and neither the first request after a restart nor the open-file limit should
+ * pay for that. A file that cannot be read is left alone; only one that was
+ * read and is past its life or unparsable goes.
+ */
 async function sweepOnce(): Promise<void> {
   if (swept) return;
   swept = true;
 
-  try {
-    const names = await readdir(ENTRIES);
-    await Promise.all(
-      names.map(async (name) => {
-        const path = join(ENTRIES, name);
-        if (name.endsWith(".tmp")) {
-          // Left by an interrupted write. A young one may be another process's
-          // write in flight, so only old ones go.
-          const info = await stat(path).catch(() => null);
-          if (info && info.mtimeMs < Date.now() - SWEEP_TMP_AFTER_MS)
-            await rm(path, { force: true });
-          return;
-        }
-        const entry = await readEntry(path);
-        if (!entry || isPastExpire(entry.meta)) await rm(path, { force: true });
-      }),
-    );
-  } catch {
-    // A sweep is housekeeping. Failing it must never fail a request.
+  const names = await readdir(ENTRIES).catch(() => []);
+  for (const name of names) {
+    const path = join(ENTRIES, name);
+    try {
+      if (name.endsWith(".tmp")) {
+        // Left by an interrupted write. A young one may be another process's
+        // write in flight, so only old ones go.
+        // oxlint-disable-next-line eslint/no-await-in-loop
+        const info = await stat(path);
+        // oxlint-disable-next-line eslint/no-await-in-loop
+        if (info.mtimeMs < Date.now() - SWEEP_TMP_AFTER_MS) await rm(path, { force: true });
+        continue;
+      }
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const entry = parseEntry(await readFile(path));
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      if (!entry || isPastExpire(entry.meta)) await rm(path, { force: true });
+    } catch {
+      // A sweep is housekeeping. Failing it must never fail a request.
+    }
   }
 }
 
@@ -235,8 +247,9 @@ const handler: CacheHandler = {
     await pending.get(cacheKey);
 
     const path = fileFor(cacheKey);
-    // A miss costs one Strapi round trip.
-    const entry = await readEntry(path);
+    // Absent, unreadable or unparsable: a miss, which costs one Strapi round trip.
+    const file = await readFile(path).catch(() => undefined);
+    const entry = file && parseEntry(file);
     if (!entry) return undefined;
     const { meta, body } = entry;
 
@@ -250,7 +263,7 @@ const handler: CacheHandler = {
     // Soft tags are checked here too, because `getExpiration` returns Infinity.
     // This is how the CMS publish webhook reaches entries that a previous
     // container wrote.
-    const manifest = tags ?? (await loadTags());
+    const manifest = tags ?? (await loadTags().catch((): Tags => ({})));
     const marks = [...meta.tags, ...softTags].map((tag) => manifest[tag]);
     if (marks.some((mark) => isExpired(mark, meta.timestamp))) return undefined;
 
@@ -267,7 +280,11 @@ const handler: CacheHandler = {
     const limit = new AbortController();
     const timer = setTimeout(() => limit.abort(), SET_LIMIT_MS);
     const timedOut = new Promise<never>((_, reject) => {
-      limit.signal.addEventListener("abort", () => reject(new Error("set timed out")));
+      limit.signal.addEventListener("abort", () => {
+        reject(new Error("set timed out"));
+        // An entry that arrives after the limit is never read; release its stream.
+        pendingEntry.then((late) => late.value.cancel()).catch(() => {});
+      });
     });
 
     const write = (async () => {
@@ -293,8 +310,8 @@ const handler: CacheHandler = {
   },
 
   async refreshTags() {
-    await loadTags();
-    await sweepOnce();
+    await loadTags().catch(() => {});
+    void sweepOnce();
   },
 
   // Infinity tells Next to pass soft tags to `get` rather than compare a single
@@ -320,15 +337,15 @@ const handler: CacheHandler = {
   updateTags(tagNames, durations) {
     const write = tagWrites.then(async () => {
       const manifest = await loadTags();
-      const now = Date.now();
+      const at = now();
       for (const tag of tagNames) {
         manifest[tag] = durations
           ? {
               ...manifest[tag],
-              stale: now,
-              ...(durations.expire === undefined ? {} : { expired: now + durations.expire * 1000 }),
+              stale: at,
+              ...(durations.expire === undefined ? {} : { expired: at + durations.expire * 1000 }),
             }
-          : { ...manifest[tag], expired: now };
+          : { ...manifest[tag], expired: at };
       }
 
       await mkdir(DIR, { recursive: true });
