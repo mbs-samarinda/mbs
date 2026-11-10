@@ -1,6 +1,6 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import type { Database } from "@mbs/db";
-import { betterAuth } from "better-auth";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { APIError } from "better-auth/api";
 
 import type { Config } from "../../config/env.ts";
@@ -12,8 +12,9 @@ import { isApprovedLoginEmail } from "../staff/repository.ts";
  * authorization — who a signed-in person is allowed to be is resolved from the
  * staff tables in `../staff`.
  */
-export function createAuth(db: Database, config: Config) {
+export function createAuth(db: Database, config: Config, logger: BetterAuthOptions["logger"]) {
   return betterAuth({
+    logger,
     database: drizzleAdapter(db, { provider: "pg" }),
     secret: config.auth.secret,
     baseURL: config.auth.baseUrl,

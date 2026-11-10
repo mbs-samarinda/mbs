@@ -4,7 +4,7 @@ import { createDatabase, type Database } from "@mbs/db";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fastify";
 import { fromNodeHeaders } from "better-auth/node";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import type { Config } from "./config/env.ts";
 import { createAuth, type Auth } from "./modules/auth/auth.ts";
@@ -35,7 +35,29 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);
   });
-  app.decorate("auth", createAuth(db, config));
+  // Better Auth catches its own errors and prints them to the console, query
+  // parameters included. This routes them through the same redaction. Its
+  // lines carry no request id; the 500 it causes on /api/rpc does.
+  app.decorate(
+    "auth",
+    createAuth(db, config, {
+      log: (level, message, ...args) =>
+        app.log[level](
+          { args: args.map((arg) => (arg instanceof Error ? redactError(arg) : arg)) },
+          `better-auth: ${message}`,
+        ),
+    }),
+  );
+  // Fastify's default handler logs the error whole and echoes its message to
+  // the client. Errors below 500 keep that default.
+  app.setErrorHandler<FastifyError>((error, request, reply) => {
+    if ((error.statusCode ?? 500) < 500) {
+      reply.send(error);
+      return;
+    }
+    request.log.error({ err: redactError(error) }, "unexpected error");
+    reply.status(500).send({ error: "Internal Server Error" });
+  });
   await app.register(healthRoutes);
 
   // Better Auth speaks Fetch. Protocol callbacks stay ordinary Fastify routes
