@@ -48,4 +48,6 @@ function sameSecret(given: string, expected: string): boolean {
   return timingSafeEqual(sha256(given), sha256(expected));
 }
 
-const sha256 = (value: string) => createHash("sha256").update(value).digest();
+function sha256(value: string) {
+  return createHash("sha256").update(value).digest();
+}
