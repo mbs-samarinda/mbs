@@ -1,0 +1,29 @@
+name: CMS schema
+
+# Its own workflow so that adding or removing the label reruns this check
+# alone, not every CI job.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cms-schema:
+    name: cms schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      # scripts/ belongs to no package, so turbo's lint and format jobs never
+      # see it.
+      - run: pnpm exec oxfmt --check -c .oxfmtrc.json scripts
+      - run: pnpm exec oxlint -c .oxlintrc.json scripts
+      - run: node --test scripts/
+      - name: No CMS field removed or retyped
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'schema-break-ok') }}
+        run: node scripts/check-cms-schema.ts ${{ github.event.pull_request.base.sha }}
