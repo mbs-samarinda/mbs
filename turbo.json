@@ -14,6 +14,10 @@
       // switcher's links come from the serving process. It is kept here anyway:
       // it costs nothing, and a future prerender would need it.
       "env": ["CMS_URL", "MEDIA_BASE_URL", "PROFILE_APEX"],
+      // infra/image-tag.sh tags every image with this hash, so anything here
+      // decides whether a merge redeploys. Tests never reach a build output:
+      // without these negations a test-only change would restart production.
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.test.*", "!test/**", "!vitest.config.*"],
       "outputs": [
         "dist/**",
         "build/**",
@@ -35,8 +39,22 @@
       // invalidates a cached run rather than silently replaying one.
       "env": ["PROFILE_APEX"]
     },
-    "lint": {},
-    "format:check": {},
+    // The root configs live outside every package, so the default inputs miss
+    // them and a tightened rule would replay an old pass. Listed here rather
+    // than in globalDependencies, which would also move the build hash and
+    // redeploy every container on a lint-rule edit.
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"]
+    },
+    // .oxfmtrc.json sorts Tailwind classes by this stylesheet, so a new utility
+    // in it can reorder classes in every app.
+    "format:check": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.oxfmtrc.json",
+        "$TURBO_ROOT$/packages/ui/src/styles/globals.css"
+      ]
+    },
     "format": {
       // Rewrites files in place, so a cache hit would skip real work.
       "cache": false

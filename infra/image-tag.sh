@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prints the image tag for one app: ./image-tag.sh <app> <turbo-task>
+# Prints the image tag for one app: ./image-tag.sh <app>
 #
 # This exists as a file rather than inline in the workflow because two jobs need
 # the answer — the one that builds and the one that deploys — and they have to
@@ -11,8 +11,7 @@
 # build env, so it changes the hash.
 set -euo pipefail
 
-readonly app=${1:?usage: image-tag.sh <app> <turbo-task>}
-readonly task=${2:?usage: image-tag.sh <app> <turbo-task>}
+readonly app=${1:?usage: image-tag.sh <app>}
 
 # --dry=json, not --affected. On a push to main --affected compares main with
 # itself and resolves to nothing; the dry run reports the task hash regardless.
@@ -21,7 +20,11 @@ readonly task=${2:?usage: image-tag.sh <app> <turbo-task>}
 # list, which is why it is used instead of path filters: a change in
 # packages/ui moves the profile's hash, and a filter on apps/profile would not
 # see it.
-turbo_hash=$(pnpm exec turbo run "$task" --filter="@mbs/$app" --dry=json \
+#
+# Always the build hash, even for the API, which has no build script: turbo
+# still hashes its files and dependencies, and build's inputs leave tests out.
+# typecheck used to stand in for it, but typecheck has to see the tests.
+turbo_hash=$(pnpm exec turbo run build --filter="@mbs/$app" --dry=json \
   | jq -er --arg pkg "@mbs/$app" 'first(.tasks[] | select(.package == $pkg) | .hash)')
 
 # The image holds more than the turbo output.
@@ -30,13 +33,21 @@ turbo_hash=$(pnpm exec turbo run "$task" --filter="@mbs/$app" --dry=json \
 # - .dockerignore: it decides what reaches the image at all, and getting it
 #   wrong is how a .env ends up in one.
 # - pnpm-lock.yaml: turbo does not fold it in — measured, a dependency bump
-#   leaves both @mbs/profile#build and @mbs/api#typecheck on the same hash. The
+#   left both @mbs/profile#build and the api hash unchanged. The
 #   api and cms images run `pnpm install` from it at docker build time, so
 #   without it a `pnpm update` for a security patch would match the published
 #   tag, skip the build, and leave the old version running.
-printf '%s' \
-  "$turbo_hash" \
-  "$(sha256sum "apps/$app/Dockerfile" | cut -d' ' -f1)" \
-  "$(sha256sum .dockerignore | cut -d' ' -f1)" \
-  "$(sha256sum pnpm-lock.yaml | cut -d' ' -f1)" \
-  | sha256sum | cut -c1-16
+# - package.json, pnpm-workspace.yaml, .npmrc: the api and cms Dockerfiles COPY
+#   them next to the lockfile for that same install, and turbo does not move
+#   either tag when they change (measured). The profile image is standalone
+#   build output, but CI's install for that build still reads
+#   pnpm-workspace.yaml and .npmrc, so those two move its tag too. Root
+#   package.json is left out for the profile: it is mostly scripts, and a
+#   script edit should not redeploy the site. Keep this list in step with the
+#   root files each Dockerfile COPYs.
+files=("apps/$app/Dockerfile" .dockerignore pnpm-lock.yaml pnpm-workspace.yaml .npmrc)
+[[ $app == profile ]] || files+=(package.json)
+# An assignment, not inline in printf, so a missing file fails the script
+# instead of producing a tag from partial input.
+files_hash=$(sha256sum "${files[@]}" | cut -d' ' -f1)
+printf '%s' "$turbo_hash" "$files_hash" | sha256sum | cut -c1-16
