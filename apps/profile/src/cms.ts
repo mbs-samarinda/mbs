@@ -152,7 +152,6 @@ const ValueIconSchema = z
 
 export type ValueIcon = z.infer<typeof ValueIconSchema>;
 
-/** One composed section, as `BlockRow` below renames it. */
 export type Block = { readonly id: number } & (
   | {
       readonly kind: "hero";
@@ -338,6 +337,8 @@ const MediaRow = z.looseObject({ url: z.string() });
 
 const EntryRow = z.looseObject({ images: list(MediaRow) });
 
+const FullEntryRow = EntryRow.extend({ facts: list(Row) });
+
 export const ActivityRow = EntryRow.extend({ icon: ActivityIconSchema });
 
 export const SiteRow = z.looseObject({
@@ -349,10 +350,12 @@ export const SiteRow = z.looseObject({
 
 /** The blocks whose items carry a field that crashes a render when it is wrong. */
 const BLOCK_ITEMS: Partial<Record<string, z.ZodType>> = {
-  "blocks.values": z.looseObject({ icon: ValueIconSchema }),
-  "blocks.facilities": EntryRow,
-  "blocks.extracurriculars": ActivityRow,
+  "blocks.values": list(z.looseObject({ icon: ValueIconSchema })),
+  "blocks.facilities": list(EntryRow),
+  "blocks.extracurriculars": list(ActivityRow),
 };
+
+const Items = list(Row);
 
 /**
  * One composed section. Strapi names the discriminator `__component` and
@@ -364,16 +367,12 @@ const BlockRow = z
   .looseObject({ __component: z.string() })
   .transform(({ __component: component, ...rest }) => ({
     ...rest,
-    items: list(BLOCK_ITEMS[component] ?? Row).parse(rest.items),
+    items: (BLOCK_ITEMS[component] ?? Items).parse(rest.items),
     kind: component.slice("blocks.".length),
   }));
 
 export const PageRow = z.looseObject({ blocks: list(BlockRow) });
 
-/**
- * One collection read. `row` parses each returned record, and records it
- * drops are left out.
- */
 async function cms<T>(
   collection: string,
   params: [string, string][],
@@ -382,6 +381,8 @@ async function cms<T>(
   const query = new URLSearchParams(params);
   const response = await fetch(`${config.cmsUrl}/api/${collection}?${query}`, {
     signal: AbortSignal.timeout(CMS_TIMEOUT_MS),
+  }).catch((error: unknown) => {
+    throw new Error(`CMS request for ${collection} failed`, { cause: error });
   });
 
   if (!response.ok) {
@@ -389,8 +390,8 @@ async function cms<T>(
   }
 
   const body = z.looseObject({ data: list(row) }).parse(await response.json());
-  // The one assertion in this module. `row` has checked the fields that crash
-  // a render; the rest of `T` is the hand-written shape the CMS schema promises.
+  // The one assertion in this module. `row` checked the fields that crash a
+  // render; the rest of `T` is trusted to the CMS schema.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   return body.data as T[];
 }
@@ -440,8 +441,9 @@ const BLOCK_POPULATE: [string, string][] = [
  * The owner's identity, navigation, footer and contacts.
  *
  * Every site has a row — the CMS seeds one per owner on boot — so a missing one
- * is a broken deployment, not a state to render around. It throws, and the
- * owner's error page renders instead of a site with no navigation.
+ * is a broken deployment, not a state to render around. It throws from the
+ * layout, so `global-error.tsx` renders its CMS-free shell instead of a site
+ * with no navigation.
  */
 export async function getSite(ownerKey: Owner["key"]): Promise<Site> {
   "use cache";
@@ -495,7 +497,6 @@ type Author = { readonly authorName?: string | null; readonly authorRole?: strin
 const bylineOf = ({ authorName, authorRole }: Author) =>
   authorName && authorRole ? `${authorName}, ${authorRole}` : null;
 
-// Opini has no `kolaborasi`, and gets `[]` here that it never reads.
 const CollabRow = z.looseObject({ kolaborasi: list(Row) });
 
 // Fixed order rather than acceptance order, so a card's badges read the same
@@ -556,7 +557,11 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
   const own: [string, string][] = ownerKey === "mbs" ? [] : [["filters[ownerKey][$eq]", ownerKey]];
 
   /** Walks Strapi's pages until a short one says there are no more. */
-  async function all<T>(collection: string, fields: [string, string][]): Promise<T[]> {
+  async function all<T>(
+    collection: string,
+    fields: [string, string][],
+    row: z.ZodType,
+  ): Promise<T[]> {
     const rows: T[] = [];
 
     for (let page = 1; ; page += 1) {
@@ -572,7 +577,7 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
           ["pagination[pageSize]", String(PAGE_LIMIT)],
           ["populate[cover]", "true"],
         ],
-        CollabRow,
+        row,
       );
 
       rows.push(...batch);
@@ -581,9 +586,9 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
   }
 
   const [berita, pengumuman, opini] = await Promise.all([
-    all<Omit<IndexRow, "expiresAt">>("berita-list", collab),
-    all<IndexRow>("pengumuman-list", collab),
-    all<Omit<IndexRow, "expiresAt" | "kolaborasi"> & Author>("opini-list", own),
+    all<Omit<IndexRow, "expiresAt">>("berita-list", collab, CollabRow),
+    all<IndexRow>("pengumuman-list", collab, CollabRow),
+    all<Omit<IndexRow, "expiresAt" | "kolaborasi"> & Author>("opini-list", own, Row),
   ]);
 
   return [
@@ -675,9 +680,9 @@ export async function getArticle(
   ];
 
   // Each type omits a field or two the others have; Strapi just leaves them out.
-  type Row = Omit<FullArticle, "type" | "byline" | "expiresAt" | "attribution"> &
+  type ArticleRow = Omit<FullArticle, "type" | "byline" | "expiresAt" | "attribution"> &
     Author & { readonly expiresAt?: string | null; readonly attribution?: string | null };
-  const [row] = await cms<Row>(`${type}-list`, fields);
+  const [row] = await cms<ArticleRow>(`${type}-list`, fields);
   if (!row) return null;
 
   return {
@@ -772,7 +777,7 @@ export async function getEntry(
       ["populate[facts]", "true"],
       ["populate[seo][populate]", "*"],
     ],
-    EntryRow.extend({ facts: list(Row) }),
+    FullEntryRow,
   );
 
   return found[0] ?? null;
