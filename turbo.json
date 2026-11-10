@@ -46,8 +46,14 @@
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"]
     },
+    // .oxfmtrc.json sorts Tailwind classes by this stylesheet, so a new utility
+    // in it can reorder classes in every app.
     "format:check": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxfmtrc.json"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.oxfmtrc.json",
+        "$TURBO_ROOT$/packages/ui/src/styles/globals.css"
+      ]
     },
     "format": {
       // Rewrites files in place, so a cache hit would skip real work.
