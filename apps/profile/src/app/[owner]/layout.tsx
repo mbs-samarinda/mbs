@@ -41,9 +41,9 @@ export async function generateMetadata({
 // same shell from `shell.tsx`.
 //
 // `params` is typed as a plain string because that is what Next generates for
-// the segment. Narrowing it here is the segment's only guard: paths the proxy
-// matcher skips arrive with that path as the owner key, and without this they
-// would serve the first owner's content under another owner's hostname.
+// the segment. Paths the proxy matcher skips arrive with that path as the owner
+// key, so `requireOwner` narrows it here and again in every page, which can
+// render before the layout's check has finished.
 export default async function OwnerLayout({
   children,
   params,

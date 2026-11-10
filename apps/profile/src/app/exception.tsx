@@ -3,7 +3,7 @@ import { cn } from "cn";
 import { SearchXIcon, TriangleAlertIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { Owner } from "../owners.ts";
+import { isUmbrella, type Owner } from "../owners.ts";
 
 /**
  * The page a visitor lands on when the address is wrong or something broke.
@@ -47,7 +47,7 @@ export function Exception({
   const Icon = kind === "not-found" ? SearchXIcon : TriangleAlertIcon;
   // The apex has only its home. Its way on is to a school, which the switcher
   // above already offers, so it gets no page suggestions and no contact page.
-  const atSchool = owner !== null && owner.subdomain !== null;
+  const atSchool = owner !== null && !isUmbrella(owner);
 
   return (
     <main className="mx-auto flex w-full max-w-300 flex-col gap-8 px-4 py-16 md:px-12 md:py-20 lg:px-30 lg:py-24">

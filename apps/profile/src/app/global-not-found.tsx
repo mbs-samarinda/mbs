@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import { getSite, type Site } from "../cms.ts";
-import { ownerFromHostname, type Owner } from "../owners.ts";
+import { isUmbrella, ownerFromHostname, type Owner } from "../owners.ts";
 import { Footer, Header } from "./[owner]/shell.tsx";
 import { ThemeScript } from "./[owner]/theme-script.tsx";
 import { Exception } from "./exception.tsx";
@@ -56,7 +56,7 @@ export default async function GlobalNotFound() {
           // Only a school's page offers a contact button. The apex points at the
           // school tabs in its header; an unknown host has no header at all.
           body={
-            owner?.subdomain
+            owner && !isUmbrella(owner)
               ? "Tautannya mungkin sudah berubah. Coba mulai dari beranda, atau tanyakan langsung kepada panitia."
               : owner
                 ? "Tautannya mungkin sudah berubah. Coba mulai dari beranda, atau pilih sekolah di atas."
