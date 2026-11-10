@@ -65,11 +65,15 @@ it("never starts listening once SIGTERM arrived during startup", async () => {
   let output = "";
   let release!: () => void;
   const released = new Promise<void>((resolve) => (release = resolve));
+  let locked!: () => void;
+  const lockHeld = new Promise<void>((resolve) => (locked = resolve));
   // Holding this lock parks the server inside its startup schools check.
   const holder = db.transaction(async (tx) => {
     await tx.execute(sql`lock table schools in access exclusive mode`);
+    locked();
     await released;
   });
+  await lockHeld;
   const server = startServer(await freePort());
   server.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
   const exited = once(server, "exit");

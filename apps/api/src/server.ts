@@ -7,18 +7,23 @@ const app = await buildApp(config);
 
 // Node is PID 1 in the container, where an unhandled signal is ignored and
 // Docker kills the process mid-request after its grace period.
-// Fastify still listens after close(), so a signal during startup must also
-// stop the listen below.
+//
+// A signal during startup waits for startup to finish: closing early would end
+// the pool under the bootstrap queries, and Fastify still listens after close().
+// once: a second identical signal falls back to Node's default and kills a
+// stuck startup or shutdown.
+let started = false;
 let shuttingDown = false;
+function shutDown() {
+  app.close().catch((error: unknown) => {
+    app.log.error({ err: error }, "shutdown failed");
+    process.exitCode = 1;
+  });
+}
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
-  // once: a second identical signal falls back to Node's default and kills a
-  // stuck shutdown. A second close() is harmless.
   process.once(signal, () => {
+    if (started && !shuttingDown) shutDown();
     shuttingDown = true;
-    app.close().catch((error: unknown) => {
-      app.log.error({ err: error }, "shutdown failed");
-      process.exitCode = 1;
-    });
   });
 }
 
@@ -29,4 +34,6 @@ if (config.bootstrapAdminEmail) {
   app.log.info(result, "bootstrap administrator");
 }
 
-if (!shuttingDown) await app.listen({ port: config.port, host: "0.0.0.0" });
+started = true;
+if (shuttingDown) shutDown();
+else await app.listen({ port: config.port, host: "0.0.0.0" });
