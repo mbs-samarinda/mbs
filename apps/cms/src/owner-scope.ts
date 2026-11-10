@@ -380,6 +380,8 @@ export async function assertOwnerScope(
 
 const OWNER_WRITES = new Set(["create", "update", "clone"]);
 
+const isOwnerKey = (value: unknown): value is OwnerKey => OWNER_KEYS.some((key) => key === value);
+
 const isAdminUser = (value: unknown): value is { id: number; roles: { code?: string }[] } =>
   typeof value === "object" &&
   value !== null &&
@@ -401,7 +403,11 @@ async function ownerWritten(
   action: string,
   params: { data?: Record<string, unknown>; documentId?: string },
 ): Promise<string[]> {
-  const next = typeof params.data?.ownerKey === "string" ? params.data.ownerKey : undefined;
+  const next = params.data?.ownerKey;
+  // `null` or a number would slip past the move check below and blank the owner.
+  if (next !== undefined && !isOwnerKey(next)) {
+    throw new errors.ApplicationError(`Pemilik ${JSON.stringify(next)} tidak dikenal.`);
+  }
   if (action === "create") return next === undefined ? [] : [next];
 
   const { documentId } = params;
@@ -458,9 +464,11 @@ async function linkedOwners(
     ({ attribute, value }) => {
       if (attribute?.type !== "relation" || !("target" in attribute)) return;
       const target = attribute.target as UID.ContentType;
-      // An article's invites belong to the invited schools by design, and only
-      // the collaboration hooks write them.
-      if (target === KOLABORASI_UID) return;
+      // Only the collaboration hooks link an invite to an article, and they
+      // write through `db.query`, which never reaches this middleware.
+      if (target === KOLABORASI_UID && referencesIn(value).length > 0) {
+        throw new errors.ForbiddenError("Undangan kolaborasi tidak bisa ditautkan secara manual.");
+      }
       if (!("ownerKey" in strapi.contentType(target).attributes)) return;
       targets.set(target, [...(targets.get(target) ?? []), ...referencesIn(value)]);
     },
