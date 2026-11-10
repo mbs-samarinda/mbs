@@ -2,15 +2,26 @@ import { createDatabase, schema } from "@mbs/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
+import { loadConfig } from "../../config/env.ts";
 import { ConflictError, ForbiddenError } from "../../errors.ts";
+import { createAuth } from "../auth/auth.ts";
 import { resolveStaff, type StaffContext } from "../auth/authorization.ts";
 import { ensureBootstrapAdministrator } from "./bootstrap.ts";
-import { isApprovedLoginEmail } from "./repository.ts";
+import { insertStaff, isApprovedLoginEmail, listStaff } from "./repository.ts";
 import { createStaff, listStaffProfiles, setStaffActive, updateStaffAccess } from "./service.ts";
 
 const db = createDatabase(
   process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
 );
+
+const config = loadConfig({
+  DATABASE_URL: "postgres://unused",
+  BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-to-pass",
+  BETTER_AUTH_URL: "http://localhost:3001",
+  GOOGLE_CLIENT_ID: "test-client-id",
+  GOOGLE_CLIENT_SECRET: "test-client-secret",
+  ADMIN_APP_URL: "http://localhost:5174",
+});
 
 const BOOTSTRAP_EMAIL = "kepala@mbss.sch.id";
 
@@ -47,6 +58,15 @@ beforeEach(async () => {
 afterAll(() => db.$client.end());
 
 describe("ensureBootstrapAdministrator", () => {
+  it("files a non-institutional address as personal", async () => {
+    await ensureBootstrapAdministrator(db, "kepala@gmail.com");
+
+    const [staff] = await listStaffProfiles(db, actor);
+    expect(staff?.loginEmails).toEqual([
+      { email: "kepala@gmail.com", kind: "PERSONAL", bound: false },
+    ]);
+  });
+
   it("creates one administrator with every school", async () => {
     expect(await ensureBootstrapAdministrator(db, BOOTSTRAP_EMAIL)).toEqual({
       created: true,
@@ -181,11 +201,26 @@ describe("resolveStaff", () => {
     await expect(resolveStaff(db, user)).rejects.toThrow(/no access/);
   });
 
+  // Nothing here lowercases the session email. Better Auth stores it
+  // lowercased, and this pins that it still does.
   it("matches a pre-approved address whatever case the provider sends", async () => {
     await ensureBootstrapAdministrator(db, BOOTSTRAP_EMAIL);
-    const user = await seedAuthUser("auth-kepala", "Kepala@MBSS.sch.id");
+    const auth = await createAuth(db, config).$context;
+    const { user } = await auth.internalAdapter.createOAuthUser(
+      { email: "Kepala@MBSS.sch.id", name: "Kepala", emailVerified: true },
+      { providerId: "google", accountId: "google-kepala" },
+    );
 
     expect((await resolveStaff(db, user)).role).toBe("ADMINISTRATOR");
+  });
+
+  it("refuses to store an address that is not lowercase", async () => {
+    const staff = await insertStaff(db, { name: "Panitia", role: "STAFF" });
+    await expect(
+      db
+        .insert(schema.staffLoginEmails)
+        .values({ staffId: staff.id, email: "Panitia@mbss.sch.id", kind: "INSTITUTIONAL" }),
+    ).rejects.toThrow();
   });
 
   it("refuses an address nobody approved", async () => {
@@ -378,6 +413,34 @@ describe("staff management", () => {
 
     const updated = await setStaffActive(db, actor, { staffId: first!.id, isActive: false });
     expect(updated.isActive).toBe(false);
+  });
+
+  // A profile moved out of a scoped administrator's school at the same moment
+  // that administrator saves it must not land back in their school. Either
+  // order is fine; an overwrite based on the scope read before the move is not.
+  it("checks scope against the profile as it is when the save lands", async () => {
+    const smaOnly = { ...actor, schoolKeys: ["sma" as const] };
+    for (let round = 0; round < 20; round++) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const created = await createStaff(db, actor, {
+        name: `Panitia ${round}`,
+        email: `panitia${round}@mbss.sch.id`,
+        role: "STAFF",
+        schools: ["sma"],
+      });
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await Promise.allSettled([
+        updateStaffAccess(db, actor, { staffId: created.id, role: "STAFF", schools: ["smp"] }),
+        updateStaffAccess(db, smaOnly, {
+          staffId: created.id,
+          role: "PRINCIPAL",
+          schools: ["sma"],
+        }),
+      ]);
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const [after] = await listStaff(db, created.id);
+      expect(after?.schools).toEqual(["smp"]);
+    }
   });
 
   it("replaces school access rather than adding to it", async () => {

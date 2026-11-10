@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CreateCycleInput, UpsertSchoolSettingInput } from "./schemas.ts";
+import { CreateCycleInput, CreateStaffInput, UpsertSchoolSettingInput } from "./schemas.ts";
 
 const cycle = {
   name: "2027/2028",
@@ -67,5 +67,20 @@ describe("UpsertSchoolSettingInput", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe("CreateStaffInput", () => {
+  // The email column is compared byte for byte, so case has to be settled
+  // before anything reaches it.
+  it("trims and lowercases the email", () => {
+    const parsed = CreateStaffInput.parse({
+      name: "Panitia",
+      email: " Panitia@MBSS.sch.id ",
+      role: "STAFF",
+      schools: ["sma"],
+    });
+
+    expect(parsed.email).toBe("panitia@mbss.sch.id");
   });
 });
