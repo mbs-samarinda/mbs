@@ -876,3 +876,48 @@ void describe("artikel", () => {
     assert.deepEqual(await read(), after);
   });
 });
+
+const setEnv = (values: Record<string, string | undefined>) => {
+  for (const [name, value] of Object.entries(values)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+};
+
+void describe("database config", () => {
+  type DatabaseConfig = (params: { env: unknown }) => unknown;
+  const { env } = require("@strapi/utils") as { env: unknown };
+  const { default: databaseConfig } = require("../config/database.ts") as {
+    default: DatabaseConfig;
+  };
+  const loadWith = (changes: Record<string, string | undefined>) => {
+    const saved = Object.fromEntries(Object.keys(changes).map((name) => [name, process.env[name]]));
+    setEnv(changes);
+    try {
+      databaseConfig({ env });
+    } finally {
+      setEnv(saved);
+    }
+  };
+
+  // An unset NODE_ENV never reaches the config: Strapi sets it to
+  // "development" first, so local commands and this suite still pass.
+  void it("refuses missing database settings outside development and test", () => {
+    for (const mode of ["production", "staging"]) {
+      assert.throws(
+        () => loadWith({ NODE_ENV: mode, DATABASE_HOST: undefined }),
+        /Missing database settings: DATABASE_HOST/,
+      );
+    }
+    for (const mode of ["development", "test"]) {
+      assert.doesNotThrow(() => loadWith({ NODE_ENV: mode, DATABASE_HOST: undefined }));
+    }
+  });
+
+  void it("refuses a DATABASE_CLIENT other than postgres", () => {
+    assert.throws(() => loadWith({ DATABASE_CLIENT: "sqlite" }), /DATABASE_CLIENT/);
+    assert.throws(() => loadWith({ DATABASE_CLIENT: "mysql" }), /DATABASE_CLIENT/);
+    assert.doesNotThrow(() => loadWith({ DATABASE_CLIENT: "postgres" }));
+    assert.doesNotThrow(() => loadWith({ DATABASE_CLIENT: undefined }));
+  });
+});
