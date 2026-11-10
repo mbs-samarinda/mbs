@@ -52,21 +52,7 @@ jobs:
       # publishing, since the deploy in the next slice pins each by its own tag.
       fail-fast: false
       matrix:
-        include:
-          - app: profile
-            # The task whose hash stands for "everything that goes into this
-            # image". Turbo already folds in the dependency graph and the `env`
-            # list, which is why this is used instead of path filters: a change
-            # to packages/ui moves this hash, and a path filter on apps/profile
-            # would not see it.
-            task: build
-          - app: cms
-            task: build
-          - app: api
-            # The API has no build task — Node runs its TypeScript directly —
-            # so typecheck stands in. It hashes the same things: the package's
-            # own files and its dependencies.
-            task: typecheck
+        app: [profile, cms, api]
 
     steps:
       - uses: actions/checkout@v5
@@ -78,7 +64,7 @@ jobs:
         id: tag
         run: |
           set -euo pipefail
-          tag=$(infra/image-tag.sh ${{ matrix.app }} ${{ matrix.task }})
+          tag=$(infra/image-tag.sh ${{ matrix.app }})
           echo "image=$REGISTRY/${{ github.repository_owner }}/mbs-${{ matrix.app }}" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Tag for mbs-${{ matrix.app }}: $tag"
@@ -104,7 +90,7 @@ jobs:
       # Both remaining steps are skipped when the tag exists, which is the
       # whole point: an unrelated merge republishes nothing.
       - name: Build the application
-        if: steps.exists.outputs.found == 'false' && matrix.task == 'build'
+        if: steps.exists.outputs.found == 'false' && matrix.app != 'api'
         run: pnpm exec turbo run build --filter=@mbs/${{ matrix.app }}
 
       - name: Build and push the image
@@ -157,9 +143,9 @@ jobs:
         # answer, which is why it lives in one file both jobs call.
         run: |
           set -euo pipefail
-          echo "profile=$(infra/image-tag.sh profile build)" >> "$GITHUB_OUTPUT"
-          echo "cms=$(infra/image-tag.sh cms build)" >> "$GITHUB_OUTPUT"
-          echo "api=$(infra/image-tag.sh api typecheck)" >> "$GITHUB_OUTPUT"
+          echo "profile=$(infra/image-tag.sh profile)" >> "$GITHUB_OUTPUT"
+          echo "cms=$(infra/image-tag.sh cms)" >> "$GITHUB_OUTPUT"
+          echo "api=$(infra/image-tag.sh api)" >> "$GITHUB_OUTPUT"
 
       - name: Open an SSH connection
         run: |

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prints the image tag for one app: ./image-tag.sh <app> <turbo-task>
+# Prints the image tag for one app: ./image-tag.sh <app>
 #
 # This exists as a file rather than inline in the workflow because two jobs need
 # the answer — the one that builds and the one that deploys — and they have to
@@ -11,8 +11,7 @@
 # build env, so it changes the hash.
 set -euo pipefail
 
-readonly app=${1:?usage: image-tag.sh <app> <turbo-task>}
-readonly task=${2:?usage: image-tag.sh <app> <turbo-task>}
+readonly app=${1:?usage: image-tag.sh <app>}
 
 # --dry=json, not --affected. On a push to main --affected compares main with
 # itself and resolves to nothing; the dry run reports the task hash regardless.
@@ -21,7 +20,11 @@ readonly task=${2:?usage: image-tag.sh <app> <turbo-task>}
 # list, which is why it is used instead of path filters: a change in
 # packages/ui moves the profile's hash, and a filter on apps/profile would not
 # see it.
-turbo_hash=$(pnpm exec turbo run "$task" --filter="@mbs/$app" --dry=json \
+#
+# Always the build hash, even for the API, which has no build script: turbo
+# still hashes its files and dependencies, and build's inputs leave tests out.
+# typecheck used to stand in for it, but typecheck has to see the tests.
+turbo_hash=$(pnpm exec turbo run build --filter="@mbs/$app" --dry=json \
   | jq -er --arg pkg "@mbs/$app" 'first(.tasks[] | select(.package == $pkg) | .hash)')
 
 # The image holds more than the turbo output.
