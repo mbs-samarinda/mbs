@@ -47,6 +47,16 @@ test("a relation changed to another kind breaks", () => {
   assert.deepEqual(check(edit({ author })), [{ field: "author", reason: "retargeted" }]);
 });
 
+test("a relation handed to the other side breaks", () => {
+  const author = {
+    type: "relation",
+    relation: "oneToOne",
+    target: "api::staff.staff",
+    mappedBy: "page",
+  };
+  assert.deepEqual(check(edit({ author })), [{ field: "author", reason: "retargeted" }]);
+});
+
 test("a component taken out of a dynamic zone breaks", () => {
   assert.deepEqual(check(edit({ blocks: { type: "dynamiczone", components: ["blocks.faq"] } })), [
     { field: "blocks", reason: "zone-shrunk" },
