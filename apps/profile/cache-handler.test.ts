@@ -42,7 +42,10 @@ const entry = (body: string, tags: string[]): CacheEntry => ({
   value: new Response(body).body!,
   tags,
   stale: 60,
-  timestamp: Date.now(),
+  // The clock Next stamps entries with: fractional milliseconds, like the
+  // handler's own publish marks. Date.now() would make an entry written in
+  // the same millisecond as a publish look older than it.
+  timestamp: performance.timeOrigin + performance.now(),
   expire: 3600,
   revalidate: 60,
 });
@@ -206,7 +209,7 @@ test.skipIf(process.getuid?.() === 0)(
 // A fresh container has no last good copy. Serving without the manifest would
 // ignore a publish and serve the pages it replaced.
 test.skipIf(process.getuid?.() === 0)(
-  "a fresh container that cannot read the manifest misses",
+  "a fresh container that cannot read the manifest serves as stale",
   async () => {
     const writer = await newContainer();
     await writer.set("page:smp:replaced", Promise.resolve(entry("old", ["cms"])));
@@ -216,7 +219,10 @@ test.skipIf(process.getuid?.() === 0)(
 
     await chmod(tags, 0o000);
     try {
-      expect(await (await newContainer()).get("page:smp:replaced", [])).toBeUndefined();
+      // Old content now, refilled in the background: an outage page beats a 500.
+      const unsure = await (await newContainer()).get("page:smp:replaced", []);
+      expect(unsure?.revalidate).toBe(-1);
+      expect(await read(unsure)).toBe("old");
       // A container that read the manifest before keeps serving on that copy.
       expect(await read(await writer.get("page:smp:kept", []))).toBe("kept");
     } finally {
