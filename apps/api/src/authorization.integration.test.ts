@@ -83,7 +83,10 @@ describe("procedure guards", () => {
   });
 
   it("answers FORBIDDEN when a STAFF session calls an admin procedure", async () => {
-    const response = await call("admin/staff/list", {}, await signIn("STAFF"));
+    const cookie = await signIn("STAFF");
+    expect((await call("staff/me/get", {}, cookie)).statusCode).toBe(200);
+
+    const response = await call("admin/staff/list", {}, cookie);
     expect(response.statusCode).toBe(403);
     expect(response.json()).toMatchObject({ json: { code: "FORBIDDEN" } });
   });
@@ -91,6 +94,21 @@ describe("procedure guards", () => {
   it("lets an ADMINISTRATOR session call an admin procedure", async () => {
     const response = await call("admin/staff/list", {}, await signIn("ADMINISTRATOR"));
     expect(response.statusCode).toBe(200);
+  });
+
+  it("answers CONFLICT, not a 500, when the database refuses a duplicate", async () => {
+    const cookie = await signIn("ADMINISTRATOR");
+    const staff = {
+      name: "Panitia",
+      email: "panitia@mbss.sch.id",
+      role: "STAFF",
+      schools: ["sma"],
+    };
+    expect((await call("admin/staff/create", staff, cookie)).statusCode).toBe(200);
+
+    const response = await call("admin/staff/create", staff, cookie);
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ json: { code: "CONFLICT" } });
   });
 
   it("answers CONFLICT, not a 500, when the domain refuses", async () => {
