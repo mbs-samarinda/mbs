@@ -33,7 +33,7 @@ turbo_hash=$(pnpm exec turbo run build --filter="@mbs/$app" --dry=json \
 # - .dockerignore: it decides what reaches the image at all, and getting it
 #   wrong is how a .env ends up in one.
 # - pnpm-lock.yaml: turbo does not fold it in — measured, a dependency bump
-#   leaves both @mbs/profile#build and @mbs/api#typecheck on the same hash. The
+#   left both @mbs/profile#build and the api hash unchanged. The
 #   api and cms images run `pnpm install` from it at docker build time, so
 #   without it a `pnpm update` for a security patch would match the published
 #   tag, skip the build, and leave the old version running.

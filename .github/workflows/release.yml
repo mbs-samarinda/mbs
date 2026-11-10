@@ -90,7 +90,7 @@ jobs:
       # Both remaining steps are skipped when the tag exists, which is the
       # whole point: an unrelated merge republishes nothing.
       - name: Build the application
-        if: steps.exists.outputs.found == 'false' && matrix.app != 'api'
+        if: steps.exists.outputs.found == 'false'
         run: pnpm exec turbo run build --filter=@mbs/${{ matrix.app }}
 
       - name: Build and push the image
