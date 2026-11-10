@@ -101,7 +101,7 @@ test("content a day and a half old is still served, so a Strapi outage past a da
   await handler.set(
     "site:outage",
     Promise.resolve({
-      ...entry("kept", ["cms"]),
+      ...entry("kept", ["albums:smp"]),
       timestamp: Date.now() - 36 * 3600_000,
       revalidate: content?.revalidate ?? 0,
       expire: content?.expire ?? 0,

@@ -50,6 +50,14 @@ const config: NextConfig = {
   // school key, which is also part of the cache key so two schools never share
   // a cached page for the same path.
   cacheComponents: true,
+  // Every CMS read in `cms.ts`. Refetched hourly like the built-in "hours"
+  // profile, but kept for a year instead of a day. Past `expire` an entry is a
+  // miss, so with "hours" a Strapi outage longer than a day turned every page
+  // into a 500. Past `revalidate` the old entry is still served while a refill
+  // runs in the background, and a refill that fails leaves it in place.
+  cacheLife: {
+    content: { stale: 5 * 60, revalidate: 60 * 60, expire: 365 * 24 * 60 * 60 },
+  },
   // The `"use cache"` store, on a compose volume rather than in memory. Next
   // 16.3.4's own default handler is memory-backed, so every deploy and restart
   // started cold and the first visitor to each page waited on Strapi. With this

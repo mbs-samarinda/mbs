@@ -250,8 +250,17 @@ const handler: CacheHandler = {
     for (const tag of tagNames) manifest[tag] = now;
 
     await mkdir(DIR, { recursive: true });
-    await writeFile(`${TAGS}.tmp`, JSON.stringify(manifest));
-    await rename(`${TAGS}.tmp`, TAGS);
+    // A unique temp name for the reason `writeEntry` gives: two publish
+    // webhooks at once would otherwise rename one shared file twice, and the
+    // second rename finds nothing and fails its webhook.
+    const temp = `${TAGS}.${process.pid}.${(counter += 1)}.tmp`;
+    try {
+      await writeFile(temp, JSON.stringify(manifest));
+      await rename(temp, TAGS);
+    } catch (error) {
+      await rm(temp, { force: true });
+      throw error;
+    }
   },
 };
 
