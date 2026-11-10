@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+
 import { revalidateTag } from "next/cache";
 
 import { CMS_TAG } from "../../../cms.ts";
@@ -12,8 +14,8 @@ import { config } from "../../../config/env.ts";
  * slower route.
  *
  * One tag for every content read. Finer invalidation would need the CMS to say
- * which owner and which route changed, and the saving — three cached reads,
- * refetched once — is not worth a second thing to keep in step.
+ * which owner and which route changed, and the saving, a handful of cached
+ * reads refetched once per publish, is not worth a second thing to keep in step.
  *
  * This route belongs to no owner, which is why the proxy skips `api/`. It is
  * dynamic by nature and never prerendered.
@@ -26,14 +28,25 @@ export async function POST(request: Request) {
     return Response.json({ revalidated: false, reason: "not configured" }, { status: 503 });
   }
 
-  if (request.headers.get("x-revalidate-secret") !== config.revalidateSecret) {
+  if (!sameSecret(request.headers.get("x-revalidate-secret") ?? "", config.revalidateSecret)) {
     return Response.json({ revalidated: false }, { status: 401 });
   }
 
-  // `max` rather than the deprecated one-argument form: it marks the data stale
-  // and serves the existing page while the refetch runs, so a publish never
-  // makes the next visitor wait for Strapi. The alternative blocks that request
-  // on a cache miss, which is a worse trade for content that is already live.
+  // `max` rather than the deprecated one-argument form. Next's own handler
+  // would then serve the old page while the refetch runs, but `cache-handler.ts`
+  // ignores the profile and treats any revalidated tag as a miss, so the next
+  // visitor to each page waits on Strapi once.
   revalidateTag(CMS_TAG, "max");
   return Response.json({ revalidated: true, tag: CMS_TAG });
 }
+
+/**
+ * A constant-time compare, so response timing does not leak how much of the
+ * secret a guess got right. Hashed first because `timingSafeEqual` throws on
+ * inputs of different lengths, which would turn a short guess into a 500.
+ */
+function sameSecret(given: string, expected: string): boolean {
+  return timingSafeEqual(sha256(given), sha256(expected));
+}
+
+const sha256 = (value: string) => createHash("sha256").update(value).digest();
