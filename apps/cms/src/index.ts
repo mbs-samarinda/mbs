@@ -993,21 +993,44 @@ const BOOT_LOCK = 4820194;
  * alone; this is what makes that true.
  *
  * A session lock belongs to one connection, so it is taken and released on a
- * connection set aside for it. Through the pool, the unlock could land on a
- * different connection and leave the lock held, and the next boot would wait
- * forever.
+ * connection set aside for it. If the release fails, that connection is closed
+ * before it goes back to the pool: closing the session frees the lock, where a
+ * pooled connection still holding it would stall the next boot. The wait is bounded
+ * by `lock_timeout` (`BOOT_LOCK_TIMEOUT`, a Postgres interval, default 5min),
+ * so a hung instance stops the next boot with a reason instead of hanging it.
  */
 async function withBootLock(strapi: Core.Strapi, run: () => Promise<void>) {
+  const wait = process.env.BOOT_LOCK_TIMEOUT || "5min";
   const knex = strapi.db.connection;
   const connection: unknown = await knex.client.acquireConnection();
   try {
-    await knex.raw("select pg_advisory_lock(?)", [BOOT_LOCK]).connection(connection);
-    try {
-      await run();
-    } finally {
-      await knex.raw("select pg_advisory_unlock(?)", [BOOT_LOCK]).connection(connection);
-    }
+    await knex.raw("select set_config('lock_timeout', ?, false)", [wait]).connection(connection);
+    await knex
+      .raw("select pg_advisory_lock(?)", [BOOT_LOCK])
+      .connection(connection)
+      .catch((error: unknown) => {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "55P03"
+        ) {
+          throw new Error(
+            `Another CMS instance has held the boot lock (${BOOT_LOCK}) for over ${wait}. Stop it, or find the session holding the lock in pg_locks.`,
+          );
+        }
+        throw error;
+      });
+    await run();
   } finally {
+    // Also undoes `lock_timeout`, so the connection goes back to the pool as it came.
+    await knex
+      .raw("select pg_advisory_unlock_all(), set_config('lock_timeout', '0', false)")
+      .connection(connection)
+      .catch(async (error: unknown) => {
+        strapi.log.warn(`Boot lock release failed, closing its connection: ${String(error)}`);
+        await knex.client.destroyRawConnection(connection);
+      });
     await knex.client.releaseConnection(connection);
   }
 }
