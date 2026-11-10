@@ -6,7 +6,7 @@
     "label": { "type": "string", "required": true },
     "href": {
       "type": "string",
-      "regex": "^$|^/(?![/\\\\])\\S*$|^#\\S*$|^(https://|mailto:|tel:)\\S+$"
+      "regex": "^$|^/(?![/\\\\])\\S*$|^#\\S*$|^(https?://|mailto:|tel:)\\S[^\\r\\n]*$"
     },
     "links": {
       "type": "component",

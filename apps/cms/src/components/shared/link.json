@@ -7,7 +7,7 @@
     "href": {
       "type": "string",
       "required": true,
-      "regex": "^$|^/(?![/\\\\])\\S*$|^#\\S*$|^(https://|mailto:|tel:)\\S+$"
+      "regex": "^$|^/(?![/\\\\])\\S*$|^#\\S*$|^(https?://|mailto:|tel:)\\S[^\\r\\n]*$"
     }
   }
 }
