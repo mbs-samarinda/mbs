@@ -154,21 +154,25 @@ export async function findSchoolIdsByKeys(db: Executor, keys: readonly string[])
 }
 
 /**
- * Counts the active administrators other than `excludingStaffId`, locking
- * *every* active administrator row first.
+ * Makes every staff write in MBSS take turns, until the caller's transaction
+ * ends. Call it before the first read: a scope or last-administrator check on
+ * rows read before the lock can pass on a state another save already changed.
  *
- * Locking only the others would not help: two transactions deactivating each
- * other would each lock the row the other is not touching, both see one
- * administrator left, and commit into an empty set. Taking the whole set in a
- * fixed order forces them to run one after the other.
+ * One lock rather than row locks because the writes read overlapping sets (the
+ * target, its schools, every administrator) and row locks taken in different
+ * orders deadlock. The committee is tens of people, so serializing costs
+ * nothing. The number is arbitrary and only has to be the same everywhere.
  */
+export async function lockStaffWrites(tx: Transaction) {
+  await tx.execute(sql`select pg_advisory_xact_lock(4820193)`);
+}
+
+/** Only meaningful while the caller holds `lockStaffWrites`. */
 export async function countOtherActiveAdministrators(db: Executor, excludingStaffId: string) {
   const rows = await db
     .select({ id: schema.staffUsers.id })
     .from(schema.staffUsers)
-    .where(and(eq(schema.staffUsers.role, "ADMINISTRATOR"), eq(schema.staffUsers.isActive, true)))
-    .orderBy(asc(schema.staffUsers.id))
-    .for("update");
+    .where(and(eq(schema.staffUsers.role, "ADMINISTRATOR"), eq(schema.staffUsers.isActive, true)));
 
   return rows.filter((row) => row.id !== excludingStaffId).length;
 }

@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "admission_cycles_one_open" ON "admission_cycles" USING btree ("status") WHERE status = 'OPEN';--> statement-breakpoint
+ALTER TABLE "staff_login_emails" ADD CONSTRAINT "staff_login_emails_email_lowercase" CHECK (email = lower(email));

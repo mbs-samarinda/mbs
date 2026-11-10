@@ -19,3 +19,15 @@ export class NotFoundError extends Error {
 export class ConflictError extends Error {
   readonly code = "CONFLICT";
 }
+
+/**
+ * Postgres 23505, for a service to turn into a ConflictError. The driver's
+ * error is not a contract, so it stops there. Drizzle wraps the driver error,
+ * so the code sits on the cause.
+ */
+export function isUniqueViolation(error: unknown) {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    if ("code" in current && current.code === "23505") return true;
+  }
+  return false;
+}

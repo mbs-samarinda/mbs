@@ -54,8 +54,9 @@ export function createAuth(db: Database, config: Config, logger?: BetterAuthOpti
           // ctx.body.callbackURL and tell the committee app from the parent
           // app.
           //
-          // Better Auth lowercases the email before this hook runs. It
-          // redirects to errorURL only when the error carries a code, and
+          // Better Auth lowercases the email before this hook runs, and every
+          // staff write stores it lowercased, so the two compare as they are.
+          // It redirects to errorURL only when the error carries a code, and
           // admission-admin's index route matches this one.
           before: async (user) => {
             if (!(await isApprovedLoginEmail(db, user.email))) {

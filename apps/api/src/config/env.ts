@@ -25,10 +25,11 @@ const EnvSchema = z.object({
   // one origin Better Auth trusts for cookie-authenticated requests.
   ADMIN_APP_URL: z.url(),
 
-  // Optional. When set, that address is ensured as an active administrator with
-  // access to every school on each boot. Nothing can grant staff access before
-  // one administrator exists.
-  BOOTSTRAP_ADMIN_EMAIL: optional(z.email().optional()),
+  // Optional. Nothing can grant staff access before one administrator exists.
+  // On each boot this address gets an administrator profile with every school
+  // if it has none. An existing profile is left alone, unless no active
+  // administrator is left anywhere, in which case this one is restored.
+  BOOTSTRAP_ADMIN_EMAIL: optional(z.string().trim().toLowerCase().pipe(z.email()).optional()),
 });
 
 // Named for what the application means, not what the variable is called, so

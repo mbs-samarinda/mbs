@@ -2,7 +2,8 @@ import { schema, type Database, type Transaction } from "@mbs/db";
 import { SCHOOL_KEYS } from "@mbs/school-config";
 import { and, eq, sql } from "drizzle-orm";
 
-import { findSchoolIdsByKeys, replaceSchoolAccess } from "./repository.ts";
+import { findSchoolIdsByKeys, lockStaffWrites, replaceSchoolAccess } from "./repository.ts";
+import { loginEmailKind } from "./service.ts";
 
 /**
  * Ensures one administrator exists so the staff page has somebody to sign in
@@ -14,15 +15,11 @@ import { findSchoolIdsByKeys, replaceSchoolAccess } from "./repository.ts";
  * administrator is left anywhere, it restores this one, because at that point
  * nobody can sign in to fix it.
  */
-export async function ensureBootstrapAdministrator(db: Database, rawEmail: string) {
-  const email = rawEmail.trim().toLowerCase();
-
+export async function ensureBootstrapAdministrator(db: Database, email: string) {
   return db.transaction(async (tx) => {
     // Two API instances booting together would both read no rows and both
     // insert, and the loser dies on a unique violation before it can listen.
-    // The lock is held until this transaction commits. The number is arbitrary
-    // and only has to be the same in every instance.
-    await tx.execute(sql`select pg_advisory_xact_lock(4820193)`);
+    await lockStaffWrites(tx);
 
     const activeAdministrators = await tx
       .select({ id: schema.staffUsers.id })
@@ -81,7 +78,7 @@ export async function ensureBootstrapAdministrator(db: Database, rawEmail: strin
 
     await tx
       .insert(schema.staffLoginEmails)
-      .values({ staffId: staff!.id, email, kind: "INSTITUTIONAL" });
+      .values({ staffId: staff!.id, email, kind: loginEmailKind(email) });
 
     await replaceSchoolAccess(
       tx,

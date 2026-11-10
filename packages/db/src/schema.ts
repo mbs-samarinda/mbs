@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   integer,
   jsonb,
   pgEnum,
@@ -8,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -33,17 +36,27 @@ export const schools = pgTable("schools", {
 // The cycle is global across MBSS. It deliberately carries no school_id, and
 // every school takes part in every cycle by construction — so the cycle a
 // school is showing can never differ from the cycle its neighbour shows.
-export const admissionCycles = pgTable("admission_cycles", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  registrationOpenAt: timestamp("registration_open_at", { withTimezone: true }).notNull(),
-  registrationCloseAt: timestamp("registration_close_at", { withTimezone: true }).notNull(),
-  resultPublishAt: timestamp("result_publish_at", { withTimezone: true }).notNull(),
-  defaultFee: integer("default_fee").notNull(),
-  status: cycleStatus("status").notNull().default("DRAFT"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const admissionCycles = pgTable(
+  "admission_cycles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    registrationOpenAt: timestamp("registration_open_at", { withTimezone: true }).notNull(),
+    registrationCloseAt: timestamp("registration_close_at", { withTimezone: true }).notNull(),
+    resultPublishAt: timestamp("result_publish_at", { withTimezone: true }).notNull(),
+    defaultFee: integer("default_fee").notNull(),
+    status: cycleStatus("status").notNull().default("DRAFT"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Global cycles make "one registration at a time" a rule over the whole
+  // table: two open cycles would show families two sets of dates.
+  (table) => [
+    uniqueIndex("admission_cycles_one_open")
+      .on(table.status)
+      .where(sql`status = 'OPEN'`),
+  ],
+);
 
 /**
  * One school's overrides for one cycle — never proof that it joined, because
@@ -141,20 +154,26 @@ export const staffUsers = pgTable("staff_users", {
  * until the first successful sign-in binds the Better Auth identity, which is
  * what turns a pre-approval into a working login.
  */
-export const staffLoginEmails = pgTable("staff_login_emails", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  staffId: uuid("staff_id")
-    .notNull()
-    .references(() => staffUsers.id),
-  email: text("email").notNull().unique(),
-  kind: staffLoginEmailKind("kind").notNull(),
-  // Unique so one Better Auth identity can never resolve to two staff profiles.
-  authUserId: text("auth_user_id")
-    .unique()
-    .references(() => user.id),
-  verifiedAt: timestamp("verified_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const staffLoginEmails = pgTable(
+  "staff_login_emails",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staffUsers.id),
+    email: text("email").notNull().unique(),
+    kind: staffLoginEmailKind("kind").notNull(),
+    // Unique so one Better Auth identity can never resolve to two staff profiles.
+    authUserId: text("auth_user_id")
+      .unique()
+      .references(() => user.id),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Lookups compare bytes, and Better Auth hands over a lowercased address. A
+  // mixed-case row here would be an approval nobody can ever sign in with.
+  () => [check("staff_login_emails_email_lowercase", sql`email = lower(email)`)],
+);
 
 /** The schools one staff profile may act in. A role never implies a school. */
 export const staffSchoolAccess = pgTable(
