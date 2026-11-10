@@ -4,10 +4,11 @@
 // Strapi syncs its tables to these files on boot. A removed or retyped field
 // loses its column, a field pointed at another component or relation target,
 // or switched to another relation kind or owning side, loses its links, a
-// component taken out of a dynamic zone loses those entries, and a new
-// collectionName starts an empty table. Renames and retypes are a new field
-// plus a backfill instead. A deliberate break is let through by the PR label
-// the workflow checks, not by this script.
+// component taken out of a dynamic zone loses those entries, a new
+// collectionName starts an empty table, and turning off draftAndPublish
+// deletes every draft. Renames and retypes are a new field plus a backfill
+// instead. A deliberate break is let through by the PR label the workflow
+// checks, not by this script.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
@@ -20,11 +21,15 @@ type Attribute = {
   mappedBy?: string;
   [setting: string]: unknown;
 };
-export type Schema = { collectionName?: string; attributes: Record<string, Attribute> };
+export type Schema = {
+  collectionName?: string;
+  options?: { draftAndPublish?: boolean };
+  attributes: Record<string, Attribute>;
+};
 type Break = {
   file: string;
   field: string;
-  reason: "removed" | "retyped" | "retargeted" | "zone-shrunk" | "table-renamed";
+  reason: "removed" | "retyped" | "retargeted" | "zone-shrunk" | "table-renamed" | "drafts-dropped";
   detail: string;
 };
 
@@ -47,6 +52,16 @@ export function findBreaks(base: Map<string, Schema>, head: Map<string, Schema>)
     if (after && after.collectionName !== before.collectionName) {
       const detail = `${before.collectionName} -> ${after.collectionName}`;
       breaks.push({ file, field: "collectionName", reason: "table-renamed", detail });
+    }
+    // Strapi deletes every unpublished row when this goes from true to off,
+    // and reads a missing value as off.
+    if (
+      after &&
+      before.options?.draftAndPublish === true &&
+      after.options?.draftAndPublish !== true
+    ) {
+      const detail = "turned off, unpublished drafts deleted";
+      breaks.push({ file, field: "draftAndPublish", reason: "drafts-dropped", detail });
     }
     for (const [field, was] of Object.entries(before.attributes)) {
       const now = after?.attributes[field];
