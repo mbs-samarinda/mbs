@@ -11,8 +11,9 @@ const app = await buildApp(config);
 // stop the listen below.
 let shuttingDown = false;
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
-  process.on(signal, () => {
-    if (shuttingDown) return;
+  // once: a second identical signal falls back to Node's default and kills a
+  // stuck shutdown. A second close() is harmless.
+  process.once(signal, () => {
     shuttingDown = true;
     app.close().catch((error: unknown) => {
       app.log.error({ err: error }, "shutdown failed");

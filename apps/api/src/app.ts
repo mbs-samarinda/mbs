@@ -93,6 +93,8 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
  * Drizzle puts the query parameters, emails among them, in its message and on
  * the error itself. So the log keeps each error's type and code, and the
  * message and stack of the innermost one only, which comes from the driver.
+ * ponytail: a Postgres data error (22xxx) quotes its input; the contract parses
+ * input before any query today, so none is expected here.
  */
 function redactError(error: unknown) {
   const chain: Error[] = [];
