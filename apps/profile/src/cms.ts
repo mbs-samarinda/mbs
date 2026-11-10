@@ -1,6 +1,7 @@
 import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
 import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
+import { z } from "zod";
 
 import { cutExpired, type Article, type ArticleType } from "./articles.ts";
 import { config } from "./config/env.ts";
@@ -13,10 +14,12 @@ import type { Owner } from "./owners.ts";
  * and the pages are meant to be static. Live admission facts are the opposite
  * case and live in `admission.ts`, uncached, behind a `<Suspense>` boundary.
  *
- * The shapes below are hand-written from the schemas in `apps/cms`. Nothing
- * validates them at runtime, deliberately: this is our own CMS behind our own
- * schema, not a third party, and a per-field schema here would be the content
- * model written a second time in a second language, drifting from the first.
+ * The shapes below are hand-written from the schemas in `apps/cms`, and only
+ * the fields that crash a render are parsed at runtime: lists that get mapped,
+ * media in those lists, and icon enums used as map keys. A full schema here
+ * would be the content model written a second time, drifting from the first.
+ * The parse degrades instead of throwing. A strict one would only move the 500
+ * from render time to fetch time, when the page could still show the rest.
  */
 
 export type Media = {
@@ -84,30 +87,35 @@ export type Entry = {
  * The homepage draws activities as icon tiles and facilities as photo cards, so
  * the icon is a field on the record rather than something the block holds: it
  * belongs to the activity, and an editor sets it once wherever the activity is
- * listed. `null` covers a row created before the field existed — Strapi's
- * default only applies to new rows, not to a backfill.
+ * listed.
  */
-export type Activity = Entry & { readonly icon: ActivityIcon | null };
+export type Activity = Entry & { readonly icon: ActivityIcon };
 
 /**
  * The glyphs an activity can wear, bounded by the CMS enumeration.
  *
- * Three copies of this list exist — the schema, this union, and `ACTIVITY_ICONS`
- * in `sections.tsx` — and they have to move together. The seed direction is held
- * by the compiler; the schema direction is not, so the tile falls back to a star
- * rather than trusting it.
+ * Two copies of this list exist, the schema and this one, and the compiler
+ * holds `ACTIVITY_ICONS` in `sections.tsx` to this one. A value the CMS gains
+ * before this list does, or a row from before the field existed (Strapi's
+ * default lands on new rows only), arrives as `bintang` instead of crashing the
+ * homepage.
  */
-export type ActivityIcon =
-  | "kitab"
-  | "tenda"
-  | "bola"
-  | "target"
-  | "komputer"
-  | "pena"
-  | "labu"
-  | "mikrofon"
-  | "toko"
-  | "bintang";
+const ActivityIconSchema = z
+  .enum([
+    "kitab",
+    "tenda",
+    "bola",
+    "target",
+    "komputer",
+    "pena",
+    "labu",
+    "mikrofon",
+    "toko",
+    "bintang",
+  ])
+  .catch("bintang");
+
+export type ActivityIcon = z.infer<typeof ActivityIconSchema>;
 
 /** One entry with the parts only its own page renders. */
 export type FullEntry = Entry & {
@@ -134,14 +142,17 @@ export type Achievement = {
 // it, and is re-exported here so a page imports one module per concern.
 export type { Article } from "./articles.ts";
 
-/** The icons a value on `/profil` can carry, bounded by the CMS enumeration. */
-export type ValueIcon = "kitab" | "perisai" | "kunci" | "tangan" | "orang" | "topi-wisuda";
-
 /**
- * One composed section. Strapi names the discriminator `__component` and
- * prefixes every value with `blocks.`; `toBlock` below renames it on the way in
- * so the pages switch on a plain `kind`.
+ * The icons a value on `/profil` can carry, bounded by the CMS enumeration. A
+ * value the CMS gains before this list does is drawn as a book.
  */
+const ValueIconSchema = z
+  .enum(["kitab", "perisai", "kunci", "tangan", "orang", "topi-wisuda"])
+  .catch("kitab");
+
+export type ValueIcon = z.infer<typeof ValueIconSchema>;
+
+/** One composed section, as `BlockRow` below renames it. */
 export type Block = { readonly id: number } & (
   | {
       readonly kind: "hero";
@@ -293,16 +304,95 @@ export const CMS_TAG = "cms";
 export const mediaUrl = (media: Pick<Media, "url">) =>
   media.url.startsWith("http") ? media.url : `${config.cmsUrl}${media.url}`;
 
-async function cms<T>(collection: string, params: [string, string][]) {
+/**
+ * How long one CMS request may take. A hung Strapi otherwise holds every
+ * uncached render open until the visitor gives up. A timeout fails that render
+ * fast, and a cached page past its refresh keeps being served.
+ */
+const CMS_TIMEOUT_MS = 5000;
+
+/**
+ * A repeatable as Strapi returns it. An empty one arrives missing rather than
+ * as `[]`, and a CMS still on the previous schema omits it outright, so missing
+ * becomes `[]`. An item that fails `item` is dropped: one bad row costs that
+ * row, not the page.
+ */
+const list = <T extends z.ZodType>(item: T) =>
+  z
+    .unknown()
+    .optional()
+    .transform((value) =>
+      Array.isArray(value)
+        ? value.flatMap((row) => {
+            const parsed = item.safeParse(row);
+            return parsed.success ? [parsed.data] : [];
+          })
+        : [],
+    );
+
+/** Any object. Its fields are trusted to the hand-written types above. */
+const Row = z.looseObject({});
+
+/** A photo in a list. Without a `url` there is nothing to draw, and `mediaUrl` would throw. */
+const MediaRow = z.looseObject({ url: z.string() });
+
+const EntryRow = z.looseObject({ images: list(MediaRow) });
+
+export const ActivityRow = EntryRow.extend({ icon: ActivityIconSchema });
+
+export const SiteRow = z.looseObject({
+  menu: list(z.looseObject({ links: list(Row) })),
+  footerColumns: list(z.looseObject({ links: list(Row) })),
+  contacts: list(Row),
+  socials: list(Row),
+});
+
+/** The blocks whose items carry a field that crashes a render when it is wrong. */
+const BLOCK_ITEMS: Partial<Record<string, z.ZodType>> = {
+  "blocks.values": z.looseObject({ icon: ValueIconSchema }),
+  "blocks.facilities": EntryRow,
+  "blocks.extracurriculars": ActivityRow,
+};
+
+/**
+ * One composed section. Strapi names the discriminator `__component` and
+ * prefixes every value with `blocks.`. Renamed here so the pages switch on a
+ * plain `kind` and never see the prefix. Every block gets an `items` list, so a
+ * block with an empty repeatable maps over `[]`.
+ */
+const BlockRow = z
+  .looseObject({ __component: z.string() })
+  .transform(({ __component: component, ...rest }) => ({
+    ...rest,
+    items: list(BLOCK_ITEMS[component] ?? Row).parse(rest.items),
+    kind: component.slice("blocks.".length),
+  }));
+
+export const PageRow = z.looseObject({ blocks: list(BlockRow) });
+
+/**
+ * One collection read. `row` parses each returned record, and records it
+ * drops are left out.
+ */
+async function cms<T>(
+  collection: string,
+  params: [string, string][],
+  row: z.ZodType = Row,
+): Promise<T[]> {
   const query = new URLSearchParams(params);
-  const response = await fetch(`${config.cmsUrl}/api/${collection}?${query}`);
+  const response = await fetch(`${config.cmsUrl}/api/${collection}?${query}`, {
+    signal: AbortSignal.timeout(CMS_TIMEOUT_MS),
+  });
 
   if (!response.ok) {
     throw new Error(`CMS returned ${response.status} for ${collection}`);
   }
 
-  const body: { data: T } = await response.json();
-  return body.data;
+  const body = z.looseObject({ data: list(row) }).parse(await response.json());
+  // The one assertion in this module. `row` has checked the fields that crash
+  // a render; the rest of `T` is the hand-written shape the CMS schema promises.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  return body.data as T[];
 }
 
 /**
@@ -347,64 +437,35 @@ const BLOCK_POPULATE: [string, string][] = [
 ];
 
 /**
- * Renames Strapi's discriminator. This is the one place the wire shape is
- * asserted into the union above: everything downstream switches on `kind` and
- * never sees a `blocks.` prefix.
- */
-function toBlock(raw: Record<string, unknown>): Block {
-  const { ["__component"]: component, ...rest } = raw;
-  // The one assertion in this module, and the only place the wire shape is
-  // narrowed: what arrives is JSON, and its shape is guaranteed by the CMS
-  // schema rather than by anything the compiler can see here.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return {
-    // Same reason as the lists on `Site`: an empty repeatable arrives missing,
-    // and every block that has `items` maps over them without asking.
-    ...(Array.isArray(rest.items) ? {} : { items: [] }),
-    ...rest,
-    kind: String(component).slice("blocks.".length),
-  } as unknown as Block;
-}
-
-/**
  * The owner's identity, navigation, footer and contacts.
  *
  * Every site has a row — the CMS seeds one per owner on boot — so a missing one
- * is a broken deployment, not a state to render around. It throws, and at build
- * time that stops the deploy rather than shipping a site with no navigation.
+ * is a broken deployment, not a state to render around. It throws, and the
+ * owner's error page renders instead of a site with no navigation.
  */
 export async function getSite(ownerKey: Owner["key"]): Promise<Site> {
   "use cache";
   cacheLife("content");
   cacheTag(CMS_TAG, `site:${ownerKey}`);
 
-  const sites = await cms<Site[]>("site-list", [
-    ["filters[ownerKey][$eq]", ownerKey],
-    ["populate[menu][populate]", "links"],
-    ["populate[headerPhone]", "true"],
-    ["populate[headerWhatsapp]", "true"],
-    ["populate[contacts]", "true"],
-    ["populate[socials]", "true"],
-    ["populate[logo]", "true"],
-    ["populate[footerColumns][populate]", "links"],
-  ]);
+  const sites = await cms<Site>(
+    "site-list",
+    [
+      ["filters[ownerKey][$eq]", ownerKey],
+      ["populate[menu][populate]", "links"],
+      ["populate[headerPhone]", "true"],
+      ["populate[headerWhatsapp]", "true"],
+      ["populate[contacts]", "true"],
+      ["populate[socials]", "true"],
+      ["populate[logo]", "true"],
+      ["populate[footerColumns][populate]", "links"],
+    ],
+    SiteRow,
+  );
 
   const site = sites[0];
   if (!site) throw new Error(`No Site row for ${ownerKey}. The CMS seeds one on boot.`);
-
-  // A repeatable component that no row has filled in yet comes back missing
-  // rather than empty, and a CMS still running the previous schema omits it
-  // outright. Every list on `Site` is typed non-optional, so without this the
-  // first `.map` — on an editor who cleared one field, or on a deploy where the
-  // app is ahead of the CMS — is a 500. Defaulted here rather than at each use:
-  // there is one read, and a dozen places that iterate what it returns.
-  return {
-    ...site,
-    menu: (site.menu ?? []).map((item) => ({ ...item, links: item.links ?? [] })),
-    footerColumns: site.footerColumns ?? [],
-    contacts: site.contacts ?? [],
-    socials: site.socials ?? [],
-  };
+  return site;
 }
 
 /** One route's composed sections. `null` when no editor has published it. */
@@ -413,18 +474,13 @@ export async function getPage(ownerKey: Owner["key"], slug: string): Promise<Pag
   cacheLife("content");
   cacheTag(CMS_TAG, `page:${ownerKey}:${slug}`);
 
-  type RawPage = Omit<Page, "blocks"> & { blocks: Record<string, unknown>[] };
-  const pages = await cms<RawPage[]>("page-list", [
-    ["filters[ownerKey][$eq]", ownerKey],
-    ["filters[slug][$eq]", slug],
-    ...BLOCK_POPULATE,
-  ]);
+  const pages = await cms<Page>(
+    "page-list",
+    [["filters[ownerKey][$eq]", ownerKey], ["filters[slug][$eq]", slug], ...BLOCK_POPULATE],
+    PageRow,
+  );
 
-  const page = pages[0];
-  // Same defaulting as `getSite` and `toBlock`: an empty dynamic zone arrives
-  // missing rather than empty, and `/artikel` is the first page whose row has no
-  // blocks at all — the listing is not something an editor composes.
-  return page ? { ...page, blocks: (page.blocks ?? []).map(toBlock) } : null;
+  return pages[0] ?? null;
 }
 
 /** An index row as Strapi returns it, before the collaborators are flattened. */
@@ -438,6 +494,9 @@ type Author = { readonly authorName?: string | null; readonly authorRole?: strin
 /** "Siti Aminah, Guru Fisika", or `null` for the types that carry no author. */
 const bylineOf = ({ authorName, authorRole }: Author) =>
   authorName && authorRole ? `${authorName}, ${authorRole}` : null;
+
+// Opini has no `kolaborasi`, and gets `[]` here that it never reads.
+const CollabRow = z.looseObject({ kolaborasi: list(Row) });
 
 // Fixed order rather than acceptance order, so a card's badges read the same
 // on every site.
@@ -504,13 +563,17 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
       // Sequential on purpose: how many pages exist is only known from the
       // previous one's length, so there is nothing to run in parallel.
       // oxlint-disable-next-line eslint/no-await-in-loop
-      const batch = await cms<T[]>(collection, [
-        ...fields,
-        ["sort[0]", "publishedAt:desc"],
-        ["pagination[page]", String(page)],
-        ["pagination[pageSize]", String(PAGE_LIMIT)],
-        ["populate[cover]", "true"],
-      ]);
+      const batch = await cms<T>(
+        collection,
+        [
+          ...fields,
+          ["sort[0]", "publishedAt:desc"],
+          ["pagination[page]", String(page)],
+          ["pagination[pageSize]", String(PAGE_LIMIT)],
+          ["populate[cover]", "true"],
+        ],
+        CollabRow,
+      );
 
       rows.push(...batch);
       if (batch.length < PAGE_LIMIT) return rows;
@@ -614,7 +677,7 @@ export async function getArticle(
   // Each type omits a field or two the others have; Strapi just leaves them out.
   type Row = Omit<FullArticle, "type" | "byline" | "expiresAt" | "attribution"> &
     Author & { readonly expiresAt?: string | null; readonly attribution?: string | null };
-  const [row] = await cms<Row[]>(`${type}-list`, fields);
+  const [row] = await cms<Row>(`${type}-list`, fields);
   if (!row) return null;
 
   return {
@@ -642,7 +705,7 @@ export async function getRelatedAchievement(
   cacheLife("content");
   cacheTag(CMS_TAG, `achievement-for:${ownerKey}:${slug}`);
 
-  const found = await cms<Achievement[]>("pencapaian-list", [
+  const found = await cms<Achievement>("pencapaian-list", [
     ["filters[ownerKey][$eq]", ownerKey],
     ["filters[berita][slug][$eq]", slug],
     ["populate[berita]", "true"],
@@ -678,17 +741,16 @@ export async function getEntries(
   cacheLife("content");
   cacheTag(CMS_TAG, `entries:${collection}:${ownerKey}`);
 
-  const entries = await cms<Entry[]>(collection, [
-    ["filters[ownerKey][$eq]", ownerKey],
-    ["sort[0]", "title:asc"],
-    ["pagination[pageSize]", String(PAGE_LIMIT)],
-    ["populate[images]", "true"],
-  ]);
-
-  // An entry nobody has given a photograph arrives with `images` missing rather
-  // than empty, and the card reads `images[0]` without asking. Same defaulting
-  // as `getSite` and `toBlock`, for the same reason.
-  return entries.map((entry) => ({ ...entry, images: entry.images ?? [] }));
+  return cms<Entry>(
+    collection,
+    [
+      ["filters[ownerKey][$eq]", ownerKey],
+      ["sort[0]", "title:asc"],
+      ["pagination[pageSize]", String(PAGE_LIMIT)],
+      ["populate[images]", "true"],
+    ],
+    EntryRow,
+  );
 }
 
 /** One entry by address, or `null` when this owner has never published it. */
@@ -701,19 +763,19 @@ export async function getEntry(
   cacheLife("content");
   cacheTag(CMS_TAG, `entry:${collection}:${ownerKey}:${slug}`);
 
-  const found = await cms<FullEntry[]>(collection, [
-    ["filters[ownerKey][$eq]", ownerKey],
-    ["filters[slug][$eq]", slug],
-    ["populate[images]", "true"],
-    ["populate[facts]", "true"],
-    ["populate[seo][populate]", "*"],
-  ]);
+  const found = await cms<FullEntry>(
+    collection,
+    [
+      ["filters[ownerKey][$eq]", ownerKey],
+      ["filters[slug][$eq]", slug],
+      ["populate[images]", "true"],
+      ["populate[facts]", "true"],
+      ["populate[seo][populate]", "*"],
+    ],
+    EntryRow.extend({ facts: list(Row) }),
+  );
 
-  const entry = found[0];
-  // Same defaulting as `getSite` and `toBlock`: a repeatable nobody has filled
-  // in arrives missing rather than empty, so the panel below would be a 500 on
-  // the first entry an editor leaves without facts.
-  return entry ? { ...entry, facts: entry.facts ?? [], images: entry.images ?? [] } : null;
+  return found[0] ?? null;
 }
 
 /** One activity's photographs, for `/galeri`. The first photo is the cover. */
@@ -725,6 +787,8 @@ export type Album = {
   readonly photos: readonly Media[];
 };
 
+const AlbumRow = z.looseObject({ photos: list(MediaRow) });
+
 /** Every album an owner has published, newest activity first. */
 export async function getAlbums(ownerKey: Owner["key"]): Promise<Album[]> {
   "use cache";
@@ -733,14 +797,16 @@ export async function getAlbums(ownerKey: Owner["key"]): Promise<Album[]> {
 
   // Every photo comes along, not just the cover: the card shows the count, and
   // a school runs nowhere near `PAGE_LIMIT` activities a year.
-  const albums = await cms<Album[]>("album-list", [
-    ["filters[ownerKey][$eq]", ownerKey],
-    ["sort[0]", "date:desc"],
-    ["pagination[pageSize]", String(PAGE_LIMIT)],
-    ["populate[photos]", "true"],
-  ]);
-
-  return albums.map((album) => ({ ...album, photos: album.photos ?? [] }));
+  return cms<Album>(
+    "album-list",
+    [
+      ["filters[ownerKey][$eq]", ownerKey],
+      ["sort[0]", "date:desc"],
+      ["pagination[pageSize]", String(PAGE_LIMIT)],
+      ["populate[photos]", "true"],
+    ],
+    AlbumRow,
+  );
 }
 
 /** One album by address, or `null` when this owner has never published it. */
@@ -752,15 +818,18 @@ export async function getAlbum(
   cacheLife("content");
   cacheTag(CMS_TAG, `album:${ownerKey}:${slug}`);
 
-  const found = await cms<(Album & { seo: Page["seo"] })[]>("album-list", [
-    ["filters[ownerKey][$eq]", ownerKey],
-    ["filters[slug][$eq]", slug],
-    ["populate[photos]", "true"],
-    ["populate[seo][populate]", "*"],
-  ]);
+  const found = await cms<Album & { seo: Page["seo"] }>(
+    "album-list",
+    [
+      ["filters[ownerKey][$eq]", ownerKey],
+      ["filters[slug][$eq]", slug],
+      ["populate[photos]", "true"],
+      ["populate[seo][populate]", "*"],
+    ],
+    AlbumRow,
+  );
 
-  const album = found[0];
-  return album ? { ...album, photos: album.photos ?? [] } : null;
+  return found[0] ?? null;
 }
 
 /** A file on `/unduhan`. */
@@ -785,15 +854,12 @@ export async function getFiles(ownerKey: Owner["key"]): Promise<Berkas[]> {
   cacheLife("content");
   cacheTag(CMS_TAG, `files:${ownerKey}`);
 
-  const rows = await cms<(Omit<Berkas, "file"> & { file: Berkas["file"] | null })[]>(
-    "berkas-list",
-    [
-      ["filters[ownerKey][$eq]", ownerKey],
-      ["sort[0]", "publishedAt:desc"],
-      ["pagination[pageSize]", String(PAGE_LIMIT)],
-      ["populate[file]", "true"],
-    ],
-  );
+  const rows = await cms<Omit<Berkas, "file"> & { file: Berkas["file"] | null }>("berkas-list", [
+    ["filters[ownerKey][$eq]", ownerKey],
+    ["sort[0]", "publishedAt:desc"],
+    ["pagination[pageSize]", String(PAGE_LIMIT)],
+    ["populate[file]", "true"],
+  ]);
 
   // `required` is checked when an editor saves, not afterwards: deleting the
   // file from the Media Library leaves a published row pointing at nothing.
