@@ -63,7 +63,9 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18-alpine
+        # The digest infra/compose.prod.yml runs, so tests see production's
+        # Postgres and not whatever the floating tag points at today.
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
         env:
           POSTGRES_USER: mbs
           POSTGRES_PASSWORD: mbs_local_dev
@@ -94,7 +96,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18-alpine
+        image: postgres@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
         # Its own database, named here. The job above provisions `mbs_core`
         # only, and the `mbs_cms` role and database come from
         # infra/postgres/init-cms-db.sh — a docker-compose mount that CI never

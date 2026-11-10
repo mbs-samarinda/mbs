@@ -31,7 +31,9 @@ commit-msg:
 
 pre-push:
   # No --affected: a push has no reliable base to diff against. Turbo's cache
-  # makes the full run cheap whenever nothing changed.
+  # makes the full run cheap whenever nothing changed. Lint is here too:
+  # pre-commit only sees staged files, so cross-file rules like import/no-cycle
+  # would otherwise wait for CI.
   commands:
     verify:
-      run: pnpm exec turbo run typecheck test
+      run: pnpm exec turbo run lint typecheck test
