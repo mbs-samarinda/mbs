@@ -122,3 +122,32 @@ test("a dropped row does not end the article index early", async () => {
     vi.unstubAllGlobals();
   }
 });
+
+// Answers every page the same, and gives up long after a correct reader would.
+const repeat = (rows: unknown[]) => {
+  let calls = 0;
+  vi.stubGlobal("fetch", async (url: string) => {
+    calls += 1;
+    if (calls > 1000) throw new Error("still paging");
+    return Response.json({ data: url.includes("/berita-list") ? rows : [] });
+  });
+  return () => calls;
+};
+
+describe("a CMS that ignores the page parameter", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("stops at a short page instead of repeating it", async () => {
+    repeat([article("a"), article("b")]);
+    const slugs = (await getArticleIndex("smp")).map((entry) => entry.slug);
+    expect(slugs).toEqual(["a", "b"]);
+  });
+
+  test("throws, naming the collection, when every page is full", async () => {
+    const calls = repeat(Array.from({ length: 100 }, (_, i) => article(`a${i}`)));
+    await expect(getArticleIndex("smp")).rejects.toThrow("berita-list");
+    expect(calls()).toBeLessThan(1000);
+  });
+});
