@@ -23,6 +23,23 @@ export type SchoolKey = School["key"];
 export const SCHOOL_KEYS = SCHOOLS.map((school) => school.key);
 
 /**
+ * The closed lists both the database enums and the API contract are built
+ * from. They sit here, beside the school keys, for the same reason: this
+ * package imports nothing, so a browser bundle, Drizzle and Zod can all read
+ * one copy. Adding a value still needs a migration, which `pnpm db:generate`
+ * writes from these tuples.
+ */
+export const CYCLE_STATUSES = ["DRAFT", "OPEN", "CLOSED", "ARCHIVED"] as const;
+export const DOCUMENT_TYPES = [
+  "KARTU_KELUARGA",
+  "AKTA_KELAHIRAN",
+  "KARTU_IDENTITAS_ANAK",
+  "IJAZAH",
+] as const;
+export const STAFF_ROLES = ["ADMINISTRATOR", "STAFF", "PRINCIPAL"] as const;
+export const STAFF_LOGIN_EMAIL_KINDS = ["INSTITUTIONAL", "PERSONAL"] as const;
+
+/**
  * Narrows a string read from the database to a school key. The schools table
  * holds the same fixed list, but its column is text, so this is where that
  * promise is checked rather than assumed.

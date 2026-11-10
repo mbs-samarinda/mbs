@@ -1,3 +1,9 @@
+import {
+  CYCLE_STATUSES,
+  DOCUMENT_TYPES,
+  STAFF_LOGIN_EMAIL_KINDS,
+  STAFF_ROLES,
+} from "@mbs/school-config";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -21,7 +27,7 @@ import { user } from "./auth-schema.ts";
 // their shape is dictated by better-auth, not by us.
 export * from "./auth-schema.ts";
 
-export const cycleStatus = pgEnum("cycle_status", ["DRAFT", "OPEN", "CLOSED", "ARCHIVED"]);
+export const cycleStatus = pgEnum("cycle_status", CYCLE_STATUSES);
 
 export const schools = pgTable("schools", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -87,12 +93,7 @@ export const schoolAdmissionSettings = pgTable(
 // A closed list, not free text: an application's documents have to line up with
 // what was required, and a typo in a configured type would silently create a
 // requirement nothing can ever satisfy. A new document costs one migration.
-export const documentType = pgEnum("document_type", [
-  "KARTU_KELUARGA",
-  "AKTA_KELAHIRAN",
-  "KARTU_IDENTITAS_ANAK",
-  "IJAZAH",
-]);
+export const documentType = pgEnum("document_type", DOCUMENT_TYPES);
 
 /**
  * What one school asks for in one cycle. Three states, two columns: no row
@@ -126,8 +127,8 @@ export const documentRequirements = pgTable(
   ],
 );
 
-export const staffRole = pgEnum("staff_role", ["ADMINISTRATOR", "STAFF", "PRINCIPAL"]);
-export const staffLoginEmailKind = pgEnum("staff_login_email_kind", ["INSTITUTIONAL", "PERSONAL"]);
+export const staffRole = pgEnum("staff_role", STAFF_ROLES);
+export const staffLoginEmailKind = pgEnum("staff_login_email_kind", STAFF_LOGIN_EMAIL_KINDS);
 
 /**
  * A member of the admission committee. Authorization is pre-approved here
