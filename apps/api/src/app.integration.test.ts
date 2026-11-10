@@ -54,8 +54,9 @@ describe("api boundary", () => {
 });
 
 // Collects every error-level log line, with the request it belonged to.
-async function buildWatchedApp() {
+async function buildWatchedApp(addRoutes?: (target: FastifyInstance) => void) {
   const watched = await buildApp(config);
+  addRoutes?.(watched);
   const logged: { reqId: string; args: unknown[] }[] = [];
   watched.addHook("onRequest", async (request) => {
     vi.spyOn(request.log, "error").mockImplementation((...args: unknown[]) => {
@@ -147,13 +148,41 @@ describe("unexpected errors", () => {
     expect(lines).toContain("42P01");
   });
 
+  it("answers a failed query outside oRPC with a generic 500 and a redacted log", async () => {
+    const secret = "parameter-that-must-not-be-logged";
+    const { watched, logged } = await buildWatchedApp((target) => {
+      target.get("/failing-query", () =>
+        target.db.execute(sql`select * from missing_table where x = ${secret}`),
+      );
+    });
+
+    const response = await watched.inject({ method: "GET", url: "/failing-query" });
+    await watched.close();
+
+    expect(response.statusCode).toBe(500);
+    expect(response.body).not.toContain(secret);
+    expect(response.body).not.toContain("missing_table");
+    expect(logged).toHaveLength(1);
+    expect(response.headers["x-request-id"]).toBe(logged[0]?.reqId);
+    const line = JSON.stringify(logged[0]?.args);
+    expect(line).toContain("42P01");
+    expect(line).not.toContain(secret);
+  });
+
   it("logs nothing at error level for a rejected request", async () => {
     const { watched, logged } = await buildWatchedApp();
 
     const response = await getCurrentCycle(watched, "not-a-school");
+    const malformed = await watched.inject({
+      method: "POST",
+      url: "/api/rpc/public/admission/getCurrentCycle",
+      headers: { "content-type": "application/json" },
+      payload: "{not json",
+    });
     await watched.close();
 
     expect(response.statusCode).toBe(400);
+    expect(malformed.statusCode).toBe(400);
     expect(logged).toEqual([]);
   });
 });
