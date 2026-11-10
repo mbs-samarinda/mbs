@@ -1,30 +1,78 @@
-// Fails when a CMS component or content-type field is removed or changes
-// `type` against a base commit: node scripts/check-cms-schema.ts <base-ref>
+// Fails when a CMS change would make Strapi drop stored content, compared with
+// a base commit: node scripts/check-cms-schema.ts <base-ref>
 //
-// Strapi syncs its tables to these files on boot, so either change drops the
-// column and the content in it. A rename or retype is done with a new field
-// plus a backfill instead. A deliberate break is let through by the PR label
-// the workflow checks, not by this script.
+// Strapi syncs its tables to these files on boot. A removed or retyped field
+// loses its column, a field pointed at another component or relation target
+// loses its links, a component taken out of a dynamic zone loses those
+// entries, and a new collectionName starts an empty table. Renames and retypes
+// are a new field plus a backfill instead. A deliberate break is let through by
+// the PR label the workflow checks, not by this script.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-type Schema = { attributes: Record<string, { type: string }> };
-type Break = { file: string; field: string; from: string; to: string | null };
+type Attribute = {
+  type: string;
+  component?: string;
+  components?: string[];
+  target?: string;
+  [setting: string]: unknown;
+};
+export type Schema = { collectionName?: string; attributes: Record<string, Attribute> };
+type Break = {
+  file: string;
+  field: string;
+  reason: "removed" | "retyped" | "retargeted" | "zone-shrunk" | "table-renamed";
+  detail: string;
+};
 
 const schemaFile =
   /^apps\/cms\/src\/(components\/.+\.json|api\/.+\/content-types\/.+\/schema\.json)$/;
 
+// Which table a field's data lives in. Anything else (regex, required,
+// default, labels) is a constraint or display setting and safe to change.
+const storageKeys = ["component", "target"] as const;
+
 // A file missing from `head` counts as every one of its fields removed.
 export function findBreaks(base: Map<string, Schema>, head: Map<string, Schema>): Break[] {
   const breaks: Break[] = [];
-  for (const [file, schema] of base) {
-    const after = head.get(file)?.attributes ?? {};
-    for (const [field, { type }] of Object.entries(schema.attributes)) {
-      const to = after[field]?.type ?? null;
-      if (to !== type) breaks.push({ file, field, from: type, to });
+  for (const [file, before] of base) {
+    const after = head.get(file);
+    if (after && after.collectionName !== before.collectionName) {
+      const detail = `${before.collectionName} -> ${after.collectionName}`;
+      breaks.push({ file, field: "collectionName", reason: "table-renamed", detail });
+    }
+    for (const [field, was] of Object.entries(before.attributes)) {
+      const now = after?.attributes[field];
+      if (!now) {
+        breaks.push({ file, field, reason: "removed", detail: "removed" });
+      } else if (now.type !== was.type) {
+        breaks.push({ file, field, reason: "retyped", detail: `type ${was.type} -> ${now.type}` });
+      } else {
+        for (const key of storageKeys.filter((k) => now[k] !== was[k])) {
+          const detail = `${key} ${String(was[key])} -> ${String(now[key])}`;
+          breaks.push({ file, field, reason: "retargeted", detail });
+        }
+        for (const gone of (was.components ?? []).filter((c) => !now.components?.includes(c))) {
+          breaks.push({ file, field, reason: "zone-shrunk", detail: `dropped ${gone}` });
+        }
+      }
     }
   }
   return breaks;
+}
+
+function isSchema(value: unknown): value is Schema {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "attributes" in value &&
+    typeof value.attributes === "object" &&
+    value.attributes !== null &&
+    Object.values(value.attributes).every(
+      (a: unknown) =>
+        typeof a === "object" && a !== null && "type" in a && typeof a.type === "string",
+    )
+  );
 }
 
 function git(...args: string[]): string {
@@ -38,8 +86,10 @@ function lines(out: string): string[] {
 function schemas(paths: string[], read: (path: string) => string): Map<string, Schema> {
   const found = new Map<string, Schema>();
   for (const path of paths.filter((p) => schemaFile.test(p))) {
-    const schema: Schema = JSON.parse(read(path));
-    found.set(path, schema);
+    const json: unknown = JSON.parse(read(path));
+    if (!isSchema(json))
+      throw new Error(`${path}: not a Strapi schema (no attributes with a type)`);
+    found.set(path, json);
   }
   return found;
 }
@@ -54,16 +104,14 @@ if (import.meta.main) {
     schemas(lines(git("ls-files", "--", "apps/cms/src")), (p) => readFileSync(p, "utf8")),
   );
   for (const b of breaks) {
-    console.error(
-      `${b.file}: "${b.field}" ${b.to ? `changed type ${b.from} -> ${b.to}` : "removed"}`,
-    );
+    console.error(`${b.file}: "${b.field}" ${b.detail}`);
   }
   if (breaks.length > 0) {
     console.error(
-      "\nStrapi drops these columns on boot, and their content with them. Add a new field and" +
-        "\nbackfill it instead, or add the schema-break-ok label if losing the content is intended.",
+      "\nStrapi drops this content on boot. Add a new field and backfill it instead, or add" +
+        "\nthe schema-break-ok label if losing the content is intended.",
     );
     process.exit(1);
   }
-  console.log("No CMS field removed or retyped.");
+  console.log("No CMS schema change drops stored content.");
 }

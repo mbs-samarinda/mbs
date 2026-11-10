@@ -1,44 +1,74 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { findBreaks } from "./check-cms-schema.ts";
+import { findBreaks, type Schema } from "./check-cms-schema.ts";
 
-const file = "apps/cms/src/components/blocks/hero.json";
-const hero = {
+const file = "apps/cms/src/api/page/content-types/page/schema.json";
+const page: Schema = {
+  collectionName: "pages",
   attributes: {
     title: { type: "string" },
     href: { type: "string", regex: "^/.*$" },
+    seo: { type: "component", component: "shared.seo" },
+    blocks: { type: "dynamiczone", components: ["blocks.hero", "blocks.faq"] },
   },
 };
-const check = (head: Map<string, typeof hero>) => findBreaks(new Map([[file, hero]]), head);
+const check = (head: Schema | undefined) =>
+  findBreaks(new Map([[file, page]]), new Map(head ? [[file, head]] : [])).map(
+    ({ field, reason }) => ({ field, reason }),
+  );
+const edit = (attributes: Schema["attributes"], collectionName = page.collectionName) => ({
+  collectionName,
+  attributes: { ...page.attributes, ...attributes },
+});
 
 test("a removed field breaks", () => {
-  const head = { attributes: { title: { type: "string" } } };
-  assert.deepEqual(check(new Map([[file, head]])), [
-    { file, field: "href", from: "string", to: null },
-  ]);
+  const attributes = Object.fromEntries(
+    Object.entries(page.attributes).filter(([k]) => k !== "href"),
+  );
+  assert.deepEqual(check({ ...page, attributes }), [{ field: "href", reason: "removed" }]);
 });
 
 test("a changed type breaks", () => {
-  const head = { attributes: { ...hero.attributes, title: { type: "text" } } };
-  assert.deepEqual(check(new Map([[file, head]])), [
-    { file, field: "title", from: "string", to: "text" },
+  assert.deepEqual(check(edit({ title: { type: "text" } })), [
+    { field: "title", reason: "retyped" },
+  ]);
+});
+
+test("a component field pointed elsewhere breaks", () => {
+  assert.deepEqual(check(edit({ seo: { type: "component", component: "shared.meta" } })), [
+    { field: "seo", reason: "retargeted" },
+  ]);
+});
+
+test("a component taken out of a dynamic zone breaks", () => {
+  assert.deepEqual(check(edit({ blocks: { type: "dynamiczone", components: ["blocks.faq"] } })), [
+    { field: "blocks", reason: "zone-shrunk" },
+  ]);
+});
+
+test("a new collectionName breaks", () => {
+  assert.deepEqual(check(edit({}, "halaman")), [
+    { field: "collectionName", reason: "table-renamed" },
   ]);
 });
 
 test("a deleted file breaks every field in it", () => {
   assert.deepEqual(
-    check(new Map()).map((b) => b.field),
-    ["title", "href"],
+    check(undefined).map((b) => b.field),
+    ["title", "href", "seo", "blocks"],
   );
 });
 
 test("an added field passes", () => {
-  const head = { attributes: { ...hero.attributes, subtitle: { type: "string" } } };
-  assert.deepEqual(check(new Map([[file, head]])), []);
+  assert.deepEqual(check(edit({ subtitle: { type: "string" } })), []);
 });
 
 test("a regex change passes", () => {
-  const head = { attributes: { ...hero.attributes, href: { type: "string", regex: "^.*$" } } };
-  assert.deepEqual(check(new Map([[file, head]])), []);
+  assert.deepEqual(check(edit({ href: { type: "string", regex: "^.*$" } })), []);
+});
+
+test("a component added to a dynamic zone passes", () => {
+  const components = ["blocks.hero", "blocks.faq", "blocks.cta"];
+  assert.deepEqual(check(edit({ blocks: { type: "dynamiczone", components } })), []);
 });

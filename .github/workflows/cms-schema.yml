@@ -15,15 +15,17 @@ jobs:
     name: cms schema
     runs-on: ubuntu-latest
     steps:
+      # The checkout is GitHub's merge of the PR into its base, so its first
+      # parent is the base as of this run. Depth 2 is enough to reach it.
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          fetch-depth: 2
       - uses: ./.github/actions/setup
       # scripts/ belongs to no package, so turbo's lint and format jobs never
       # see it.
       - run: pnpm exec oxfmt --check -c .oxfmtrc.json scripts
       - run: pnpm exec oxlint -c .oxlintrc.json scripts
       - run: node --test scripts/
-      - name: No CMS field removed or retyped
+      - name: No CMS schema change drops stored content
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'schema-break-ok') }}
-        run: node scripts/check-cms-schema.ts ${{ github.event.pull_request.base.sha }}
+        run: node scripts/check-cms-schema.ts HEAD^1
