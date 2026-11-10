@@ -442,7 +442,55 @@ const tick = (documentId: string, collaborators: "smp"[] | "smk"[]) =>
     data: { collaborators: collaborators.map((ownerKey) => ({ ownerKey })) },
   });
 
+const refuse = (status: string) => () => {
+  throw new Error(status);
+};
+
+/**
+ * Calls the Content Manager's update controller the way its admin route does:
+ * the actor's real ability on `ctx.state`, inside a request context. Only
+ * routing and the admin token are skipped.
+ */
+const managerUpdate = async (
+  user: AdminUser,
+  model: string,
+  documentId: string,
+  body: Record<string, unknown>,
+) => {
+  const permissions = strapi.service("admin::permission") as unknown as {
+    engine: { generateUserAbility(user: AdminUser): Promise<unknown> };
+  };
+  const ctx = {
+    state: { user, userAbility: await permissions.engine.generateUserAbility(user) },
+    params: { model, id: documentId },
+    query: {},
+    request: { body },
+    forbidden: refuse("forbidden"),
+    notFound: refuse("not found"),
+    badRequest: refuse("bad request"),
+  };
+  const controller = strapi.plugin("content-manager").controller("collection-types") as {
+    update(context: typeof ctx): Promise<void>;
+  };
+  return strapi.requestContext.run(ctx as never, () => controller.update(ctx));
+};
+
 void describe("collaboration", () => {
+  // What the invitee's browser sends from the edit view. A field named `status`
+  // collides with the Content Manager's own publication status.
+  void it("lets an smk editor accept an invite from the edit view", async () => {
+    const documentId = await publishedArticle(["smk"]);
+    const invite: { documentId: string } | null = await strapi.db
+      .query(KOLABORASI)
+      .findOne({ where: { berita: { documentId } }, select: ["documentId"] });
+    assert.ok(invite, "expected an smk invite");
+
+    await managerUpdate(smkEditor, KOLABORASI, invite.documentId, { status: "diterima" });
+
+    const [accepted] = await invitesOf(documentId);
+    assert.equal(accepted?.status, "diterima");
+  });
+
   // The owner filter does the hiding: an SMK editor's list never shows SMA's
   // invites, and saving an invite changes its status and nothing else.
   void it("scopes an smk editor to its own invites, status only, no create", async () => {
