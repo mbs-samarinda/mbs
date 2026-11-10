@@ -32,9 +32,9 @@ export async function POST(request: Request) {
     return Response.json({ revalidated: false }, { status: 401 });
   }
 
-  // `max` asks Next to mark the tag stale, not expired: the next visitor gets
-  // the old page while it refetches, rather than waiting on Strapi. Our
-  // `cache-handler.ts` decides how a stale tag is served; see its `updateTags`.
+  // `max` asks for the tag to be marked stale, not expired: serve the old page
+  // while Next refetches, rather than make the next visitor wait on Strapi.
+  // Whether a stale entry is served that way is up to `cache-handler.ts`.
   revalidateTag(CMS_TAG, "max");
   return Response.json({ revalidated: true, tag: CMS_TAG });
 }
