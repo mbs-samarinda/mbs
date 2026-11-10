@@ -12,10 +12,9 @@ export * as schema from "./schema.ts";
 export function createDatabase(url: string) {
   const client = postgres(url, {
     max: 10,
-    // Without limits a database that stops answering hangs each request until
-    // the client gives up, instead of failing it with a logged error.
     connect_timeout: 10,
-    connection: { statement_timeout: 15_000 },
+    // Under Docker's 10 second stop grace, so shutdown can wait for a query.
+    connection: { statement_timeout: 8_000 },
   });
   return drizzle(client, { schema });
 }

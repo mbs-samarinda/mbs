@@ -31,7 +31,10 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
 
   const db = createDatabase(config.databaseUrl);
   app.decorate("db", db);
-  app.addHook("onClose", () => db.$client.end());
+  app.addHook("onClose", () => db.$client.end({ timeout: 5 }));
+  app.addHook("onRequest", async (request, reply) => {
+    reply.header("x-request-id", request.id);
+  });
   app.decorate("auth", createAuth(db, config));
   await app.register(healthRoutes);
 
@@ -59,9 +62,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
 
   const handler = new RPCHandler(router, {
     interceptors: [
-      // Translated domain errors and rejected input are expected. Anything else
-      // is a bug or an outage, and oRPC would answer it with a bare 500 and
-      // forget it. This is the one place it gets logged.
+      // oRPC answers an unexpected error with a bare 500 and logs nothing.
       onError((error, { context }) => {
         if (error instanceof ORPCError && error.status < 500) return;
         context.log.error({ err: error }, "unexpected error in procedure");
@@ -78,7 +79,6 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       headers: fromNodeHeaders(request.headers),
     });
 
-    reply.header("x-request-id", request.id);
     const { matched } = await handler.handle(request, reply, {
       prefix: "/api/rpc",
       context: { db: app.db, sessionUser: session?.user ?? null, log: request.log },

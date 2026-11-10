@@ -22,8 +22,7 @@ const os = implement(contract).$context<ApiContext>();
 /**
  * The one place domain errors become transport errors. Services throw the small
  * classes in `../errors.ts`; nothing below this line knows about HTTP or oRPC.
- * Anything else is left alone: the RPC handler in `../app.ts` logs it, and the
- * client gets a generic 500 and the request id in `x-request-id`.
+ * Anything else passes through as a generic 500; `../app.ts` logs it.
  */
 const translateErrors = os.middleware(async ({ next }) => {
   try {

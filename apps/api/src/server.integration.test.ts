@@ -13,9 +13,7 @@ async function freePort() {
   return address.port;
 }
 
-// In production Node is PID 1, where a signal nobody handles is ignored and
-// Docker kills the process after its grace period. Outside a container an
-// unhandled SIGTERM kills it instead, so a clean exit code is what proves the
+// Unhandled, SIGTERM kills the process by signal; exit code 0 proves the
 // handler ran.
 it("closes cleanly on SIGTERM", async () => {
   const port = await freePort();
@@ -38,12 +36,19 @@ it("closes cleanly on SIGTERM", async () => {
   });
   const exited = once(server, "exit");
 
-  await new Promise<void>((resolve) => {
-    server.stdout.on("data", (chunk: Buffer) => {
-      if (chunk.toString().includes("Server listening")) resolve();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let output = "";
+      server.stdout.on("data", (chunk: Buffer) => {
+        output += chunk.toString();
+        if (output.includes("Server listening")) resolve();
+      });
+      server.once("exit", (code) => reject(new Error(`server exited early with ${code}`)));
     });
-  });
 
-  server.kill("SIGTERM");
-  expect(await exited).toEqual([0, null]);
+    server.kill("SIGTERM");
+    expect(await exited).toEqual([0, null]);
+  } finally {
+    server.kill("SIGKILL");
+  }
 }, 20_000);

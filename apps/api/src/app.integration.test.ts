@@ -59,7 +59,6 @@ describe("unexpected errors", () => {
       });
     });
     await broken.ready();
-    // A database that went away is the most likely unexpected failure.
     await broken.db.$client.end();
 
     const response = await broken.inject({
