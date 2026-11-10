@@ -25,7 +25,6 @@ const assert = require("node:assert/strict") as typeof import("node:assert/stric
 // a database anybody works in. Defaults are set before Strapi loads `.env` —
 // dotenv leaves an existing variable alone — and then checked, so a developer's
 // own `DATABASE_NAME=mbs_cms` cannot reach this suite by accident.
-process.env.DATABASE_CLIENT ??= "postgres";
 process.env.DATABASE_HOST ??= "localhost";
 process.env.DATABASE_PORT ??= "5432";
 process.env.DATABASE_NAME ??= "mbs_cms_test";
