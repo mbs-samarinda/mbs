@@ -270,6 +270,7 @@ void describe("owner scope", () => {
 
     await assert.rejects(clone(sma.documentId), /tidak ditugaskan/);
     await assert.rejects(clone(smp.documentId, { ownerKey: "sma" }), /tidak ditugaskan/);
+    await assert.rejects(clone(sma.documentId, { ownerKey: "smp" }), /tidak ditugaskan/);
     await assert.doesNotReject(clone(smp.documentId));
   });
 

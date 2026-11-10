@@ -357,22 +357,22 @@ export async function assertOwnerScope(
   }
 
   // The document service types `params` per action and per content type, so the
-  // union it hands a middleware has no single shape to read. Only two fields are
-  // touched, and both are checked before use.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing one middleware payload to the two fields read below
+  // union it hands a middleware has no single shape to read. Every value read
+  // from `data` is checked before use.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing one middleware payload to the fields read below
   const params = context.params as { data?: Record<string, unknown>; documentId?: string };
-  const owner = await ownerWritten(strapi, context.uid, context.action, params);
+  const written = await ownerWritten(strapi, context.uid, context.action, params);
 
   if (isSuperAdmin(actor)) return;
 
   const owners = await assignedOwners(strapi, actor.id);
-  const foreign = [owner, ...(await linkedOwners(strapi, context.uid, params.data))].find(
+  const foreign = [...written, ...(await linkedOwners(strapi, context.uid, params.data))].find(
     (key) => key !== undefined && !owners.some((assigned) => assigned === key),
   );
   if (foreign === undefined) return;
 
   throw new errors.ForbiddenError(
-    foreign === owner
+    written.includes(foreign)
       ? `Anda tidak ditugaskan pada pemilik "${foreign}". Minta administrator menambahkannya di Penugasan Editor.`
       : `Entri ini menautkan entri milik "${foreign}". Anda hanya bisa menautkan entri pemilik yang ditugaskan.`,
   );
@@ -389,35 +389,39 @@ const isAdminUser = (value: unknown): value is { id: number; roles: { code?: str
   Array.isArray(value.roles);
 
 /**
- * The owner this write puts the document on, or `undefined` when it leaves the
- * owner where it is. A clone that names no owner keeps its source's, which is
- * the case that matters: the source may belong to anyone.
+ * The owners this write must be assigned: the one it puts the document on, and
+ * for a clone the source's too. The Content Manager loads a clone's source with
+ * no read check, so copying another school's draft onto your own owner would
+ * otherwise hand you its contents. An update that leaves the owner where it is
+ * names none.
  */
 async function ownerWritten(
   strapi: Core.Strapi,
   uid: UID.ContentType,
   action: string,
   params: { data?: Record<string, unknown>; documentId?: string },
-): Promise<string | undefined> {
+): Promise<string[]> {
   const next = typeof params.data?.ownerKey === "string" ? params.data.ownerKey : undefined;
-  if (action === "create") return next;
+  if (action === "create") return next === undefined ? [] : [next];
 
   const { documentId } = params;
   const current: { ownerKey?: string } | null = documentId
     ? await strapi.db.query(uid).findOne({ where: { documentId }, select: ["ownerKey"] })
     : null;
 
-  if (action === "clone") return next ?? current?.ownerKey;
+  if (action === "clone") {
+    return [next, current?.ownerKey].filter((key) => typeof key === "string");
+  }
 
   // An update that does not carry the field, or carries the same value, is not
   // a move.
-  if (next === undefined || !current || current.ownerKey === next) return undefined;
+  if (next === undefined || !current || current.ownerKey === next) return [];
   if (documentId && (await everPublished(strapi, uid, documentId))) {
     throw new errors.ApplicationError(
       "Pemilik tidak bisa diubah setelah entri pernah terbit. Hapus entri ini lalu buat ulang pada pemilik yang benar.",
     );
   }
-  return next;
+  return [next];
 }
 
 /** Every reference a relation value holds, in the shapes the document service accepts. */
@@ -437,6 +441,8 @@ const referencesIn = (value: unknown): (string | number)[] => {
 /**
  * The owners of every owned entry this write links to, through relations at any
  * depth: a field of the entry itself, or a block inside a page's dynamic zone.
+ * Links a clone copies from its source are not seen here; the source's owner
+ * is checked instead.
  */
 async function linkedOwners(
   strapi: Core.Strapi,
@@ -452,6 +458,9 @@ async function linkedOwners(
     ({ attribute, value }) => {
       if (attribute?.type !== "relation" || !("target" in attribute)) return;
       const target = attribute.target as UID.ContentType;
+      // An article's invites belong to the invited schools by design, and only
+      // the collaboration hooks write them.
+      if (target === KOLABORASI_UID) return;
       if (!("ownerKey" in strapi.contentType(target).attributes)) return;
       targets.set(target, [...(targets.get(target) ?? []), ...referencesIn(value)]);
     },
