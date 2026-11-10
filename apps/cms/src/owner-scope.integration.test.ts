@@ -302,6 +302,9 @@ void describe("owner scope", () => {
       .documents("api::berita.berita")
       .findFirst({ filters: { ownerKey: "sma" } });
     assert.ok(own && theirs, "expected seeded smp pencapaian and sma berita");
+    await strapi
+      .documents("api::pencapaian.pencapaian")
+      .update({ documentId: own.documentId, data: { berita: null } });
 
     const error: unknown = await contentManager(
       editor,
