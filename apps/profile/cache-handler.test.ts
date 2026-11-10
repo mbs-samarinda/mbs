@@ -211,11 +211,14 @@ test.skipIf(process.getuid?.() === 0)(
     const writer = await newContainer();
     await writer.set("page:smp:replaced", Promise.resolve(entry("old", ["cms"])));
     await writer.updateTags(["cms"]);
+    await writer.set("page:smp:kept", Promise.resolve(entry("kept", ["cms"])));
     const tags = join(dir, "tags.json");
 
     await chmod(tags, 0o000);
     try {
       expect(await (await newContainer()).get("page:smp:replaced", [])).toBeUndefined();
+      // A container that read the manifest before keeps serving on that copy.
+      expect(await read(await writer.get("page:smp:kept", []))).toBe("kept");
     } finally {
       await chmod(tags, 0o600);
     }
