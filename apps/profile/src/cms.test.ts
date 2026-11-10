@@ -1,6 +1,9 @@
-import { expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { ActivityRow, PageRow, SiteRow } from "./cms.ts";
+import { ActivityRow, getPage, PageRow, SiteRow } from "./cms.ts";
+
+// `cacheLife` throws outside a Next server; the reads are tested here as functions.
+vi.mock("next/cache", () => ({ cacheLife: () => {}, cacheTag: () => {} }));
 
 test("a site row with every list missing or broken still parses, with empty lists", () => {
   const site = SiteRow.parse({
@@ -68,4 +71,27 @@ test("a block keeps its fields, loses the prefix, and gets an empty list when it
 
 test("a page with no blocks has an empty list", () => {
   expect(PageRow.parse({ title: "Artikel" }).blocks).toEqual([]);
+});
+
+const answer = (body: unknown) => vi.stubGlobal("fetch", async () => Response.json(body));
+
+describe("a CMS answer without a data list", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // A page read as `null` renders a 404, and "use cache" would keep it. A throw
+  // is not cached, so the next request asks again.
+  test.each([{}, { data: {} }, { data: null }])(
+    "throws rather than reading as no page: %j",
+    async (body) => {
+      answer(body);
+      await expect(getPage("smp", "profil")).rejects.toThrow();
+    },
+  );
+
+  test("an empty list is still no page", async () => {
+    answer({ data: [] });
+    expect(await getPage("smp", "profil")).toBeNull();
+  });
 });
