@@ -744,6 +744,31 @@ void describe("permissions", () => {
       await knex.client.releaseConnection(connection);
     }
   });
+
+  // A lock left behind by a hung instance must stop the boot with a reason,
+  // not hang the deploy.
+  void it("gives up on a boot lock held too long", async () => {
+    const knex = strapi.db.connection;
+    const connection: unknown = await knex.client.acquireConnection();
+    process.env.BOOT_LOCK_TIMEOUT = "1s";
+    try {
+      await knex.raw("select pg_advisory_lock(4820194)").connection(connection);
+      const outcome = await Promise.race([
+        boot().then(
+          () => "booted",
+          (error: unknown) => String(error),
+        ),
+        new Promise((resolve) => {
+          setTimeout(resolve, 5000, "still waiting");
+        }),
+      ]);
+      assert.match(String(outcome), /boot lock/);
+    } finally {
+      delete process.env.BOOT_LOCK_TIMEOUT;
+      await knex.raw("select pg_advisory_unlock(4820194)").connection(connection);
+      await knex.client.releaseConnection(connection);
+    }
+  });
 });
 
 void describe("artikel", () => {
