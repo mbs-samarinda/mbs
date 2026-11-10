@@ -102,3 +102,15 @@ test("a component added to a dynamic zone passes", () => {
   const components = ["blocks.hero", "blocks.faq", "blocks.cta"];
   assert.deepEqual(check(edit({ blocks: { type: "dynamiczone", components } })), []);
 });
+
+test("a new field with a name the Content Manager reserves breaks", () => {
+  assert.deepEqual(check(edit({ status: { type: "enumeration" } })), [
+    { field: "status", reason: "reserved" },
+  ]);
+});
+
+test("a reserved name already in the base is not reported again", () => {
+  const withStatus = edit({ status: { type: "string" } });
+  const breaks = findBreaks(new Map([[file, withStatus]]), new Map([[file, withStatus]]));
+  assert.deepEqual(breaks, []);
+});
