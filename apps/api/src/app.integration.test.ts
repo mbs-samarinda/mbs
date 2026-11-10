@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { buildApp } from "./app.ts";
 import { loadConfig } from "./config/env.ts";
@@ -46,5 +46,34 @@ describe("api boundary", () => {
       payload: { json: { schoolKey: "not-a-school" } },
     });
     expect(response.statusCode).toBe(400);
+  });
+});
+
+describe("unexpected errors", () => {
+  it("logs the failure with the request id and answers a generic 500", async () => {
+    const broken = await buildApp(config);
+    const logged: { reqId: string; args: unknown[] }[] = [];
+    broken.addHook("onRequest", async (request) => {
+      vi.spyOn(request.log, "error").mockImplementation((...args: unknown[]) => {
+        logged.push({ reqId: request.id, args });
+      });
+    });
+    await broken.ready();
+    // A database that went away is the most likely unexpected failure.
+    await broken.db.$client.end();
+
+    const response = await broken.inject({
+      method: "POST",
+      url: "/api/rpc/public/admission/getCurrentCycle",
+      headers: { "content-type": "application/json" },
+      payload: { json: { schoolKey: "sma" } },
+    });
+    await broken.close();
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toMatchObject({ json: { code: "INTERNAL_SERVER_ERROR" } });
+    expect(response.body).not.toMatch(/connection/i);
+    expect(logged).toHaveLength(1);
+    expect(response.headers["x-request-id"]).toBe(logged[0]?.reqId);
   });
 });
