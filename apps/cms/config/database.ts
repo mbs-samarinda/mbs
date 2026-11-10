@@ -1,25 +1,28 @@
 import type { Core } from "@strapi/strapi";
 
-const REQUIRED_IN_PRODUCTION = [
-  "DATABASE_HOST",
-  "DATABASE_NAME",
-  "DATABASE_USERNAME",
-  "DATABASE_PASSWORD",
-];
+const REQUIRED = ["DATABASE_HOST", "DATABASE_NAME", "DATABASE_USERNAME", "DATABASE_PASSWORD"];
 
 const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Database => {
-  // The defaults below suit a fresh clone. In production a missing variable is
-  // a broken deploy, and a default would aim the CMS at a database that is not
-  // there, or worse, one that is. Nothing connects until a query runs, which is
-  // why `strapi ts:generate-types` works with no database at all.
-  const missing = REQUIRED_IN_PRODUCTION.filter((name) => !env(name));
-  if (env("NODE_ENV") === "production" && missing.length > 0) {
+  // pg is the only driver installed. An old .env naming sqlite or mysql would
+  // otherwise land on Postgres without a word.
+  const client = env("DATABASE_CLIENT");
+  if (client !== undefined && client !== "postgres") {
+    throw new Error(`DATABASE_CLIENT is "${client}", but the CMS only runs on postgres.`);
+  }
+
+  // The defaults below suit a fresh clone, and only there. Anywhere else a
+  // missing variable is a broken deploy, and a default would aim the CMS at a
+  // database that is not there, or worse, one that is. Strapi sets an unset
+  // NODE_ENV to "development" before config loads. Nothing connects until a
+  // query runs, which is why `strapi ts:generate-types` works with no database.
+  const mode = env("NODE_ENV");
+  const missing = REQUIRED.filter((name) => !env(name));
+  if (mode !== "development" && mode !== "test" && missing.length > 0) {
     throw new Error(`Missing database settings: ${missing.join(", ")}.`);
   }
 
   return {
     connection: {
-      // Postgres only: pg is the only driver installed.
       client: "postgres",
       connection: {
         // No connectionString on purpose. The API exports DATABASE_URL for the
