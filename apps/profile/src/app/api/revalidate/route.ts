@@ -14,8 +14,8 @@ import { config } from "../../../config/env.ts";
  * slower route.
  *
  * One tag for every content read. Finer invalidation would need the CMS to say
- * which owner and which route changed, and the saving, a handful of cached
- * reads refetched once per publish, is not worth a second thing to keep in step.
+ * which owner and which route changed, and the saving, fewer refetches per
+ * publish, is not worth a second thing to keep in step.
  *
  * This route belongs to no owner, which is why the proxy skips `api/`. It is
  * dynamic by nature and never prerendered.
@@ -32,10 +32,9 @@ export async function POST(request: Request) {
     return Response.json({ revalidated: false }, { status: 401 });
   }
 
-  // `max` rather than the deprecated one-argument form. Next's own handler
-  // would then serve the old page while the refetch runs, but `cache-handler.ts`
-  // ignores the profile and treats any revalidated tag as a miss, so the next
-  // visitor to each page waits on Strapi once.
+  // `max` only because the one-argument form is deprecated. `cache-handler.ts`
+  // treats any revalidated tag as a miss, so each page's next visitor waits on
+  // Strapi once.
   revalidateTag(CMS_TAG, "max");
   return Response.json({ revalidated: true, tag: CMS_TAG });
 }
