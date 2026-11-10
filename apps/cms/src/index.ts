@@ -996,7 +996,7 @@ const BOOT_LOCK = 4820194;
  * connection set aside for it. If the release fails, that connection is closed
  * before it goes back to the pool: closing the session frees the lock, where a
  * pooled connection still holding it would stall the next boot. The wait is bounded
- * by `lock_timeout` (`BOOT_LOCK_TIMEOUT`, a Postgres interval, default 5min),
+ * by `lock_timeout` (`BOOT_LOCK_TIMEOUT`, a Postgres time such as 30s, default 5min),
  * so a hung instance stops the next boot with a reason instead of hanging it.
  */
 async function withBootLock(strapi: Core.Strapi, run: () => Promise<void>) {
@@ -1025,11 +1025,12 @@ async function withBootLock(strapi: Core.Strapi, run: () => Promise<void>) {
   } finally {
     // Also undoes `lock_timeout`, so the connection goes back to the pool as it came.
     await knex
-      .raw("select pg_advisory_unlock_all(), set_config('lock_timeout', '0', false)")
+      .raw("select pg_advisory_unlock_all(); reset lock_timeout")
       .connection(connection)
       .catch(async (error: unknown) => {
         strapi.log.warn(`Boot lock release failed, closing its connection: ${String(error)}`);
-        await knex.client.destroyRawConnection(connection);
+        // A failure here is already logged; it must not hide what `run` threw.
+        await knex.client.destroyRawConnection(connection).catch(() => undefined);
       });
     await knex.client.releaseConnection(connection);
   }
