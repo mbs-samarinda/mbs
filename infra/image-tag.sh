@@ -39,10 +39,12 @@ turbo_hash=$(pnpm exec turbo run build --filter="@mbs/$app" --dry=json \
 #   tag, skip the build, and leave the old version running.
 # - package.json, pnpm-workspace.yaml, .npmrc: the api and cms Dockerfiles COPY
 #   them next to the lockfile for that same install, and turbo does not move
-#   either tag when they change (measured). Keep this list in step with the
-#   root files those Dockerfiles COPY.
-printf '%s' \
-  "$turbo_hash" \
-  "$(sha256sum "apps/$app/Dockerfile" .dockerignore pnpm-lock.yaml \
-    package.json pnpm-workspace.yaml .npmrc | cut -d' ' -f1)" \
-  | sha256sum | cut -c1-16
+#   either tag when they change (measured). The profile image is standalone
+#   build output, so a root script edit leaves its tag alone. Keep this list in
+#   step with the root files each Dockerfile COPYs.
+files=("apps/$app/Dockerfile" .dockerignore pnpm-lock.yaml)
+[[ $app == profile ]] || files+=(package.json pnpm-workspace.yaml .npmrc)
+# An assignment, not inline in printf, so a missing file fails the script
+# instead of producing a tag from partial input.
+files_hash=$(sha256sum "${files[@]}" | cut -d' ' -f1)
+printf '%s' "$turbo_hash" "$files_hash" | sha256sum | cut -c1-16
