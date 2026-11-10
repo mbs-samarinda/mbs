@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -113,11 +113,141 @@ test("content a day and a half old is still served, so a Strapi outage past a da
 
 test("two publishes at once both record their tags", async () => {
   const handler = await newContainer();
+  await handler.set("publish:a", Promise.resolve(entry("a", ["publish:a"])));
+  await handler.set("publish:b", Promise.resolve(entry("b", ["publish:b"])));
   await Promise.all([handler.updateTags(["publish:a"]), handler.updateTags(["publish:b"])]);
 
   const replacement = await newContainer();
-  expect(await replacement.getExpiration(["publish:a"])).toBeGreaterThan(0);
-  expect(await replacement.getExpiration(["publish:b"])).toBeGreaterThan(0);
+  expect(await replacement.get("publish:a", [])).toBeUndefined();
+  expect(await replacement.get("publish:b", [])).toBeUndefined();
+});
+
+// What the publish webhook sends: `revalidateTag(CMS_TAG, "max")` reaches the
+// handler as `updateTags(["cms"], { expire: <max's expire> })`.
+const MAX = { expire: 365 * 24 * 3600 };
+
+test("a publish serves the old entry once more and asks Next to refill it", async () => {
+  const first = await newContainer();
+  await first.set(
+    "page:smp:profil",
+    Promise.resolve({ ...entry("old", ["cms"]), timestamp: Date.now() - 1000 }),
+  );
+  await first.updateTags(["cms"], MAX);
+
+  const replacement = await newContainer();
+  const result = await replacement.get("page:smp:profil", []);
+  expect(await read(result)).toBe("old");
+  expect(result?.revalidate).toBeLessThan(0);
+});
+
+test("an entry refilled after a publish is fresh again", async () => {
+  const handler = await newContainer();
+  await handler.updateTags(["refill"], MAX);
+  await handler.set(
+    "page:smp:refill",
+    Promise.resolve({ ...entry("new", ["refill"]), timestamp: Date.now() + 1 }),
+  );
+
+  expect((await handler.get("page:smp:refill", []))?.revalidate).toBe(60);
+});
+
+test("a stale path tag is checked by get, since getExpiration leaves soft tags to it", async () => {
+  const handler = await newContainer();
+  await handler.set(
+    "page:smp:path",
+    Promise.resolve({ ...entry("old", []), timestamp: Date.now() - 1000 }),
+  );
+  await handler.updateTags(["_N_T_/smp/path"], MAX);
+
+  expect(await handler.getExpiration(["_N_T_/smp/path"])).toBe(Infinity);
+  expect((await handler.get("page:smp:path", ["_N_T_/smp/path"]))?.revalidate).toBeLessThan(0);
+});
+
+test("a manifest written before tags had a stale mark still reads", async () => {
+  const first = await newContainer();
+  await first.set(
+    "page:smp:legacy",
+    Promise.resolve({ ...entry("old", ["legacy"]), timestamp: Date.now() - 2000 }),
+  );
+  await writeFile(join(dir, "tags.json"), JSON.stringify({ legacy: Date.now() - 1000 }));
+
+  const replacement = await newContainer();
+  expect(await replacement.get("page:smp:legacy", [])).toBeUndefined();
+  await replacement.updateTags(["other"], MAX);
+  expect(await newContainer().then((h) => h.get("page:smp:legacy", []))).toBeUndefined();
+});
+
+test("a manifest that cannot be read fails the publish instead of being overwritten", async () => {
+  const handler = await newContainer();
+  await handler.updateTags(["kept"]);
+  const tags = join(dir, "tags.json");
+  const before = await readFile(tags, "utf8");
+
+  await chmod(tags, 0o000);
+  try {
+    await expect((await newContainer()).updateTags(["other"])).rejects.toThrow();
+  } finally {
+    await chmod(tags, 0o600);
+  }
+  expect(await readFile(tags, "utf8")).toBe(before);
+});
+
+test("a restart deep in an outage keeps entries still inside their expire", async () => {
+  const writer = await newContainer();
+  await writer.set(
+    "page:smp:outage",
+    Promise.resolve({
+      ...entry("kept", []),
+      timestamp: Date.now() - 30 * 86400_000,
+      expire: MAX.expire,
+    }),
+  );
+  await writer.set(
+    "page:smp:dead",
+    Promise.resolve({ ...entry("gone", []), timestamp: Date.now() - 2 * 3600_000, expire: 3600 }),
+  );
+  const month = new Date(Date.now() - 30 * 86400_000);
+  const names = await readdir(join(dir, "entries"));
+  await Promise.all(names.map((name) => utimes(join(dir, "entries", name), month, month)));
+  const before = (await readdir(join(dir, "entries"))).length;
+
+  const restarted = await newContainer();
+  await restarted.refreshTags();
+  expect(await read(await restarted.get("page:smp:outage", []))).toBe("kept");
+  expect((await readdir(join(dir, "entries"))).length).toBeLessThan(before);
+});
+
+test("a write whose stream never ends does not hang later reads of that key", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const handler = await newContainer();
+    const never = new ReadableStream<Uint8Array>({ start: () => {} });
+    void handler.set("page:smp:hung", Promise.resolve({ ...entry("", []), value: never }));
+
+    let settled = false;
+    const pendingRead = handler.get("page:smp:hung", []).then((result) => {
+      settled = true;
+      return result;
+    });
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(settled).toBe(true);
+    expect(await pendingRead).toBeUndefined();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("a write whose stream errors is a miss, not a partial entry", async () => {
+  const handler = await newContainer();
+  const broken = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode("half"));
+      controller.error(new Error("render aborted"));
+    },
+  });
+  await handler.set("page:smp:broken", Promise.resolve({ ...entry("", []), value: broken }));
+
+  expect(await handler.get("page:smp:broken", [])).toBeUndefined();
 });
 
 test("every cacheLife in cms.ts names a profile that exists", async () => {
