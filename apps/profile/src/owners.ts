@@ -30,10 +30,10 @@ export const ownerByKey = (key: Owner["key"]) =>
 export const isUmbrella = (owner: Owner): owner is typeof UMBRELLA => owner.key === UMBRELLA.key;
 
 /**
- * The owner a route's `[owner]` segment names. The proxy only rewrites to a
- * known owner, so the 404 here is unreachable; it exists to narrow the type,
- * and it raises rather than falling back because one owner's content under
- * another owner's hostname is the failure this boundary exists to stop.
+ * The owner a route's `[owner]` segment names. Paths the proxy matcher skips
+ * arrive with the path as the key, so this can fire. It 404s rather than
+ * falling back, because one owner's content under another owner's hostname is
+ * the failure this boundary exists to stop.
  */
 export async function requireOwner(params: Promise<{ owner: string }>): Promise<Owner> {
   const { owner: key } = await params;
@@ -43,8 +43,8 @@ export async function requireOwner(params: Promise<{ owner: string }>): Promise<
 }
 
 /**
- * The same, for a page only a school has. The proxy sends the apex to a 404
- * before it reaches one (`ownerLacksPath`), so this too only narrows the type.
+ * For a page only a school has. The proxy already sends the apex to a 404
+ * (`ownerLacksPath`); this narrows the type.
  */
 export async function requireSchool(params: Promise<{ owner: string }>) {
   const owner = await requireOwner(params);
