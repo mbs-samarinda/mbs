@@ -380,6 +380,20 @@ async function cms<T>(
   params: [string, string][],
   row: z.ZodType = Row,
 ): Promise<T[]> {
+  return parseRows<T>(row, await cmsData(collection, params));
+}
+
+/**
+ * The one assertion in this module. `row` checked the fields that crash a
+ * render; the rest of `T` is trusted to the CMS schema.
+ */
+function parseRows<T>(row: z.ZodType, data: unknown[]): T[] {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  return list(row).parse(data) as T[];
+}
+
+/** The `data` list exactly as Strapi sent it, before any row is checked. */
+async function cmsData(collection: string, params: [string, string][]): Promise<unknown[]> {
   const query = new URLSearchParams(params);
   const response = await fetch(`${config.cmsUrl}/api/${collection}?${query}`, {
     signal: AbortSignal.timeout(CMS_TIMEOUT_MS),
@@ -395,10 +409,7 @@ async function cms<T>(
     .looseObject({ data: z.array(z.unknown()) })
     .safeParse(await response.json().catch(() => null));
   if (!envelope.success) throw new Error(`CMS sent no data list for ${collection}`);
-  // The one assertion in this module. `row` checked the fields that crash a
-  // render; the rest of `T` is trusted to the CMS schema.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return list(row).parse(envelope.data.data) as T[];
+  return envelope.data.data;
 }
 
 /**
@@ -562,35 +573,33 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
   const own: [string, string][] = ownerKey === "mbs" ? [] : [["filters[ownerKey][$eq]", ownerKey]];
 
   /**
-   * Walks Strapi's pages until an empty one says there are no more. Not a short
-   * one: `cms` drops rows that fail `row`, so a full page can come back short.
+   * Walks Strapi's pages until one comes back short or empty. Short is judged
+   * on what Strapi sent, not on the rows that passed `row`: a dropped row would
+   * make a full page look like the last one.
    */
   async function all<T>(
     collection: string,
     fields: [string, string][],
     row: z.ZodType,
   ): Promise<T[]> {
-    const rows: T[] = [];
+    const rows: unknown[] = [];
 
-    for (let page = 1; ; page += 1) {
-      // Sequential on purpose: the last page is only known when one comes
-      // back empty, so there is nothing to run in parallel.
+    for (let page = 1; page <= MAX_PAGES; page += 1) {
+      // Sequential on purpose: the last page is only known when it arrives.
       // oxlint-disable-next-line eslint/no-await-in-loop
-      const batch = await cms<T>(
-        collection,
-        [
-          ...fields,
-          ["sort[0]", "publishedAt:desc"],
-          ["pagination[page]", String(page)],
-          ["pagination[pageSize]", String(PAGE_LIMIT)],
-          ["populate[cover]", "true"],
-        ],
-        row,
-      );
-
-      if (batch.length === 0) return rows;
+      const batch = await cmsData(collection, [
+        ...fields,
+        ["sort[0]", "publishedAt:desc"],
+        ["pagination[page]", String(page)],
+        ["pagination[pageSize]", String(PAGE_LIMIT)],
+        ["populate[cover]", "true"],
+      ]);
       rows.push(...batch);
+      if (batch.length < PAGE_LIMIT) return parseRows<T>(row, rows);
     }
+
+    // A Strapi that ignores `pagination[page]` answers every page in full.
+    throw new Error(`CMS sent ${MAX_PAGES} full pages of ${collection} without an end`);
   }
 
   const [berita, pengumuman, opini] = await Promise.all([
@@ -623,6 +632,9 @@ async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
 
 /** `maxLimit` in `apps/cms/config/api.ts`. Asking for more is rejected, not clamped. */
 const PAGE_LIMIT = 100;
+
+/** 5,000 entries per collection, far past what one school publishes. */
+const MAX_PAGES = 50;
 
 /**
  * Every unexpired entry, newest first, cut against the real clock.
