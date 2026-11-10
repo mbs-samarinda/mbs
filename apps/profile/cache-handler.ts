@@ -33,7 +33,7 @@ import { z } from "zod";
  * Scope, deliberately: one writer. The site runs a single profile replica, plus
  * a deploy candidate that only ever runs against this directory when it is
  * about to go live. Nothing here coordinates concurrent writers beyond atomic
- * renames, because nothing needs to.
+ * renames and an in-process queue for the tag manifest, because nothing needs to.
  */
 
 const DIR = process.env.PROFILE_CACHE_DIR ?? "/app/.cache/content";
@@ -112,14 +112,20 @@ async function writeEntry(cacheKey: string, entry: CacheEntry): Promise<void> {
   length.writeUInt32BE(header.byteLength);
 
   await mkdir(ENTRIES, { recursive: true });
-  const path = fileFor(cacheKey);
-  // A name nobody else can be using. `pending` serialises get-against-set for
-  // one key, not set-against-set: two requests for the same uncached page — the
-  // ordinary stampede — both call `set`, and a shared temp name would let them
-  // interleave writes and leave a file blended from two different renders.
+  await writeAtomically(fileFor(cacheKey), Buffer.concat([length, header, body]));
+}
+
+/**
+ * Write to a temp file, then rename over the target, so a reader never sees a
+ * half-written file. The temp name is unique per write: `pending` serialises
+ * get-against-set for one key, not set-against-set. Two requests for the same
+ * uncached page, or two publish webhooks at once, would otherwise share a temp
+ * file, blend two writes into it, or rename it twice and fail the second.
+ */
+async function writeAtomically(path: string, data: Buffer | string): Promise<void> {
   const temp = `${path}.${process.pid}.${(counter += 1)}.tmp`;
   try {
-    await writeFile(temp, Buffer.concat([length, header, body]));
+    await writeFile(temp, data);
     await rename(temp, path);
   } catch (error) {
     await rm(temp, { force: true });
@@ -139,7 +145,7 @@ let counter = 0;
  * thing that deletes anything, so nothing would ever look at them again.
  *
  * Left alone that is a whole generation of pages kept per deploy, on a 58 GB
- * box, with the default profile's `expire` measured in decades. Age is the only
+ * box, with the `content` profile's `expire` a year. Age is the only
  * usable signal: the handler cannot tell which build a file belongs to without
  * reading all of them, and a file untouched for a week is either orphaned or
  * cold enough that one Strapi round trip is cheaper than keeping it.
@@ -244,24 +250,24 @@ const handler: CacheHandler = {
   // webhook should fail and say so rather than answer 200 and quietly do
   // nothing. `set` is the opposite case: the page is already rendered and a
   // failed write costs only a miss.
-  async updateTags(tagNames) {
-    const manifest = tags ?? (await loadTags());
-    const now = Date.now();
-    for (const tag of tagNames) manifest[tag] = now;
+  //
+  // Queued, and each turn re-reads the file. Two publishes at once would
+  // otherwise each load their own copy of the manifest, and the second rename
+  // would drop the first one's tag.
+  updateTags(tagNames) {
+    const write = tagWrites.then(async () => {
+      const manifest = await loadTags();
+      const now = Date.now();
+      for (const tag of tagNames) manifest[tag] = now;
 
-    await mkdir(DIR, { recursive: true });
-    // A unique temp name for the reason `writeEntry` gives: two publish
-    // webhooks at once would otherwise rename one shared file twice, and the
-    // second rename finds nothing and fails its webhook.
-    const temp = `${TAGS}.${process.pid}.${(counter += 1)}.tmp`;
-    try {
-      await writeFile(temp, JSON.stringify(manifest));
-      await rename(temp, TAGS);
-    } catch (error) {
-      await rm(temp, { force: true });
-      throw error;
-    }
+      await mkdir(DIR, { recursive: true });
+      await writeAtomically(TAGS, JSON.stringify(manifest));
+    });
+    tagWrites = write.catch(() => {});
+    return write;
   },
 };
+
+let tagWrites = Promise.resolve();
 
 export default handler;

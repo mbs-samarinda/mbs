@@ -50,11 +50,11 @@ const config: NextConfig = {
   // school key, which is also part of the cache key so two schools never share
   // a cached page for the same path.
   cacheComponents: true,
-  // Every CMS read in `cms.ts`. Refetched hourly like the built-in "hours"
-  // profile, but kept for a year instead of a day. Past `expire` an entry is a
-  // miss, so with "hours" a Strapi outage longer than a day turned every page
-  // into a 500. Past `revalidate` the old entry is still served while a refill
-  // runs in the background, and a refill that fails leaves it in place.
+  // Every CMS read in `cms.ts`. Like the built-in "hours" profile, but `expire`
+  // is a year, not a day: past `expire` an entry is a miss, so a Strapi outage
+  // over a day turned every page into a 500. Past `revalidate` the old entry is
+  // served while a background refill runs, and a failed refill leaves it. A
+  // restart still sweeps entries unwritten for a week (`cache-handler.ts`).
   cacheLife: {
     content: { stale: 5 * 60, revalidate: 60 * 60, expire: 365 * 24 * 60 * 60 },
   },

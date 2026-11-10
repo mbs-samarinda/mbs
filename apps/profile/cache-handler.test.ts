@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -113,9 +113,19 @@ test("content a day and a half old is still served, so a Strapi outage past a da
 
 test("two publishes at once both record their tags", async () => {
   const handler = await newContainer();
-  await Promise.all([handler.updateTags(["cms"]), handler.updateTags(["site:smp"])]);
+  await Promise.all([handler.updateTags(["publish:a"]), handler.updateTags(["publish:b"])]);
 
   const replacement = await newContainer();
-  expect(await replacement.getExpiration(["cms"])).toBeGreaterThan(0);
-  expect(await replacement.getExpiration(["site:smp"])).toBeGreaterThan(0);
+  expect(await replacement.getExpiration(["publish:a"])).toBeGreaterThan(0);
+  expect(await replacement.getExpiration(["publish:b"])).toBeGreaterThan(0);
+});
+
+test("every cacheLife in cms.ts names a profile that exists", async () => {
+  // `cacheLife` accepts any string, so a typo compiles and fails every page at runtime.
+  const { default: config } = await import("./next.config.ts");
+  const source = await readFile(join(import.meta.dirname, "src/cms.ts"), "utf8");
+  const used = [...source.matchAll(/cacheLife\("([^"]+)"\)/g)].map((match) => match[1]);
+
+  expect(used.length).toBeGreaterThan(0);
+  for (const name of used) expect(Object.keys(config.cacheLife ?? {})).toContain(name);
 });
