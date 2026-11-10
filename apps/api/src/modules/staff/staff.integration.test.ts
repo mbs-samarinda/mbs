@@ -7,7 +7,14 @@ import { ConflictError, ForbiddenError } from "../../errors.ts";
 import { createAuth } from "../auth/auth.ts";
 import { resolveStaff, type StaffContext } from "../auth/authorization.ts";
 import { ensureBootstrapAdministrator } from "./bootstrap.ts";
-import { insertStaff, isApprovedLoginEmail, listStaff } from "./repository.ts";
+import {
+  findSchoolIdsByKeys,
+  insertStaff,
+  isApprovedLoginEmail,
+  listStaff,
+  lockStaffWrites,
+  replaceSchoolAccess,
+} from "./repository.ts";
 import { createStaff, listStaffProfiles, setStaffActive, updateStaffAccess } from "./service.ts";
 
 const db = createDatabase(
@@ -56,6 +63,20 @@ beforeEach(async () => {
 });
 
 afterAll(() => db.$client.end());
+
+/** Resolves once some session on this database is blocked waiting for a lock. */
+async function waitForLockWait() {
+  for (let waited = 0; waited < 5_000; waited += 20) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const [row] = await db.execute<{ waiting: number }>(
+      sql`select count(*)::int as waiting from pg_locks where not granted`,
+    );
+    if (row?.waiting) return;
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("nothing ever waited for a lock");
+}
 
 describe("ensureBootstrapAdministrator", () => {
   it("files a non-institutional address as personal", async () => {
@@ -414,33 +435,50 @@ describe("staff management", () => {
     expect(updated.isActive).toBe(false);
   });
 
-  // Either order ends in smp: once the move lands, the scoped save is refused.
+  // A move to smp holds the staff write lock while a save scoped to sma starts.
+  // The save has to wait for the move and then be refused; without the lock it
+  // checks scope against the old schools and lands.
   it("checks scope against the profile as it is when the save lands", async () => {
-    const smaOnly = { ...actor, schoolKeys: ["sma" as const] };
-    for (let round = 0; round < 20; round++) {
-      // oxlint-disable-next-line eslint/no-await-in-loop
-      const created = await createStaff(db, actor, {
-        name: `Panitia ${round}`,
-        email: `panitia${round}@mbss.sch.id`,
-        role: "STAFF",
+    const created = await createStaff(db, actor, {
+      name: "Panitia",
+      email: "panitia@mbss.sch.id",
+      role: "STAFF",
+      schools: ["sma"],
+    });
+    const [smp] = await findSchoolIdsByKeys(db, ["smp"]);
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    let moved!: () => void;
+    const movedInsideLock = new Promise<void>((resolve) => (moved = resolve));
+    const move = db.transaction(async (tx) => {
+      await lockStaffWrites(tx);
+      await replaceSchoolAccess(tx, created.id, [smp!.id]);
+      moved();
+      await released;
+    });
+    await movedInsideLock;
+
+    const save = updateStaffAccess(
+      db,
+      { ...actor, schoolKeys: ["sma"] },
+      {
+        staffId: created.id,
+        role: "PRINCIPAL",
         schools: ["sma"],
-      });
-      // oxlint-disable-next-line eslint/no-await-in-loop
-      const results = await Promise.allSettled([
-        updateStaffAccess(db, actor, { staffId: created.id, role: "STAFF", schools: ["smp"] }),
-        updateStaffAccess(db, smaOnly, {
-          staffId: created.id,
-          role: "PRINCIPAL",
-          schools: ["sma"],
-        }),
-      ]);
-      for (const result of results) {
-        if (result.status === "rejected") expect(result.reason).toBeInstanceOf(ForbiddenError);
-      }
-      // oxlint-disable-next-line eslint/no-await-in-loop
-      const [after] = await listStaff(db, created.id);
-      expect(after?.schools).toEqual(["smp"]);
-    }
+      },
+    );
+    const outcome = save.then(
+      () => "saved",
+      (error: unknown) => error,
+    );
+    await waitForLockWait();
+    release();
+    await move;
+
+    expect(await outcome).toBeInstanceOf(ForbiddenError);
+    const [after] = await listStaff(db, created.id);
+    expect(after?.role).toBe("STAFF");
+    expect(after?.schools).toEqual(["smp"]);
   });
 
   it("replaces school access rather than adding to it", async () => {
