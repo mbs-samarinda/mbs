@@ -23,7 +23,7 @@ it("closes cleanly on SIGTERM", async () => {
     env: {
       ...process.env,
       NODE_ENV: "production",
-      LOG_LEVEL: "error",
+      LOG_LEVEL: "info",
       PORT: String(port),
       DATABASE_URL:
         process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
@@ -34,16 +34,15 @@ it("closes cleanly on SIGTERM", async () => {
       ADMIN_APP_URL: "http://localhost:5174",
       BOOTSTRAP_ADMIN_EMAIL: "",
     },
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "inherit"],
   });
   const exited = once(server, "exit");
 
-  for (let attempt = 0; ; attempt++) {
-    const ready = await fetch(`http://127.0.0.1:${port}/ready`).catch(() => null);
-    if (ready?.ok) break;
-    if (attempt === 100) throw new Error("server never became ready");
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  await new Promise<void>((resolve) => {
+    server.stdout.on("data", (chunk: Buffer) => {
+      if (chunk.toString().includes("Server listening")) resolve();
+    });
+  });
 
   server.kill("SIGTERM");
   expect(await exited).toEqual([0, null]);

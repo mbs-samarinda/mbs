@@ -27,8 +27,9 @@ export function createAuth(db: Database, config: Config) {
     },
     onAPIError: {
       // A rejected sign-in has to land somewhere the committee app owns.
-      // Without this it ends on Better Auth's own unstyled error page.
-      errorURL: `${config.auth.adminAppUrl}/access-denied`,
+      // Without this it ends on Better Auth's own unstyled error page. Better
+      // Auth appends `?error=<code>`, which is the flag the app can read.
+      errorURL: `${config.auth.adminAppUrl}/`,
     },
     advanced: {
       // Deliberately no crossSubDomainCookies. Cookies stay host-only so
