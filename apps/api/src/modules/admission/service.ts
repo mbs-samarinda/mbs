@@ -148,8 +148,6 @@ export async function setAdmissionCycleStatus(
       throw new ConflictError(`A ${existing.status} cycle cannot become ${input.status}.`);
     }
 
-    // The partial unique index is the guard. A pre-check would only narrow the
-    // race between two administrators opening two cycles at once.
     const updated = await updateCycleStatus(tx, input.cycleId, input.status).catch((error) => {
       if (isUniqueViolation(error)) throw new ConflictError("Another cycle is already open.");
       throw error;

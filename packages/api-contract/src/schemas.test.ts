@@ -71,8 +71,6 @@ describe("UpsertSchoolSettingInput", () => {
 });
 
 describe("CreateStaffInput", () => {
-  // The email column is compared byte for byte, so case has to be settled
-  // before anything reaches it.
   it("trims and lowercases the email", () => {
     const parsed = CreateStaffInput.parse({
       name: "Panitia",

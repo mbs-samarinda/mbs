@@ -49,8 +49,7 @@ export const admissionCycles = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  // Global cycles make "one registration at a time" a rule over the whole
-  // table: two open cycles would show families two sets of dates.
+  // Two open cycles would show families two sets of dates.
   (table) => [
     uniqueIndex("admission_cycles_one_open")
       .on(table.status)

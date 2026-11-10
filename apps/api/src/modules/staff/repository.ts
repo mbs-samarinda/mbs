@@ -153,18 +153,16 @@ export async function findSchoolIdsByKeys(db: Executor, keys: readonly string[])
   return rows.filter((row) => keys.includes(row.key));
 }
 
+const STAFF_WRITES_LOCK = 4820193;
+
 /**
- * Makes every staff write in MBSS take turns, until the caller's transaction
- * ends. Call it before the first read: a scope or last-administrator check on
- * rows read before the lock can pass on a state another save already changed.
- *
- * One lock rather than row locks because the writes read overlapping sets (the
- * target, its schools, every administrator) and row locks taken in different
- * orders deadlock. The committee is tens of people, so serializing costs
- * nothing. The number is arbitrary and only has to be the same everywhere.
+ * Serializes staff writes until the transaction ends. Take it before the first
+ * read, or a scope check can pass on a profile another save just moved. One
+ * advisory lock, not row locks: the writes read overlapping sets, and row
+ * locks taken in different orders deadlock.
  */
 export async function lockStaffWrites(tx: Transaction) {
-  await tx.execute(sql`select pg_advisory_xact_lock(4820193)`);
+  await tx.execute(sql`select pg_advisory_xact_lock(${STAFF_WRITES_LOCK})`);
 }
 
 /** Only meaningful while the caller holds `lockStaffWrites`. */

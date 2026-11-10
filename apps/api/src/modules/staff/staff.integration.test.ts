@@ -201,8 +201,7 @@ describe("resolveStaff", () => {
     await expect(resolveStaff(db, user)).rejects.toThrow(/no access/);
   });
 
-  // Nothing here lowercases the session email. Better Auth stores it
-  // lowercased, and this pins that it still does.
+  // Pins Better Auth's lowercasing; our code no longer lowercases.
   it("matches a pre-approved address whatever case the provider sends", async () => {
     await ensureBootstrapAdministrator(db, BOOTSTRAP_EMAIL);
     const auth = await createAuth(db, config).$context;
@@ -415,9 +414,7 @@ describe("staff management", () => {
     expect(updated.isActive).toBe(false);
   });
 
-  // A profile moved out of a scoped administrator's school at the same moment
-  // that administrator saves it must not land back in their school. Either
-  // order is fine; an overwrite based on the scope read before the move is not.
+  // Either order ends in smp: once the move lands, the scoped save is refused.
   it("checks scope against the profile as it is when the save lands", async () => {
     const smaOnly = { ...actor, schoolKeys: ["sma" as const] };
     for (let round = 0; round < 20; round++) {

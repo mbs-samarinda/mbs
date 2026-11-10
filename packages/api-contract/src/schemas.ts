@@ -186,8 +186,7 @@ const SchoolKeys = z
 
 export const CreateStaffInput = z.object({
   name: z.string().trim().min(1).max(120),
-  // Normalized here so no layer below has to remember to: the column compares
-  // bytes. The institutional-domain rule is business policy, so the service owns it.
+  // The institutional-domain rule is business policy, so the service owns it.
   email: z.string().trim().toLowerCase().pipe(z.email()),
   role: StaffRole,
   schools: SchoolKeys,

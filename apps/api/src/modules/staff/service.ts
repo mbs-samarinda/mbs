@@ -179,11 +179,7 @@ export async function setStaffActive(
   return readSummary(db, input.staffId);
 }
 
-/**
- * Losing the last administrator locks everyone out of staff management for
- * good. Two administrators deactivating each other at once is exactly how that
- * happens, so the caller holds `lockStaffWrites` while this counts.
- */
+/** The caller holds `lockStaffWrites`, or two administrators deactivating each other both pass. */
 async function requireAnotherAdministrator(tx: Transaction, staffId: string) {
   const others = await countOtherActiveAdministrators(tx, staffId);
   if (others === 0) throw new ConflictError("MBSS would be left with no active administrator.");
