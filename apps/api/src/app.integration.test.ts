@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -104,6 +106,45 @@ describe("unexpected errors", () => {
     const line = JSON.stringify(logged[0]?.args);
     expect(line).toContain("42P01");
     expect(line).not.toContain("CLOSED");
+  });
+
+  // The session lookup runs before oRPC and Better Auth logs its own failures,
+  // so these paths never pass the procedure interceptor.
+  it.each([
+    { method: "POST" as const, url: "/api/rpc/public/admission/getCurrentCycle" },
+    { method: "GET" as const, url: "/api/auth/get-session" },
+  ])("logs a failed session lookup on $url without its parameters", async ({ method, url }) => {
+    const { watched, logged } = await buildWatchedApp();
+    const printed: unknown[][] = [];
+    vi.spyOn(console, "error").mockImplementation((...args) => void printed.push(args));
+    vi.spyOn(console, "warn").mockImplementation((...args) => void printed.push(args));
+    vi.spyOn(watched.log, "error").mockImplementation(
+      (...args: unknown[]) => void printed.push(args),
+    );
+    const token = "session-token-that-must-not-be-logged";
+    const signature = createHmac("sha256", config.auth.secret).update(token).digest("base64");
+    await watched.db.execute(sql`alter table session rename to session_away`);
+    try {
+      const response = await watched.inject({
+        method,
+        url,
+        headers: {
+          "content-type": "application/json",
+          cookie: `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`,
+        },
+        ...(method === "POST" ? { payload: { json: { schoolKey: "sma" } } } : {}),
+      });
+      expect(response.statusCode).toBe(500);
+      expect(response.body).not.toContain(token);
+    } finally {
+      vi.restoreAllMocks();
+      await watched.db.execute(sql`alter table session_away rename to session`);
+      await watched.close();
+    }
+
+    const lines = JSON.stringify([...printed, ...logged.map((entry) => entry.args)]);
+    expect(lines).not.toContain(token);
+    expect(lines).toContain("42P01");
   });
 
   it("logs nothing at error level for a rejected request", async () => {
