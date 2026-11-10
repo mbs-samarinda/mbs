@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
+
 import { createDatabase, type Database } from "@mbs/db";
+import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fastify";
 import { fromNodeHeaders } from "better-auth/node";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -17,6 +20,9 @@ declare module "fastify" {
 
 export async function buildApp(config: Config): Promise<FastifyInstance> {
   const app = Fastify({
+    // Handed to the client on every response, so it has to stay unique across
+    // restarts. Fastify's default is a counter that starts again at req-1.
+    genReqId: () => randomUUID(),
     logger: {
       level: config.logLevel,
       ...(config.isProduction ? {} : { transport: { target: "pino-pretty" } }),
@@ -25,6 +31,7 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
 
   const db = createDatabase(config.databaseUrl);
   app.decorate("db", db);
+  app.addHook("onClose", () => db.$client.end());
   app.decorate("auth", createAuth(db, config));
   await app.register(healthRoutes);
 
@@ -50,7 +57,17 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     },
   });
 
-  const handler = new RPCHandler(router);
+  const handler = new RPCHandler(router, {
+    interceptors: [
+      // Translated domain errors and rejected input are expected. Anything else
+      // is a bug or an outage, and oRPC would answer it with a bare 500 and
+      // forget it. This is the one place it gets logged.
+      onError((error, { context }) => {
+        if (error instanceof ORPCError && error.status < 500) return;
+        context.log.error({ err: error }, "unexpected error in procedure");
+      }),
+    ],
+  });
   // These procedures authenticate by cookie, so they need CSRF protection. It
   // comes from the session cookie itself: Better Auth sets SameSite=Lax, so a
   // cross-site POST never carries it and arrives unauthenticated.
@@ -61,9 +78,10 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
       headers: fromNodeHeaders(request.headers),
     });
 
+    reply.header("x-request-id", request.id);
     const { matched } = await handler.handle(request, reply, {
       prefix: "/api/rpc",
-      context: { db: app.db, sessionUser: session?.user ?? null },
+      context: { db: app.db, sessionUser: session?.user ?? null, log: request.log },
     });
     if (!matched) reply.status(404).send({ error: "Not found" });
   });
