@@ -10,8 +10,9 @@
 # turbo on a 2 vCPU machine to learn something the runner already knows.
 #
 # The order is the one docs/11 fixes: pull, back up, migrate exactly once, start
-# cms and api in place and wait for cms to be healthy, then prove the new
-# profile works before any visitor sees it.
+# cms and api in place and wait for both to be healthy, then prove the new
+# profile works before any visitor sees it. After the swap it checks the public
+# site through Caddy and TLS, and only then records the pins as last good.
 set -euo pipefail
 
 readonly PROFILE_TAG=${1:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
@@ -61,9 +62,14 @@ cleanup_candidate() {
 # changed nothing worth restoring.
 pinned=false
 
+# Per run, not a fixed /tmp name: a file left by another user (a deploy run
+# under sudo) cannot be overwritten, and every probe would then fail.
+probe_err=$(mktemp)
+
 on_exit() {
   local status=$?
   cleanup_candidate
+  rm -f "$probe_err"
   ((status != 0)) && $pinned || return "$status"
   if [[ ! -f $LAST_GOOD_FILE ]]; then
     echo "No deploy has passed since $LAST_GOOD_FILE was introduced, so there are no older pins to restore." >&2
@@ -72,13 +78,14 @@ on_exit() {
   local tags
   # shellcheck disable=SC1090
   tags=$(source "$LAST_GOOD_FILE" && echo "${PROFILE_IMAGE##*:} ${CMS_IMAGE##*:} ${API_IMAGE##*:}")
+  # A redeploy rather than a copy of the file: by now cms, api or profile may
+  # already run the new images, and pins that disagree with them would let the
+  # next `compose up` swap images with no checks at all.
   {
     echo
-    echo "$IMAGES_FILE now pins images that did not pass. To put the last good pins back:"
-    echo "  cp $LAST_GOOD_FILE $IMAGES_FILE"
-    echo "To run those images again, through every check in this script:"
+    echo "$IMAGES_FILE now pins images that did not pass. To put the last good ones back:"
     echo "  $ROOT/deploy.sh $tags"
-    echo "Do not do that past a commit that added a CMS component; that destroys its content. Roll forward instead."
+    echo "Not past a commit that added a CMS component; that destroys its content. Roll forward instead."
   } >&2
   return "$status"
 }
@@ -254,8 +261,8 @@ probe() {
   # stderr is captured rather than discarded. Losing it is how "caddy is not
   # running" came back as "did not return 200".
   if ! body=$("${COMPOSE[@]}" exec -T "$PROBE_SVC" \
-    wget -q -O - --header "Host: $host" "http://$target:3002$path" 2>/tmp/probe.err); then
-    err=$(tr -d '\r' < /tmp/probe.err | tail -2 | tr '\n' ' ')
+    wget -q -O - --header "Host: $host" "http://$target:3002$path" 2>"$probe_err"); then
+    err=$(tr -d '\r' < "$probe_err" | tail -2 | tr '\n' ' ')
     echo "  FAIL $host$path — ${err:-no response}" >&2
     return 1
   fi
@@ -324,23 +331,27 @@ if ! smoke profile; then
 fi
 
 log "Checking the public site through Caddy and TLS"
-# Every probe above talks to profile:3002 inside the compose network, so a broken
-# Caddyfile, a stopped caddy or a missing certificate all pass them. This one
+# Every probe above talks to profile:3002 inside the compose network, so a
+# stopped caddy or a missing certificate passes them. This one
 # goes the way a visitor does: port 443 on this host, real certificate check.
 # --resolve pins the name to this box, so it tests this box and not whatever DNS
 # says. Retried for 90s because a first deploy is still fetching certificates.
 # No -L: a redirect would answer without the marker, and that should fail.
 public_probe() {
-  local host=$1 owner=$2 deadline=$((SECONDS + 90)) body
+  local host=$1 owner=$2 deadline=$((SECONDS + 90)) body reason
   while ((SECONDS < deadline)); do
-    if body=$(curl -fsS --max-time 10 --resolve "$host:443:127.0.0.1" "https://$host/" 2>/tmp/public.err) &&
-      [[ $body == *"data-owner=\"$owner\""* ]]; then
-      echo "  ok   https://$host/"
-      return 0
+    if body=$(curl -fsS --max-time 10 --resolve "$host:443:127.0.0.1" "https://$host/" 2>"$probe_err"); then
+      if [[ $body == *"data-owner=\"$owner\""* ]]; then
+        echo "  ok   https://$host/"
+        return 0
+      fi
+      reason="answered without data-owner=\"$owner\""
+    else
+      reason=$(tail -1 "$probe_err")
     fi
     sleep 3
   done
-  echo "  FAIL https://$host/ — $(tail -1 /tmp/public.err 2>/dev/null || true)" >&2
+  echo "  FAIL https://$host/ — $reason" >&2
   return 1
 }
 
