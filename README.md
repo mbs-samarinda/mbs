@@ -143,8 +143,13 @@ app stays in that app. Import them by path:
 
 ```ts
 import { Button } from "@mbs/ui/components/button";
-import { cn } from "cn";
 ```
+
+The shared components join class names with the `cn` package. Only
+`packages/ui` and `apps/profile` depend on it. The admission apps do not, though
+their `components.json` points shadcn's `utils` alias at it, so add it to an
+admission app (`pnpm add cn --filter @mbs/admission`) before the CLI writes its
+first app-local component there.
 
 Design tokens and the Tailwind entry point live in
 `packages/ui/src/styles/globals.css`. Each app's `src/styles.css` imports it and

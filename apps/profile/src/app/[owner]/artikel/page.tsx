@@ -24,7 +24,7 @@ export async function generateMetadata({
  * Every article, all three types, newest first, on a school site only.
  *
  * The page head is outside the `<Suspense>` boundary and the listing inside it,
- * which is what keeps the shell prerendering.
+ * so the head renders without waiting on the clock-dependent listing.
  */
 export default async function ArtikelPage({
   params,

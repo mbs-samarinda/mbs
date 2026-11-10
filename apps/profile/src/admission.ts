@@ -32,7 +32,7 @@ type PublicCycle = NonNullable<Awaited<ReturnType<typeof client.public.admission
  * This is never cached. A cached open/closed state is the exact failure this
  * product was designed against — the previous SMK site still tells parents a
  * 2026/2027 intake is open on a page last touched in October 2025. Callers wrap
- * it in `<Suspense>`, so the rest of the page still prerenders.
+ * it in `<Suspense>`, so the rest of the page does not wait on it.
  *
  * A failure returns `unavailable` rather than throwing. A page that cannot read
  * the cycle still shows its content and the safe paths — the admission app and
@@ -54,12 +54,13 @@ const fetchCycleFacts = cache(async (schoolKey: SchoolKey): Promise<CycleFacts> 
 });
 
 /**
- * `connection()` says out loud that this reads live state, so a prerender cannot
- * bake an open or closed status into static HTML — the exact staleness the
- * paragraph above is about. It sits outside the `cache()` wrapper so the
+ * `connection()` says out loud that this reads live state, so Next never puts
+ * an open or closed status into a static shell — the exact staleness the
+ * paragraph above is about. The deploy prerenders nothing today; this keeps a
+ * future full build from doing it. It sits outside the `cache()` wrapper so the
  * deduplication still works: the marker belongs to the request, the memo to the
  * render. Every caller is already inside `<Suspense>`, so only the band or the
- * badge waits on it and the shell around them still prerenders.
+ * badge waits on it.
  */
 export async function getCycleFacts(schoolKey: SchoolKey): Promise<CycleFacts> {
   await connection();

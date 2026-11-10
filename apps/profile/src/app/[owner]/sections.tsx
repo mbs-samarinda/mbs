@@ -218,8 +218,8 @@ export function Fact({ label, children }: { label: string; children: ReactNode }
 /**
  * The admission invitation, reading live cycle facts.
  *
- * `facts` is `null` while the request is in flight: the rest of the page is
- * prerendered and this band streams in, so the shell ships with the heading and
+ * `facts` is `null` while the request is in flight: the rest of the page
+ * renders first and this band streams in, so the shell ships with the heading and
  * a placeholder that holds its height.
  *
  * There is no stale-date path. When the call fails the band says so and offers
