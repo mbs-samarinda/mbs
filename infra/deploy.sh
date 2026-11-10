@@ -54,6 +54,14 @@ readonly OTHER_PAGES=(/profil /program /fasilitas /ekstrakurikuler /artikel /pen
 
 log() { printf '\n== %s\n' "$*"; }
 
+# True when the page's <html> element carries this owner. Matched on <html> only:
+# article pages render other owners' data-owner in their badges, so a match
+# anywhere in the body could pass on the wrong host.
+owned_by() {
+  local html="<html[^>]*[[:space:]]data-owner=\"$2\""
+  [[ $1 =~ $html ]]
+}
+
 cleanup_candidate() {
   docker rm -f "$CANDIDATE" >/dev/null 2>&1 || true
 }
@@ -61,6 +69,9 @@ cleanup_candidate() {
 # Set once images.env holds this deploy's untested pins. Before that, a failure
 # changed nothing worth restoring.
 pinned=false
+# Set when the migrate step starts, since a failed run may still have applied
+# some of its migrations. Drizzle only migrates forward.
+migrated=false
 
 # Per run, not a fixed /tmp name: a file left by another user (a deploy run
 # under sudo) cannot be overwritten, and every probe would then fail.
@@ -86,6 +97,12 @@ on_exit() {
     echo "$IMAGES_FILE now pins images that did not pass. To put the last good ones back:"
     echo "  $ROOT/deploy.sh $tags"
     echo "Not past a commit that added a CMS component; that destroys its content. Roll forward instead."
+    if $migrated; then
+      echo "Core migrations ran in this run, and the redeploy cannot undo them. If one applied, the old api"
+      echo "runs against the new schema: compare drizzle.__drizzle_migrations in mbs_core with"
+      echo "packages/db/drizzle/meta/_journal.json at the last good commit. The full rollback also"
+      echo "restores $backup_dir/mbs_core-$stamp.dump."
+    fi
   } >&2
   return "$status"
 }
@@ -176,6 +193,7 @@ log "Running core migrations"
 # Once, as a one-shot container, and never on API boot: two API replicas both
 # migrating on start is a race, and a failed migration should stop the deploy
 # rather than crash-loop a service. Strapi migrates itself.
+migrated=true
 docker run --rm --network "$NETWORK" \
   -w /app/packages/db \
   -e "DATABASE_URL=postgres://mbs:$POSTGRES_PASSWORD@postgres:5432/mbs_core" \
@@ -189,7 +207,8 @@ log "Starting cms and api"
 # so a cms stuck in a restart loop fails the deploy instead of hanging it. The
 # api's healthcheck gives up far sooner, in under two minutes.
 if ! timeout 7m "${COMPOSE[@]}" up -d --wait cms api; then
-  echo "The new cms or api did not become healthy. The running profile was not touched." >&2
+  echo "The new cms or api did not become healthy. Both now run (or restart) on the new images," >&2
+  echo "and the old profile keeps serving against them." >&2
   exit 1
 fi
 
@@ -269,8 +288,8 @@ probe() {
   # A 200 whose <html> carries another owner's key would mean the proxy resolved
   # the wrong site — the one failure that must never ship. Only checked on `/`,
   # since that is where every owner is probed.
-  if [[ $path == / && $body != *"data-owner=\"$owner\""* ]]; then
-    echo "  FAIL $host$path answered without data-owner=\"$owner\"" >&2
+  if [[ $path == / ]] && ! owned_by "$body" "$owner"; then
+    echo "  FAIL $host$path answered without <html data-owner=\"$owner\">" >&2
     return 1
   fi
   echo "  ok   $host$path"
@@ -341,11 +360,11 @@ public_probe() {
   local host=$1 owner=$2 deadline=$((SECONDS + 90)) body reason
   while ((SECONDS < deadline)); do
     if body=$(curl -fsS --max-time 10 --resolve "$host:443:127.0.0.1" "https://$host/" 2>"$probe_err"); then
-      if [[ $body == *"data-owner=\"$owner\""* ]]; then
+      if owned_by "$body" "$owner"; then
         echo "  ok   https://$host/"
         return 0
       fi
-      reason="answered without data-owner=\"$owner\""
+      reason="answered without <html data-owner=\"$owner\">"
     else
       reason=$(tail -1 "$probe_err")
     fi
