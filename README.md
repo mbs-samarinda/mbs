@@ -104,6 +104,10 @@ run no longer hides a formatting mistake behind it. On a pull request the jobs
 run with `--affected`, checking only the changed packages and what depends on
 them; a push to `main` checks everything.
 
+A separate `cms schema` check fails a pull request that removes a Strapi field or
+changes its type, because Strapi drops that column, and its content, on the next
+boot. A deliberate break gets the `schema-break-ok` label.
+
 Linting is type-aware: `oxlint-tsgolint` gives oxlint the TypeScript types, so
 it catches unsafe casts and unhandled promises that a syntax-only linter cannot.
 It also builds the module graph, so `import/no-cycle` reports circular imports
