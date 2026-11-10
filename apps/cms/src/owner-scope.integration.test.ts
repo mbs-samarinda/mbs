@@ -770,6 +770,64 @@ void describe("permissions", () => {
   });
 });
 
+void describe("links", () => {
+  const UNSAFE = [
+    "javascript:alert(1)",
+    "//evil.example",
+    "/\\evil.example",
+    "data:text/html,x",
+    "http://example.com",
+  ];
+  const SAFE = [
+    "",
+    "/",
+    "/kontak",
+    "#daftar",
+    "https://wa.me/628120000000",
+    "mailto:a@b.id",
+    "tel:+62541",
+  ];
+
+  void it("refuses a menu link with any other scheme", async () => {
+    const site = await strapi
+      .documents("api::site.site")
+      .findFirst({ filters: { ownerKey: "smp" } });
+    assert.ok(site, "expected the smp site");
+    const save = (href: string) =>
+      strapi.documents("api::site.site").update({
+        documentId: site.documentId,
+        data: { menu: [{ label: "Uji", href, links: [{ label: "Uji", href }] }] },
+      });
+
+    for (const href of UNSAFE) await assert.rejects(save(href), undefined, href);
+    for (const href of SAFE.filter(Boolean)) await assert.doesNotReject(save(href), href);
+  });
+
+  // A draft is checked too, not only the published copy.
+  void it("refuses a section link with another scheme in a draft", async () => {
+    const page = await strapi
+      .documents("api::page.page")
+      .findFirst({ filters: { ownerKey: "smp", slug: "galeri" }, status: "draft" });
+    assert.ok(page, "expected the smp galeri page");
+    const save = (linkHref: string) =>
+      strapi.documents("api::page.page").update({
+        documentId: page.documentId,
+        data: {
+          blocks: [
+            {
+              __component: "blocks.news",
+              limit: 3,
+              head: { heading: "Uji", linkLabel: "Uji", linkHref },
+            },
+          ],
+        },
+      });
+
+    for (const href of UNSAFE) await assert.rejects(save(href), undefined, href);
+    for (const href of SAFE) await assert.doesNotReject(save(href), href);
+  });
+});
+
 void describe("artikel", () => {
   // The type is in the address now, so two types may share a slug.
   void it("lets an opini reuse a berita's slug on the same owner", async () => {
