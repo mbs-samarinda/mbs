@@ -928,7 +928,11 @@ void describe("links", () => {
     "//evil.example",
     "/\\evil.example",
     "data:text/html,x",
-    "http://example.com",
+    " javascript:alert(1)",
+    "JavaScript:alert(1)",
+    "https:// evil.example",
+    "https://example.com\njavascript:alert(1)",
+    "ftp://example.com",
   ];
   const SAFE = [
     "",
@@ -938,6 +942,10 @@ void describe("links", () => {
     "https://wa.me/628120000000",
     "mailto:a@b.id",
     "tel:+62541",
+    "tel:+62 812 3456 7890",
+    "mailto:a@b.id?subject=Pendaftaran PPDB",
+    "https://wa.me/628123456789?text=Halo Min",
+    "http://example.com",
   ];
 
   // Every link field carries the rule, so a typo in one copy of the pattern
