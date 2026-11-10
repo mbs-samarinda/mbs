@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { ActivityRow, getPage, PageRow, SiteRow } from "./cms.ts";
+import { ActivityRow, getArticleIndex, getPage, PageRow, SiteRow } from "./cms.ts";
 
 // `cacheLife` throws outside a Next server; the reads are tested here as functions.
 vi.mock("next/cache", () => ({ cacheLife: () => {}, cacheTag: () => {} }));
+vi.mock("next/server", () => ({ connection: async () => {} }));
 
 test("a site row with every list missing or broken still parses, with empty lists", () => {
   const site = SiteRow.parse({
@@ -86,7 +87,7 @@ describe("a CMS answer without a data list", () => {
     "throws rather than reading as no page: %j",
     async (body) => {
       answer(body);
-      await expect(getPage("smp", "profil")).rejects.toThrow();
+      await expect(getPage("smp", "profil")).rejects.toThrow("no data list for page-list");
     },
   );
 
@@ -94,4 +95,30 @@ describe("a CMS answer without a data list", () => {
     answer({ data: [] });
     expect(await getPage("smp", "profil")).toBeNull();
   });
+});
+
+const article = (slug: string) => ({
+  slug,
+  title: slug,
+  publishedAt: "2026-01-01",
+  kolaborasi: [],
+});
+
+test("a dropped row does not end the article index early", async () => {
+  // One junk row makes page 1 of berita come back 99 long.
+  const pages = [
+    [...Array.from({ length: 99 }, (_, i) => article(`a${i}`)), "junk"],
+    [article("last")],
+  ];
+  vi.stubGlobal("fetch", async (url: string) => {
+    const page = Number(new URL(url).searchParams.get("pagination[page]"));
+    const rows = url.includes("/berita-list") ? (pages[page - 1] ?? []) : [];
+    return Response.json({ data: rows });
+  });
+  try {
+    const slugs = (await getArticleIndex("smp")).map((entry) => entry.slug);
+    expect(slugs).toContain("last");
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
