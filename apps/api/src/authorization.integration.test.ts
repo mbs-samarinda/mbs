@@ -7,8 +7,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app.ts";
 import { loadConfig } from "./config/env.ts";
 
-// Real sessions through real HTTP: every guard between the cookie and the
-// procedure runs, so deleting one of them fails a test here.
 const config = loadConfig({
   NODE_ENV: "test",
   LOG_LEVEL: "error",
@@ -39,10 +37,6 @@ beforeEach(async () => {
     .onConflictDoNothing();
 });
 
-/**
- * Pre-approves a staff profile with every school, creates its Better Auth
- * user the way a Google sign-in does, and returns a signed session cookie.
- */
 async function signIn(role: StaffRole) {
   const email = `${role.toLowerCase()}@mbss.sch.id`;
   const [staff] = await db
