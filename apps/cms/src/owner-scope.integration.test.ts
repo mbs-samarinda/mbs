@@ -921,3 +921,94 @@ void describe("database config", () => {
     for (const value of ["postgres", "", undefined]) assert.doesNotThrow(client(value));
   });
 });
+
+void describe("links", () => {
+  const UNSAFE = [
+    "javascript:alert(1)",
+    "//evil.example",
+    "/\\evil.example",
+    "data:text/html,x",
+    " javascript:alert(1)",
+    "JavaScript:alert(1)",
+    "https:// evil.example",
+    "https://example.com\njavascript:alert(1)",
+    "ftp://example.com",
+  ];
+  const SAFE = [
+    "",
+    "/",
+    "/kontak",
+    "#daftar",
+    "https://wa.me/628120000000",
+    "mailto:a@b.id",
+    "tel:+62541",
+    "tel:+62 812 3456 7890",
+    "mailto:a@b.id?subject=Pendaftaran PPDB",
+    "https://wa.me/628123456789?text=Halo Min",
+    "http://example.com",
+  ];
+
+  // Every link field carries the rule, so a typo in one copy of the pattern
+  // shows here rather than on a live page. The hero allows site paths only.
+  void it("gives every link field the same rule", () => {
+    const fields = Object.values(strapi.components).flatMap((component) =>
+      Object.entries(component.attributes)
+        .filter(([name]) => /href/i.test(name))
+        .map(([name, attribute]) => ({
+          field: `${component.uid}.${name}`,
+          regex: "regex" in attribute ? attribute.regex : undefined,
+        })),
+    );
+    assert.ok(fields.length >= 6, "expected the link fields");
+
+    for (const { field, regex } of fields) {
+      assert.ok(typeof regex === "string", `${field} has no regex`);
+      const pattern = new RegExp(regex);
+      for (const href of UNSAFE) assert.ok(!pattern.test(href), `${field} accepts ${href}`);
+      const safe = field === "blocks.hero.secondaryHref" ? ["", "/", "/kontak", "#daftar"] : SAFE;
+      for (const href of safe) assert.ok(pattern.test(href), `${field} refuses ${href}`);
+    }
+  });
+
+  void it("refuses a menu link with any other scheme", async () => {
+    const site = await strapi
+      .documents("api::site.site")
+      .findFirst({ filters: { ownerKey: "smp" } });
+    assert.ok(site, "expected the smp site");
+    const save = (href: string) =>
+      strapi.documents("api::site.site").update({
+        documentId: site.documentId,
+        data: { menu: [{ label: "Uji", href, links: [{ label: "Uji", href }] }] },
+      });
+
+    for (const href of UNSAFE) await assert.rejects(save(href), { name: "ValidationError" }, href);
+    for (const href of SAFE.filter(Boolean)) await assert.doesNotReject(save(href), href);
+  });
+
+  // Strapi does not validate a draft, so the rule bites at publish: an unsafe
+  // link can sit in a draft but never reach the public copy.
+  void it("refuses to publish a section link with another scheme", async () => {
+    const page = await strapi
+      .documents("api::page.page")
+      .findFirst({ filters: { ownerKey: "smp", slug: "galeri" }, status: "draft" });
+    assert.ok(page, "expected the smp galeri page");
+    const save = async (linkHref: string) => {
+      await strapi.documents("api::page.page").update({
+        documentId: page.documentId,
+        data: {
+          blocks: [
+            {
+              __component: "blocks.news",
+              limit: 3,
+              head: { heading: "Uji", linkLabel: "Uji", linkHref },
+            },
+          ],
+        },
+      });
+      await strapi.documents("api::page.page").publish({ documentId: page.documentId });
+    };
+
+    for (const href of UNSAFE) await assert.rejects(save(href), { name: "ValidationError" }, href);
+    for (const href of SAFE) await assert.doesNotReject(save(href), href);
+  });
+});

@@ -6,6 +6,9 @@
     "heading": { "type": "string", "required": true },
     "description": { "type": "text" },
     "linkLabel": { "type": "string" },
-    "linkHref": { "type": "string" }
+    "linkHref": {
+      "type": "string",
+      "regex": "^$|^/(?![/\\\\])\\S*$|^#\\S*$|^(https?://|mailto:|tel:)\\S[^\\r\\n]*$"
+    }
   }
 }

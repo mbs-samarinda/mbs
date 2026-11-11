@@ -10,7 +10,7 @@
     "secondaryHref": {
       "type": "string",
       "maxLength": 200,
-      "regex": "^$|^[/#][^\\s]*$"
+      "regex": "^$|^/(?![/\\\\])\\S*$|^#\\S*$"
     }
   }
 }

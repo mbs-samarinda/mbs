@@ -4,7 +4,10 @@
   "options": {},
   "attributes": {
     "label": { "type": "string", "required": true },
-    "href": { "type": "string" },
+    "href": {
+      "type": "string",
+      "regex": "^$|^/(?![/\\\\])\\S*$|^#\\S*$|^(https?://|mailto:|tel:)\\S[^\\r\\n]*$"
+    },
     "links": {
       "type": "component",
       "repeatable": true,
