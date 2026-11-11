@@ -95,11 +95,11 @@ Git hooks run a subset of these automatically. Lefthook installs them from
 its own postinstall, which `allowBuilds` in `pnpm-workspace.yaml` permits, so
 `pnpm install` is all a fresh clone needs. Committing formats and lints the
 staged files and checks the commit message is a Conventional Commit; pushing
-runs `typecheck` and `test`. `lefthook.yml` holds all three. To skip them once,
+runs `format:check`, `lint`, `typecheck` and `test`. `lefthook.yml` holds all three. To skip them once,
 `LEFTHOOK=0 git commit ...`.
 
-CI runs the same checks as five independent jobs — format and lint, typecheck,
-fast tests, database tests, build — so they finish in parallel and a slow test
+CI runs the same checks as six independent jobs — format and lint, typecheck,
+fast tests, database tests, CMS database tests, build — so they finish in parallel and a slow test
 run no longer hides a formatting mistake behind it. On a pull request the jobs
 run with `--affected`, checking only the changed packages and what depends on
 them; a push to `main` checks everything.
