@@ -10,8 +10,9 @@
 # turbo on a 2 vCPU machine to learn something the runner already knows.
 #
 # The order is the one docs/11 fixes: pull, back up, migrate exactly once, start
-# cms and api in place and wait for cms to be healthy, then prove the new
-# profile works before any visitor sees it.
+# cms and api in place and wait for both to be healthy, then prove the new
+# profile works before any visitor sees it. After the swap it checks the public
+# site through Caddy and TLS, and only then records the pins as last good.
 set -euo pipefail
 
 readonly PROFILE_TAG=${1:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
@@ -30,6 +31,10 @@ readonly ENV_FILE=$ROOT/.env
 # Separate from .env because this file is machine-written on each deploy and
 # .env holds hand-placed secrets that nothing should ever rewrite.
 readonly IMAGES_FILE=$ROOT/images.env
+# A copy of images.env, taken only once a deploy has passed every check below.
+# images.env itself is rewritten before anything is proven, so after a failure
+# this is the only record of what last worked.
+readonly LAST_GOOD_FILE=$ROOT/images.last-good.env
 readonly COMPOSE=(
   "docker" "compose"
   "--env-file" "$ENV_FILE"
@@ -49,10 +54,62 @@ readonly OTHER_PAGES=(/profil /program /fasilitas /ekstrakurikuler /artikel /pen
 
 log() { printf '\n== %s\n' "$*"; }
 
+# True when the page's <html> element carries this owner. Matched on <html> only:
+# article pages render other owners' data-owner in their badges, so a match
+# anywhere in the body could pass on the wrong host.
+owned_by() {
+  local html="<html[^>]*[[:space:]]data-owner=\"$2\""
+  [[ $1 =~ $html ]]
+}
+
 cleanup_candidate() {
   docker rm -f "$CANDIDATE" >/dev/null 2>&1 || true
 }
-trap cleanup_candidate EXIT
+
+# Set once images.env holds this deploy's untested pins. Before that, a failure
+# changed nothing worth restoring.
+pinned=false
+# Set when the migrate step starts, since a failed run may still have applied
+# some of its migrations. Drizzle only migrates forward.
+migrated=false
+
+# Per run, not a fixed /tmp name: a file left by another user (a deploy run
+# under sudo) cannot be overwritten, and every probe would then fail.
+probe_err=$(mktemp)
+
+on_exit() {
+  local status=$?
+  cleanup_candidate
+  rm -f "$probe_err"
+  ((status != 0)) && $pinned || return "$status"
+  if [[ -f $LAST_GOOD_FILE ]]; then
+    local tags
+    # shellcheck disable=SC1090
+    tags=$(source "$LAST_GOOD_FILE" && echo "${PROFILE_IMAGE##*:} ${CMS_IMAGE##*:} ${API_IMAGE##*:}")
+    # A redeploy rather than a copy of the file: by now cms, api or profile may
+    # already run the new images, and pins that disagree with them would let the
+    # next `compose up` swap images with no checks at all.
+    {
+      echo
+      echo "$IMAGES_FILE now pins images that did not pass. To put the last good ones back:"
+      echo "  $ROOT/deploy.sh $tags"
+      echo "The workflow logs the box out of ghcr.io after every run, so if a pull is denied, docker login ghcr.io first."
+      echo "Not past a commit that added a CMS component; that destroys its content. Roll forward instead."
+    } >&2
+  else
+    echo "No deploy has passed since $LAST_GOOD_FILE was introduced, so there are no older pins to restore." >&2
+  fi
+  if $migrated; then
+    {
+      echo "Core migrations ran in this run, and redeploying older images cannot undo them. If one applied,"
+      echo "an older api runs against the new schema: compare drizzle.__drizzle_migrations in mbs_core with"
+      echo "packages/db/drizzle/meta/_journal.json at the last good commit. The full rollback also"
+      echo "restores $backup_dir/mbs_core-$stamp.dump."
+    } >&2
+  fi
+  return "$status"
+}
+trap on_exit EXIT
 
 # ---------------------------------------------------------------------------
 
@@ -83,6 +140,7 @@ PROFILE_IMAGE=$REGISTRY/mbs-profile:$PROFILE_TAG
 CMS_IMAGE=$REGISTRY/mbs-cms:$CMS_TAG
 API_IMAGE=$REGISTRY/mbs-api:$API_TAG
 PINS
+pinned=true
 
 log "Pulling images"
 docker pull -q "$REGISTRY/mbs-profile:$PROFILE_TAG"
@@ -112,6 +170,9 @@ log "Backing up both databases"
 backup_dir=$ROOT/backups
 mkdir -p "$backup_dir"
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
+# Left behind when a dump dies under set -e, before the empty-file check below
+# can remove it. Cleared here so re-running after a crash does not pile them up.
+find "$backup_dir" -name '.*.dump.part' -delete
 for db in mbs_core mbs_cms; do
   # Written to a .part name and renamed only once it has content. The shell
   # creates a redirect target before the command runs, so a failed pg_dump left
@@ -135,6 +196,7 @@ log "Running core migrations"
 # Once, as a one-shot container, and never on API boot: two API replicas both
 # migrating on start is a race, and a failed migration should stop the deploy
 # rather than crash-loop a service. Strapi migrates itself.
+migrated=true
 docker run --rm --network "$NETWORK" \
   -w /app/packages/db \
   -e "DATABASE_URL=postgres://mbs:$POSTGRES_PASSWORD@postgres:5432/mbs_core" \
@@ -145,9 +207,11 @@ log "Starting cms and api"
 # --wait: the candidate below is a plain `docker run` that skips depends_on, so
 # without it a new cms image is still booting when the smoke check runs. The
 # 7-minute cap covers the cms healthcheck's full budget (90s start + 30 × 10s),
-# so a cms stuck in a restart loop fails the deploy instead of hanging it.
+# so a cms stuck in a restart loop fails the deploy instead of hanging it. The
+# api's healthcheck gives up far sooner, within 140s (20s start + 12 × 10s).
 if ! timeout 7m "${COMPOSE[@]}" up -d --wait cms api; then
-  echo "The new cms did not become healthy. The running profile was not touched." >&2
+  echo "The new cms or api did not become healthy. Both now run (or restart) on the new images," >&2
+  echo "and the old profile keeps serving against them." >&2
   exit 1
 fi
 
@@ -219,16 +283,16 @@ probe() {
   # stderr is captured rather than discarded. Losing it is how "caddy is not
   # running" came back as "did not return 200".
   if ! body=$("${COMPOSE[@]}" exec -T "$PROBE_SVC" \
-    wget -q -O - --header "Host: $host" "http://$target:3002$path" 2>/tmp/probe.err); then
-    err=$(tr -d '\r' < /tmp/probe.err | tail -2 | tr '\n' ' ')
+    wget -q -O - --header "Host: $host" "http://$target:3002$path" 2>"$probe_err"); then
+    err=$(tr -d '\r' < "$probe_err" | tail -2 | tr '\n' ' ')
     echo "  FAIL $host$path — ${err:-no response}" >&2
     return 1
   fi
   # A 200 whose <html> carries another owner's key would mean the proxy resolved
   # the wrong site — the one failure that must never ship. Only checked on `/`,
   # since that is where every owner is probed.
-  if [[ $path == / && $body != *"data-owner=\"$owner\""* ]]; then
-    echo "  FAIL $host$path answered without data-owner=\"$owner\"" >&2
+  if [[ $path == / ]] && ! owned_by "$body" "$owner"; then
+    echo "  FAIL $host$path answered without <html data-owner=\"$owner\">" >&2
     return 1
   fi
   echo "  ok   $host$path"
@@ -284,8 +348,44 @@ log "Verifying the live container"
 # these are a check that the swap worked rather than a warm-up. They stay
 # because the swap is the one step nothing else verifies.
 if ! smoke profile; then
-  echo "The deployed profile is not answering. Roll forward; do not roll back past a" >&2
-  echo "commit that added a CMS component, which would destroy that content." >&2
+  echo "The deployed profile is not answering." >&2
+  exit 1
+fi
+
+log "Checking the public site through Caddy and TLS"
+# Every probe above talks to profile:3002 inside the compose network, so a
+# stopped caddy or a missing certificate passes them. This one
+# goes the way a visitor does: port 443 on this host, real certificate check.
+# --resolve pins the name to this box, so it tests this box and not whatever DNS
+# says. Retried for 90s because a first deploy is still fetching certificates.
+# No -L: a redirect would answer without the marker, and that should fail.
+public_probe() {
+  local host=$1 owner=$2 deadline=$((SECONDS + 90)) body reason
+  while ((SECONDS < deadline)); do
+    if body=$(curl -fsS --max-time 10 --resolve "$host:443:127.0.0.1" "https://$host/" 2>"$probe_err"); then
+      if owned_by "$body" "$owner"; then
+        echo "  ok   https://$host/"
+        return 0
+      fi
+      reason="answered without <html data-owner=\"$owner\">"
+    else
+      reason=$(tail -1 "$probe_err")
+    fi
+    sleep 3
+  done
+  echo "  FAIL https://$host/ — $reason" >&2
+  return 1
+}
+
+public_smoke() {
+  local owner
+  public_probe "$PROFILE_APEX" mbs || return 1
+  for owner in "${OWNER_HOSTS[@]}"; do
+    public_probe "$owner.$PROFILE_APEX" "$owner" || return 1
+  done
+}
+if ! public_smoke; then
+  echo "The new profile is live but visitors cannot reach it through Caddy." >&2
   exit 1
 fi
 
@@ -295,3 +395,9 @@ log "Deployed $deployed"
   echo "Running image is $deployed, expected tag $PROFILE_TAG" >&2
   exit 1
 }
+
+# Last, so it only ever names images that passed everything above. Written to a
+# temporary name and renamed, so a crash mid-write cannot leave half a file.
+cp "$IMAGES_FILE" "$LAST_GOOD_FILE.tmp"
+mv "$LAST_GOOD_FILE.tmp" "$LAST_GOOD_FILE"
+log "Recorded $LAST_GOOD_FILE"
