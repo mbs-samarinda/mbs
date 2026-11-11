@@ -53,7 +53,7 @@
   ],
   "overrides": [
     {
-      "files": ["apps/api/**", "packages/db/**"],
+      "files": ["apps/api/**", "packages/db/**", "scripts/**"],
       "rules": { "no-console": "off" }
     },
     // Two shadcn components whose generated shape this config would otherwise
