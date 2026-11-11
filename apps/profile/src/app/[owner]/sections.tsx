@@ -992,13 +992,7 @@ export function BlockSection({
                 there are narrower than a word like "Kewirausahaan". */}
             <div className="grid grid-cols-2 gap-3 max-[20rem]:grid-cols-1 md:grid-cols-3 lg:grid-cols-6">
               {block.items.map((item) => {
-                // `bintang` twice, for two different holes. A row created
-                // before the field existed arrives null, since Strapi's default
-                // lands on new rows only; and a value added to the CMS
-                // enumeration but not to the map below would otherwise be
-                // `undefined`, which React renders by throwing — one forgotten
-                // line in a schema would take the whole homepage down.
-                const Icon = ACTIVITY_ICONS[item.icon ?? "bintang"] ?? Star;
+                const Icon = ACTIVITY_ICONS[item.icon];
                 return (
                   <a
                     key={item.slug}
