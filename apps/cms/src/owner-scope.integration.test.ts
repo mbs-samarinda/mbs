@@ -85,6 +85,7 @@ type Invite = { id: number; ownerKey: string; status: string; judul: string; ala
 let strapi: Core.Strapi;
 let editor: AdminUser;
 let smkEditor: AdminUser;
+let smaEditor: AdminUser;
 
 /** Runs a write the way a request does, so the document middleware sees an actor. */
 const as = (user: AdminUser, write: () => Promise<unknown>) =>
@@ -100,8 +101,47 @@ const rulesFor = async (user: AdminUser): Promise<Rule[]> => {
   return ability.rules;
 };
 
+type ManagerAction = "clone" | "update";
+
+const refuse = (status: string) => () => {
+  throw new Error(status);
+};
+
+const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+/**
+ * Calls a Content Manager controller the way its admin route does: with the
+ * actor's real ability on `ctx.state`, inside a request context. Routing and the
+ * admin token are the only parts skipped, so the permission checks under test
+ * are the ones an editor's browser reaches.
+ */
+const contentManager = async (
+  user: AdminUser,
+  action: ManagerAction,
+  params: Record<string, string>,
+  body: Record<string, unknown>,
+) => {
+  const permissions = strapi.service("admin::permission") as unknown as {
+    engine: { generateUserAbility(user: AdminUser): Promise<unknown> };
+  };
+  const ctx = {
+    state: { user, userAbility: await permissions.engine.generateUserAbility(user) },
+    params,
+    query: {},
+    request: { body },
+    forbidden: refuse("forbidden"),
+    notFound: refuse("not found"),
+    badRequest: refuse("bad request"),
+  };
+  const controller = strapi.plugin("content-manager").controller("collection-types") as Record<
+    ManagerAction,
+    (context: typeof ctx) => Promise<void>
+  >;
+  return strapi.requestContext.run(ctx as never, () => controller[action](ctx));
+};
+
 /** An editor-role admin user assigned one owner. */
-const createEditor = async (ownerKey: "smp" | "smk") => {
+const createEditor = async (ownerKey: "smp" | "smk" | "sma") => {
   const role: { id: number } = await strapi.db
     .query("admin::role")
     .findOne({ where: { code: EDITOR_ROLE_CODE } });
@@ -139,6 +179,7 @@ before(async () => {
   strapi = await createStrapi(await compileStrapi()).load();
   editor = await createEditor("smp");
   smkEditor = await createEditor("smk");
+  smaEditor = await createEditor("sma");
 });
 
 void describe("owner scope", () => {
@@ -204,6 +245,157 @@ void describe("owner scope", () => {
         .update({ documentId: published.documentId, data: { ownerKey: "smk" } });
 
     await assert.rejects(as(editor, move), /pernah terbit/);
+  });
+
+  void it("refuses a clone that lands on an owner the editor is not assigned", async () => {
+    const article = (ownerKey: "smp" | "sma") =>
+      strapi.documents("api::berita.berita").create({
+        data: {
+          ownerKey,
+          title: `Uji salin ${unique()}`,
+          slug: `uji-salin-${unique()}`,
+          body: "Isi.",
+        },
+      });
+    const clone = (sourceId: string, data: Record<string, unknown> = {}) =>
+      contentManager(
+        editor,
+        "clone",
+        { model: "api::berita.berita", sourceId },
+        { title: "Salinan", slug: `salinan-${unique()}`, ...data },
+      );
+
+    const sma = await article("sma");
+    const smp = await article("smp");
+
+    await assert.rejects(clone(sma.documentId), /tidak ditugaskan/);
+    await assert.rejects(clone(smp.documentId, { ownerKey: "sma" }), /tidak ditugaskan/);
+    await assert.rejects(clone(sma.documentId, { ownerKey: "smp" }), /tidak ditugaskan/);
+    await assert.doesNotReject(clone(smp.documentId));
+  });
+
+  // A request with no admin user on it is an API token, a content-API call, or
+  // something not yet thought of. None of them may write an owner.
+  void it("refuses a write from a request with no recognised admin user", async () => {
+    const create = () =>
+      strapi.documents("api::berita.berita").create({
+        data: {
+          ownerKey: "smp",
+          title: `Uji tanpa pengguna ${Date.now()}`,
+          slug: `uji-tanpa-pengguna-${Date.now()}`,
+          body: "Isi uji.",
+        },
+      });
+    const inRequest = (state: Record<string, unknown>) =>
+      strapi.requestContext.run({ state } as never, create);
+
+    await assert.rejects(inRequest({}), /tidak dikenali/);
+    await assert.rejects(inRequest({ user: {} }), /tidak dikenali/);
+    await assert.rejects(inRequest({ user: { id: "1", roles: "x" } }), /tidak dikenali/);
+    await assert.doesNotReject(create());
+  });
+
+  void it("refuses a relation to another owner's entry", async () => {
+    const own = await strapi
+      .documents("api::pencapaian.pencapaian")
+      .findFirst({ filters: { ownerKey: "smp" } });
+    const theirs = await strapi
+      .documents("api::berita.berita")
+      .findFirst({ filters: { ownerKey: "sma" } });
+    assert.ok(own && theirs, "expected seeded smp pencapaian and sma berita");
+    await strapi
+      .documents("api::pencapaian.pencapaian")
+      .update({ documentId: own.documentId, data: { berita: null } });
+
+    const error: unknown = await contentManager(
+      editor,
+      "update",
+      { model: "api::pencapaian.pencapaian", id: own.documentId },
+      { berita: { connect: [{ documentId: theirs.documentId }] } },
+    ).then(
+      () => undefined,
+      (reason: unknown) => reason,
+    );
+
+    const after = await strapi
+      .documents("api::pencapaian.pencapaian")
+      .findOne({ documentId: own.documentId, populate: ["berita"] });
+    assert.notEqual(after?.berita?.documentId, theirs.documentId, "the relation must not be saved");
+    assert.match(String(error), /milik "sma"/);
+  });
+
+  // Only the collaboration hooks link an invite to an article. An editor who
+  // could would pull another school's invite onto their own article.
+  void it("refuses an editor linking an invite to an article", async () => {
+    const stamp = unique();
+    const { documentId: smkArticle } = await strapi.documents("api::berita.berita").create({
+      data: {
+        ownerKey: "smk",
+        title: `Uji undang sma ${stamp}`,
+        slug: `uji-undang-sma-${stamp}`,
+        body: "Isi.",
+        collaborators: [{ ownerKey: "sma" }],
+      },
+    });
+    await strapi.documents("api::berita.berita").publish({ documentId: smkArticle });
+    const invite: { documentId: string } | null = await strapi.db
+      .query(KOLABORASI)
+      .findOne({ where: { berita: { documentId: smkArticle } }, select: ["documentId"] });
+    assert.ok(invite, "expected an sma invite");
+    const own = await strapi.documents("api::berita.berita").create({
+      data: { ownerKey: "smp", title: `Uji ${stamp}`, slug: `uji-${stamp}`, body: "Isi." },
+    });
+
+    await assert.rejects(
+      contentManager(
+        editor,
+        "update",
+        { model: "api::berita.berita", id: own.documentId },
+        { kolaborasi: { connect: [{ documentId: invite.documentId }] } },
+      ),
+      /undangan/i,
+    );
+    const after: { berita?: { documentId?: string } } | null = await strapi.db
+      .query(KOLABORASI)
+      .findOne({ where: { documentId: invite.documentId }, populate: ["berita"] });
+    assert.equal(after?.berita?.documentId, smkArticle, "the invite must stay on its article");
+  });
+
+  void it("refuses an owner that is present but not an owner key", async () => {
+    const draft = await strapi.documents("api::berita.berita").create({
+      data: { ownerKey: "smp", title: `Uji ${unique()}`, slug: `uji-${unique()}`, body: "Isi." },
+    });
+    const write = (ownerKey: unknown) => () =>
+      strapi
+        .documents("api::berita.berita")
+        .update({ documentId: draft.documentId, data: { ownerKey } as never });
+
+    await assert.rejects(as(editor, write(null)), /pemilik/i);
+    await assert.rejects(as(editor, write(7)), /pemilik/i);
+    const row: { ownerKey: string } | null = await strapi.db
+      .query("api::berita.berita")
+      .findOne({ where: { documentId: draft.documentId }, select: ["ownerKey"] });
+    assert.equal(row?.ownerKey, "smp");
+  });
+
+  // Publishing writes the invitees' rows from inside the editor's request. They
+  // carry other owners' keys, so they must not reach the owner check.
+  void it("lets an sma editor publish an article that invites smk", async () => {
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    await assert.doesNotReject(
+      as(smaEditor, async () => {
+        const { documentId } = await strapi.documents("api::berita.berita").create({
+          data: {
+            ownerKey: "sma",
+            title: `Uji undang ${stamp}`,
+            slug: `uji-undang-${stamp}`,
+            body: "Isi uji.",
+            collaborators: [{ ownerKey: "smk" }],
+          },
+        });
+        await strapi.documents("api::berita.berita").publish({ documentId });
+      }),
+    );
   });
 });
 

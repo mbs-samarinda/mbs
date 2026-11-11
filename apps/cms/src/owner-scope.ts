@@ -1,5 +1,5 @@
 import type { Core, UID } from "@strapi/strapi";
-import { errors } from "@strapi/utils";
+import { errors, traverseEntity } from "@strapi/utils";
 
 import { KOLABORASI_UID } from "./collaboration";
 import { OWNER_KEYS, type OwnerKey } from "./seed/home-page";
@@ -122,11 +122,6 @@ async function assignedOwners(strapi: Core.Strapi, userId: unknown): Promise<Own
 
 const isSuperAdmin = (actor: AdminActor) =>
   (actor.roles ?? []).some((role) => role?.code === SUPER_ADMIN_CODE);
-
-// Koa types `ctx.state.user` as `any`. Narrowing through a guard keeps that
-// `any` from spreading: everything downstream is `AdminActor` or nothing.
-const isActor = (value: unknown): value is AdminActor =>
-  typeof value === "object" && value !== null;
 
 /**
  * Registers the condition that narrows every read to the editor's own owners.
@@ -320,11 +315,16 @@ async function everPublished(strapi: Core.Strapi, uid: UID.ContentType, document
  * `permissionChecker.cannot.create()` is called with no argument, so CASL has no
  * instance to test and the create condition is inert — Strapi's own source
  * carries the unfixed `// TODO: Revert the creation if create permission
- * conditions are not met`. Without this guard an SMP editor can create a row
- * with `ownerKey: "mbs"`.
+ * conditions are not met`. Clone is worse: the Content Manager loads the source
+ * without any read check, so an SMP editor can copy an SMA entry by id and the
+ * copy lands on SMA. And no condition looks at the entries a relation points
+ * to. Without this guard each of those is a cross-owner write.
  *
- * Two rules, in this order:
+ * The rules, in this order:
  *
+ * - a write from inside a request needs a recognised admin user. Anything else
+ *   there (an API token, a content-API call) is refused rather than waved
+ *   through. Outside a request is where seeds run, and they pass;
  * - a change of `ownerKey` on a document that has ever been published is
  *   refused for **everyone**, Super Admin included. A draft that was never
  *   published may still be moved, which is where nearly every misfile is
@@ -332,56 +332,167 @@ async function everPublished(strapi: Core.Strapi, uid: UID.ContentType, document
  *   retype. Once it is published the repair is delete and recreate, and that
  *   costs a new `documentId`: every relation holding the old one drops it
  *   silently, and `publishedAt` is restamped with today;
- * - whoever is writing the field has to land on an owner they are assigned.
- *   Super Admin is exempt here, and only here: this is middleware rather than a
- *   condition, so Strapi's own Super Admin bypass never reaches it, and without
- *   the exemption the developer account could not create content at all.
+ * - the owner a write lands on, and the owner of every entry it links to, must
+ *   be assigned to the writer. Super Admin is exempt here, and only here: this
+ *   is middleware rather than a condition, so Strapi's own Super Admin bypass
+ *   never reaches it, and without the exemption the developer account could
+ *   not create content at all.
  */
 export async function assertOwnerScope(
   strapi: Core.Strapi,
   context: { uid: UID.ContentType; action: string; params: unknown },
 ) {
-  if (context.action !== "create" && context.action !== "update") return;
+  if (!OWNER_WRITES.has(context.action)) return;
   if (!("ownerKey" in strapi.contentType(context.uid).attributes)) return;
 
-  // The document service types `params` per action and per content type, so the
-  // union it hands a middleware has no single shape to read. Only two fields are
-  // touched, and both are checked before use.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing one middleware payload to the two fields read below
-  const params = context.params as { data?: { ownerKey?: unknown }; documentId?: string };
-  const next = params?.data?.ownerKey;
-  // An update that does not carry the field is not a move. Seeds update pages at
-  // boot without ever mentioning an owner.
-  if (typeof next !== "string") return;
-
   // `requestContext` is AsyncLocalStorage and answers `undefined` outside a
-  // request, which is where every seed runs. Public REST is read-only, so there
-  // is no third write path to cover.
-  const state: unknown = strapi.requestContext.get()?.state?.user;
-  if (!isActor(state)) return;
-  const actor = state;
-
-  if (context.action === "update") {
-    const documentId = params?.documentId;
-    const current: { ownerKey?: string } | null = documentId
-      ? await strapi.db.query(context.uid).findOne({ where: { documentId }, select: ["ownerKey"] })
-      : null;
-
-    if (!current || current.ownerKey === next) return;
-
-    if (documentId && (await everPublished(strapi, context.uid, documentId))) {
-      throw new errors.ApplicationError(
-        "Pemilik tidak bisa diubah setelah entri pernah terbit. Hapus entri ini lalu buat ulang pada pemilik yang benar.",
-      );
-    }
+  // request, which is where every seed runs.
+  const request = strapi.requestContext.get();
+  if (!request) return;
+  const actor: unknown = request.state?.user;
+  if (!isAdminUser(actor)) {
+    throw new errors.ForbiddenError(
+      "Penulis perubahan ini tidak dikenali, jadi perubahan ditolak.",
+    );
   }
+
+  // The document service types `params` per action and per content type, so the
+  // union it hands a middleware has no single shape to read. Every value read
+  // from `data` is checked before use.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing one middleware payload to the fields read below
+  const params = context.params as { data?: Record<string, unknown>; documentId?: string };
+  const written = await ownerWritten(strapi, context.uid, context.action, params);
 
   if (isSuperAdmin(actor)) return;
 
   const owners = await assignedOwners(strapi, actor.id);
-  if (!owners.some((owner) => owner === next)) {
-    throw new errors.ForbiddenError(
-      `Anda tidak ditugaskan pada pemilik "${next}". Minta administrator menambahkannya di Penugasan Editor.`,
+  const foreign = [...written, ...(await linkedOwners(strapi, context.uid, params.data))].find(
+    (key) => key !== undefined && !owners.some((assigned) => assigned === key),
+  );
+  if (foreign === undefined) return;
+
+  throw new errors.ForbiddenError(
+    written.includes(foreign)
+      ? `Anda tidak ditugaskan pada pemilik "${foreign}". Minta administrator menambahkannya di Penugasan Editor.`
+      : `Entri ini menautkan entri milik "${foreign}". Anda hanya bisa menautkan entri pemilik yang ditugaskan.`,
+  );
+}
+
+const OWNER_WRITES = new Set(["create", "update", "clone"]);
+
+const isOwnerKey = (value: unknown): value is OwnerKey => OWNER_KEYS.some((key) => key === value);
+
+const isAdminUser = (value: unknown): value is { id: number; roles: { code?: string }[] } =>
+  typeof value === "object" &&
+  value !== null &&
+  "id" in value &&
+  typeof value.id === "number" &&
+  "roles" in value &&
+  Array.isArray(value.roles);
+
+/**
+ * The owners this write must be assigned: the one it puts the document on, and
+ * for a clone the source's too. The Content Manager loads a clone's source with
+ * no read check, so copying another school's draft onto your own owner would
+ * otherwise hand you its contents. An update that leaves the owner where it is
+ * names none.
+ */
+async function ownerWritten(
+  strapi: Core.Strapi,
+  uid: UID.ContentType,
+  action: string,
+  params: { data?: Record<string, unknown>; documentId?: string },
+): Promise<string[]> {
+  const next = params.data?.ownerKey;
+  // `null` or a number would slip past the move check below and blank the owner.
+  if (next !== undefined && !isOwnerKey(next)) {
+    throw new errors.ApplicationError(`Pemilik ${JSON.stringify(next)} tidak dikenal.`);
+  }
+  if (action === "create") return next === undefined ? [] : [next];
+  // An update that does not carry the field is not a move.
+  if (action === "update" && next === undefined) return [];
+
+  const { documentId } = params;
+  const current: { ownerKey?: string } | null = documentId
+    ? await strapi.db.query(uid).findOne({ where: { documentId }, select: ["ownerKey"] })
+    : null;
+
+  if (action === "clone") {
+    return [next, current?.ownerKey].filter((key) => typeof key === "string");
+  }
+
+  if (next === undefined || !current || current.ownerKey === next) return [];
+  if (documentId && (await everPublished(strapi, uid, documentId))) {
+    throw new errors.ApplicationError(
+      "Pemilik tidak bisa diubah setelah entri pernah terbit. Hapus entri ini lalu buat ulang pada pemilik yang benar.",
     );
   }
+  return [next];
+}
+
+/** Every reference a relation value holds, in the shapes the document service accepts. */
+const referencesIn = (value: unknown): (string | number)[] => {
+  if (typeof value === "string" || typeof value === "number") return [value];
+  if (Array.isArray(value)) return value.flatMap(referencesIn);
+  if (typeof value !== "object" || value === null) return [];
+  if ("documentId" in value) return referencesIn(value.documentId);
+  if ("id" in value) return referencesIn(value.id);
+  // `disconnect` is left out on purpose: dropping a link writes nothing of theirs.
+  return [
+    ...("connect" in value ? referencesIn(value.connect) : []),
+    ...("set" in value ? referencesIn(value.set) : []),
+  ];
+};
+
+/**
+ * The owners of every owned entry this write links to, through relations at any
+ * depth: a field of the entry itself, or a block inside a page's dynamic zone.
+ * Links a clone copies from its source are not seen here; the source's owner
+ * is checked instead.
+ */
+async function linkedOwners(
+  strapi: Core.Strapi,
+  uid: UID.ContentType,
+  data: Record<string, unknown> | undefined,
+): Promise<string[]> {
+  const targets = new Map<UID.ContentType, (string | number)[]>();
+  // `traverseEntity` speaks plain strings for model ids and loose data, where
+  // Strapi's own lookups want the generated UID union. The schema it hands back
+  // is Strapi's, so the ids are real ones.
+  /* oxlint-disable typescript/no-unsafe-type-assertion -- @strapi/utils types model ids as string */
+  await traverseEntity(
+    ({ attribute, value }) => {
+      if (attribute?.type !== "relation" || !("target" in attribute)) return;
+      const target = attribute.target as UID.ContentType;
+      // Only the collaboration hooks link an invite to an article, and they
+      // write through `db.query`, which never reaches this middleware.
+      if (target === KOLABORASI_UID && referencesIn(value).length > 0) {
+        throw new errors.ForbiddenError("Undangan kolaborasi tidak bisa ditautkan secara manual.");
+      }
+      if (!("ownerKey" in strapi.contentType(target).attributes)) return;
+      targets.set(target, [...(targets.get(target) ?? []), ...referencesIn(value)]);
+    },
+    {
+      schema: strapi.contentType(uid),
+      getModel: (model) => strapi.getModel(model as UID.Schema),
+    },
+    (data ?? {}) as Parameters<typeof traverseEntity>[2],
+  );
+  /* oxlint-enable typescript/no-unsafe-type-assertion */
+
+  const owners: string[] = [];
+  for (const [target, references] of targets) {
+    if (references.length === 0) continue;
+    const rows: { ownerKey: string }[] = await strapi.db.query(target).findMany({
+      where: {
+        $or: [
+          { documentId: { $in: references.filter((ref) => typeof ref === "string") } },
+          { id: { $in: references.filter((ref) => typeof ref === "number") } },
+        ],
+      },
+      select: ["ownerKey"],
+    });
+    owners.push(...rows.map((row) => row.ownerKey));
+  }
+  return owners;
 }
