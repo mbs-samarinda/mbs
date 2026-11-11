@@ -19,28 +19,12 @@ readonly PROFILE_TAG=${1:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
 readonly CMS_TAG=${2:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
 readonly API_TAG=${3:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
 
-readonly ROOT=/opt/mbs
-readonly ENV_FILE=$ROOT/.env
-# The three image pins, in their own file rather than passed inline.
-#
-# compose interpolates the WHOLE file on every command, not just `up` — so with
-# these exported for one command only, a plain `compose exec postgres pg_dump`
-# fails with "required variable API_IMAGE is missing a value". That is the
-# backup step below, and the probe step, and every compose call in backup.sh.
-#
-# Separate from .env because this file is machine-written on each deploy and
-# .env holds hand-placed secrets that nothing should ever rewrite.
-readonly IMAGES_FILE=$ROOT/images.env
+# shellcheck source=lib.sh
+source /opt/mbs/lib.sh
 # A copy of images.env, taken only once a deploy has passed every check below.
 # images.env itself is rewritten before anything is proven, so after a failure
 # this is the only record of what last worked.
 readonly LAST_GOOD_FILE=$ROOT/images.last-good.env
-readonly COMPOSE=(
-  "docker" "compose"
-  "--env-file" "$ENV_FILE"
-  "--env-file" "$IMAGES_FILE"
-  "-f" "$ROOT/compose.prod.yml"
-)
 readonly PROJECT=mbs-prod
 readonly NETWORK=${PROJECT}_default
 readonly CANDIDATE=mbs-deploy-candidate
@@ -113,18 +97,14 @@ trap on_exit EXIT
 
 # ---------------------------------------------------------------------------
 
-log "Reading $ENV_FILE"
-# compose enforces its own `${VAR:?}` guards when it parses this file, but the
-# candidate below is a plain `docker run`, which does no interpolation and no
-# such check. A variable missing from the file would reach the candidate unset,
-# and an unset PROFILE_APEX is not an error — it is a 404 on every host, which
-# reads as a failed smoke check rather than as a misconfigured box. So they are
-# asserted here, once, before anything starts.
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
-
+log "Checking $ENV_FILE"
+# lib.sh has already sourced $ENV_FILE. compose enforces its own `${VAR:?}`
+# guards when it parses that file, but the candidate below is a plain
+# `docker run`, which does no interpolation and no such check. A variable
+# missing from the file would reach the candidate unset, and an unset
+# PROFILE_APEX is not an error — it is a 404 on every host, which reads as a
+# failed smoke check rather than as a misconfigured box. So they are asserted
+# here, once, before anything starts.
 for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD; do
   if [[ -z ${!required:-} ]]; then
     echo "$ENV_FILE is missing $required" >&2
@@ -133,7 +113,8 @@ for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_P
 done
 
 log "Pinning $IMAGES_FILE"
-# Written before any compose command runs, for the reason above.
+# Written before any compose command runs: compose interpolates the whole file
+# on every command, so every one of them needs these pins (see lib.sh).
 cat > "$IMAGES_FILE" <<PINS
 # Written by deploy.sh on every deploy. Do not edit by hand.
 PROFILE_IMAGE=$REGISTRY/mbs-profile:$PROFILE_TAG

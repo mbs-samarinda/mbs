@@ -40,43 +40,13 @@ case $identity_path in
     ;;
 esac
 
-readonly ENV_FILE=/opt/mbs/.env
-# Both env files. compose interpolates the whole compose file on every command,
-# not just `up`, so without the image pins even `exec postgres pg_dump` refuses
-# to run — which is exactly how an early deploy failed.
-readonly IMAGES_FILE=/opt/mbs/images.env
-readonly COMPOSE=(
-  "docker" "compose"
-  "--env-file" "$ENV_FILE"
-  "--env-file" "$IMAGES_FILE"
-  "-f" "/opt/mbs/compose.prod.yml"
-)
-
-[[ -f $IMAGES_FILE ]] || {
-  echo "$IMAGES_FILE does not exist yet. deploy.sh writes it; run a deploy first." >&2
-  exit 1
-}
+# shellcheck source=lib.sh
+source /opt/mbs/lib.sh
+require_images_file
 readonly SCRATCH="${DB}_drill"
 
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
-
 : "${BACKUP_BUCKET:?$ENV_FILE needs BACKUP_BUCKET}"
-export AWS_SECRET_ACCESS_KEY=$AWS_ACCESS_SECRET
-export AWS_DEFAULT_REGION=${AWS_REGION:-idn}
-
-# aws-cli v2 bundles its own CA store and ignores the system one. Biznet's chain
-# fails that bundle — "self-signed certificate in certificate chain" — while
-# curl on this host and Node's fetch both accept it against /etc/ssl/certs.
-# Measured on Ubuntu 26.04 with aws-cli 2.31.35: without this, every upload
-# fails, so every backup fails.
-#
-# Deliberately not --no-verify-ssl. That would accept any certificate, which on
-# the one channel carrying the database off the box is the wrong trade even
-# though the payload is already encrypted.
-export AWS_CA_BUNDLE=${AWS_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}
+use_aws
 
 echo "== newest backup of $DB"
 # Names carry an ISO 8601 timestamp, so the newest is the last one sorted.

@@ -12,27 +12,9 @@
 # infra/restore-drill.sh, and read the warning in it about where the key lives.
 set -euo pipefail
 
-readonly ENV_FILE=/opt/mbs/.env
-# Both env files. compose interpolates the whole compose file on every command,
-# not just `up`, so without the image pins even `exec postgres pg_dump` refuses
-# to run — which is exactly how an early deploy failed.
-readonly IMAGES_FILE=/opt/mbs/images.env
-readonly COMPOSE=(
-  "docker" "compose"
-  "--env-file" "$ENV_FILE"
-  "--env-file" "$IMAGES_FILE"
-  "-f" "/opt/mbs/compose.prod.yml"
-)
-
-[[ -f $IMAGES_FILE ]] || {
-  echo "$IMAGES_FILE does not exist yet. deploy.sh writes it; run a deploy first." >&2
-  exit 1
-}
-
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+# shellcheck source=lib.sh
+source /opt/mbs/lib.sh
+require_images_file
 
 # The public half of the age key, and only the public half. The box can encrypt
 # with this and cannot decrypt anything — which is the whole point: the previous
@@ -43,23 +25,7 @@ set +a
 : "${AWS_ENDPOINT:?$ENV_FILE needs AWS_ENDPOINT}"
 : "${AWS_ACCESS_KEY_ID:?$ENV_FILE needs AWS_ACCESS_KEY_ID}"
 : "${AWS_ACCESS_SECRET:?$ENV_FILE needs AWS_ACCESS_SECRET}"
-
-# The aws CLI reads this name, and the rest of the stack calls it
-# AWS_ACCESS_SECRET, so it is bridged here rather than duplicated in the env
-# file where the two could drift.
-export AWS_SECRET_ACCESS_KEY=$AWS_ACCESS_SECRET
-export AWS_DEFAULT_REGION=${AWS_REGION:-idn}
-
-# aws-cli v2 bundles its own CA store and ignores the system one. Biznet's chain
-# fails that bundle — "self-signed certificate in certificate chain" — while
-# curl on this host and Node's fetch both accept it against /etc/ssl/certs.
-# Measured on Ubuntu 26.04 with aws-cli 2.31.35: without this, every upload
-# fails, so every backup fails.
-#
-# Deliberately not --no-verify-ssl. That would accept any certificate, which on
-# the one channel carrying the database off the box is the wrong trade even
-# though the payload is already encrypted.
-export AWS_CA_BUNDLE=${AWS_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}
+use_aws
 
 STAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 readonly STAMP
