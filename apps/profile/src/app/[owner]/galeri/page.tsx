@@ -1,9 +1,7 @@
-import { SCHOOLS } from "@mbs/school-config";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
 import { getAlbums, getPage } from "../../../cms.ts";
-import { OWNERS } from "../../../owners.ts";
+import { requireSchool } from "../../../owners.ts";
 import { PageHead, Photo, SECTION, WIDTH } from "../sections.tsx";
 
 export async function generateMetadata({
@@ -11,9 +9,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
-  const { owner: key } = await params;
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!school) return {};
+  const school = await requireSchool(params);
 
   const page = await getPage(school.key, "galeri");
   return {
@@ -40,12 +36,9 @@ const MONTH = new Intl.DateTimeFormat("id-ID", {
  * to the branded 404 by `ownerLacksPath` before this renders.
  */
 export default async function GaleriPage({ params }: { params: Promise<{ owner: string }> }) {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!owner || !school) notFound();
+  const school = await requireSchool(params);
 
-  const albums = await getAlbums(owner.key);
+  const albums = await getAlbums(school.key);
 
   return (
     <main>

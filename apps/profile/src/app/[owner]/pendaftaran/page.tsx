@@ -1,34 +1,29 @@
-import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
+import type { SchoolKey } from "@mbs/school-config";
 import { Badge } from "@mbs/ui/components/badge";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
 import { Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { getCycleFacts, isOpen, splitDocuments, type CycleFacts } from "../../../admission.ts";
-import { getPage, getSite, type Block, type Site } from "../../../cms.ts";
-import { admissionUrl } from "../../../owners.ts";
 import {
-  Fact,
-  FactStrip,
-  PageHead,
-  SECTION,
-  SectionHeading,
-  WIDTH,
-  formatDate,
+  type CycleFacts,
   formatFee,
-} from "../sections.tsx";
+  getCycleFacts,
+  isOpen,
+  splitDocuments,
+} from "../../../admission.ts";
+import { formatDate } from "../../../articles.ts";
+import { getPage, getSite, type Block, type Site } from "../../../cms.ts";
+import { admissionUrl, requireSchool } from "../../../owners.ts";
+import { Fact, FactStrip, PageHead, SECTION, SectionHeading, WIDTH } from "../sections.tsx";
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
-  const { owner: key } = await params;
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!school) return {};
+  const school = await requireSchool(params);
 
   const page = await getPage(school.key, "pendaftaran");
   return {
@@ -45,9 +40,7 @@ export async function generateMetadata({
  * around the facts — the FAQ and any extra text block — and nothing else here.
  */
 export default async function AdmissionPage({ params }: { params: Promise<{ owner: string }> }) {
-  const { owner: key } = await params;
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!school) notFound();
+  const school = await requireSchool(params);
 
   const [site, page] = await Promise.all([getSite(school.key), getPage(school.key, "pendaftaran")]);
 

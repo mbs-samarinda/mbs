@@ -31,8 +31,9 @@ export const COOKIE_SUFFIX =
  *
  * It has to be an inline, synchronous script. React cannot do this: the class
  * depends on a cookie and on the operating system, and the alternative — having
- * the server read the cookie — would make every page dynamic and undo the
- * static rendering this whole application is shaped around.
+ * the server read the cookie — would put a request-time read in the root layout
+ * and rule out a static shell for any page. The deploy builds none today
+ * (compile mode), but the pages are kept able to.
  *
  * It also sets `color-scheme`, which is what tells the browser to darken the
  * things CSS does not own: scrollbars, form controls, and the space behind an

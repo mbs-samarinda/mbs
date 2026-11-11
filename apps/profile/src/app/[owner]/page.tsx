@@ -1,10 +1,8 @@
-import { SCHOOLS } from "@mbs/school-config";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { getPage, getSite } from "../../cms.ts";
-import { OWNERS } from "../../owners.ts";
+import { isUmbrella, requireOwner } from "../../owners.ts";
 import { Listing, ListingPlaceholder, type Params } from "./artikel/listing.tsx";
 import { AdmissionBandSection, BlockSection } from "./sections.tsx";
 
@@ -13,9 +11,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) return {};
+  const owner = await requireOwner(params);
 
   const page = await getPage(owner.key, "home");
   return {
@@ -40,16 +36,10 @@ export default async function OwnerHomePage({
   params: Promise<{ owner: string }>;
   searchParams: Promise<Params>;
 }) {
-  const { owner: key } = await params;
-  // The layout above rejects a key that is no owner's before this renders, so
-  // this cannot fire. It raises rather than falling back to an owner, because
-  // substituting one would turn the failure the guard exists to stop — one
-  // owner's content under another owner's hostname — into a successful page.
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  if (!owner) notFound();
+  const owner = await requireOwner(params);
 
   const [site, page] = await Promise.all([getSite(owner.key), getPage(owner.key, "home")]);
-  const school = SCHOOLS.find((candidate) => candidate.key === owner.key);
+  const school = isUmbrella(owner) ? null : owner;
 
   return (
     <main>

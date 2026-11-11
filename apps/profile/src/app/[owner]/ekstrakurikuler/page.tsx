@@ -1,9 +1,7 @@
-import { SCHOOLS } from "@mbs/school-config";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
 import { getEntries, getPage } from "../../../cms.ts";
-import { OWNERS } from "../../../owners.ts";
+import { requireSchool } from "../../../owners.ts";
 import { EntryCard, PageHead, SECTION, WIDTH } from "../sections.tsx";
 
 export async function generateMetadata({
@@ -11,9 +9,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ owner: string }>;
 }): Promise<Metadata> {
-  const { owner: key } = await params;
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!school) return {};
+  const school = await requireSchool(params);
 
   const page = await getPage(school.key, "ekstrakurikuler");
   return {
@@ -31,23 +27,15 @@ export async function generateMetadata({
  *
  * School-only, the shape `/program` established — the umbrella runs no classes,
  * so the apex answers 404 rather than an empty grid.
- *
- * The apex never reaches this guard: `ownerLacksPath` in `owners.ts` sends it to
- * an unclaimed path, so `global-not-found.tsx` answers with the branded 404. The
- * check stays because it is what narrows `school` for the code below, and because
- * a page should not depend on the proxy having run.
  */
 export default async function EkstrakurikulerPage({
   params,
 }: {
   params: Promise<{ owner: string }>;
 }) {
-  const { owner: key } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!owner || !school) notFound();
+  const school = await requireSchool(params);
 
-  const entries = await getEntries(owner.key, "ekstrakurikuler-list");
+  const entries = await getEntries(school.key, "ekstrakurikuler-list");
 
   return (
     <main>

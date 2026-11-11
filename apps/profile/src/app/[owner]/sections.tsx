@@ -24,8 +24,8 @@ import {
 import Image from "next/image";
 import { Suspense, type ReactNode } from "react";
 
-import { getCycleFacts, isOpen, type CycleFacts } from "../../admission.ts";
-import { ARTICLE_KINDS, badgeOwners } from "../../articles.ts";
+import { type CycleFacts, formatFee, getCycleFacts, isOpen } from "../../admission.ts";
+import { ARTICLE_KINDS, badgeOwners, formatDate } from "../../articles.ts";
 import {
   getArticles,
   getEntries,
@@ -40,7 +40,7 @@ import {
   type Site,
   type ValueIcon,
 } from "../../cms.ts";
-import { OWNERS, ownerUrl, type Owner } from "../../owners.ts";
+import { articleHref, type Owner, ownerByKey, ownerUrl } from "../../owners.ts";
 import { Prose } from "./prose.tsx";
 
 /**
@@ -55,26 +55,6 @@ import { Prose } from "./prose.tsx";
 /** Section rhythm: 48px at tablet, 120px on a desktop page, per the canvas. */
 export const SECTION = "px-4 py-12 md:px-12 md:py-12 lg:px-30 lg:py-15";
 export const WIDTH = "mx-auto w-full max-w-300";
-
-const DATE = new Intl.DateTimeFormat("id-ID", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  // Pinned, not left to the server's clock. A close time of 17.00 UTC is the
-  // 31st on a UTC host and the 1st in Samarinda, and a wrong admission date is
-  // the failure this whole product is built against.
-  timeZone: "Asia/Makassar",
-});
-
-/** Short form, for fact strips and tables. Prose and headlines spell the month. */
-export const formatDate = (iso: string) => DATE.format(new Date(iso));
-
-/**
- * Where a card leads. Relative on the article's home site; the full address
- * everywhere else, because its page only exists on its primary's host.
- */
-export const articleHref = (article: Article, site: Owner["key"]) =>
-  `${article.ownerKey === site ? "/" : ownerUrl(ownerOf(article.ownerKey))}artikel/${article.type}/${article.slug}`;
 
 /**
  * The type, named rather than implied: the mix leans to notices, and a listing
@@ -101,8 +81,6 @@ export const ArticleMeta = ({ article, site }: { article: Article; site: Owner["
   </span>
 );
 
-const ownerOf = (key: Owner["key"]) => OWNERS.find((owner) => owner.key === key) ?? OWNERS[0];
-
 /**
  * One quiet badge per owner, beside the type badge. Each wears its own school's
  * palette through `data-owner`, so an SMK badge is blue on SMP's green site.
@@ -111,27 +89,9 @@ const ownerOf = (key: Owner["key"]) => OWNERS.find((owner) => owner.key === key)
 export const OwnerBadges = ({ article, site }: { article: Article; site: Owner["key"] }) =>
   badgeOwners(article, site).map((key) => (
     <Badge key={key} data-owner={key} className="bg-surface-brand text-primary">
-      {ownerOf(key).level}
+      {ownerByKey(key).level}
     </Badge>
   ));
-
-const LONG_DATE = new Intl.DateTimeFormat("id-ID", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-  timeZone: "Asia/Makassar",
-});
-
-/** Spelled out, for prose and for an article's byline. One format per context. */
-export const formatLongDate = (iso: string) => LONG_DATE.format(new Date(iso));
-
-/** Whole rupiah. The API carries no fractional fee and none is ever displayed. */
-export const formatFee = (amount: number) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(amount);
 
 /**
  * The lists an editor types one per line into a `text` field.
@@ -258,8 +218,8 @@ export function Fact({ label, children }: { label: string; children: ReactNode }
 /**
  * The admission invitation, reading live cycle facts.
  *
- * `facts` is `null` while the request is in flight: the rest of the page is
- * prerendered and this band streams in, so the shell ships with the heading and
+ * `facts` is `null` while the request is in flight: the rest of the page
+ * renders first and this band streams in, so the shell ships with the heading and
  * a placeholder that holds its height.
  *
  * There is no stale-date path. When the call fails the band says so and offers

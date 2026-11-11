@@ -1,10 +1,10 @@
-import { SCHOOLS } from "@mbs/school-config";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { formatLongDate } from "../../../../articles.ts";
 import { getAlbum, mediaUrl } from "../../../../cms.ts";
-import { OWNERS, ownerUrl } from "../../../../owners.ts";
-import { EntryHead, Photo, SECTION, WIDTH, formatLongDate } from "../../sections.tsx";
+import { ownerUrl, requireSchool } from "../../../../owners.ts";
+import { EntryHead, Photo, SECTION, WIDTH } from "../../sections.tsx";
 
 type Params = Promise<{ owner: string; slug: string }>;
 
@@ -12,10 +12,8 @@ const SECTION_INFO = { base: "/galeri", label: "Galeri" } as const;
 
 /** Resolves the school and the album together, or gives up. */
 async function read(params: Params) {
-  const { owner: key, slug } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!owner || !school) return null;
+  const { slug } = await params;
+  const owner = await requireSchool(params);
 
   const album = await getAlbum(owner.key, slug);
   return album ? { owner, album } : null;

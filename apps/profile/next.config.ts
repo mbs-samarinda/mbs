@@ -13,8 +13,7 @@ import type { NextConfig } from "next";
 // This is read at BUILD time while `cms.ts` builds the image `src` at request
 // time. A deploy that builds and serves with different values gets exactly the
 // "hostname is not configured" failure this exists to prevent, so `CMS_URL`
-// belongs in the build environment — the same rule `owners.ts` states for
-// `PROFILE_APEX`.
+// belongs in the build environment as well as the runtime one.
 const cms = new URL(process.env.CMS_URL || "http://localhost:1337");
 
 // Once media lives in S3, Strapi returns absolute URLs on the bucket's host and

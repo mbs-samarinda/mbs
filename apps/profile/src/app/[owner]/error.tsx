@@ -2,7 +2,7 @@
 
 import { Button } from "@mbs/ui/components/button";
 
-import { OWNERS, type Owner } from "../../owners.ts";
+import { ownerFromBrowserHost } from "../../owners.ts";
 import { Exception } from "../exception.tsx";
 
 /**
@@ -23,11 +23,7 @@ export default function OwnerError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  // `^www.` is stripped for the same reason the proxy strips it: the owner is
-  // the label after it, and without this a `www.` visitor gets the umbrella's
-  // links and palette on their school's error page.
-  const label = globalThis.location?.hostname.replace(/^www\./, "").split(".")[0];
-  const owner: Owner | null = OWNERS.find((candidate) => candidate.subdomain === label) ?? null;
+  const owner = ownerFromBrowserHost(globalThis.location?.hostname);
 
   return (
     <Exception

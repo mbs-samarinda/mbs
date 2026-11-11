@@ -1,6 +1,14 @@
 import { afterEach, expect, test, vi } from "vitest";
 
-import { ownerFromHostname, ownerHost, OWNERS, ownerUrl } from "./owners.ts";
+import type { Article } from "./articles.ts";
+import {
+  articleHref,
+  ownerFromBrowserHost,
+  ownerFromHostname,
+  ownerHost,
+  OWNERS,
+  ownerUrl,
+} from "./owners.ts";
 
 test("the apex is the umbrella", () => {
   expect(ownerFromHostname("mbss.sch.id")?.key).toBe("mbs");
@@ -77,4 +85,20 @@ test("no other host resolves to an owner", () => {
 test("there are four owners and only the umbrella has no subdomain", () => {
   expect(OWNERS.map((owner) => owner.key)).toEqual(["mbs", "smp", "smk", "sma"]);
   expect(OWNERS.filter((owner) => owner.subdomain === null)).toHaveLength(1);
+});
+
+const article = (ownerKey: Article["ownerKey"]) =>
+  ({ ownerKey, type: "berita", slug: "wisuda" }) as const;
+
+test("an article links relatively on its own site and absolutely from any other", () => {
+  expect(articleHref(article("smp"), "smp")).toBe("/artikel/berita/wisuda");
+  expect(articleHref(article("smp"), "mbs")).toBe("https://smp.mbss.sch.id/artikel/berita/wisuda");
+  expect(articleHref(article("mbs"), "sma")).toBe("https://mbss.sch.id/artikel/berita/wisuda");
+});
+
+test("an error page finds its school from the first label on any apex, www or not", () => {
+  expect(ownerFromBrowserHost("smk.staging.example.com")?.key).toBe("smk");
+  expect(ownerFromBrowserHost("www.sma.mbss.sch.id")?.key).toBe("sma");
+  expect(ownerFromBrowserHost("mbss.sch.id")).toBeNull();
+  expect(ownerFromBrowserHost(undefined)).toBeNull();
 });

@@ -1,9 +1,8 @@
-import { SCHOOLS } from "@mbs/school-config";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getEntry, mediaUrl } from "../../../../cms.ts";
-import { OWNERS, ownerUrl } from "../../../../owners.ts";
+import { ownerUrl, requireSchool } from "../../../../owners.ts";
 import { Prose } from "../../prose.tsx";
 import {
   ENTRY_SECTIONS,
@@ -21,10 +20,8 @@ const SECTION_INFO = ENTRY_SECTIONS["fasilitas-list"];
 
 /** Resolves the school and the facility together, or gives up. */
 async function read(params: Params) {
-  const { owner: key, slug } = await params;
-  const owner = OWNERS.find((candidate) => candidate.key === key);
-  const school = SCHOOLS.find((candidate) => candidate.key === key);
-  if (!owner || !school) return null;
+  const { slug } = await params;
+  const owner = await requireSchool(params);
 
   const entry = await getEntry(owner.key, "fasilitas-list", slug);
   return entry ? { owner, entry } : null;
