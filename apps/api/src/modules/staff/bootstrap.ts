@@ -102,8 +102,8 @@ export async function ensureBootstrapAdministrator(db: Database, rawEmail: strin
   });
 }
 
-async function requireSchools(tx: Transaction) {
-  const schools = await findSchoolIdsByKeys(tx, SCHOOL_KEYS);
+export async function requireSchools(db: Database | Transaction) {
+  const schools = await findSchoolIdsByKeys(db, SCHOOL_KEYS);
   if (schools.length !== SCHOOL_KEYS.length) {
     throw new Error("Schools are missing. Run the migrations before starting the API.");
   }

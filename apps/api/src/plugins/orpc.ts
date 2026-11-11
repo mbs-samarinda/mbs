@@ -1,6 +1,7 @@
 import { contract } from "@mbs/api-contract";
 import type { Database } from "@mbs/db";
 import { implement, ORPCError } from "@orpc/server";
+import type { FastifyBaseLogger } from "fastify";
 
 import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from "../errors.ts";
 import { requireRole, resolveStaff, type SessionUser } from "../modules/auth/authorization.ts";
@@ -9,6 +10,8 @@ export type ApiContext = {
   db: Database;
   /** The Better Auth session user, already resolved for this request. */
   sessionUser: SessionUser | null;
+  /** This request's logger, so a log line carries the request id. */
+  log: FastifyBaseLogger;
 };
 
 // Not exported: a procedure built straight from this one skips the error
@@ -19,7 +22,7 @@ const os = implement(contract).$context<ApiContext>();
 /**
  * The one place domain errors become transport errors. Services throw the small
  * classes in `../errors.ts`; nothing below this line knows about HTTP or oRPC.
- * Anything else is left alone and surfaces as a generic 500 with a request id.
+ * Anything else passes through as a generic 500; `../app.ts` logs it.
  */
 const translateErrors = os.middleware(async ({ next }) => {
   try {

@@ -1,6 +1,6 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import type { Database } from "@mbs/db";
-import { betterAuth } from "better-auth";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { APIError } from "better-auth/api";
 
 import type { Config } from "../../config/env.ts";
@@ -11,9 +11,13 @@ import { isApprovedLoginEmail } from "../staff/repository.ts";
  * tables, the Google handshake, and the session cookie. It owns no
  * authorization — who a signed-in person is allowed to be is resolved from the
  * staff tables in `../staff`.
+ *
+ * `logger` is optional so tests can build an auth instance without one; the
+ * server always passes the redacting logger from app.ts.
  */
-export function createAuth(db: Database, config: Config) {
+export function createAuth(db: Database, config: Config, logger?: BetterAuthOptions["logger"]) {
   return betterAuth({
+    logger,
     database: drizzleAdapter(db, { provider: "pg" }),
     secret: config.auth.secret,
     baseURL: config.auth.baseUrl,
@@ -27,8 +31,9 @@ export function createAuth(db: Database, config: Config) {
     },
     onAPIError: {
       // A rejected sign-in has to land somewhere the committee app owns.
-      // Without this it ends on Better Auth's own unstyled error page.
-      errorURL: `${config.auth.adminAppUrl}/access-denied`,
+      // Without this it ends on Better Auth's own unstyled error page. Better
+      // Auth appends `?error=<code>`, which is the flag the app can read.
+      errorURL: `${config.auth.adminAppUrl}/`,
     },
     advanced: {
       // Deliberately no crossSubDomainCookies. Cookies stay host-only so
@@ -48,9 +53,16 @@ export function createAuth(db: Database, config: Config) {
           // Replace it with a `hooks.before` on /sign-in/social, which can read
           // ctx.body.callbackURL and tell the committee app from the parent
           // app.
+          //
+          // Better Auth lowercases the email before this hook runs. It
+          // redirects to errorURL only when the error carries a code, and
+          // admission-admin's index route matches this one.
           before: async (user) => {
-            if (!(await isApprovedLoginEmail(db, user.email.toLowerCase()))) {
-              throw new APIError("FORBIDDEN", { message: "This account has no access." });
+            if (!(await isApprovedLoginEmail(db, user.email))) {
+              throw new APIError("FORBIDDEN", {
+                code: "account_not_approved",
+                message: "This account has no access.",
+              });
             }
           },
         },

@@ -10,7 +10,14 @@ export * as schema from "./schema.ts";
  * validated. This package never reads process.env at runtime.
  */
 export function createDatabase(url: string) {
-  const client = postgres(url, { max: 10 });
+  const client = postgres(url, {
+    max: 10,
+    connect_timeout: 10,
+    // Under Docker's 10 second stop grace, so shutdown can wait for a query.
+    // It also caps lock waits, the staff write lock included: a save queued
+    // behind others for 8 seconds fails instead of waiting longer.
+    connection: { statement_timeout: 8_000 },
+  });
   return drizzle(client, { schema });
 }
 
