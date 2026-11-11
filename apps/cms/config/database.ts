@@ -1,42 +1,28 @@
-import path from "path";
-
-import { isDatabaseClientKind } from "@strapi/database";
 import type { Core } from "@strapi/strapi";
 
-const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Database => {
-  // Defaults to postgres, not Strapi's usual sqlite: pg is the only driver
-  // installed, so a missing .env (CI, fresh clone) must pick the client that
-  // can actually load. Nothing connects until a query runs, which is why
-  // `strapi ts:generate-types` works with no database at all.
-  const client = env("DATABASE_CLIENT", "postgres");
+const REQUIRED = ["DATABASE_HOST", "DATABASE_NAME", "DATABASE_USERNAME", "DATABASE_PASSWORD"];
 
-  if (!isDatabaseClientKind(client)) {
-    throw new Error(
-      `Unsupported DATABASE_CLIENT: ${client}. Use "postgres", "mysql", or "sqlite".`,
-    );
+const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Database => {
+  // pg is the only driver installed. An old .env naming sqlite or mysql would
+  // otherwise land on Postgres without a word.
+  const client = env("DATABASE_CLIENT");
+  if (client && client !== "postgres") {
+    throw new Error(`DATABASE_CLIENT is "${client}", but the CMS only runs on postgres.`);
   }
 
-  const connections: Record<Core.Config.Database.ClientKind, Core.Config.Database["connection"]> = {
-    mysql: {
-      client: "mysql",
-      connection: {
-        host: env("DATABASE_HOST", "localhost"),
-        port: env.int("DATABASE_PORT", 3306),
-        database: env("DATABASE_NAME", "strapi"),
-        user: env("DATABASE_USERNAME", "strapi"),
-        password: env("DATABASE_PASSWORD", "strapi"),
-        ssl: env.bool("DATABASE_SSL", false) && {
-          key: env("DATABASE_SSL_KEY", undefined),
-          cert: env("DATABASE_SSL_CERT", undefined),
-          ca: env("DATABASE_SSL_CA", undefined),
-          capath: env("DATABASE_SSL_CAPATH", undefined),
-          cipher: env("DATABASE_SSL_CIPHER", undefined),
-          rejectUnauthorized: env.bool("DATABASE_SSL_REJECT_UNAUTHORIZED", true),
-        },
-      },
-      pool: { min: env.int("DATABASE_POOL_MIN", 2), max: env.int("DATABASE_POOL_MAX", 10) },
-    },
-    postgres: {
+  // The defaults below suit a fresh clone, and only there. Anywhere else a
+  // missing variable is a broken deploy, and a default would aim the CMS at a
+  // database that is not there, or worse, one that is. Strapi sets an unset
+  // NODE_ENV to "development" before config loads. Nothing connects until a
+  // query runs, which is why `strapi ts:generate-types` works with no database.
+  const mode = env("NODE_ENV");
+  const missing = REQUIRED.filter((name) => !env(name));
+  if (mode !== "development" && mode !== "test" && missing.length > 0) {
+    throw new Error(`Missing database settings: ${missing.join(", ")}.`);
+  }
+
+  return {
+    connection: {
       client: "postgres",
       connection: {
         // No connectionString on purpose. The API exports DATABASE_URL for the
@@ -59,19 +45,6 @@ const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Database 
         schema: env("DATABASE_SCHEMA", "public"),
       },
       pool: { min: env.int("DATABASE_POOL_MIN", 2), max: env.int("DATABASE_POOL_MAX", 10) },
-    },
-    sqlite: {
-      client: "sqlite",
-      connection: {
-        filename: path.join(__dirname, "..", "..", env("DATABASE_FILENAME", ".tmp/data.db")),
-      },
-      useNullAsDefault: true,
-    },
-  };
-
-  return {
-    connection: {
-      ...connections[client],
       acquireConnectionTimeout: env.int("DATABASE_CONNECTION_TIMEOUT", 60000),
     },
   };

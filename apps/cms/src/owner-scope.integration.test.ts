@@ -25,7 +25,6 @@ const assert = require("node:assert/strict") as typeof import("node:assert/stric
 // a database anybody works in. Defaults are set before Strapi loads `.env` —
 // dotenv leaves an existing variable alone — and then checked, so a developer's
 // own `DATABASE_NAME=mbs_cms` cannot reach this suite by accident.
-process.env.DATABASE_CLIENT ??= "postgres";
 process.env.DATABASE_HOST ??= "localhost";
 process.env.DATABASE_PORT ??= "5432";
 process.env.DATABASE_NAME ??= "mbs_cms_test";
@@ -875,5 +874,50 @@ void describe("artikel", () => {
     // A second boot with the marker set changes nothing.
     await boot();
     assert.deepEqual(await read(), after);
+  });
+});
+
+const setEnv = (values: Record<string, string | undefined>) => {
+  for (const [name, value] of Object.entries(values)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+};
+
+void describe("database config", () => {
+  const { env } = require("@strapi/utils") as Core.Config.Shared.ConfigParams;
+  const { default: databaseConfig } =
+    require("../config/database.ts") as typeof import("../config/database.ts");
+  const loadWith = (changes: Record<string, string | undefined>) => {
+    const saved = Object.fromEntries(Object.keys(changes).map((name) => [name, process.env[name]]));
+    setEnv(changes);
+    try {
+      databaseConfig({ env });
+    } finally {
+      setEnv(saved);
+    }
+  };
+
+  // An unset NODE_ENV never reaches the config: Strapi sets it to
+  // "development" first, so local commands and this suite still pass.
+  void it("refuses missing database settings outside development and test", () => {
+    for (const mode of ["production", "staging"]) {
+      assert.throws(
+        () => loadWith({ NODE_ENV: mode, DATABASE_HOST: undefined }),
+        /Missing database settings: DATABASE_HOST/,
+      );
+      assert.throws(() => loadWith({ NODE_ENV: mode, DATABASE_HOST: "" }), /DATABASE_HOST/);
+    }
+    for (const mode of ["development", "test"]) {
+      assert.doesNotThrow(() => loadWith({ NODE_ENV: mode, DATABASE_HOST: undefined }));
+    }
+  });
+
+  void it("refuses a DATABASE_CLIENT other than postgres", () => {
+    const client = (value: string | undefined) => () =>
+      loadWith({ NODE_ENV: "development", DATABASE_CLIENT: value });
+    assert.throws(client("sqlite"), /DATABASE_CLIENT/);
+    assert.throws(client("mysql"), /DATABASE_CLIENT/);
+    for (const value of ["postgres", "", undefined]) assert.doesNotThrow(client(value));
   });
 });
