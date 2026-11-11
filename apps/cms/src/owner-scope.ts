@@ -24,11 +24,14 @@ const CREATE = "plugin::content-manager.explorer.create";
 const UPDATE = "plugin::content-manager.explorer.update";
 const DELETE = "plugin::content-manager.explorer.delete";
 
+const PAGE_UID = "api::page.page";
+
 // Editors compose inside these two; they never add or remove one. `slug` is an
 // enumeration and a `Page` row exists per route, so a new page is a code change,
 // deleting one takes a live route down, and deleting a `Site` row breaks every
-// page of that owner's profile, which throws when it is missing.
-const NO_CREATE_OR_DELETE = new Set<string>(["api::page.page", "api::site.site"]);
+// page of that owner's profile, which throws when it is missing. Renaming a
+// page's slug does the same as deleting it, so editors cannot write that field.
+const NO_CREATE_OR_DELETE = new Set<string>([PAGE_UID, "api::site.site"]);
 
 // Media cannot be scoped: the upload plugin registers its actions with no
 // subject, and a condition filters a query by subject. So these are granted
@@ -57,7 +60,6 @@ type SeedPermission = {
 
 type PermissionService = {
   actionProvider: { values(): Action[] };
-  createMany(permissions: (SeedPermission & { role: number })[]): Promise<unknown>;
   conditionProvider: {
     has(id: string): boolean;
     register(condition: {
@@ -69,7 +71,11 @@ type PermissionService = {
 };
 
 type ContentTypeService = {
-  getPermissionsWithNestedFields(actions: Action[]): { action: string; subject: string }[];
+  getPermissionsWithNestedFields(actions: Action[]): {
+    action: string;
+    subject: string;
+    properties?: { fields?: string[] };
+  }[];
 };
 
 type RoleService = {
@@ -156,40 +162,43 @@ export async function registerOwnerScope(strapi: Core.Strapi) {
 }
 
 /**
- * One role for every editor, created if it is missing and never re-asserted.
+ * One role for every editor, rebuilt from this file on every boot.
  *
- * Same rule as `seedSites`, for a sharper reason: `assignPermissions` diffs the
- * list it is given against what the role holds and deletes the difference, so
- * re-seeding on every boot would silently revert an administrator's panel edit.
+ * `assignPermissions` diffs the list it is given against what the role holds,
+ * adds the missing and deletes the rest, so a boot that finds the role correct
+ * writes nothing. That makes code the only place the role is defined: a type
+ * added later reaches every database on its next boot, a role left empty by a
+ * crash between create and assign is repaired, and a change made to this role
+ * in the admin panel is reverted. Give someone different rights through a
+ * different role, not by editing this one.
  *
  * A global content administrator is this same role assigned all four owners.
  * Super Admin stays the developer account.
  */
-export async function seedEditorRole(strapi: Core.Strapi) {
+export async function syncEditorRole(strapi: Core.Strapi) {
   const roles = roleService(strapi);
-  const existing = await roles.findOne({ code: EDITOR_ROLE_CODE });
-  if (existing) return;
+  const role =
+    (await roles.findOne({ code: EDITOR_ROLE_CODE })) ??
+    (await roles.create({
+      name: "Editor Konten",
+      code: EDITOR_ROLE_CODE,
+      description:
+        "Mengelola konten pemilik yang ditugaskan pada barisnya di Penugasan Editor. Tidak bisa menambah atau menghapus Halaman dan Situs.",
+    }));
 
-  const role = await roles.create({
-    name: "Editor Konten",
-    code: EDITOR_ROLE_CODE,
-    description:
-      "Mengelola konten pemilik yang ditugaskan pada barisnya di Penugasan Editor. Tidak bisa menambah atau menghapus Halaman dan Situs.",
-  });
-
-  // Kolaborasi carries an owner but gets its own narrower grant, from
-  // `grantKolaborasi`, which runs once per database after this.
-  const permissions = editorPermissions(
-    strapi,
-    new Set(scopedUids(strapi).filter((uid) => uid !== KOLABORASI_UID)),
-  );
-  permissions.push(...MEDIA_ACTIONS.map((action) => ({ action, conditions: [] })));
-
-  await roles.assignPermissions(role.id, permissions);
+  await roles.assignPermissions(role.id, [
+    ...editorPermissions(strapi),
+    ...KOLABORASI_PERMISSIONS,
+    ...MEDIA_ACTIONS.map((action) => ({ action, conditions: [] })),
+  ]);
 }
 
-/** Every content-manager action on these types, each narrowed to the editor's owners. */
-function editorPermissions(strapi: Core.Strapi, subjects: ReadonlySet<string>): SeedPermission[] {
+/**
+ * Every content-manager action on every owned type except Kolaborasi, each
+ * narrowed to the editor's owners.
+ */
+function editorPermissions(strapi: Core.Strapi): SeedPermission[] {
+  const subjects = new Set(scopedUids(strapi).filter((uid) => uid !== KOLABORASI_UID));
   const actions = permissionService(strapi)
     .actionProvider.values()
     .filter((action) => action.section === "contentTypes");
@@ -202,44 +211,31 @@ function editorPermissions(strapi: Core.Strapi, subjects: ReadonlySet<string>): 
         ({ action, subject }) =>
           !(NO_CREATE_OR_DELETE.has(subject) && (action === CREATE || action === DELETE)),
       )
-      // The field list that call just computed is dropped on purpose. A rule whose
-      // `fields` is nil means every field, so the page slices still to come can
-      // add block fields without anybody re-ticking checkboxes. Opening the role
-      // in the admin panel and saving it writes an explicit list and ends that.
-      //
       // Exactly one condition per permission: results are combined as
       // `{ $and: [{ $or: results }] }`, so a second condition returning `true`
       // would discard the owner filter.
-      .map(({ action, subject }) => ({ action, subject, conditions: [OWNER_SCOPE_CONDITION] }))
+      .map(({ action, subject, properties }) =>
+        action === UPDATE && subject === PAGE_UID
+          ? {
+              action,
+              subject,
+              properties: {
+                fields: withoutSlug(properties?.fields),
+              },
+              conditions: [OWNER_SCOPE_CONDITION],
+            }
+          : // No field list means every field, so a field added to a schema
+            // later needs nobody to tick a box.
+            { action, subject, conditions: [OWNER_SCOPE_CONDITION] },
+      )
   );
 }
 
-/**
- * Adds content types that arrived after the editor role was seeded.
- *
- * The role is created once and never re-asserted, so a type added later is
- * invisible to every editor on a database that already has the role. Same
- * add-not-replace rule as `grantKolaborasi`, and it runs under `backfillOnce`
- * for the same reason. A type the role already holds anything on is skipped:
- * someone set it by hand, or the role was seeded after the type existed.
- */
-export async function grantEditorTypes(
-  strapi: Core.Strapi,
-  uids: readonly string[],
-): Promise<boolean> {
-  const role = await roleService(strapi).findOne({ code: EDITOR_ROLE_CODE });
-  if (!role) return false;
-
-  const held: { subject: string }[] = await strapi.db
-    .query("admin::permission")
-    .findMany({ where: { role: role.id, subject: { $in: uids } }, select: ["subject"] });
-  const missing = new Set(uids.filter((uid) => !held.some((row) => row.subject === uid)));
-  if (missing.size === 0) return false;
-
-  await permissionService(strapi).createMany(
-    editorPermissions(strapi, missing).map((permission) => ({ ...permission, role: role.id })),
-  );
-  return true;
+// Failing the boot beats either fallback: no list means every field, slug
+// included, and an empty list means an editor's page saves change nothing.
+function withoutSlug(fields: string[] | undefined): string[] {
+  if (!fields) throw new Error("Strapi returned no field list for Page update.");
+  return fields.filter((field) => field !== "slug");
 }
 
 /**
@@ -266,31 +262,6 @@ const KOLABORASI_PERMISSIONS: SeedPermission[] = [
   },
   { action: DELETE, subject: KOLABORASI_UID, conditions: [OWNER_SCOPE_CONDITION] },
 ];
-
-/**
- * Adds the Kolaborasi grant to the editor role, once.
- *
- * The role is seeded only when missing, so a database from before Kolaborasi
- * existed would never get it. This adds rather than re-assigns: `assignPermissions`
- * replaces the role's whole list and would undo whatever an administrator has
- * changed in the panel. It runs under `backfillOnce`, so an administrator who
- * later removes every Kolaborasi permission is not overruled on the next boot.
- * Any Kolaborasi permission already on the role means someone set it by hand.
- */
-export async function grantKolaborasi(strapi: Core.Strapi): Promise<boolean> {
-  const role = await roleService(strapi).findOne({ code: EDITOR_ROLE_CODE });
-  if (!role) return false;
-
-  const existing: { id: number } | null = await strapi.db
-    .query("admin::permission")
-    .findOne({ where: { role: role.id, subject: KOLABORASI_UID }, select: ["id"] });
-  if (existing) return false;
-
-  await permissionService(strapi).createMany(
-    KOLABORASI_PERMISSIONS.map((permission) => ({ ...permission, role: role.id })),
-  );
-  return true;
-}
 
 /** Has any row of this document ever carried a publication date? */
 async function everPublished(strapi: Core.Strapi, uid: UID.ContentType, documentId: string) {

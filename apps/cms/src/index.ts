@@ -1,13 +1,7 @@
 import type { Core } from "@strapi/strapi";
 
 import { ARTICLES, KOLABORASI_UID, trackCollaborations } from "./collaboration";
-import {
-  assertOwnerScope,
-  grantEditorTypes,
-  grantKolaborasi,
-  registerOwnerScope,
-  seedEditorRole,
-} from "./owner-scope";
+import { assertOwnerScope, registerOwnerScope, syncEditorRole } from "./owner-scope";
 import {
   BERITA_ENTRY_SEED,
   OPINI_ENTRY_SEED,
@@ -208,7 +202,14 @@ const PUBLIC_READ = [
   "api::kolaborasi.kolaborasi",
 ] as const;
 
-async function grantPublicRead(strapi: Core.Strapi) {
+/**
+ * Makes the Public role's content grants exactly `PUBLIC_READ`, on every boot.
+ *
+ * Only `api::` actions are touched: the role also holds the users-permissions
+ * plugin's own defaults, which are not ours to manage. A type taken off the list
+ * loses its public read on the next boot, which an add-only seed never did.
+ */
+async function syncPublicRead(strapi: Core.Strapi) {
   const role: { id: number } | null = await strapi.db
     .query("plugin::users-permissions.role")
     .findOne({ where: { type: "public" }, select: ["id"] });
@@ -218,18 +219,20 @@ async function grantPublicRead(strapi: Core.Strapi) {
     return;
   }
 
-  for (const uid of PUBLIC_READ) {
-    for (const verb of ["find", "findOne"]) {
-      const action = `${uid}.${verb}`;
-      const existing = await strapi.db
-        .query("plugin::users-permissions.permission")
-        .findOne({ where: { action, role: role.id }, select: ["id"] });
+  const permissions = strapi.db.query("plugin::users-permissions.permission");
+  const wanted = new Set(PUBLIC_READ.flatMap((uid) => [`${uid}.find`, `${uid}.findOne`]));
+  const held: { id: number; action: string }[] = await permissions.findMany({
+    where: { role: role.id, action: { $startsWith: "api::" } },
+    select: ["id", "action"],
+  });
 
-      if (existing) continue;
-      await strapi.db
-        .query("plugin::users-permissions.permission")
-        .create({ data: { action, role: role.id } });
-    }
+  const extra = held.filter((row) => !wanted.has(row.action));
+  if (extra.length > 0) {
+    await permissions.deleteMany({ where: { id: { $in: extra.map((row) => row.id) } } });
+  }
+  for (const action of wanted) {
+    if (held.some((row) => row.action === action)) continue;
+    await permissions.create({ data: { action, role: role.id } });
   }
 }
 
@@ -351,6 +354,11 @@ async function seedPages(
  * The marker lives in Strapi's own key-value store rather than in a field of
  * ours: it is a fact about this database's migration state, not about any
  * page. Clearing the key re-runs the repair, which is the rollback.
+ *
+ * A backfill only adds or reshapes content. Renaming a field or changing its
+ * type goes in `database/migrations` instead: Strapi syncs the schema before
+ * bootstrap and drops the old column on the way, so by the time a backfill
+ * runs the data it would copy is gone. Migrations run before that sync.
  */
 async function backfillOnce(strapi: Core.Strapi, key: string, run: () => Promise<boolean>) {
   const store = strapi.store({ type: "plugin", name: "mbs-seed" });
@@ -974,6 +982,60 @@ async function notifyProfile(strapi: Core.Strapi) {
   }
 }
 
+// Any number works, as long as every CMS instance uses the same one. It only
+// has to differ from the API's, which shares the Postgres server.
+const BOOT_LOCK = 4820194;
+
+/**
+ * Runs bootstrap while holding a Postgres advisory lock, so two instances that
+ * boot together take turns instead of both seeing a marker unset or a row
+ * missing and both writing it. The seeds and backfills below assume they run
+ * alone; this is what makes that true.
+ *
+ * A session lock belongs to one connection, so it is taken and released on a
+ * connection set aside for it. If the release fails, that connection is closed
+ * before it goes back to the pool: closing the session frees the lock, where a
+ * pooled connection still holding it would stall the next boot. The wait is bounded
+ * by `lock_timeout` (`BOOT_LOCK_TIMEOUT`, a Postgres time such as 30s, default 5min),
+ * so a hung instance stops the next boot with a reason instead of hanging it.
+ */
+async function withBootLock(strapi: Core.Strapi, run: () => Promise<void>) {
+  const wait = process.env.BOOT_LOCK_TIMEOUT || "5min";
+  const knex = strapi.db.connection;
+  const connection: unknown = await knex.client.acquireConnection();
+  try {
+    await knex.raw("select set_config('lock_timeout', ?, false)", [wait]).connection(connection);
+    await knex
+      .raw("select pg_advisory_lock(?)", [BOOT_LOCK])
+      .connection(connection)
+      .catch((error: unknown) => {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "55P03"
+        ) {
+          throw new Error(
+            `Another CMS instance has held the boot lock (${BOOT_LOCK}) for over ${wait}. Stop it, or find the session holding the lock in pg_locks.`,
+          );
+        }
+        throw error;
+      });
+    await run();
+  } finally {
+    // Also undoes `lock_timeout`, so the connection goes back to the pool as it came.
+    await knex
+      .raw("select pg_advisory_unlock_all(); reset lock_timeout")
+      .connection(connection)
+      .catch(async (error: unknown) => {
+        strapi.log.warn(`Boot lock release failed, closing its connection: ${String(error)}`);
+        // A failure here is already logged; it must not hide what `run` threw.
+        await knex.client.destroyRawConnection(connection).catch(() => undefined);
+      });
+    await knex.client.releaseConnection(connection);
+  }
+}
+
 export default {
   register({ strapi }: { strapi: Core.Strapi }) {
     // Registered here rather than configured in the admin panel's webhook
@@ -998,72 +1060,67 @@ export default {
   },
 
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
-    // The condition first: seeding a permission whose condition the provider
-    // does not know yet drops the condition and grants the permission outright.
-    await registerOwnerScope(strapi);
-    await seedEditorRole(strapi);
-    await backfillOnce(strapi, "kolaborasi-permissions", () => grantKolaborasi(strapi));
-    await grantPublicRead(strapi);
-    await seedSites(strapi);
-    // Galeri first: Unduhan anchors on the footer's `/berita` link, which
-    // Artikel then replaces. Artikel has to rename the `berita` page before
-    // `seedPages` sees no `artikel` row and makes one.
-    await backfillOnce(strapi, "galeri-unduhan-links", () => backfillSchoolLinks(strapi));
-    await backfillOnce(strapi, "artikel", () => backfillArtikel(strapi));
+    await withBootLock(strapi, async () => {
+      // The condition first: seeding a permission whose condition the provider
+      // does not know yet drops the condition and grants the permission outright.
+      await registerOwnerScope(strapi);
+      await syncEditorRole(strapi);
+      await syncPublicRead(strapi);
+      await seedSites(strapi);
+      // Galeri first: Unduhan anchors on the footer's `/berita` link, which
+      // Artikel then replaces. Artikel has to rename the `berita` page before
+      // `seedPages` sees no `artikel` row and makes one.
+      await backfillOnce(strapi, "galeri-unduhan-links", () => backfillSchoolLinks(strapi));
+      await backfillOnce(strapi, "artikel", () => backfillArtikel(strapi));
 
-    // Sample content is a development fixture and never reaches a real server.
-    //
-    // The structure above and below this block is different: a `Site` row is an
-    // identity every page reads — without one the profile app throws — and a
-    // `Page` row is the surface an editor composes on, one per route rather than
-    // something they create. Neither states a fact about a school.
-    //
-    // These records do. An article carries a date, an achievement carries a
-    // recipient, and a facility says a building exists. Publishing an invented
-    // one on a school's own website is a lie with a date on it, however plainly
-    // it was meant as a placeholder — and a half-finished deployment is exactly
-    // where nobody is looking. So a production CMS starts with real emptiness,
-    // which every page already handles, and an editor fills it.
-    if (process.env.NODE_ENV !== "production") {
-      // Records first: the homepage's sections point at them by document id, and
-      // the achievements point at the articles.
-      await seedEntries(strapi, "api::ekstrakurikuler.ekstrakurikuler", EKSTRAKURIKULER_SEED);
-      await seedEntries(strapi, "api::fasilitas.fasilitas", FASILITAS_SEED);
-      await seedArticles(strapi, "api::berita.berita", BERITA_ENTRY_SEED);
-      await seedArticles(strapi, "api::pengumuman.pengumuman", PENGUMUMAN_ENTRY_SEED);
-      await seedArticles(strapi, "api::opini.opini", OPINI_ENTRY_SEED);
-      await seedAchievements(strapi, PENCAPAIAN_SEED);
-    }
+      // Sample content is a development fixture and never reaches a real server.
+      //
+      // The structure above and below this block is different: a `Site` row is an
+      // identity every page reads — without one the profile app throws — and a
+      // `Page` row is the surface an editor composes on, one per route rather than
+      // something they create. Neither states a fact about a school.
+      //
+      // These records do. An article carries a date, an achievement carries a
+      // recipient, and a facility says a building exists. Publishing an invented
+      // one on a school's own website is a lie with a date on it, however plainly
+      // it was meant as a placeholder — and a half-finished deployment is exactly
+      // where nobody is looking. So a production CMS starts with real emptiness,
+      // which every page already handles, and an editor fills it.
+      if (process.env.NODE_ENV !== "production") {
+        // Records first: the homepage's sections point at them by document id, and
+        // the achievements point at the articles.
+        await seedEntries(strapi, "api::ekstrakurikuler.ekstrakurikuler", EKSTRAKURIKULER_SEED);
+        await seedEntries(strapi, "api::fasilitas.fasilitas", FASILITAS_SEED);
+        await seedArticles(strapi, "api::berita.berita", BERITA_ENTRY_SEED);
+        await seedArticles(strapi, "api::pengumuman.pengumuman", PENGUMUMAN_ENTRY_SEED);
+        await seedArticles(strapi, "api::opini.opini", OPINI_ENTRY_SEED);
+        await seedAchievements(strapi, PENCAPAIAN_SEED);
+      }
 
-    // `relationBlocks` reads what actually exists, so this is the seeded
-    // homepage in development and the plain one in production — same call, no
-    // second branch.
-    await seedPages(strapi, "home", await homeSeeds(strapi));
-    await seedPages(strapi, "profil", {
-      smp: await profilSeed(strapi, "smp"),
-      smk: await profilSeed(strapi, "smk"),
-      sma: await profilSeed(strapi, "sma"),
+      // `relationBlocks` reads what actually exists, so this is the seeded
+      // homepage in development and the plain one in production — same call, no
+      // second branch.
+      await seedPages(strapi, "home", await homeSeeds(strapi));
+      await seedPages(strapi, "profil", {
+        smp: await profilSeed(strapi, "smp"),
+        smk: await profilSeed(strapi, "smk"),
+        sma: await profilSeed(strapi, "sma"),
+      });
+      await seedPages(strapi, "program", PROGRAM_SEED);
+      await seedPages(strapi, "ekstrakurikuler", EKSTRAKURIKULER_PAGE_SEED);
+      await seedPages(strapi, "fasilitas", FASILITAS_PAGE_SEED);
+      await seedPages(strapi, "galeri", GALERI_PAGE_SEED);
+      await seedPages(strapi, "unduhan", UNDUHAN_PAGE_SEED);
+      await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
+      await seedPages(strapi, "kontak", KONTAK_SEED);
+      await seedPages(strapi, "artikel", ARTIKEL_SEED);
+
+      // After the seeds, and once per database: the rows above are only created
+      // when missing, so a section added to a seed later needs this to reach an
+      // environment that has already booted.
+      await backfillOnce(strapi, "apex-main-menu", () => backfillApexMainMenu(strapi));
+      await backfillOnce(strapi, "apex-home-only", () => backfillApexHomeOnly(strapi));
+      await backfillOnce(strapi, "apex-pages-deleted", () => deleteApexPages(strapi));
     });
-    await seedPages(strapi, "program", PROGRAM_SEED);
-    await seedPages(strapi, "ekstrakurikuler", EKSTRAKURIKULER_PAGE_SEED);
-    await seedPages(strapi, "fasilitas", FASILITAS_PAGE_SEED);
-    await seedPages(strapi, "galeri", GALERI_PAGE_SEED);
-    await seedPages(strapi, "unduhan", UNDUHAN_PAGE_SEED);
-    await seedPages(strapi, "pendaftaran", ADMISSION_SEED);
-    await seedPages(strapi, "kontak", KONTAK_SEED);
-    await seedPages(strapi, "artikel", ARTIKEL_SEED);
-
-    // After the seeds, and once per database: the rows above are only created
-    // when missing, so a section added to a seed later needs this to reach an
-    // environment that has already booted.
-    await backfillOnce(strapi, "apex-main-menu", () => backfillApexMainMenu(strapi));
-    await backfillOnce(strapi, "apex-home-only", () => backfillApexHomeOnly(strapi));
-    await backfillOnce(strapi, "apex-pages-deleted", () => deleteApexPages(strapi));
-    await backfillOnce(strapi, "galeri-unduhan-editors", () =>
-      grantEditorTypes(strapi, ["api::album.album", "api::berkas.berkas"]),
-    );
-    await backfillOnce(strapi, "opini-editors", () =>
-      grantEditorTypes(strapi, ["api::opini.opini"]),
-    );
   },
 };

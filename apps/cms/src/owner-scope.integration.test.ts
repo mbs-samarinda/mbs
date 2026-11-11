@@ -71,15 +71,13 @@ const { compileStrapi, createStrapi } = require("@strapi/strapi") as {
 // leaves `role` undefined and fails the suite on its first line.
 const EDITOR_ROLE_CODE = "mbs-editor-konten";
 
-const READ = "plugin::content-manager.explorer.read";
 const CREATE = "plugin::content-manager.explorer.create";
 const DELETE = "plugin::content-manager.explorer.delete";
 const PUBLISH = "plugin::content-manager.explorer.publish";
-const UPDATE = "plugin::content-manager.explorer.update";
 const KOLABORASI = "api::kolaborasi.kolaborasi";
 
 type AdminUser = { id: number; roles?: { code?: string }[] };
-type Rule = { action: string; subject: string; conditions?: unknown; fields?: unknown };
+type Rule = { action: string; subject: string };
 type Invite = { id: number; ownerKey: string; status: string; judul: string; alamat: string };
 
 let strapi: Core.Strapi;
@@ -101,7 +99,7 @@ const rulesFor = async (user: AdminUser): Promise<Rule[]> => {
   return ability.rules;
 };
 
-type ManagerAction = "clone" | "update";
+type ManagerAction = "clone" | "update" | "find";
 
 const refuse = (status: string) => () => {
   throw new Error(status);
@@ -128,7 +126,8 @@ const contentManager = async (
     state: { user, userAbility: await permissions.engine.generateUserAbility(user) },
     params,
     query: {},
-    request: { body },
+    request: { body, query: {} },
+    body: undefined as unknown,
     forbidden: refuse("forbidden"),
     notFound: refuse("not found"),
     badRequest: refuse("bad request"),
@@ -137,8 +136,22 @@ const contentManager = async (
     ManagerAction,
     (context: typeof ctx) => Promise<void>
   >;
-  return strapi.requestContext.run(ctx as never, () => controller[action](ctx));
+  await strapi.requestContext.run(ctx as never, () => controller[action](ctx));
+  return ctx.body;
 };
+
+/** The owners of the entries an admin user's list view shows for one type. */
+const listedOwners = async (user: AdminUser, model: string) => {
+  const body = (await contentManager(user, "find", { model }, {})) as {
+    results: { ownerKey: string }[];
+  };
+  return body.results.map((row) => row.ownerKey);
+};
+
+const boot = () =>
+  (strapi.app as { bootstrap: (context: { strapi: Core.Strapi }) => Promise<void> }).bootstrap({
+    strapi,
+  });
 
 /** An editor-role admin user assigned one owner. */
 const createEditor = async (ownerKey: "smp" | "smk" | "sma") => {
@@ -183,19 +196,13 @@ before(async () => {
 });
 
 void describe("owner scope", () => {
-  // The assertion with teeth. "A user with no assignment is granted nothing"
-  // would pass for an incidental reason — an unrecognised condition result is
-  // dropped and the permission is never registered — and so proves little. This
-  // one fails if the handler ever starts returning `true`, which would widen
-  // access to every owner rather than narrowing it.
-  void it("narrows an editor assigned only smp to smp", async () => {
-    const rules = await rulesFor(editor);
-    const read = rules.find(
-      (rule) => rule.action === READ && rule.subject === "api::berita.berita",
-    );
+  // Also the guard against the condition ever answering `true`, which would
+  // widen an editor to every owner rather than narrowing them.
+  void it("lists only smp entries to an editor assigned only smp", async () => {
+    const owners = await listedOwners(editor, "api::berita.berita");
 
-    assert.ok(read, "expected a read rule on Berita");
-    assert.deepEqual(read.conditions, { $and: [{ $or: [{ ownerKey: { $in: ["smp"] } }] }] });
+    assert.ok(owners.length > 0, "expected the seeded smp articles");
+    assert.deepEqual([...new Set(owners)], ["smp"]);
   });
 
   void it("gives no create and no delete on pages and sites, but keeps publish", async () => {
@@ -437,16 +444,35 @@ const tick = (documentId: string, collaborators: "smp"[] | "smk"[]) =>
   });
 
 void describe("collaboration", () => {
-  // The owner filter does the hiding: an SMK editor's Kolaborasi rules carry
-  // SMK's key and nothing else, so SMA's invites never reach its list.
+  // The owner filter does the hiding: an SMK editor's list never shows SMA's
+  // invites, and saving an invite changes its status and nothing else.
   void it("scopes an smk editor to its own invites, status only, no create", async () => {
-    const rules = (await rulesFor(smkEditor)).filter((rule) => rule.subject === KOLABORASI);
-    const read = rules.find((rule) => rule.action === READ);
-    const update = rules.find((rule) => rule.action === UPDATE);
+    const [invite] = await invitesOf(await publishedArticle(["smk"]));
+    assert.ok(invite, "expected an invite");
 
-    assert.deepEqual(read?.conditions, { $and: [{ $or: [{ ownerKey: { $in: ["smk"] } }] }] });
-    assert.deepEqual(update?.conditions, { $and: [{ $or: [{ ownerKey: { $in: ["smk"] } }] }] });
-    assert.deepEqual(update?.fields, ["status"]);
+    assert.deepEqual([...new Set(await listedOwners(smkEditor, KOLABORASI))], ["smk"]);
+
+    // Through the permission checker rather than the update route: the Content
+    // Manager reads a body field named `status` as the publication status and
+    // refuses "diterima" before any permission is consulted.
+    const permissions = strapi.service("admin::permission") as unknown as {
+      engine: { generateUserAbility(user: AdminUser): Promise<unknown> };
+    };
+    const checker = strapi
+      .plugin("content-manager")
+      .service("permission-checker")
+      .create({
+        userAbility: await permissions.engine.generateUserAbility(smkEditor),
+        model: KOLABORASI,
+      }) as {
+      sanitizeUpdateInput(entity: unknown): (body: unknown) => Promise<Record<string, unknown>>;
+    };
+    assert.deepEqual(
+      await checker.sanitizeUpdateInput(invite)({ status: "diterima", judul: "Diubah penerima" }),
+      { status: "diterima" },
+    );
+
+    const rules = (await rulesFor(smkEditor)).filter((rule) => rule.subject === KOLABORASI);
     assert.ok(rules.some((rule) => rule.action === DELETE));
     assert.ok(!rules.some((rule) => rule.action === CREATE));
   });
@@ -627,6 +653,124 @@ void describe("collaboration", () => {
   });
 });
 
+void describe("permissions", () => {
+  // The admin edit view sends the whole page back, slug included. The field is
+  // dropped from the save rather than failing it.
+  void it("saves an editor's page without changing its slug", async () => {
+    const page = await strapi
+      .documents("api::page.page")
+      .findFirst({ filters: { ownerKey: "smp", slug: "kontak" }, status: "draft" });
+    assert.ok(page, "expected the smp kontak page");
+    const title = `Kontak ${Date.now()}`;
+
+    await contentManager(
+      editor,
+      "update",
+      { model: "api::page.page", id: page.documentId },
+      { title, slug: "home" },
+    );
+
+    const saved = await strapi
+      .documents("api::page.page")
+      .findOne({ documentId: page.documentId, status: "draft" });
+    assert.equal(saved?.title, title);
+    assert.equal(saved?.slug, "kontak");
+  });
+
+  void it("repairs an editor role left with no permissions", async () => {
+    const role: { id: number } = await strapi.db
+      .query("admin::role")
+      .findOne({ where: { code: EDITOR_ROLE_CODE } });
+    await strapi.db.query("admin::permission").deleteMany({ where: { role: role.id } });
+    await assert.rejects(listedOwners(editor, "api::berita.berita"), /forbidden/);
+
+    await boot();
+
+    assert.deepEqual([...new Set(await listedOwners(editor, "api::berita.berita"))], ["smp"]);
+  });
+
+  void it("leaves correct permissions untouched on the next boot", async () => {
+    const ids = async () => {
+      const rows: { id: number }[] = await strapi.db.query("admin::permission").findMany({
+        where: { role: { code: EDITOR_ROLE_CODE } },
+        select: ["id"],
+        orderBy: { id: "asc" },
+      });
+      return rows.map((row) => row.id);
+    };
+    const held = await ids();
+
+    await boot();
+
+    assert.deepEqual(await ids(), held);
+  });
+
+  void it("takes public read off a type that is not on the list", async () => {
+    const role: { id: number } = await strapi.db
+      .query("plugin::users-permissions.role")
+      .findOne({ where: { type: "public" } });
+    const permissions = strapi.db.query("plugin::users-permissions.permission");
+    const action = "api::penugasan-editor.penugasan-editor.find";
+    await permissions.create({ data: { action, role: role.id } });
+
+    await boot();
+
+    assert.equal(await permissions.count({ where: { action, role: role.id } }), 0);
+    assert.equal(
+      await permissions.count({ where: { action: `${KOLABORASI}.find`, role: role.id } }),
+      1,
+    );
+  });
+
+  // 4820194 is `BOOT_LOCK` in `index.ts`, copied for the reason given at the top.
+  void it("waits for another instance's boot to finish", async () => {
+    const knex = strapi.db.connection;
+    const connection: unknown = await knex.client.acquireConnection();
+    try {
+      await knex.raw("select pg_advisory_lock(4820194)").connection(connection);
+      let finished = false;
+      const booting = boot().then(() => {
+        finished = true;
+      });
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1000);
+      });
+      assert.equal(finished, false, "boot must wait while the lock is held");
+
+      await knex.raw("select pg_advisory_unlock(4820194)").connection(connection);
+      await booting;
+      assert.equal(finished, true);
+    } finally {
+      await knex.client.releaseConnection(connection);
+    }
+  });
+
+  // A lock left behind by a hung instance must stop the boot with a reason,
+  // not hang the deploy.
+  void it("gives up on a boot lock held too long", async () => {
+    const knex = strapi.db.connection;
+    const connection: unknown = await knex.client.acquireConnection();
+    process.env.BOOT_LOCK_TIMEOUT = "1s";
+    try {
+      await knex.raw("select pg_advisory_lock(4820194)").connection(connection);
+      const outcome = await Promise.race([
+        boot().then(
+          () => "booted",
+          (error: unknown) => String(error),
+        ),
+        new Promise((resolve) => {
+          setTimeout(resolve, 5000, "still waiting");
+        }),
+      ]);
+      assert.match(String(outcome), /boot lock/);
+    } finally {
+      delete process.env.BOOT_LOCK_TIMEOUT;
+      await knex.raw("select pg_advisory_unlock(4820194)").connection(connection);
+      await knex.client.releaseConnection(connection);
+    }
+  });
+});
+
 void describe("artikel", () => {
   // The type is in the address now, so two types may share a slug.
   void it("lets an opini reuse a berita's slug on the same owner", async () => {
@@ -684,8 +828,7 @@ void describe("artikel", () => {
 
     const store = strapi.store({ type: "plugin", name: "mbs-seed" });
     await store.delete({ key: "artikel" });
-    const app = strapi.app as { bootstrap: (context: { strapi: Core.Strapi }) => Promise<void> };
-    await app.bootstrap({ strapi });
+    await boot();
 
     const read = () =>
       strapi.documents("api::site.site").findOne({
@@ -730,7 +873,7 @@ void describe("artikel", () => {
     );
 
     // A second boot with the marker set changes nothing.
-    await app.bootstrap({ strapi });
+    await boot();
     assert.deepEqual(await read(), after);
   });
 });
