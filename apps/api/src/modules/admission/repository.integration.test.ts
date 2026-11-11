@@ -1,3 +1,4 @@
+import type { CycleStatus } from "@mbs/api-contract";
 import { createDatabase, schema } from "@mbs/db";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -15,11 +16,7 @@ const dates = {
   resultPublishAt: new Date("2026-04-01T00:00:00Z"),
 };
 
-async function joinSchoolToCycle(
-  name: string,
-  status: "DRAFT" | "OPEN" | "CLOSED" | "ARCHIVED",
-  registrationOpenAt: Date,
-) {
+async function joinSchoolToCycle(name: string, status: CycleStatus, registrationOpenAt: Date) {
   const [school] = await db
     .insert(schema.schools)
     .values({ key: "sma" })

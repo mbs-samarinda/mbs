@@ -18,6 +18,7 @@
     "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
   },
   "dependencies": {
+    "@mbs/school-config": "workspace:*",
     "drizzle-kit": "0.31.10",
     "drizzle-orm": "0.45.2",
     "postgres": "3.4.9"

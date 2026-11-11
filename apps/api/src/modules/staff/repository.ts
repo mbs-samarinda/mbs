@@ -1,4 +1,4 @@
-import type { StaffRole } from "@mbs/api-contract";
+import type { StaffLoginEmailKind, StaffRole } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 
@@ -183,7 +183,7 @@ export async function insertStaff(db: Executor, values: { name: string; role: St
 
 export async function insertLoginEmail(
   db: Executor,
-  values: { staffId: string; email: string; kind: "INSTITUTIONAL" | "PERSONAL" },
+  values: { staffId: string; email: string; kind: StaffLoginEmailKind },
 ) {
   await db.insert(schema.staffLoginEmails).values(values);
 }

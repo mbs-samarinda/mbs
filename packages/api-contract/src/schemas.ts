@@ -1,19 +1,20 @@
-import { SCHOOL_KEYS } from "@mbs/school-config";
+import {
+  CYCLE_STATUSES,
+  DOCUMENT_TYPES,
+  SCHOOL_KEYS,
+  STAFF_LOGIN_EMAIL_KINDS,
+  STAFF_ROLES,
+} from "@mbs/school-config";
 import { z } from "zod";
 
 /** The school list lives in @mbs/school-config; this is the same list as Zod. */
 export const SchoolKey = z.enum(SCHOOL_KEYS);
 export type SchoolKey = z.infer<typeof SchoolKey>;
 
-export const CycleStatus = z.enum(["DRAFT", "OPEN", "CLOSED", "ARCHIVED"]);
+export const CycleStatus = z.enum(CYCLE_STATUSES);
 export type CycleStatus = z.infer<typeof CycleStatus>;
 
-export const DocumentType = z.enum([
-  "KARTU_KELUARGA",
-  "AKTA_KELAHIRAN",
-  "KARTU_IDENTITAS_ANAK",
-  "IJAZAH",
-]);
+export const DocumentType = z.enum(DOCUMENT_TYPES);
 export type DocumentType = z.infer<typeof DocumentType>;
 
 /** An absent type is one the school does not collect; `required` false is optional. */
@@ -141,10 +142,10 @@ export const UpsertSchoolSettingInput = z.object({
 });
 export type UpsertSchoolSettingInput = z.infer<typeof UpsertSchoolSettingInput>;
 
-export const StaffRole = z.enum(["ADMINISTRATOR", "STAFF", "PRINCIPAL"]);
+export const StaffRole = z.enum(STAFF_ROLES);
 export type StaffRole = z.infer<typeof StaffRole>;
 
-export const StaffLoginEmailKind = z.enum(["INSTITUTIONAL", "PERSONAL"]);
+export const StaffLoginEmailKind = z.enum(STAFF_LOGIN_EMAIL_KINDS);
 export type StaffLoginEmailKind = z.infer<typeof StaffLoginEmailKind>;
 
 /** `bound` is whether a first sign-in has claimed this address. */

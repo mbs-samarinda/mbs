@@ -10,6 +10,9 @@
  * its only consumer and a copy here would be a second place to keep in step.
  * Nor is the owner list — the umbrella is an owner and not a school, so
  * `OWNERS` lives beside those blocks.
+ *
+ * The closed value lists of the admission domain (cycle status, document type,
+ * staff role, login email kind) live here too, at the bottom.
  */
 export const SCHOOLS = [
   { key: "smp", name: "SMP Islam Terpadu Madina", level: "SMP", subdomain: "smp" },
@@ -21,6 +24,23 @@ export type School = (typeof SCHOOLS)[number];
 export type SchoolKey = School["key"];
 
 export const SCHOOL_KEYS = SCHOOLS.map((school) => school.key);
+
+/**
+ * Drizzle's pgEnum and the contract's z.enum both read these. They live here
+ * because this package imports nothing, so browser code can import it too.
+ * Adding a value needs a migration: run `pnpm db:generate`. Postgres cannot
+ * drop or rename an enum value, so removing or renaming one needs a
+ * hand-written migration for the rows that hold it.
+ */
+export const CYCLE_STATUSES = ["DRAFT", "OPEN", "CLOSED", "ARCHIVED"] as const;
+export const DOCUMENT_TYPES = [
+  "KARTU_KELUARGA",
+  "AKTA_KELAHIRAN",
+  "KARTU_IDENTITAS_ANAK",
+  "IJAZAH",
+] as const;
+export const STAFF_ROLES = ["ADMINISTRATOR", "STAFF", "PRINCIPAL"] as const;
+export const STAFF_LOGIN_EMAIL_KINDS = ["INSTITUTIONAL", "PERSONAL"] as const;
 
 /**
  * Narrows a string read from the database to a school key. The schools table

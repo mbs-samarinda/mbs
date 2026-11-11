@@ -454,6 +454,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@mbs/school-config':
+        specifier: workspace:*
+        version: link:../school-config
       drizzle-kit:
         specifier: 0.31.10
         version: 0.31.10
