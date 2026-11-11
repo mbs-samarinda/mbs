@@ -375,7 +375,7 @@ function toBlock(raw: Record<string, unknown>): Block {
  */
 export async function getSite(ownerKey: Owner["key"]): Promise<Site> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `site:${ownerKey}`);
 
   const sites = await cms<Site[]>("site-list", [
@@ -410,7 +410,7 @@ export async function getSite(ownerKey: Owner["key"]): Promise<Site> {
 /** One route's composed sections. `null` when no editor has published it. */
 export async function getPage(ownerKey: Owner["key"], slug: string): Promise<Page | null> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `page:${ownerKey}:${slug}`);
 
   type RawPage = Omit<Page, "blocks"> & { blocks: Record<string, unknown>[] };
@@ -476,7 +476,7 @@ const withCollaborators = ({ kolaborasi, ...entry }: IndexRow) => ({
  */
 async function fetchArticleIndex(ownerKey: Owner["key"]): Promise<Article[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `articles:${ownerKey}`);
 
   const scope: [string, string][] =
@@ -601,7 +601,7 @@ export async function getArticle(
   slug: string,
 ): Promise<FullArticle | null> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `article:${ownerKey}:${type}:${slug}`);
 
   const fields: [string, string][] = [
@@ -639,7 +639,7 @@ export async function getRelatedAchievement(
   slug: string,
 ): Promise<Achievement | null> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `achievement-for:${ownerKey}:${slug}`);
 
   const found = await cms<Achievement[]>("pencapaian-list", [
@@ -675,7 +675,7 @@ export async function getEntries(
   collection: EntryCollection,
 ): Promise<Entry[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `entries:${collection}:${ownerKey}`);
 
   const entries = await cms<Entry[]>(collection, [
@@ -698,7 +698,7 @@ export async function getEntry(
   slug: string,
 ): Promise<FullEntry | null> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `entry:${collection}:${ownerKey}:${slug}`);
 
   const found = await cms<FullEntry[]>(collection, [
@@ -728,7 +728,7 @@ export type Album = {
 /** Every album an owner has published, newest activity first. */
 export async function getAlbums(ownerKey: Owner["key"]): Promise<Album[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `albums:${ownerKey}`);
 
   // Every photo comes along, not just the cover: the card shows the count, and
@@ -749,7 +749,7 @@ export async function getAlbum(
   slug: string,
 ): Promise<(Album & { readonly seo: Page["seo"] }) | null> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `album:${ownerKey}:${slug}`);
 
   const found = await cms<(Album & { seo: Page["seo"] })[]>("album-list", [
@@ -782,7 +782,7 @@ export type Berkas = {
 /** Every file an owner has published, most recently updated first. */
 export async function getFiles(ownerKey: Owner["key"]): Promise<Berkas[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(CMS_TAG, `files:${ownerKey}`);
 
   const rows = await cms<(Omit<Berkas, "file"> & { file: Berkas["file"] | null })[]>(

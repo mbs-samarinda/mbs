@@ -12,8 +12,8 @@ import { z } from "zod";
 /**
  * A file-backed `"use cache"` store, so content survives a container.
  *
- * Next 16.3.4 ships only a memory-backed default handler, so a restart threw
- * away every entry and the next visitor to each page waited on Strapi.
+ * Next's own default handler is memory-backed, so a restart threw away every
+ * entry and the next visitor to each page waited on Strapi.
  *
  * What this does and does not buy, stated precisely, because the obvious
  * reading is wrong. Next seeds every cache key with the build id, so a *new
@@ -33,7 +33,7 @@ import { z } from "zod";
  * Scope, deliberately: one writer. The site runs a single profile replica, plus
  * a deploy candidate that only ever runs against this directory when it is
  * about to go live. Nothing here coordinates concurrent writers beyond atomic
- * renames, because nothing needs to.
+ * renames and an in-process queue for the tag manifest, because nothing needs to.
  */
 
 const DIR = process.env.PROFILE_CACHE_DIR ?? "/app/.cache/content";
@@ -61,25 +61,62 @@ const MetaSchema = z.object({
 
 type Meta = z.infer<typeof MetaSchema>;
 
-const TagsSchema = z.record(z.string(), z.number());
+/**
+ * Per tag, the same two marks as Next's in-memory tags manifest. An entry older
+ * than `stale` is served once more with `revalidate: -1`, which makes Next
+ * refill it in the background; a failed refill writes nothing, so the old entry
+ * keeps being served. An entry older than `expired`, once that time arrives, is
+ * a miss.
+ */
+const MarkSchema = z.object({ stale: z.number().optional(), expired: z.number().optional() });
+
+type Mark = z.infer<typeof MarkSchema>;
+
+const TagsSchema = z.record(
+  z.string(),
+  z.union([
+    // The manifest before stale marks existed: a bare time meant expire now.
+    z.number().transform((expired): Mark => ({ expired })),
+    MarkSchema,
+  ]),
+);
+
+type Tags = Record<string, Mark>;
 
 /**
- * Tag name to the time it was last revalidated. Read from disk on first use and
- * whenever Next asks, so a revalidate by one process is seen by another.
+ * Read from disk on first use and whenever Next asks, so a revalidate by one
+ * process is seen by another.
  */
-let tags: Record<string, Timestamp> | null = null;
+let tags: Tags | null = null;
 
-async function loadTags(): Promise<Record<string, Timestamp>> {
-  try {
-    tags = TagsSchema.parse(JSON.parse(await readFile(TAGS, "utf8")));
-  } catch {
-    // Absent on a fresh volume, and unreadable if a write was interrupted.
-    // Either way an empty manifest is correct: nothing is known to be stale, so
-    // entries are served and the next revalidate rewrites this.
-    tags = {};
-  }
+/**
+ * Only a missing file is an empty manifest. Any other failure throws, and
+ * `tags` keeps the last good copy: read as empty, a transient EIO would make
+ * `updateTags` overwrite every recorded publish. Readers catch it and serve on
+ * the last good copy, or serve stale when there is none; only `updateTags` lets it
+ * fail the publish.
+ */
+async function loadTags(): Promise<Tags> {
+  const text = await readFile(TAGS, "utf8").catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return "{}";
+    throw error;
+  });
+  tags = TagsSchema.parse(JSON.parse(text));
   return tags;
 }
+
+/**
+ * Next stamps `timestamp` from this clock, not `Date.now()`, and the marks are
+ * compared against it, so they use the same one.
+ */
+const now = () => performance.timeOrigin + performance.now();
+
+const isStale = (tag: Mark | undefined, timestamp: Timestamp) => (tag?.stale ?? 0) > timestamp;
+
+// `expired` can lie in the future: a publish with a profile sets it to now plus
+// the profile's `expire`. It counts once it has arrived.
+const isExpired = (tag: Mark | undefined, timestamp: Timestamp) =>
+  tag?.expired !== undefined && tag.expired > timestamp && tag.expired <= now();
 
 /**
  * `set` hands us a promise that may still be streaming. A `get` for the same
@@ -87,6 +124,15 @@ async function loadTags(): Promise<Record<string, Timestamp>> {
  * a miss would send a second request to Strapi for something already on its way.
  */
 const pending = new Map<string, Promise<void>>();
+
+/**
+ * How long a `set` may stream before it is dropped. A render aborted mid-write
+ * can leave a stream that never ends, and without a limit every later `get` of
+ * that key would wait on it until restart. Next gives up on a `"use cache"`
+ * fill after 54 seconds (`useCacheTimeout`), so a minute outlives any write
+ * that could still finish.
+ */
+const SET_LIMIT_MS = 60_000;
 
 /**
  * One entry is one file: a four-byte big-endian header length, the metadata as
@@ -98,8 +144,7 @@ const pending = new Map<string, Promise<void>>();
  * fresh content against a stale tag set and timestamp, and could serve an entry
  * a `revalidateTag` should have killed.
  */
-async function writeEntry(cacheKey: string, entry: CacheEntry): Promise<void> {
-  const body = Buffer.from(await new Response(entry.value).arrayBuffer());
+async function writeEntry(cacheKey: string, entry: CacheEntry, body: Buffer): Promise<void> {
   const meta: Meta = {
     tags: entry.tags,
     stale: entry.stale,
@@ -112,14 +157,20 @@ async function writeEntry(cacheKey: string, entry: CacheEntry): Promise<void> {
   length.writeUInt32BE(header.byteLength);
 
   await mkdir(ENTRIES, { recursive: true });
-  const path = fileFor(cacheKey);
-  // A name nobody else can be using. `pending` serialises get-against-set for
-  // one key, not set-against-set: two requests for the same uncached page — the
-  // ordinary stampede — both call `set`, and a shared temp name would let them
-  // interleave writes and leave a file blended from two different renders.
+  await writeAtomically(fileFor(cacheKey), Buffer.concat([length, header, body]));
+}
+
+/**
+ * Write to a temp file, then rename over the target, so a reader never sees a
+ * half-written file. The temp name is unique per write: `pending` serialises
+ * get-against-set for one key, not set-against-set. Two requests for the same
+ * uncached page, or two publish webhooks at once, would otherwise share a temp
+ * file, blend two writes into it, or rename it twice and fail the second.
+ */
+async function writeAtomically(path: string, data: Buffer | string): Promise<void> {
   const temp = `${path}.${process.pid}.${(counter += 1)}.tmp`;
   try {
-    await writeFile(temp, Buffer.concat([length, header, body]));
+    await writeFile(temp, data);
     await rename(temp, path);
   } catch (error) {
     await rm(temp, { force: true });
@@ -129,114 +180,151 @@ async function writeEntry(cacheKey: string, entry: CacheEntry): Promise<void> {
 
 let counter = 0;
 
+/** An entry file's parts, or `undefined` when it is truncated or an older shape. */
+function parseEntry(file: Buffer): { meta: Meta; body: Buffer } | undefined {
+  try {
+    const headerEnd = 4 + file.readUInt32BE(0);
+    const meta = MetaSchema.parse(JSON.parse(file.subarray(4, headerEnd).toString("utf8")));
+    return { meta, body: file.subarray(headerEnd) };
+  } catch {
+    return undefined;
+  }
+}
+
+const isPastExpire = (meta: Meta) => now() - meta.timestamp > meta.expire * 1000;
+
 /**
- * Removes entry files nothing can reach any more, once per process.
+ * Removes entry files past their own `expire`, once per process.
  *
- * Next seeds every `"use cache"` key with the build id — it says so in
- * `use-cache-wrapper.js`, because an Action ID does not yet hash its
- * implementation — so a new image cannot read the previous image's entries at
- * all. Those files are not stale, they are unaddressable, and `get` is the only
- * thing that deletes anything, so nothing would ever look at them again.
+ * Judged on the entry's timestamp, not the file's mtime. During an outage
+ * nothing is rewritten, so by mtime a restart a week in would delete every page
+ * still being served.
  *
- * Left alone that is a whole generation of pages kept per deploy, on a 58 GB
- * box, with the default profile's `expire` measured in decades. Age is the only
- * usable signal: the handler cannot tell which build a file belongs to without
- * reading all of them, and a file untouched for a week is either orphaned or
- * cold enough that one Strapi round trip is cheaper than keeping it.
+ * The cost is orphans. Next seeds every `"use cache"` key with the build id, so
+ * a new image cannot read the previous image's entries, and they now wait out
+ * the `content` profile's year. That is a few hundred kilobytes a deploy. Build
+ * id is not used instead: the deploy candidate shares this volume with the live
+ * container, and a candidate sweeping the live build's entries would leave the
+ * site cold if the candidate then failed.
  */
-const SWEEP_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+const SWEEP_TMP_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 let swept = false;
 
+/**
+ * One file at a time, and not awaited by `refreshTags`: it reads every entry,
+ * and neither the first request after a restart nor the open-file limit should
+ * pay for that. A file that cannot be read is left alone; only one that was
+ * read and is past its life or unparsable goes.
+ */
 async function sweepOnce(): Promise<void> {
   if (swept) return;
   swept = true;
 
-  try {
-    const cutoff = Date.now() - SWEEP_AFTER_MS;
-    const names = await readdir(ENTRIES);
-    await Promise.all(
-      names.map(async (name) => {
-        const path = join(ENTRIES, name);
-        // `.tmp` files are also collected here: an interrupted write leaves one
-        // behind, and nothing else ever removes it.
-        const info = await stat(path).catch(() => null);
-        if (info && info.mtimeMs < cutoff) await rm(path, { force: true });
-      }),
-    );
-  } catch {
-    // A sweep is housekeeping. Failing it must never fail a request.
+  const names = await readdir(ENTRIES).catch(() => []);
+  for (const name of names) {
+    const path = join(ENTRIES, name);
+    try {
+      if (name.endsWith(".tmp")) {
+        // Left by an interrupted write. A young one may be another process's
+        // write in flight, so only old ones go.
+        // oxlint-disable-next-line eslint/no-await-in-loop
+        const info = await stat(path);
+        // oxlint-disable-next-line eslint/no-await-in-loop
+        if (info.mtimeMs < Date.now() - SWEEP_TMP_AFTER_MS) await rm(path, { force: true });
+        continue;
+      }
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const entry = parseEntry(await readFile(path));
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      if (!entry || isPastExpire(entry.meta)) await rm(path, { force: true });
+    } catch {
+      // A sweep is housekeeping. Failing it must never fail a request.
+    }
   }
 }
 
 const handler: CacheHandler = {
   async get(cacheKey, softTags) {
-    await pending.get(cacheKey)?.catch(() => {});
+    await pending.get(cacheKey);
 
     const path = fileFor(cacheKey);
-    let meta: Meta;
-    let body: Buffer;
-    try {
-      const file = await readFile(path);
-      const headerEnd = 4 + file.readUInt32BE(0);
-      meta = MetaSchema.parse(JSON.parse(file.subarray(4, headerEnd).toString("utf8")));
-      body = file.subarray(headerEnd);
-    } catch {
-      // Absent, truncated, or written by an older shape of this file. All of
-      // them are a miss, which costs one Strapi round trip.
-      return undefined;
-    }
+    // Absent, unreadable or unparsable: a miss, which costs one Strapi round trip.
+    const file = await readFile(path).catch(() => undefined);
+    const entry = file && parseEntry(file);
+    if (!entry) return undefined;
+    const { meta, body } = entry;
 
-    const age = (Date.now() - meta.timestamp) / 1000;
-    if (age > meta.expire) {
+    if (isPastExpire(meta)) {
       // Past its life, not merely stale. Removed rather than stepped over on
       // every request.
       await rm(path, { force: true });
       return undefined;
     }
 
-    // A tag revalidated after this entry was written makes it invalid, whatever
-    // its own expiry says. This is how the CMS publish webhook reaches entries
-    // that a previous container wrote.
-    const manifest = tags ?? (await loadTags());
-    const invalidatedAt = Math.max(
-      0,
-      ...[...meta.tags, ...softTags].map((tag) => manifest[tag] ?? 0),
-    );
-    if (invalidatedAt > meta.timestamp) return undefined;
+    // Soft tags are checked here too, because `getExpiration` returns Infinity.
+    // This is how the CMS publish webhook reaches entries that a previous
+    // container wrote.
+    // With no last good copy there is no way to know what a publish replaced.
+    // The entry is served as stale rather than missed: Next refills it in the
+    // background, so a live CMS replaces it on the next request, and a CMS that
+    // is down still leaves visitors the old page instead of a 500.
+    const manifest = tags ?? (await loadTags().catch(() => undefined));
+    const marks = manifest ? [...meta.tags, ...softTags].map((tag) => manifest[tag]) : [];
+    if (marks.some((mark) => isExpired(mark, meta.timestamp))) return undefined;
+    const stale = !manifest || marks.some((mark) => isStale(mark, meta.timestamp));
 
     return {
       ...meta,
+      revalidate: stale ? -1 : meta.revalidate,
       // A fresh stream per call: a ReadableStream is consumed once, and this
       // entry may be served many times.
-      value: new Response(body).body!,
+      value: new Response(new Uint8Array(body)).body!,
     };
   },
 
   async set(cacheKey, pendingEntry) {
+    const limit = new AbortController();
+    const timer = setTimeout(() => limit.abort(), SET_LIMIT_MS);
+    const timedOut = new Promise<never>((_, reject) => {
+      limit.signal.addEventListener("abort", () => {
+        reject(new Error("set timed out"));
+        // An entry that arrives after the limit is never read; release its stream.
+        pendingEntry.then((late) => late.value.cancel()).catch(() => {});
+      });
+    });
+
     const write = (async () => {
       try {
-        await writeEntry(cacheKey, await pendingEntry);
+        const entry = await Promise.race([pendingEntry, timedOut]);
+        // Aborting the pipe cancels the stream, so nothing holds it after
+        // `set` resolves. An errored or cancelled stream throws
+        // here and writes nothing: a partial body is never stored.
+        const piped = entry.value.pipeThrough(new TransformStream(), { signal: limit.signal });
+        const body = Buffer.from(await new Response(piped).arrayBuffer());
+        await writeEntry(cacheKey, entry, body);
       } catch {
         // A failed write must not fail the request. The page is already
         // rendered; the only cost is a miss next time.
+      } finally {
+        clearTimeout(timer);
       }
     })();
     pending.set(cacheKey, write);
-    try {
-      await write;
-    } finally {
-      pending.delete(cacheKey);
-    }
+    await write;
+    // A second `set` for this key may have replaced ours; its `get`s still wait on it.
+    if (pending.get(cacheKey) === write) pending.delete(cacheKey);
   },
 
   async refreshTags() {
-    await loadTags();
-    await sweepOnce();
+    await loadTags().catch(() => {});
+    void sweepOnce();
   },
 
-  async getExpiration(tagNames) {
-    const manifest = tags ?? (await loadTags());
-    return Math.max(0, ...tagNames.map((tag) => manifest[tag] ?? 0));
+  // Infinity tells Next to pass soft tags to `get` rather than compare a single
+  // time itself. Next's comparison is a hard miss, which would undo the stale
+  // mark a publish sets.
+  async getExpiration() {
+    return Infinity;
   },
 
   // The one method here with no `catch`, deliberately. A revalidation this
@@ -244,15 +332,36 @@ const handler: CacheHandler = {
   // webhook should fail and say so rather than answer 200 and quietly do
   // nothing. `set` is the opposite case: the page is already rendered and a
   // failed write costs only a miss.
-  async updateTags(tagNames) {
-    const manifest = tags ?? (await loadTags());
-    const now = Date.now();
-    for (const tag of tagNames) manifest[tag] = now;
+  //
+  // Queued, and each turn re-reads the file. Two publishes at once would
+  // otherwise each load their own copy of the manifest, and the second rename
+  // would drop the first one's tag.
+  //
+  // Marks follow Next's default handler. With `durations` (a profile was named,
+  // as the publish webhook's `"max"` is) the tag goes stale now and expires
+  // `expire` seconds later. Without, it expires now.
+  updateTags(tagNames, durations) {
+    const write = tagWrites.then(async () => {
+      const manifest = await loadTags();
+      const at = now();
+      for (const tag of tagNames) {
+        manifest[tag] = durations
+          ? {
+              ...manifest[tag],
+              stale: at,
+              ...(durations.expire === undefined ? {} : { expired: at + durations.expire * 1000 }),
+            }
+          : { ...manifest[tag], expired: at };
+      }
 
-    await mkdir(DIR, { recursive: true });
-    await writeFile(`${TAGS}.tmp`, JSON.stringify(manifest));
-    await rename(`${TAGS}.tmp`, TAGS);
+      await mkdir(DIR, { recursive: true });
+      await writeAtomically(TAGS, JSON.stringify(manifest));
+    });
+    tagWrites = write.catch(() => {});
+    return write;
   },
 };
+
+let tagWrites = Promise.resolve();
 
 export default handler;

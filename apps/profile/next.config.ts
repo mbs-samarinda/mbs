@@ -50,8 +50,16 @@ const config: NextConfig = {
   // school key, which is also part of the cache key so two schools never share
   // a cached page for the same path.
   cacheComponents: true,
-  // The `"use cache"` store, on a compose volume rather than in memory. Next
-  // 16.3.4's own default handler is memory-backed, so every deploy and restart
+  // Every CMS read in `cms.ts`. Like the built-in "hours" profile, but `expire`
+  // is a year, not a day: past `expire` an entry is a miss, so a Strapi outage
+  // over a day turned every page into a 500. Past `revalidate`, or after a
+  // publish, the old entry is served while a background refill runs, and a
+  // failed refill leaves it (`cache-handler.ts`).
+  cacheLife: {
+    content: { stale: 5 * 60, revalidate: 60 * 60, expire: 365 * 24 * 60 * 60 },
+  },
+  // The `"use cache"` store, on a compose volume rather than in memory. Next's
+  // own default handler is memory-backed, so every deploy and restart
   // started cold and the first visitor to each page waited on Strapi. With this
   // the replacement container reads what its predecessor wrote.
   cacheHandlers: {
