@@ -30,6 +30,23 @@ use_aws
 STAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 readonly STAMP
 
+# Tells an outside monitor how the night went, if BACKUP_PING_URL is set. A
+# monitor that hears nothing alerts too, which covers the failures that happen
+# before this point. The URL works like a password, so it is never printed and
+# reaches curl on stdin rather than as an argument anyone can read in `ps`.
+# A ping that fails only warns, so the monitor can never fail a good backup.
+ping_monitor() {
+  [[ -n ${BACKUP_PING_URL:-} ]] || return 0
+  curl -fsS -m 10 --retry 3 -o /dev/null -K - <<<"url = \"${BACKUP_PING_URL%/}$1\"" ||
+    echo "   could not reach the backup monitor" >&2
+}
+on_exit() {
+  local status=$?
+  ((status == 0)) || ping_monitor /fail
+  return "$status"
+}
+trap on_exit EXIT
+
 for db in mbs_core mbs_cms; do
   # The naming scheme the previous job used. Its dumps are ciphertext nobody can
   # open, but the convention was right, so it is kept: one object per database
@@ -86,4 +103,5 @@ aws --endpoint-url "$AWS_ENDPOINT" s3 ls "s3://$BACKUP_BUCKET/" \
     fi
   done
 
+ping_monitor ""
 echo "== done $STAMP"
