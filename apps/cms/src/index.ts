@@ -216,7 +216,7 @@ async function seedArticles(
         });
         await strapi.db.query(KOLABORASI_UID).updateMany({
           where: { id: { $in: invites.map((invite) => invite.id) } },
-          data: { status: "diterima" },
+          data: { keputusan: "diterima" },
         });
       }
 

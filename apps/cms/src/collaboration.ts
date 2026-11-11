@@ -107,7 +107,7 @@ async function reconcile(strapi: Core.Strapi, uid: ArticleUid, documentId: strin
 
   const ticked = invitable((article.collaborators ?? []).map(ownerKeyOf), article.ownerKey);
   const copies = {
-    status: "menunggu",
+    keputusan: "menunggu",
     judul: article.title,
     alamat: articleUrl(uid, article.ownerKey, article.slug ?? ""),
     [ARTICLES[uid]]: article.id,
