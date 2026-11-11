@@ -19,3 +19,11 @@ export class NotFoundError extends Error {
 export class ConflictError extends Error {
   readonly code = "CONFLICT";
 }
+
+/** Postgres 23505. Drizzle wraps the driver error, so the code may sit on `cause`. */
+export function isUniqueViolation(error: unknown) {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    if ("code" in current && current.code === "23505") return true;
+  }
+  return false;
+}

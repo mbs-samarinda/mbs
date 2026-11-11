@@ -12,7 +12,7 @@ import type {
 } from "@mbs/api-contract";
 import type { Database } from "@mbs/db";
 
-import { ConflictError, NotFoundError } from "../../errors.ts";
+import { ConflictError, isUniqueViolation, NotFoundError } from "../../errors.ts";
 import { appendAuditLog } from "../audit.ts";
 import { requireSchoolAccess, type StaffContext } from "../auth/authorization.ts";
 import {
@@ -148,7 +148,10 @@ export async function setAdmissionCycleStatus(
       throw new ConflictError(`A ${existing.status} cycle cannot become ${input.status}.`);
     }
 
-    const updated = await updateCycleStatus(tx, input.cycleId, input.status);
+    const updated = await updateCycleStatus(tx, input.cycleId, input.status).catch((error) => {
+      if (isUniqueViolation(error)) throw new ConflictError("Another cycle is already open.");
+      throw error;
+    });
     await appendAuditLog(tx, {
       actorType: "STAFF",
       actorId: actor.id,

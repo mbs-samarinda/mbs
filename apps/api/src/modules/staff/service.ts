@@ -9,7 +9,7 @@ import type {
 import type { Database, Transaction } from "@mbs/db";
 import { isSchoolKey } from "@mbs/school-config";
 
-import { ConflictError, ForbiddenError, NotFoundError } from "../../errors.ts";
+import { ConflictError, ForbiddenError, isUniqueViolation, NotFoundError } from "../../errors.ts";
 import { appendAuditLog } from "../audit.ts";
 import { requireSchoolAccess, type StaffContext } from "../auth/authorization.ts";
 import {
@@ -21,12 +21,17 @@ import {
   insertLoginEmail,
   insertStaff,
   listStaff,
+  lockStaffWrites,
   replaceSchoolAccess,
   updateStaff,
 } from "./repository.ts";
 
 /** Staff sign in with their institutional identity; a personal address is added later, by them. */
 const INSTITUTIONAL_DOMAIN = "@mbss.sch.id";
+
+export function loginEmailKind(email: string) {
+  return email.endsWith(INSTITUTIONAL_DOMAIN) ? "INSTITUTIONAL" : "PERSONAL";
+}
 
 export async function getStaffProfile(db: Database, staff: StaffContext): Promise<StaffProfile> {
   const loginEmails = await findLoginEmailsForStaff(db, staff.id);
@@ -68,8 +73,8 @@ export async function createStaff(
   actor: StaffContext,
   input: CreateStaffInput,
 ): Promise<StaffSummary> {
-  const email = input.email.trim().toLowerCase();
-  if (!email.endsWith(INSTITUTIONAL_DOMAIN)) {
+  const { email } = input;
+  if (loginEmailKind(email) !== "INSTITUTIONAL") {
     throw new ConflictError(`A staff profile starts from a ${INSTITUTIONAL_DOMAIN} address.`);
   }
 
@@ -112,6 +117,7 @@ export async function updateStaffAccess(
   input.schools.forEach((school) => requireSchoolAccess(actor, school));
 
   await db.transaction(async (tx) => {
+    await lockStaffWrites(tx);
     const existing = await findStaffById(tx, input.staffId);
     if (!existing) throw new NotFoundError("No such staff profile.");
     const currentSchools = await requireScopeOverStaff(tx, actor, input.staffId);
@@ -151,6 +157,7 @@ export async function setStaffActive(
   input: SetStaffActiveInput,
 ): Promise<StaffSummary> {
   await db.transaction(async (tx) => {
+    await lockStaffWrites(tx);
     const existing = await findStaffById(tx, input.staffId);
     if (!existing) throw new NotFoundError("No such staff profile.");
     await requireScopeOverStaff(tx, actor, input.staffId);
@@ -172,23 +179,7 @@ export async function setStaffActive(
   return readSummary(db, input.staffId);
 }
 
-/**
- * Postgres 23505. The driver's error is not a contract, so it stops here.
- * Drizzle wraps the driver error, so the code sits on the cause.
- */
-function isUniqueViolation(error: unknown) {
-  for (let current = error; current instanceof Error; current = current.cause) {
-    if ("code" in current && current.code === "23505") return true;
-  }
-  return false;
-}
-
-/**
- * Losing the last administrator locks everyone out of staff management for
- * good. The count runs inside the caller's transaction and locks the rows,
- * because two administrators deactivating each other at once is exactly how
- * that happens.
- */
+/** The caller holds `lockStaffWrites`, or two administrators deactivating each other both pass. */
 async function requireAnotherAdministrator(tx: Transaction, staffId: string) {
   const others = await countOtherActiveAdministrators(tx, staffId);
   if (others === 0) throw new ConflictError("MBSS would be left with no active administrator.");

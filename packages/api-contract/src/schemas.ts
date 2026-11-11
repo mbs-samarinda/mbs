@@ -187,7 +187,7 @@ const SchoolKeys = z
 export const CreateStaffInput = z.object({
   name: z.string().trim().min(1).max(120),
   // The institutional-domain rule is business policy, so the service owns it.
-  email: z.email(),
+  email: z.string().trim().toLowerCase().pipe(z.email()),
   role: StaffRole,
   schools: SchoolKeys,
 });

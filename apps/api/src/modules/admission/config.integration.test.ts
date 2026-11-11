@@ -68,6 +68,16 @@ describe("cycles", () => {
     expect(open.status).toBe("OPEN");
   });
 
+  it("keeps a second cycle from opening while one is open", async () => {
+    const first = await createAdmissionCycle(db, actor, cycleInput);
+    const second = await createAdmissionCycle(db, actor, { ...cycleInput, name: "2028/2029" });
+    await setAdmissionCycleStatus(db, actor, { cycleId: first.id, status: "OPEN" });
+
+    await expect(
+      setAdmissionCycleStatus(db, actor, { cycleId: second.id, status: "OPEN" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
   it("makes an archived cycle read-only", async () => {
     const cycle = await createAdmissionCycle(db, actor, cycleInput);
     for (const status of ["OPEN", "CLOSED", "ARCHIVED"] as const) {

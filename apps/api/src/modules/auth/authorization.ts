@@ -33,8 +33,8 @@ export async function resolveStaff(db: Database, user: SessionUser | null): Prom
 
   const denied = new ForbiddenError("This account has no access.");
 
-  // Every write stores the address lowercased, so every read has to match it.
-  const email = user.email.toLowerCase();
+  // Better Auth already lowercases the email.
+  const { email } = user;
 
   const record = await findStaffByLoginEmail(db, email);
   if (!record || !record.isActive) throw denied;

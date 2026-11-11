@@ -153,22 +153,25 @@ export async function findSchoolIdsByKeys(db: Executor, keys: readonly string[])
   return rows.filter((row) => keys.includes(row.key));
 }
 
+const STAFF_WRITES_LOCK = 4820193;
+
 /**
- * Counts the active administrators other than `excludingStaffId`, locking
- * *every* active administrator row first.
- *
- * Locking only the others would not help: two transactions deactivating each
- * other would each lock the row the other is not touching, both see one
- * administrator left, and commit into an empty set. Taking the whole set in a
- * fixed order forces them to run one after the other.
+ * Serializes the staff writes that check scope or the administrator count
+ * (update, activate, bootstrap) until the transaction ends. Take it before the first
+ * read, or a scope check can pass on a profile another save just moved. One
+ * advisory lock, not row locks: the writes read overlapping sets, and row
+ * locks taken in different orders deadlock.
  */
+export async function lockStaffWrites(tx: Transaction) {
+  await tx.execute(sql`select pg_advisory_xact_lock(${STAFF_WRITES_LOCK})`);
+}
+
+/** Only meaningful while the caller holds `lockStaffWrites`. */
 export async function countOtherActiveAdministrators(db: Executor, excludingStaffId: string) {
   const rows = await db
     .select({ id: schema.staffUsers.id })
     .from(schema.staffUsers)
-    .where(and(eq(schema.staffUsers.role, "ADMINISTRATOR"), eq(schema.staffUsers.isActive, true)))
-    .orderBy(asc(schema.staffUsers.id))
-    .for("update");
+    .where(and(eq(schema.staffUsers.role, "ADMINISTRATOR"), eq(schema.staffUsers.isActive, true)));
 
   return rows.filter((row) => row.id !== excludingStaffId).length;
 }
