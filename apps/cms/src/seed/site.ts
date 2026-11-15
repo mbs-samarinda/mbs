@@ -11,8 +11,9 @@ import { HUMAS, PPDB } from "./kontak-page";
  * choice.
  *
  * Everything else — navigation, footer columns, addresses, phone numbers — is a
- * placeholder with the right shape. No school has supplied real contact details,
- * exactly as on the design canvas. Editors replace them.
+ * placeholder with the right shape, except the phone numbers: PPDB, humas, the
+ * header phone and the yayasan secretariat all share one supplied number.
+ * Editors replace the rest.
  *
  * The umbrella's links to the three school sites are deliberately absent: they
  * are the one link shape that cannot be relative, since the schools sit on
@@ -79,7 +80,7 @@ const schoolSite = (
     { label: "Pendaftaran", href: "/pendaftaran" },
     { label: "Kontak", href: "/kontak" },
   ],
-  headerPhone: { label: "0541 123456", href: "tel:+62541123456" },
+  headerPhone: { label: PPDB.phone, href: PPDB.tel },
   headerWhatsapp: { label: "WhatsApp Panitia", href: PANITIA.href },
   footerColumns: [
     {
@@ -129,7 +130,7 @@ export const OWNER_SEED = [
     footerColumns: [],
     contacts: [
       PANITIA,
-      { label: "Sekretariat Yayasan", value: "0541 123456", href: "tel:+62541123456" },
+      { label: "Sekretariat Yayasan", value: PPDB.phone, href: PPDB.tel },
       { label: "Email", value: "halo@mbss.sch.id", href: "mailto:halo@mbss.sch.id" },
     ],
   },

@@ -3,6 +3,7 @@ import type { Core } from "@strapi/strapi";
 import { KOLABORASI_UID } from "./collaboration";
 import { notifyProfile } from "./revalidate";
 import { HOME_SEED, type HomeSeed } from "./seed/home-page";
+import { HUMAS, PPDB } from "./seed/kontak-page";
 import { ARTIKEL_LINKS, OWNER_SEED } from "./seed/site";
 
 /**
@@ -322,6 +323,50 @@ export async function backfillArtikel(strapi: Core.Strapi): Promise<boolean> {
       data: { alamat: invite.alamat.replace("/berita/", `/artikel/${type}/`) },
     });
     changed = true;
+  }
+
+  // These writes skip the document middleware, so the profile is told directly.
+  if (changed) void notifyProfile(strapi);
+  return changed;
+}
+
+const OLD_PPDB = { phone: "0812 0000 0000", whatsapp: "https://wa.me/628120000000" };
+const OLD_HUMAS = { phone: "0812 1111 1111", whatsapp: "https://wa.me/628121111111" };
+const OLD_OFFICE = { phone: "0541 123456", tel: "tel:+62541123456" };
+
+/** Each placeholder value, the component field it sits in, and what replaces it. */
+const NUMBER_SWAPS = [
+  ...[
+    [OLD_PPDB, PPDB],
+    [OLD_HUMAS, HUMAS],
+  ].flatMap(([old, next]) => [
+    ["shared.contact-channel", "value", `${old.phone} · WhatsApp`, `${next.phone} · WhatsApp`],
+    ["shared.contact-channel", "href", old.whatsapp, next.whatsapp],
+    ["shared.link", "href", old.whatsapp, next.whatsapp],
+    ["shared.contact-card", "channelValue", old.phone, next.phone],
+    ["shared.contact-card", "channelHref", old.whatsapp, next.whatsapp],
+  ]),
+  // The header phone and the yayasan secretariat.
+  ["shared.link", "label", OLD_OFFICE.phone, PPDB.phone],
+  ["shared.link", "href", OLD_OFFICE.tel, PPDB.tel],
+  ["shared.contact-channel", "value", OLD_OFFICE.phone, PPDB.phone],
+  ["shared.contact-channel", "href", OLD_OFFICE.tel, PPDB.tel],
+] as const;
+
+/**
+ * Swaps the placeholder phone numbers for the real one on a database seeded
+ * before it was known: the site contacts, the header phone and WhatsApp links,
+ * and the `/kontak` cards. Only exact placeholder values move, so a number an
+ * editor already typed stays.
+ */
+export async function backfillContactNumbers(strapi: Core.Strapi): Promise<boolean> {
+  let changed = false;
+  // Draft and published rows each own a copy of the component, so both move.
+  for (const [uid, field, from, to] of NUMBER_SWAPS) {
+    const rows = await strapi.db
+      .query(uid)
+      .updateMany({ where: { [field]: from }, data: { [field]: to } });
+    if (rows.count > 0) changed = true;
   }
 
   // These writes skip the document middleware, so the profile is told directly.

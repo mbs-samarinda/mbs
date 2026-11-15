@@ -30,14 +30,15 @@ const HOURS = "Senin–Jumat 08.00–15.00 WITA";
  * `index.ts` reads these too, for the footer and header contacts.
  */
 export const PPDB = {
-  phone: "0812 0000 0000",
-  whatsapp: "https://wa.me/628120000000",
+  phone: "+62 821-5586-5420",
+  tel: "tel:+6282155865420",
+  whatsapp: "https://wa.me/6282155865420",
   email: "ppdb@mbss.sch.id",
 };
 
 export const HUMAS = {
-  phone: "0812 1111 1111",
-  whatsapp: "https://wa.me/628121111111",
+  phone: "+62 821-5586-5420",
+  whatsapp: "https://wa.me/6282155865420",
   email: "humas@mbss.sch.id",
 };
 
