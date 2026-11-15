@@ -43,18 +43,18 @@ const keep = (block: PageBlock) => ({ __component: block.__component, id: block.
 /** One entry of a page's dynamic zone, as a read returns it. */
 type PageBlock = { __component: string; id?: number | string };
 
-/** The sections the apex home dropped when it became the main menu. */
-const CAMPAIGN_BLOCKS = new Set([
-  "blocks.hero",
-  "blocks.admission-table",
-  "blocks.facts",
-  "blocks.news",
-]);
+/**
+ * The sections the apex home dropped when it became the main menu. The joint
+ * cycle table was one too, but its component is gone from the schema, and
+ * Strapi skips rows of a removed component on read, so there is nothing left
+ * to strip.
+ */
+const CAMPAIGN_BLOCKS = new Set(["blocks.hero", "blocks.facts", "blocks.news"]);
 
 /**
  * Turns an umbrella home seeded as a campaign page into the apex's main menu.
  * The profile app lists every article below the school cards on its own, so
- * the hero, the joint cycle table, the yayasan section and the news section go.
+ * the hero, the yayasan section and the news section go.
  * Any other block an editor added stays. A database seeded before the cards
  * existed gets the seeded ones.
  *
