@@ -367,8 +367,8 @@ remembering another screen: where am I, what is the current state, what should I
 do next.
 
 **The URL-Owns-State Rule.** Anything that should survive a refresh or be shared
-lives in the address: the selected application, the section, committee filters.
-Never a hidden "active child" in the session.
+lives in the address: the selected record, the section, list filters. Never
+hidden in the session.
 
 ## Elevation & Depth
 
@@ -514,8 +514,7 @@ about: fee lists, admission tables, fact strips, pencapaian years.
 
 ### Navigation
 - **Style:** 14px medium labels, no chrome; the active item is Harbor Teal
-- **Context:** the current school and, in parent admission, the current child are
-  always visible
+- **Context:** the current owner is always visible
 - **Mobile:** primary actions stay reachable without hiding status
 
 ## Do's and Don'ts
