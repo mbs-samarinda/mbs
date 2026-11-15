@@ -247,14 +247,6 @@ export type Block = { readonly id: number } & (
       head: SectionHead;
       items: readonly { id: number; title: string; description: string | null }[];
     }
-  | {
-      readonly kind: "admission-table";
-      // The only editor field. Everything else — the cycle name in the heading,
-      // the dates, the fees, the result line — is read live from the admission
-      // system, because a date typed by an editor is the exact failure this
-      // product exists to stop.
-      description: string | null;
-    }
   | { readonly kind: "news"; head: SectionHead; limit: number }
   | { readonly kind: "admission-cta"; heading: string; body: string | null }
   | { readonly kind: "rich-text"; body: string }
@@ -428,7 +420,6 @@ const BLOCK_POPULATE: [string, string][] = [
   ["populate[blocks][on][blocks.highlights][populate]", "*"],
   ["populate[blocks][on][blocks.majors][populate]", "*"],
   ["populate[blocks][on][blocks.news][populate]", "*"],
-  ["populate[blocks][on][blocks.admission-table][populate]", "*"],
   ["populate[blocks][on][blocks.admission-cta][populate]", "*"],
   ["populate[blocks][on][blocks.rich-text][populate]", "*"],
   ["populate[blocks][on][blocks.facts][populate]", "*"],
