@@ -7,9 +7,10 @@
 # The dump is piped straight through age into the upload. Nothing unencrypted
 # ever touches the disk, and a 58 GB box never has to hold a copy.
 #
-# `docs/11` is blunt about what counts as evidence here: "A restore drill — not a
-# successful backup command — is evidence that recovery works." See
-# infra/restore-drill.sh, and read the warning in it about where the key lives.
+# The knowledge repo's `docs/deployment.md` is blunt about what counts as
+# evidence here: "A restore drill, not a successful backup command, proves
+# recovery works." See infra/restore-drill.sh, and read the warning in it about
+# where the key lives.
 set -euo pipefail
 
 # shellcheck source=lib.sh

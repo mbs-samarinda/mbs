@@ -13,226 +13,76 @@ web
 
 ## Users
 
-**Parents and guardians** are the primary applicant-facing users. One parent
-account may manage applications for several children. They work on their own,
-on the public internet, mostly on mid-range Android phones and often on patchy
-mobile data, and complete the process over several sittings. The child is the subject of an application, never a login identity.
-
-Other audiences, each with a different job:
-
-- **Prospective families** — parents comparing schools, prospective students,
-  current families after official information, and visitors arriving from
-  search. They browse a school profile site before applying.
-- **Staff** — most review work: inspect, request precise revisions, verify,
-  manage interviews, record decisions.
-- **Administrators** — staff abilities plus school settings, staff access,
-  exports and fee waivers within their assigned schools, and the admission
-  cycle, which is shared across MBSS and carries no school of its own.
-- **Principals** — read-only visibility into applicants and results. Not a
-  hidden approval step; they cannot change records.
-- **School content editors** — maintain their school's public profile content
-  in Strapi, without touching admission.
+- **Prospective families.** Parents comparing schools, prospective students,
+  current families after official information, and visitors from search. Mostly
+  on mid-range Android phones and patchy mobile data. They browse a school's
+  profile site before applying.
+- **School content editors.** They keep their school's public content current in
+  Strapi. A global content administrator also edits the umbrella.
+- **Parents, guardians and the admission committee.** They are the users of PPDB
+  (admission), which is being redesigned from zero. Who they are and what they
+  do is decided in `docs/admission.md` in the knowledge repository, not here.
 
 ## Product Purpose
 
-One connected digital system for the MBSS schools: a public presence per
-school, a clear registration path for families, and one workspace for the
-admission committee. It replaces paper forms, WhatsApp threads, spreadsheets
-and payment screenshots with one record.
+One connected digital system for the MBSS schools: a public presence for each
+school, a CMS to keep it current, and an admission system that is being
+redesigned.
 
-Success, stated as observable outcomes:
+Success for what is built:
 
 - A visitor understands a school and finds admission without asking anyone.
-- A parent leaves and resumes a draft without losing progress.
-- A parent managing several children never confuses one application with
-  another.
-- A staff member understands an application's whole condition from one
-  workspace.
-- Revision requests name exactly what must change.
-- Payment, review, interview and result states cannot contradict one another.
-- An editor keeps content current without affecting another school or
-  admission.
-- The organisation can explain who changed an important record, and when.
+- An editor keeps content current without affecting another owner or admission.
+- No page shows a stale admission fact: open or closed, dates and fees are read
+  live, never typed by an editor.
 
 ## Positioning
 
-MBSS is one organisation with a known set of schools, not a platform schools
-sign up for. That shapes the system: the school list is a compile-time constant
-(`packages/school-config`), while anything an administrator changes — fees,
-dates, whether a school takes part in a cycle — lives in PostgreSQL. Shared
-admission rules are coordinated centrally; school-owned content and staff
-access stay scoped to their school.
+MBSS is one organisation with a fixed set of schools, not a platform schools
+sign up for. The school list is a compile-time constant
+(`packages/school-config`). Anything an administrator changes lives in
+PostgreSQL. Editable content lives in Strapi.
 
 Explicit non-goals: not a website builder, not a generic form builder, not a
 school ERP, not a learning system, not a marketplace for independent schools.
 
 ## Operating Context
 
-Four applications, one service:
+| App | Job | State |
+| --- | --- | --- |
+| `apps/profile` (Next.js) | Public sites: umbrella at the apex, one school per subdomain | built |
+| `apps/cms` (Strapi) | Profile content only, own database | built |
+| `apps/api` (Fastify + oRPC) | Admission data; the profile reads admission facts from it | partial, redesign |
+| `apps/admission` (Vite) | Parent admission | empty scaffold, redesign |
+| `apps/admission-admin` (Vite) | Committee workspace | empty scaffold, redesign |
 
-| App | Job |
-| --- | --- |
-| `apps/profile` (Next.js) | Public profile sites: umbrella at the apex, one school per subdomain |
-| `apps/admission` (Vite) | Parent application |
-| `apps/admission-admin` (Vite) | Committee workspace |
-| `apps/cms` (Strapi) | Profile content only, own database |
-| `apps/api` (Fastify + oRPC) | Sole source of truth for admission |
+Three schools: SMP Islam Terpadu Madina, SMK Terpadu Madina, SMA Madina Citra
+Insani. Public content belongs to one of four **owners**: `mbs`, the Madina
+Boarding School umbrella at the apex, and the three schools. The hostname
+resolves the owner, and an unknown hostname fails closed.
 
-Three schools, one system, each with its own identity, fees and dates: SMP
-Islam Terpadu Madina, SMK Terpadu Madina, SMA Madina Citra Insani. Hostname
-resolves the owner.
-
-Public content belongs to one of four **owners**: the `mbs` Madina Boarding
-School umbrella at the apex, and the three schools. Only the three schools are
-`SchoolKey` values. The umbrella has public content but never a cycle, an
-application, a fee or staff access, so it is deliberately not a fourth
-`SchoolKey` — that would force a "not the umbrella" guard through the whole
-admission domain.
-
-Admission runs in cycles (`DRAFT`, `OPEN`, `CLOSED`, `ARCHIVED`) with
-registration open/close and a shared result publish time, plus per-school
-settings inside a cycle.
-
-Parent journey: choose school and enter child basics, authenticate (Google or
-email OTP), receive a public registration number, complete applicant and
-guardian data, upload required documents, pay through Midtrans, review, submit,
-answer any revision requests, attend an interview, then see the result at the
-shared publication time.
-
-Profile sites: each school has its own address (`sma.mbss.sch.id` and so on)
-but all belong to one product. A visitor should quickly find what the school is
-and whom it serves, its programs, values, facilities and activities, news and
-contact details, whether admission is open, and how to start. School pages are
-`/`, `/profil`, `/program`, `/ekstrakurikuler`, `/fasilitas`, `/galeri`,
-`/artikel`, `/unduhan`, `/pendaftaran`, `/kontak`. `program` is the academic offering and carries SMK's
-jurusan; `ekstrakurikuler` is activities. They are separate pages because they
-answer separate questions.
-
-The apex, `mbss.sch.id`, is a main menu for the four sites: the three school
-cards, each the way into that school's site, then every article on every site,
-newest first, filterable by type and owner, each opening on the site that owns
-it. Its only other pages are the umbrella's own articles; every other path
-answers the branded 404, and
-`/pendaftaran` redirects to the admission app so the shared "Pendaftaran
-Bersama" button works. A visitor landing there is choosing a school. Yapendis
-Nurul Haq is content on it, never the identity of it.
-
-`/artikel` lists three content types, Berita, Pengumuman and Opini, each with a
-visible type label; each type also has its own listing at `/artikel/<type>`, and
-every article lives at `/artikel/<type>/<slug>`. `Pengumuman` carries an
-optional `expiresAt`. `Opini` is a signed piece by one person, credited by
-`authorName` and `authorRole`, and is never a collab.
-`Pencapaian` is a record browsed by level and year rather than a feed entry, and
-may optionally point at one Berita article telling the story behind it. The name
-is `Pencapaian` and not `Prestasi` because the admission domain uses Prestasi for
-a Jalur.
-
-Editors compose pages from approved sections — hero, introduction, programs,
-facilities, gallery, statistics, FAQ, news, pencapaian, admission invitation,
-contact — choosing order, text, images, navigation, SEO and the school's tagline.
-Its palette is not theirs to set: approved per owner, fixed as a CSS custom
-property block in `apps/profile`. They cannot add arbitrary page code, CSS, fonts or unrelated layouts, and
-they never maintain a second admission opening date: the invitation reads the
-current period from the admission service. Umbrella content is editable only by
-a global content administrator, never by a school editor. The profile site sends
-a parent to the admission app; it never collects applications, authenticates
-parents, takes payment or reads private records. An unknown hostname must not
-quietly show another owner's content.
-
-No contact form ships initially — WhatsApp and email carry it. That is a
-deferral, not a rejection: the two most-used pages on the previous site were
-both question forms, by a wide margin, so a form that stores the question and
-notifies the panitia is planned for the core API and the committee workspace.
-No content is migrated from the old sites; this is a fresh start.
-
-Committee journey: a dense applicant queue filtered by cycle, school and status
-with filter state in the URL, then one applicant workspace holding applicant,
-guardians, previous education, documents, payment, review issues, interview,
-decision and audit history.
+The profile sites, the CMS and their decisions are in
+`docs/profile-sites.md` and `docs/cms.md` in the knowledge repository. PPDB is
+in `docs/admission.md`. Read those; this file does not repeat them.
 
 ## Capabilities and Constraints
 
-- The API decides. Front ends render state; they never own it. Apps never
-  import each other's source — they talk over HTTP.
-- Application state, payment state, document state and decision are related but
-  distinct. The interface may summarise them; it must never let one imply
-  another. A successful payment is not a submission.
-- Submission is deliberate and explicit, never a side effect of checkout. It
-  succeeds only when the cycle is `OPEN` and the school enabled, the
-  application is the parent's and is `DRAFT`, required fields are complete,
-  every snapshotted required document is uploaded, and the fee is `PAID` or
-  `WAIVED`.
-- After submission the application locks. Only fields and documents named in an
-  open revision issue become editable; resubmitting means "the parent says this
-  is fixed", not "staff approved it". The API enforces this, not disabled
-  controls.
-- Midtrans is authoritative for payment status. The browser returning from
-  checkout is informational only; the shown state comes from the admission
-  service. Failed and expired attempts stay as history and can be retried.
-  Waivers need an administrator, a reason and an audit record.
-- Results may be stored before publication but must not be exposed or implied
-  before `result_publish_at`. Viewing a result requires an authenticated parent
-  with access; no public registration-number lookup.
-- Privacy: a registration number is safe to quote to staff but unlocks nothing.
-  Duplicate-registration messages must not reveal another child's identity.
-  Documents go to private S3.
-- Better Auth owns authentication tables; the MBSS domain owns authorization
-  (`application_access`, `staff_users`, `staff_school_access`). Database-backed
-  sessions with host-only HTTP-only cookies, so applicant and staff sessions
-  never mix. Staff sign in with Google; there is no SUPER_ADMIN.
-- Every important change is auditable (`audit_logs`: actor, action, entity,
-  metadata).
-- The selected application lives in the route, never in a hidden "active child"
-  in the session. Two tabs may safely hold two children.
-- Applicant-facing copy is Bahasa Indonesia. No Arabic script anywhere in the
-  applications: no Arabic typeface, no RTL layout, no Arabic content fields.
-- Two control densities share one component set: 44px touch targets on
-  parent-facing surfaces, the compact 24–36px scale for committee and CMS work.
-- Contract and Zod schemas live in `packages/api-contract`; Drizzle schema and
-  migrations in `packages/db`, used by the API alone. `packages/ui` holds the
-  shared shadcn/ui components on Base UI and the design tokens.
-- Current state: `apps/admission` is a one-route shell. The registration flow
-  is unbuilt. `apps/admission-admin` is a shell too: its sign-in, gate, staff
-  and cycle screens were deleted to be rebuilt, so only the router, the error
-  and not-found boundaries and one placeholder route remain. The API side was
-  left intact — `apps/api` still serves staff and admission, and the staff
-  bootstrap still runs on start, so a fresh UI has something to talk to.
-  `apps/profile` resolves all four owners, wears each one's palette and now
-  serves the shared shell — switcher, header, footer — around a single
-  placeholder page. `apps/cms` holds the content model but no content: a `Site`
-  row per owner, a `Page` row per route that exists, and Berita, Pengumuman,
-  Ekstrakurikuler, Fasilitas and Pencapaian. No page reads either yet. The rest
-  of the profile decisions above are agreed and documented, not implemented.
-
-Four things about that model are decisions rather than mechanics:
-
-- **A `Page` is one row per known route**, its `slug` an enumeration of the
-  routes the profile app builds, so a page can never exist at an address with no
-  route to show it. A lifecycle rejects a second page for the same owner and
-  route, and the editor role holds neither create nor delete on `Page` or
-  `Site` — deleting either takes a live route down. A new page is a code change plus
-  one enum value, which is what the page map already means by a section earning
-  its own page.
-- **Only blocks that something renders exist.** Hero, text, text-and-image,
-  programs, facilities, extracurriculars, achievements, news, FAQ, admission
-  invitation and contact — the eleven the first pages draw. Gallery, statistics
-  and testimonials stay unmodelled and are closed rather than pending:
-  testimonials have nothing to publish by brand rule, and no remaining page
-  draws the other two. They reopen only if an editor asks for one on a homepage.
-  `/galeri` does not reopen the gallery block: it reads the `Album` collection
-  directly, the way `/fasilitas` reads its own.
-- **Plural names read `berita-list`, not `beritas`.** Strapi requires a plural
-  distinct from the singular and Indonesian does not take an `-s`, so every
-  collection uses a `-list` suffix rather than a word no one would write.
-- **An editor's reach is role plus assignment, never a role named after a
-  school.** One role says what an editor may do; a `Penugasan Editor` row says
-  whose content they may do it to, and a global content administrator is that
-  same role assigned all four owners. Two limits come with it. An owner cannot
-  be changed once a record has been published, for anyone, so a misfiled article
-  caught after publication is deleted and retyped rather than moved. And the
-  media library is shared: Strapi's upload actions carry no subject for a scope
-  condition to attach to, and deletion rides on update, so every editor can
-  delete every school's photographs. Both are accepted, not pending.
+- The API decides. Front ends render state and never own it. Apps never import
+  each other's source; they talk over HTTP.
+- The profile reads `public.admission.getCurrentCycle` live and never caches it.
+  A failed read shows "unavailable" and never guesses. This is the one contract
+  between the live profile and the PPDB redesign.
+- The profile never collects applications, authenticates parents, takes payment
+  or reads private records.
+- Editors compose approved blocks. They never set a palette, write page code or
+  maintain a second admission date.
+- All public copy is Bahasa Indonesia. No Arabic script anywhere: no Arabic
+  typeface, no RTL layout, no Arabic content fields.
+- Two control densities share one component set: 44px touch targets on public
+  and parent-facing surfaces, the compact 24 to 36px scale for staff and CMS work.
+- `packages/api-contract` holds the contract and Zod schemas. `packages/db`
+  holds the Drizzle schema and migrations, used by the API alone. `packages/ui`
+  holds the shared shadcn/ui components on Base UI and the design tokens.
 
 ## Brand Commitments
 
@@ -364,7 +214,8 @@ the ratio so the value cannot drift back.
 
 `--muted-foreground` was shadcn's `#737373`, which measures 4.35:1 on a tinted
 band — under the floor for normal text, on a design full of tinted bands. It is
-now `#6e6e6e`: 4.68:1 on the tint, 5.10:1 on white. Still awaiting the guide's
+now `#6e6e6e`: 4.68:1 on the tint, 5.10:1 on white.
+
 Settled on 13 September 2026: the neutral ramp is the gray one already shipping,
 in both modes — the warm-neutral direction was withdrawn, since the dark ramp is
 neutral gray and a warm light ramp beside it would be two systems. The chart ramp
@@ -405,8 +256,8 @@ them.
 
 ## Evidence on Hand
 
-- Knowledge repository: 13 numbered docs, four concept docs, four page-map
-  docs, brand guide and reference-asset inventory.
+- Knowledge repository: one file per topic under `docs/`, indexed in its README,
+  plus the brand guide and reference-asset inventory.
 - `docs/brand/reference-assets.md` inventories five flattened JPEG references
   with SHA-256 hashes, under `assets/brand/reference/` in that repository: the
   Madina Boarding School umbrella mark, the SMP IT Madina, SMK Terpadu Madina
@@ -431,8 +282,8 @@ them.
   what do I do next.
 - **One trustworthy record.** Each fact has one responsible source; apps
   present it and never invent a second version.
-- **Precise feedback.** Name the exact field or document and explain it. A bare
-  "rejected" is not a review.
+- **Precise feedback.** Name the exact field and say what is wrong. A bare
+  "invalid" helps nobody.
 - **Safe by default.** Children's data. A user sees only what they are granted;
   public identifiers unlock nothing.
 - **Fast on ordinary devices and connections.** No powerful phone or perfect

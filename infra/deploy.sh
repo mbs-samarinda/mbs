@@ -9,10 +9,11 @@
 # the lockfile, so reproducing one on the box would mean a checkout, pnpm and
 # turbo on a 2 vCPU machine to learn something the runner already knows.
 #
-# The order is the one docs/11 fixes: pull, back up, migrate exactly once, start
-# cms and api in place and wait for both to be healthy, then prove the new
-# profile works before any visitor sees it. After the swap it checks the public
-# site through Caddy and TLS, and only then records the pins as last good.
+# The order is the one the knowledge repo's docs/deployment.md fixes: pull,
+# back up, migrate exactly once, start cms and api in place and wait for both
+# to be healthy, then prove the new profile works before any visitor sees it.
+# After the swap it checks the public site through Caddy and TLS, and only then
+# records the pins as last good.
 set -euo pipefail
 
 readonly PROFILE_TAG=${1:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
