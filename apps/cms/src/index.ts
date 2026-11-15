@@ -4,6 +4,7 @@ import {
   backfillApexHomeOnly,
   backfillApexMainMenu,
   backfillArtikel,
+  backfillContactNumbers,
   backfillOnce,
   backfillSchoolLinks,
   deleteApexPages,
@@ -541,6 +542,7 @@ export default {
       await backfillOnce(strapi, "apex-main-menu", () => backfillApexMainMenu(strapi));
       await backfillOnce(strapi, "apex-home-only", () => backfillApexHomeOnly(strapi));
       await backfillOnce(strapi, "apex-pages-deleted", () => deleteApexPages(strapi));
+      await backfillOnce(strapi, "contact-numbers", () => backfillContactNumbers(strapi));
     });
   },
 };
