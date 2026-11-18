@@ -6,17 +6,19 @@ import { Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { type CycleFacts, formatFee, getCycleFacts, isOpen, splitDocuments } from "@/admission.ts";
 import {
-  type CycleFacts,
-  formatFee,
-  getCycleFacts,
-  isOpen,
-  splitDocuments,
-} from "../../../admission.ts";
-import { formatDate } from "../../../articles.ts";
-import { getPage, getSite, type Block, type Site } from "../../../cms.ts";
-import { admissionUrl, requireSchool } from "../../../owners.ts";
-import { Fact, FactStrip, PageHead, SECTION, SectionHeading, WIDTH } from "../sections.tsx";
+  Fact,
+  FactStrip,
+  PageHead,
+  SECTION,
+  SectionHeading,
+  WIDTH,
+} from "@/app/[owner]/_components/section.tsx";
+import { formatDate } from "@/articles.ts";
+import { getPage, type Block } from "@/cms/pages.ts";
+import { getSite, type Site } from "@/cms/site.ts";
+import { admissionUrl, requireSchool } from "@/owners.ts";
 
 export async function generateMetadata({
   params,

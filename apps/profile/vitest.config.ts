@@ -6,5 +6,6 @@ import { defineConfig } from "vitest/config";
 // staging deploy sets it, and a red test there would be the environment, not
 // the code. The tests that care about another apex stub it themselves.
 export default defineConfig({
+  resolve: { tsconfigPaths: true },
   test: { env: { PROFILE_APEX: "mbss.sch.id" } },
 });

@@ -3,7 +3,7 @@ import { cn } from "cn";
 import { SearchXIcon, TriangleAlertIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { isUmbrella, type Owner } from "../owners.ts";
+import { isUmbrella, type Owner } from "@/owners.ts";
 
 /**
  * The page a visitor lands on when the address is wrong or something broke.

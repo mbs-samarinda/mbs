@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 
-import { getAlbums, getPage } from "../../../cms.ts";
-import { requireSchool } from "../../../owners.ts";
-import { PageHead, Photo, SECTION, WIDTH } from "../sections.tsx";
+import { PageHead, Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { getAlbums } from "@/cms/gallery.ts";
+import { getPage } from "@/cms/pages.ts";
+import { requireSchool } from "@/owners.ts";
 
 export async function generateMetadata({
   params,

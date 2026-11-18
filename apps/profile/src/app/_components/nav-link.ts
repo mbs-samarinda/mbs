@@ -1,4 +1,5 @@
-import type { CmsLink, Site } from "../../cms.ts";
+import type { CmsLink } from "@/cms/client.ts";
+import type { Site } from "@/cms/site.ts";
 
 /**
  * One navigation link's look, shared by the desktop row and the phone menu so

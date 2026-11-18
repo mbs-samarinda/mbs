@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 
-import { getPage, getSite } from "../../../cms.ts";
-import { requireSchool } from "../../../owners.ts";
-import { AdmissionBandSection, BlockSection, PageHead } from "../sections.tsx";
+import { AdmissionBandSection } from "@/app/[owner]/_components/admission.tsx";
+import { BlockSection } from "@/app/[owner]/_components/blocks.tsx";
+import { PageHead } from "@/app/[owner]/_components/section.tsx";
+import { getPage } from "@/cms/pages.ts";
+import { getSite } from "@/cms/site.ts";
+import { requireSchool } from "@/owners.ts";
 
 export async function generateMetadata({
   params,

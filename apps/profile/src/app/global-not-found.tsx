@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
-import { getSite, type Site } from "../cms.ts";
-import { isUmbrella, ownerFromHostname, type Owner } from "../owners.ts";
-import { Footer, Header } from "./[owner]/shell.tsx";
-import { ThemeScript } from "./[owner]/theme-script.tsx";
-import { Exception } from "./exception.tsx";
+import { getSite, type Site } from "@/cms/site.ts";
+import { isUmbrella, ownerFromHostname, type Owner } from "@/owners.ts";
+
+import { Exception } from "./_components/exception.tsx";
+import { Footer, Header } from "./_components/shell.tsx";
+import { ThemeScript } from "./_components/theme-script.tsx";
 
 import "./globals.css";
 

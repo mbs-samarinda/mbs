@@ -10,14 +10,14 @@ import type { NextConfig } from "next";
 // and `new URL("")` throws here at config load, before the env module can say
 // anything useful about it.
 //
-// This is read at BUILD time while `cms.ts` builds the image `src` at request
+// This is read at BUILD time while `cms/client.ts` builds the image `src` at request
 // time. A deploy that builds and serves with different values gets exactly the
 // "hostname is not configured" failure this exists to prevent, so `CMS_URL`
 // belongs in the build environment as well as the runtime one.
 const cms = new URL(process.env.CMS_URL || "http://localhost:1337");
 
 // Once media lives in S3, Strapi returns absolute URLs on the bucket's host and
-// `cms.ts`'s `mediaUrl` passes them straight through — so the CMS host above no
+// `cms/client.ts`'s `mediaUrl` passes them straight through — so the CMS host above no
 // longer covers them and every photograph 500s with "hostname is not
 // configured". Same value as the CMS's own AWS_BASE_URL.
 //
@@ -49,7 +49,7 @@ const config: NextConfig = {
   // school key, which is also part of the cache key so two schools never share
   // a cached page for the same path.
   cacheComponents: true,
-  // Every CMS read in `cms.ts`. Like the built-in "hours" profile, but `expire`
+  // Every CMS read in `src/cms/`. Like the built-in "hours" profile, but `expire`
   // is a year, not a day: past `expire` an entry is a miss, so a Strapi outage
   // over a day turned every page into a 500. Past `revalidate`, or after a
   // publish, the old entry is served while a background refill runs, and a

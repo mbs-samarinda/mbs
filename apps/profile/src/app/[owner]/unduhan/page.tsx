@@ -1,10 +1,12 @@
 import { DownloadIcon, FileTextIcon } from "lucide-react";
 import type { Metadata } from "next";
 
-import { formatDate } from "../../../articles.ts";
-import { getFiles, getPage, mediaUrl, type Berkas } from "../../../cms.ts";
-import { requireSchool } from "../../../owners.ts";
-import { PageHead, SECTION, WIDTH } from "../sections.tsx";
+import { PageHead, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { formatDate } from "@/articles.ts";
+import { mediaUrl } from "@/cms/client.ts";
+import { getFiles, type Berkas } from "@/cms/files.ts";
+import { getPage } from "@/cms/pages.ts";
+import { requireSchool } from "@/owners.ts";
 
 export async function generateMetadata({
   params,

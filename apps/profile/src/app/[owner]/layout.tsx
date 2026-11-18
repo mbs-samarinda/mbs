@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { getSite } from "../../cms.ts";
-import { ownerHost, OWNERS, requireOwner } from "../../owners.ts";
-import { Footer, Header } from "./shell.tsx";
-import { ThemeScript } from "./theme-script.tsx";
+import { Footer, Header } from "@/app/_components/shell.tsx";
+import { ThemeScript } from "@/app/_components/theme-script.tsx";
+import { getSite } from "@/cms/site.ts";
+import { ownerHost, OWNERS, requireOwner } from "@/owners.ts";
 
-import "../globals.css";
+import "@/app/globals.css";
 
 // Per owner, or all four sites share the umbrella's tab title and description —
 // which is the opposite of the point.

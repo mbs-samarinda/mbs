@@ -2,8 +2,8 @@
 
 import { Button } from "@mbs/ui/components/button";
 
-import { ownerFromBrowserHost } from "../../owners.ts";
-import { Exception } from "../exception.tsx";
+import { Exception } from "@/app/_components/exception.tsx";
+import { ownerFromBrowserHost } from "@/owners.ts";
 
 /**
  * A page inside this owner's site failed.

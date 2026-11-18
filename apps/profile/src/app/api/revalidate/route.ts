@@ -2,8 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 import { revalidateTag } from "next/cache";
 
-import { CMS_TAG } from "../../../cms.ts";
-import { config } from "../../../config/env.ts";
+import { CMS_TAG } from "@/cms/client.ts";
+import { config } from "@/config/env.ts";
 
 /**
  * What the CMS calls when an editor publishes.

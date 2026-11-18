@@ -288,10 +288,16 @@ test("a write whose stream errors is a miss, not a partial entry", async () => {
   expect(await handler.get("page:smp:broken", [])).toBeUndefined();
 });
 
-test("every cacheLife in cms.ts names a profile that exists", async () => {
+test("every cacheLife in cms/ names a profile that exists", async () => {
   // `cacheLife` accepts any string, so a typo compiles and fails every page at runtime.
   const { default: config } = await import("./next.config.ts");
-  const source = await readFile(join(import.meta.dirname, "src/cms.ts"), "utf8");
+  const folder = join(import.meta.dirname, "src/cms");
+  const files = (await readdir(folder)).filter(
+    (name) => name.endsWith(".ts") && !name.endsWith(".test.ts"),
+  );
+  const source = (
+    await Promise.all(files.map((name) => readFile(join(folder, name), "utf8")))
+  ).join("\n");
   const used = [...source.matchAll(/cacheLife\("([^"]+)"\)/g)].map((match) => match[1]);
 
   expect(used.length).toBeGreaterThan(0);

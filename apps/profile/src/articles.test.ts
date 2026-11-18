@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 
+import type { Article } from "./articles.ts";
 import {
   badgeOwners,
   cutExpired,
@@ -9,7 +10,6 @@ import {
   paginate,
   PAGE_SIZE,
 } from "./articles.ts";
-import type { Article } from "./cms.ts";
 
 const entry = (slug: string, publishedAt: string, extra: Partial<Article> = {}): Article => ({
   type: "berita",
