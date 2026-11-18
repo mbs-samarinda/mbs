@@ -344,8 +344,8 @@ export async function assertOwnerScope(
 
   throw new errors.ForbiddenError(
     written.includes(foreign)
-      ? `Anda tidak ditugaskan pada pemilik "${foreign}". Minta administrator menambahkannya di Penugasan Editor.`
-      : `Entri ini menautkan entri milik "${foreign}". Anda hanya bisa menautkan entri pemilik yang ditugaskan.`,
+      ? `Kamu tidak ditugaskan pada pemilik "${foreign}". Minta administrator menambahkannya di Penugasan Editor.`
+      : `Entri ini menautkan entri milik "${foreign}". Kamu hanya bisa menautkan entri pemilik yang ditugaskan.`,
   );
 }
 

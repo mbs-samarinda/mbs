@@ -931,8 +931,7 @@ const ACTIVITY_ICONS: Record<ActivityIcon, LucideIcon> = {
   bintang: Star,
 };
 
-// Holds the row's height while the listing streams in, and does not animate:
-// nothing in this system repaints continuously.
+// Holds the row's height while the listing streams in.
 const NewsPlaceholder = ({ count }: { count: number }) => (
   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
     {Array.from({ length: count }, (_, index) => (
@@ -1144,8 +1143,7 @@ function Hero({
   );
 }
 
-// A skeleton that holds the row's height and does not animate: nothing in this
-// system repaints continuously.
+// A skeleton that holds the row's height.
 const StatusPlaceholder = () => <span className="h-6 w-52 rounded-4xl bg-muted" />;
 const FactsPlaceholder = ({ count }: { count: number }) => (
   <div className="flex flex-wrap gap-x-8 gap-y-3">

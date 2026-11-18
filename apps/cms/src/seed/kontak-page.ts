@@ -55,7 +55,7 @@ const schoolKontak = (name: string): KontakSeed => ({
       items: [
         {
           title: "Tanya panitia pendaftaran",
-          description: "Syarat, biaya, jadwal seleksi, dan status berkas anak Anda.",
+          description: "Syarat, biaya, jadwal seleksi, dan status berkas anakmu.",
           channelValue: PPDB.phone,
           channelHref: PPDB.whatsapp,
           ctaLabel: "Chat di WhatsApp",
