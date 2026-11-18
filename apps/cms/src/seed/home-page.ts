@@ -10,7 +10,7 @@
  * Only blocks that carry their own words are here. Facilities, extracurriculars
  * and achievements are relations, and a relation is stored by document id — ids
  * that exist only after those records are created. Their sections are built at
- * boot in `index.ts` and inserted before the news block, from whatever the owner
+ * boot in `run.ts` and inserted before the news block, from whatever the owner
  * actually has.
  *
  * Those records are seeded in development only, so a developer's site is not

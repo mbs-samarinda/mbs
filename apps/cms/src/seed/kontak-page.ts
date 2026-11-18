@@ -27,7 +27,7 @@ const HOURS = "Senin–Jumat 08.00–15.00 WITA";
 /**
  * The admission committee and humas serve all three schools, so every school
  * starts with the same two. Each school's row can still be changed on its own.
- * `index.ts` reads these too, for the footer and header contacts.
+ * `backfills.ts` reads these too, for the footer and header contacts.
  */
 export const PPDB = {
   phone: "+62 821-5586-5420",

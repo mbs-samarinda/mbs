@@ -4,7 +4,8 @@
  * **Development only**, same reason and same rules as the activities beside
  * them: the home page draws a facilities section from these records and renders
  * nothing without them, and a seeded building on a live site is a claim that it
- * exists. `index.ts` skips every content seed when `NODE_ENV` is production.
+ * exists. `seedSampleRecords` in `run.ts` skips every content seed when
+ * `NODE_ENV` is production.
  *
  * The umbrella has no facilities of its own — every building belongs to one of
  * the three schools — so it has no entry here.

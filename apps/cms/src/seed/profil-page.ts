@@ -10,7 +10,7 @@
  * organisation, and it already appears in the brand guide.
  *
  * Pencapaian is not here. It is a relation, stored by document id, so its
- * section is built at boot in `index.ts` from whatever records the owner has —
+ * section is built at boot in `run.ts` from whatever records the owner has —
  * the same reason the homepage's three relation sections are not in `HOME_SEED`.
  */
 

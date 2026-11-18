@@ -2,8 +2,8 @@
  * The achievements a development database starts with.
  *
  * **Development only**, like the articles and the facilities: an achievement
- * names a winner and a year, which is a claim. `index.ts` skips it when
- * `NODE_ENV` is production.
+ * names a winner and a year, which is a claim. `seedSampleRecords` in `run.ts`
+ * skips it when `NODE_ENV` is production.
  *
  * `recipient` names a team rather than a person wherever the activity has one:
  * a seeded student name is a claim about a child on a public website, and the
