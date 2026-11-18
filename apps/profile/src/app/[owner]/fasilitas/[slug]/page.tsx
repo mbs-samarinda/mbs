@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getEntry, mediaUrl } from "../../../../cms.ts";
-import { ownerUrl, requireSchool } from "../../../../owners.ts";
-import { Prose } from "../../prose.tsx";
 import {
   ENTRY_SECTIONS,
   EntryFacts,
   EntryHead,
   MoreEntries,
-  Photo,
-  SECTION,
-  WIDTH,
-} from "../../sections.tsx";
+} from "@/app/[owner]/_components/entry.tsx";
+import { Prose } from "@/app/[owner]/_components/prose.tsx";
+import { Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { mediaUrl } from "@/cms/client.ts";
+import { getEntry } from "@/cms/entries.ts";
+import { ownerUrl, requireSchool } from "@/owners.ts";
 
 type Params = Promise<{ owner: string; slug: string }>;
 

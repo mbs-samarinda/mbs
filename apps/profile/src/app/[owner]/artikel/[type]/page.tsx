@@ -2,15 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import {
-  ARTICLE_KINDS,
-  ARTICLE_TYPES,
-  isArticleType,
-  type ArticleType,
-} from "../../../../articles.ts";
-import { requireSchool } from "../../../../owners.ts";
-import { PageHead } from "../../sections.tsx";
-import { Listing, ListingPlaceholder, type Params } from "../listing.tsx";
+import { Listing, ListingPlaceholder, type Params } from "@/app/[owner]/_components/listing.tsx";
+import { PageHead } from "@/app/[owner]/_components/section.tsx";
+import { ARTICLE_KINDS, ARTICLE_TYPES, isArticleType, type ArticleType } from "@/articles.ts";
+import { requireSchool } from "@/owners.ts";
 
 type RouteParams = Promise<{ owner: string; type: string }>;
 

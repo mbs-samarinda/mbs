@@ -4,31 +4,28 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { AdmissionCardSection } from "@/app/[owner]/_components/admission.tsx";
+import { TypeBadge } from "@/app/[owner]/_components/article-meta.tsx";
+import { Prose } from "@/app/[owner]/_components/prose.tsx";
+import { Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
 import {
   ARTICLE_KINDS,
+  type Article,
   formatDate,
   formatLongDate,
   isArticleType,
-} from "../../../../../articles.ts";
+} from "@/articles.ts";
 import {
   getArticle,
   getArticleIndex,
   getRelatedAchievement,
-  mediaUrl,
   type Achievement,
-  type Article,
   type FullArticle,
-} from "../../../../../cms.ts";
-import {
-  articleHref,
-  isUmbrella,
-  type Owner,
-  ownerUrl,
-  requireOwner,
-} from "../../../../../owners.ts";
-import { Prose } from "../../../prose.tsx";
-import { AdmissionCardSection, Photo, SECTION, TypeBadge, WIDTH } from "../../../sections.tsx";
-import { CopyLink } from "../../copy-link.tsx";
+} from "@/cms/articles.ts";
+import { mediaUrl } from "@/cms/client.ts";
+import { articleHref, isUmbrella, type Owner, ownerUrl, requireOwner } from "@/owners.ts";
+
+import { CopyLink } from "./_components/copy-link.tsx";
 
 type Params = Promise<{ owner: string; type: string; slug: string }>;
 

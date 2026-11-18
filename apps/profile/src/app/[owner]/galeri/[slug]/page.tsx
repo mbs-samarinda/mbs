@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { formatLongDate } from "../../../../articles.ts";
-import { getAlbum, mediaUrl } from "../../../../cms.ts";
-import { ownerUrl, requireSchool } from "../../../../owners.ts";
-import { EntryHead, Photo, SECTION, WIDTH } from "../../sections.tsx";
+import { EntryHead } from "@/app/[owner]/_components/entry.tsx";
+import { Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { formatLongDate } from "@/articles.ts";
+import { mediaUrl } from "@/cms/client.ts";
+import { getAlbum } from "@/cms/gallery.ts";
+import { ownerUrl, requireSchool } from "@/owners.ts";
 
 type Params = Promise<{ owner: string; slug: string }>;
 

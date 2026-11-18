@@ -10,10 +10,14 @@ import {
   paginate,
   type ArticleType,
   type Month,
-} from "../../../articles.ts";
-import { getArticleIndex, type Article } from "../../../cms.ts";
-import { articleHref, type Owner, OWNERS } from "../../../owners.ts";
-import { AdmissionCardSection, ArticleMeta, Photo, SECTION, WIDTH } from "../sections.tsx";
+} from "@/articles.ts";
+import type { Article } from "@/articles.ts";
+import { getArticleIndex } from "@/cms/articles.ts";
+import { articleHref, type Owner, OWNERS } from "@/owners.ts";
+
+import { AdmissionCardSection } from "./admission.tsx";
+import { ArticleMeta } from "./article-meta.tsx";
+import { Photo, SECTION, WIDTH } from "./section.tsx";
 
 /** What the listing reads out of the URL. The params stay English; the copy does not. */
 export type Params = {

@@ -68,7 +68,7 @@
 
    Each block has two selectors. The same-element one is the site itself,
    because `data-owner` and the theme class (set by the switcher in
-   `[owner]/theme.tsx`) both live on <html>. The descendant one is a nested
+   `_components/theme.tsx`) both live on <html>. The descendant one is a nested
    `data-owner`, like another school's badge on a listing: without it, that
    badge would take its school's light values on a dark page. */
 

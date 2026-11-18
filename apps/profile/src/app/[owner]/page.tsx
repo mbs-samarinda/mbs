@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { getPage, getSite } from "../../cms.ts";
-import { isUmbrella, requireOwner } from "../../owners.ts";
-import { Listing, ListingPlaceholder, type Params } from "./artikel/listing.tsx";
-import { AdmissionBandSection, BlockSection } from "./sections.tsx";
+import { getPage } from "@/cms/pages.ts";
+import { getSite } from "@/cms/site.ts";
+import { isUmbrella, requireOwner } from "@/owners.ts";
+
+import { AdmissionBandSection } from "./_components/admission.tsx";
+import { BlockSection } from "./_components/blocks.tsx";
+import { Listing, ListingPlaceholder, type Params } from "./_components/listing.tsx";
 
 export async function generateMetadata({
   params,

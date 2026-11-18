@@ -2,8 +2,9 @@
 
 import { Button } from "@mbs/ui/components/button";
 
-import { ownerFromBrowserHost } from "../owners.ts";
-import { Exception } from "./exception.tsx";
+import { ownerFromBrowserHost } from "@/owners.ts";
+
+import { Exception } from "./_components/exception.tsx";
 
 import "./globals.css";
 

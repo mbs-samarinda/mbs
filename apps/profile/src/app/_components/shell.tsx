@@ -3,8 +3,10 @@ import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
 import Image from "next/image";
 
-import { mediaUrl, type Site } from "../../cms.ts";
-import { isUmbrella, type Owner, ownerUrl } from "../../owners.ts";
+import { mediaUrl } from "@/cms/client.ts";
+import { type Site } from "@/cms/site.ts";
+import { isUmbrella, type Owner, ownerUrl } from "@/owners.ts";
+
 import { MobileMenu } from "./mobile-menu.tsx";
 import { toMenu } from "./nav-link.ts";
 import { NavScroller } from "./nav-scroller.tsx";

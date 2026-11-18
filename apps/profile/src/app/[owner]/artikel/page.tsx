@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { getPage } from "../../../cms.ts";
-import { requireSchool } from "../../../owners.ts";
-import { PageHead } from "../sections.tsx";
-import { Listing, ListingPlaceholder, type Params } from "./listing.tsx";
+import { Listing, ListingPlaceholder, type Params } from "@/app/[owner]/_components/listing.tsx";
+import { PageHead } from "@/app/[owner]/_components/section.tsx";
+import { getPage } from "@/cms/pages.ts";
+import { requireSchool } from "@/owners.ts";
 
 export async function generateMetadata({
   params,

@@ -3,9 +3,11 @@ import { ExternalLink, MessageCircle, Phone } from "lucide-react";
 import type { Metadata } from "next";
 import { Fragment, type ReactNode } from "react";
 
-import { getPage, getSite, type Block, type Site } from "../../../cms.ts";
-import { type Owner, requireSchool } from "../../../owners.ts";
-import { AdmissionBandSection, PageHead, SECTION, SectionHeading, WIDTH } from "../sections.tsx";
+import { AdmissionBandSection } from "@/app/[owner]/_components/admission.tsx";
+import { PageHead, SECTION, SectionHeading, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { getPage, type Block } from "@/cms/pages.ts";
+import { getSite, type Site } from "@/cms/site.ts";
+import { type Owner, requireSchool } from "@/owners.ts";
 
 export async function generateMetadata({
   params,

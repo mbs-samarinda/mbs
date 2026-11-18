@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
-import { getEntries, getPage } from "../../../cms.ts";
-import { requireSchool } from "../../../owners.ts";
-import { EntryCard, PageHead, SECTION, WIDTH } from "../sections.tsx";
+import { EntryCard } from "@/app/[owner]/_components/entry.tsx";
+import { PageHead, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { getEntries } from "@/cms/entries.ts";
+import { getPage } from "@/cms/pages.ts";
+import { requireSchool } from "@/owners.ts";
 
 export async function generateMetadata({
   params,

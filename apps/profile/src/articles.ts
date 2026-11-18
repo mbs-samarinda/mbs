@@ -1,6 +1,6 @@
 import type { SchoolKey } from "@mbs/school-config";
 
-import type { Media } from "./cms.ts";
+import type { Media } from "./cms/client.ts";
 import type { Owner } from "./owners.ts";
 
 /** The three collections under `/artikel`: each one's address segment, and the label it wears. */
