@@ -81,7 +81,7 @@ export function Exception({
       {atSchool && (
         <div className="flex flex-col gap-3 border-t border-border pt-6">
           <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
-            Halaman yang mungkin Anda cari
+            Halaman yang mungkin kamu cari
           </h2>
           <nav aria-label="Halaman" className="flex flex-wrap gap-x-7 gap-y-1">
             {LINKS.map((link) => (
@@ -99,7 +99,7 @@ export function Exception({
 
       {reference && (
         <p className="text-xs text-muted-foreground tabular-nums">
-          Ref: {reference}. Sebutkan kode ini bila Anda menghubungi panitia.
+          Ref: {reference}. Sebutkan kode ini bila kamu menghubungi panitia.
         </p>
       )}
     </main>

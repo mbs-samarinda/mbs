@@ -40,15 +40,14 @@ memory.
 | Adding or fixing a shadcn component                           | `shadcn`                           |
 | React and Next performance                                    | `vercel-react-best-practices`      |
 | Component APIs and composition                                | `vercel-composition-patterns`      |
-| Any motion                                                    | `animate`                          |
+| Any Bahasa Indonesia copy                                     | `bahasa-indonesia-plain`           |
+| Any motion                                                    | `emil-design-eng`                  |
+
+`bahasa-indonesia-plain` is vendored from
+[a gist](https://gist.github.com/faizalindrak/104dfad6a8e0aad6a63eae38191b3907).
+Its voice is the house voice: every screen addresses the reader as "kamu".
 
 New non-trivial UI starts as mocks through the `mock` skill, and the user
-picks one. Once it is built, run `find-animation-opportunities` on it. Then
-ask the user to run `/interface-review`, and `/review-animations` if motion was
-added. An agent cannot invoke those two.
+picks one.
 
-Two motion rules hold whatever a skill suggests:
-
-- Nothing repaints continuously. No pulse, shimmer, blur loops or spinners.
-  They peg the GPU on high-refresh displays.
-- Motion respects `prefers-reduced-motion`.
+Motion respects `prefers-reduced-motion`, whatever a skill suggests.

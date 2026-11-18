@@ -30,7 +30,7 @@ export default function OwnerError({
       kind="error"
       code="Gangguan sementara"
       title="Halaman ini sedang tidak bisa ditampilkan"
-      body="Bukan kesalahan Anda. Coba muat ulang; bila masih sama, hubungi panitia dengan kode di bawah."
+      body="Bukan kesalahanmu. Coba muat ulang; bila masih sama, hubungi panitia dengan kode di bawah."
       owner={owner}
       action={
         <Button size="touch" onClick={reset}>

@@ -46,7 +46,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
           kind="error"
           code="Gangguan sementara"
           title="Situs ini sedang tidak bisa ditampilkan"
-          body="Bukan kesalahan Anda. Coba muat ulang halaman ini; bila masih sama, hubungi panitia dengan kode di bawah."
+          body="Bukan kesalahanmu. Coba muat ulang halaman ini; bila masih sama, hubungi panitia dengan kode di bawah."
           owner={owner}
           action={
             <Button size="touch" onClick={() => globalThis.location.reload()}>
