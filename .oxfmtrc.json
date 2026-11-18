@@ -19,7 +19,6 @@
     "apps/cms/src/**/*.example.*",
     "**/.agents/**",
     "**/.claude/**",
-    "**/.codex/**",
     "**/.github/**"
   ]
 }

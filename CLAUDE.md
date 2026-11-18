@@ -1,103 +1,54 @@
 # MBSS
 
-The decisions behind this code live in a separate repository,
-[`mbs-samarinda/knowledge`](https://github.com/mbs-samarinda/knowledge). Read
-the relevant document before changing behaviour. If code and those documents
-disagree, work out which is stale and fix that one in the same change.
+The decisions behind this code live in
+[`mbs-samarinda/knowledge`](https://github.com/mbs-samarinda/knowledge),
+usually checked out next to this repository. Read the relevant document before
+changing behaviour. If code and those documents disagree, work out which is
+stale and fix that one in the same change.
 
-`README.md` covers commands, ports and layout.
+`README.md` covers commands, ports and layout. Before any interface work, read
+`../knowledge/docs/brand/brand-guide.md`: skills say how to think about a screen,
+the guide says which colors, type, depth and density are approved. Token values
+live in `packages/ui/src/styles/globals.css` and
+`apps/profile/src/app/globals.css`.
 
-`PRODUCT.md` and `DESIGN.md` at the root summarise that knowledge repository.
-`DESIGN.md` holds the actual palette, type scale, elevation rules, shapes and
-component do's and don'ts. Read it before any interface work: the skills below
-say how to think about a screen, that file says which values to use.
+## How work runs
 
-## Interface work comes first through the skills
+Every task runs under pstack's `poteto-mode`: it picks the playbook, and its
+principles decide scope. This file only adds what is specific to this repo.
 
-Anything that renders — a screen, a component, copy, tokens, spacing — starts
-by loading the skill that owns it. Do not write UI from memory.
-
-| Doing | Load |
-| --- | --- |
-| Reviewing a whole screen or flow | `better-interface` |
-| Layout, grouping, reading order | `better-layout` |
-| Color, palettes, contrast | `better-colors` |
-| Type scale, wrapping, truncation | `better-typography` |
-| Radius, depth, icons, hit areas | `better-ui` |
-| Labels, buttons, error text | `better-writing` |
-| Keyboard, focus, names, contrast | `better-accessibility` |
-| React and Next performance | `vercel-react-best-practices` |
-| Component APIs and composition | `vercel-composition-patterns` |
-| Adding or fixing a shadcn component | `shadcn` |
-| Building any motion or transition | `animate` |
-| Finding what should move and doesn't | `find-animation-opportunities` |
-| Auditing motion across a codebase | `improve-animations` |
-| Craft bar for polish and detail | `emil-design-eng` |
-
-`better-interface` orchestrates the six `better-*` skills. Reach for it when
-the scope is a screen; reach for one skill when the scope is one concern.
-
-## Motion
-
-Never write an animation from memory — `animate` first, every time. It decides
-in the order that matters: whether it should animate at all, then purpose,
-tool, properties, curve, duration, interruption, exit.
-
-Once a piece of UI is built, run `find-animation-opportunities` on it. It is
-read-only and rejects more than it proposes, which is the point: it names the
-few moments worth animating and gives exact values, then `animate` builds them.
-
-Two standing constraints, whatever a skill suggests:
-
-- Nothing repaints continuously. No pulse, shimmer, blur loops or spinners —
-  they peg the GPU on high-refresh displays.
-- Motion respects `prefers-reduced-motion`. `better-accessibility` owns that
-  rule.
-
-## New UI: variants before implementation
-
-For any non-trivial piece of UI, do not edit real components first. Three
-variants get built behind a picker, and the choice is the user's.
-
-**`variant`, `interface-review` and `review-animations` cannot be invoked by an
-agent** — all three set `disable-model-invocation: true`. Ask the user to run
-`/variant`, `/interface-review` or `/review-animations` themselves; do not try
-to call them and do not hand-roll a substitute.
-
-The sequence:
-
-1. Say what the piece is, in one sentence.
-2. Ask the user to run `/variant` on it.
-3. They pick. Then build that one properly, delete the harness.
-4. Run `find-animation-opportunities` on what was built; use `animate` for
-   anything it proposes that the user wants.
-5. Ask the user to run `/interface-review`, and `/review-animations` if motion
-   was added.
-
-Everything stays on this machine. Variants live in the app behind
-`?variant=`, or in a local HTML file when no page can host them yet. Never
-publish anything to claude.ai — no Artifacts, no hosted pages, no shared links.
-Report a file path and let the user open it.
-
-## Library guidance ships in node_modules
-
-TanStack packages carry their own skills, versioned with the package:
-
-```bash
-pnpm dlx @tanstack/intent@latest list
-pnpm dlx @tanstack/intent@latest load @tanstack/router-core#router-core
-```
-
-Check that list before changing router, table or query code.
-
-## House rules
-
-- Build what the task asks for. No speculative abstractions, no options nobody
-  requested, no scaffolding for later.
+- Done means `pnpm gate` passes and the change was seen working in the running
+  app, not just compiled.
+- Before changing router, table or query code, check the TanStack skills that
+  ship in `node_modules`:
+  `pnpm dlx @tanstack/intent@latest list`, then
+  `pnpm dlx @tanstack/intent@latest load <package>#<skill>`.
+- Everything stays on this machine. Never publish to claude.ai: no
+  Artifacts, hosted pages or shared links. Report a file path instead.
 - A component with one consumer lives in that consumer's file, unexported. It
-  moves to its own file the moment a second file needs it, and not before. A
-  file per component makes every page a scavenger hunt when most of those
-  components will only ever be used once.
-- Short copy. Dense information. No decorative card or pill chrome.
-- Run `/code-review` when a coding task is done.
-- `pnpm gate` must pass before you call something finished.
+  gets its own file when a second file needs it, not before.
+
+## Interface work
+
+Load the skill that owns a concern before writing it. Do not write UI from
+memory.
+
+| Doing                                                         | Load                               |
+| ------------------------------------------------------------- | ---------------------------------- |
+| A whole screen or flow                                        | `interfaces:better-interface`      |
+| One concern: layout, color, type, polish, copy, accessibility | the matching `interfaces:better-*` |
+| Adding or fixing a shadcn component                           | `shadcn`                           |
+| React and Next performance                                    | `vercel-react-best-practices`      |
+| Component APIs and composition                                | `vercel-composition-patterns`      |
+| Any motion                                                    | `animate`                          |
+
+New non-trivial UI starts as mocks through the `mock` skill, and the user
+picks one. Once it is built, run `find-animation-opportunities` on it. Then
+ask the user to run `/interface-review`, and `/review-animations` if motion was
+added. An agent cannot invoke those two.
+
+Two motion rules hold whatever a skill suggests:
+
+- Nothing repaints continuously. No pulse, shimmer, blur loops or spinners.
+  They peg the GPU on high-refresh displays.
+- Motion respects `prefers-reduced-motion`.

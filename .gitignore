@@ -15,7 +15,6 @@ coverage/
 # Per-machine Claude Code permissions. The tracked settings.json is shared;
 # this one is not.
 .claude/settings.local.json
-.codex/config.toml
 
 # Throwaway checkouts an agent works in. Each one carries its own node_modules,
 # so committing them would add gigabytes of a copy of this repository to this
@@ -39,12 +38,4 @@ apps/cms/public/uploads/*
 
 # Turborepo
 .turbo
-
-# Impeccable ships a compiled engine per host directory. Its launcher finds the
-# right binary for the current platform — user cache, PATH, or a checksummed
-# download — so committing a 12MB Apple Silicon build three times would add
-# 37MB of history that Linux CI and Intel Macs cannot run anyway.
-.agents/skills/*/scripts/bin/
-.claude/skills/*/scripts/bin/
-.github/skills/*/scripts/bin/
 apps/cms/.strapi-updater.json

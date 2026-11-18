@@ -47,9 +47,7 @@
     "**/next-env.d.ts",
     "**/.agents/**",
     "**/.claude/**",
-    "**/.codex/**",
-    "**/.github/**",
-    "**/.impeccable/**"
+    "**/.github/**"
   ],
   "overrides": [
     {
