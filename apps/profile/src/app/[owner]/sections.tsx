@@ -61,7 +61,7 @@ export const WIDTH = "mx-auto w-full max-w-300";
  * that called everything by one type's name would be named after the emptiest.
  * The status pairs are shared and fixed, so they keep their colours on every
  * owner's site, SMK's blue one included. Opini takes success because alarm is
- * kept for errors and DESIGN.md forbids inventing a fourth.
+ * kept for errors and the brand guide forbids inventing a fifth status.
  */
 const TYPE_VARIANT = { berita: "info", pengumuman: "warning", opini: "success" } as const;
 
@@ -1035,7 +1035,7 @@ async function SchoolStatus({ schoolKey }: { schoolKey: SchoolKey }) {
  * the schools: the umbrella's table and the home page's school cards.
  *
  * Success rather than the owner's colour, which is what those frames draw
- * (`bh1UE`, `sjqBc`) and what `DESIGN.md` requires: an open admission is a
+ * (`bh1UE`, `sjqBc`) and what the brand guide requires: an open admission is a
  * workflow state, and a school colour never recolors one. The hero's own badge
  * is deliberately not this component — its frame carries no success fill, and it
  * announces the cycle rather than comparing schools.

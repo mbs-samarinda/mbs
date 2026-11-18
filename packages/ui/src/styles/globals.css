@@ -63,7 +63,7 @@
   /* #126e84 from the brand guide, in oklch. It is the dark primary rather than
      the preferred #18a698 because it is the only guide color that carries
      white text at normal size (5.85:1). The rest of the palette lands when a
-     surface needs it; see DESIGN.md. */
+     surface needs it; see the brand guide's Supplied palette. */
   --primary: oklch(0.499 0.086 219.2);
   --primary-foreground: oklch(1 0 0);
   /* Hover darkens rather than fades. bg-primary/80 over a white page drops

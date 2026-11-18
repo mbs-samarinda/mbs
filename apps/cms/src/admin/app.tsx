@@ -12,12 +12,12 @@ import type { StrapiApp } from "@strapi/strapi/admin";
  *   it buys no brand recognition and risks contrast failures on screens nobody
  *   would think to recheck.
  * - `alternative` stays purple. The umbrella's accent is the orange `#f26420`,
- *   and DESIGN.md is explicit that accents take dark text only and follow the
- *   Rare Orange Rule. Strapi fills `alternative` surfaces and puts light text
+ *   and the brand guide is explicit that accents take dark text only and that
+ *   Ember Orange is emphasis, never a status fill or a default button. Strapi fills `alternative` surfaces and puts light text
  *   on them, so the brand accent does not belong there.
  *
- * Values come from the palette approved on 12 September 2026 (DESIGN.md,
- * "School palettes"). The gaps Strapi needs and the guide does not define were
+ * Values come from the palette approved on 12 September 2026 (brand guide,
+ * "School digital colors"). The gaps Strapi needs and the guide does not define were
  * computed in OKLCH holding the primary's hue, 219.2, so the ramp keeps one hue
  * end to end with chroma peaking in the middle.
  */
@@ -44,7 +44,7 @@ const light = {
   //
   // Strapi's defaults are #4945ff and a *lighter* #7b79ff, and white on that
   // lighter one is 3.49:1 — a failure in the shipped theme. Hover goes darker
-  // here instead, which is what DESIGN.md prescribes anyway and what keeps the
+  // here instead, which is what the brand guide's dark mode rules prescribe anyway and what keeps the
   // label readable through the whole interaction.
   buttonPrimary500: "#00576d", // hover — white 8.13:1
   buttonPrimary600: "#126e84", // rest — white 5.85:1
