@@ -10,8 +10,8 @@
  *
  * **Development only.** An article states that something happened on a date, so
  * a seeded one on a school's live website is a lie with a date on it however
- * plainly it was meant as filler. `index.ts` skips every content seed when
- * `NODE_ENV` is production; a real server starts empty and an editor fills it.
+ * plainly it was meant as filler. `seedSampleRecords` in `run.ts` skips every
+ * content seed when `NODE_ENV` is production; a real server starts empty and an editor fills it.
  */
 
 import type { OwnerKey } from "./home-page";

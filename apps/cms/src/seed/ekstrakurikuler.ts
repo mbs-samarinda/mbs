@@ -4,8 +4,8 @@
  * **Development only.** These exist so a developer's site is not blank — the home
  * page draws an extracurriculars section from them, and a section with no
  * records renders nothing. On a real server they would be a claim that a school
- * runs a class it may not, so `index.ts` skips every content seed when
- * `NODE_ENV` is production. The seed only ever runs for an owner that has none.
+ * runs a class it may not, so `seedSampleRecords` in `run.ts` skips every
+ * content seed when `NODE_ENV` is production. The seed only ever runs for an owner that has none.
  *
  * The umbrella has no extracurriculars — it runs no classes of its own — so it
  * has no entry here.
