@@ -11,8 +11,8 @@ import Markdown, { type Components } from "react-markdown";
  *
  * Every tag is mapped, because Tailwind's preflight strips heading sizes, list
  * markers and link colour. The alternative was `@tailwindcss/typography`, which
- * is a second styling system with its own scale beside the one `DESIGN.md`
- * defines.
+ * is a second styling system with its own scale beside the one in
+ * `packages/ui`.
  */
 const Heading2: Components["h2"] = ({ children }) => (
   <h2 className="mt-3 text-2xl font-bold text-balance">{children}</h2>
@@ -46,8 +46,8 @@ const COMPONENTS: Components = {
 };
 
 export const Prose = ({ children }: { children: string }) => (
-  // The measure is capped here rather than on each paragraph: 70ch is the rule
-  // from DESIGN.md, and a heading inside the body has to obey it too.
+  // The measure is capped here rather than on each paragraph: 70ch is the brand
+  // guide's measure, and a heading inside the body has to obey it too.
   <div className="flex max-w-[70ch] flex-col gap-5 text-base leading-relaxed text-pretty">
     <Markdown components={COMPONENTS}>{children}</Markdown>
   </div>

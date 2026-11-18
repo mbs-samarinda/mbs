@@ -8,11 +8,9 @@ and the rules the code must preserve — live in a separate repository:
 before changing anything here. If the code and those documents disagree, work
 out which one is stale and fix that one in the same change.
 
-`PRODUCT.md` and `DESIGN.md` at the root summarise what that repository decided:
-what the product is for, and the colors, type, elevation and component rules the
-interface has to hold to. Read `DESIGN.md` before any design work — it carries
-the exact token values. Both are tool-managed summaries; the knowledge
-repository stays the authority.
+Design rules live in its brand guide, `docs/brand/brand-guide.md`. Token values
+live in `packages/ui/src/styles/globals.css` and, one block per owner,
+`apps/profile/src/app/globals.css`.
 
 ## Requirements
 
@@ -160,17 +158,6 @@ Two things to know. `apps/profile` has no `components.json` yet, so the CLI
 cannot target it — add one when the profile site needs its first component.
 And shadcn's own setup pins TypeScript 6 while this workspace is on 7, so a
 generated component may occasionally need a small fix after `shadcn add`.
-
-## Agent skills
-
-TanStack ships its own guidance inside `node_modules`, versioned with each
-package. `AGENTS.md` tells an agent to check for a matching skill before
-editing; `package.json` records which ones are allowed.
-
-```bash
-pnpm dlx @tanstack/intent@latest list
-pnpm dlx @tanstack/intent@latest load @tanstack/router-core#router-core
-```
 
 ## Database
 
