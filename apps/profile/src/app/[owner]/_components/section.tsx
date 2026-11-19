@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { ViewTransition, type ReactNode } from "react";
 
 import { mediaUrl, type Media } from "@/cms/client.ts";
 
@@ -62,6 +62,18 @@ export function SectionHeading({
 }
 
 /**
+ * Every page's `<main>`. Pages enter and leave with a fade under the header,
+ * set in `globals.css`. It sits on each page rather than in the layout because a
+ * layout never remounts: there the whole page would also fade each time a
+ * `<Suspense>` slot inside it filled in.
+ */
+export const Main = ({ children }: { children: ReactNode }) => (
+  <ViewTransition enter="page" exit="page" default="none">
+    <main>{children}</main>
+  </ViewTransition>
+);
+
+/**
  * A photograph, or the labelled slot standing in for one.
  *
  * No photography has been supplied for any owner, so the slot is the normal
@@ -69,6 +81,11 @@ export function SectionHeading({
  * dissolving into the page — white photos into a white page, dark ones into a
  * dark page — so it flips with the mode and is dropped only inside a bordered
  * card, where the card's own border already draws that edge.
+ *
+ * A photo given a `transition` name travels to the photo with the same name on
+ * the next page: a card's photo becomes the hero of the page it opens. A name
+ * may appear once per page; a page that shows the same photo twice skips the
+ * animation, not the navigation.
  */
 export function Photo({
   image,
@@ -76,6 +93,7 @@ export function Photo({
   className,
   inCard = false,
   sizes,
+  transition,
 }: {
   image: Media | null;
   label: string;
@@ -87,20 +105,12 @@ export function Photo({
    * for every thumbnail.
    */
   sizes?: string;
+  /** From `photoTransition`, the same on the card and on the page it opens. */
+  transition?: string | undefined;
 }) {
   const edge = inCard ? "" : "outline outline-black/10 dark:outline-white/12";
 
-  if (!image) {
-    return (
-      <div
-        className={`flex items-center justify-center rounded-lg bg-muted text-[11px] font-semibold tracking-wide text-muted-foreground uppercase ${edge} ${className}`}
-      >
-        {label}
-      </div>
-    );
-  }
-
-  return (
+  const photo = image ? (
     <Image
       src={mediaUrl(image)}
       alt={image.alternativeText ?? ""}
@@ -109,8 +119,31 @@ export function Photo({
       sizes={sizes}
       className={`rounded-lg object-cover ${edge} ${className}`}
     />
+  ) : (
+    <div
+      className={`flex items-center justify-center rounded-lg bg-muted text-[11px] font-semibold tracking-wide text-muted-foreground uppercase ${edge} ${className}`}
+    >
+      {label}
+    </div>
+  );
+
+  if (!transition) return photo;
+  return (
+    // `default="none"` keeps the photo still in transitions it plays no part in;
+    // `share` is what still pairs it with its partner on the next page.
+    <ViewTransition name={transition} share="morph" default="none">
+      {photo}
+    </ViewTransition>
   );
 }
+
+/**
+ * The `transition` name for one record's photo, from whatever makes it unique:
+ * collection and slug, or owner, type and slug for an article. A slug may hold
+ * characters a CSS name cannot.
+ */
+export const photoTransition = (...parts: string[]) =>
+  `photo-${parts.join("-")}`.replace(/[^\w-]/g, "-");
 
 export const FactStrip = ({ children }: { children: ReactNode }) => (
   <dl className="flex flex-wrap gap-x-8 gap-y-3">{children}</dl>

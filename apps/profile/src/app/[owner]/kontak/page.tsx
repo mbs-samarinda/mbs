@@ -4,7 +4,13 @@ import type { Metadata } from "next";
 import { Fragment, type ReactNode } from "react";
 
 import { AdmissionBandSection } from "@/app/[owner]/_components/admission.tsx";
-import { PageHead, SECTION, SectionHeading, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import {
+  Main,
+  PageHead,
+  SECTION,
+  SectionHeading,
+  WIDTH,
+} from "@/app/[owner]/_components/section.tsx";
 import { getPage, type Block } from "@/cms/pages.ts";
 import { getSite, type Site } from "@/cms/site.ts";
 import { type Owner, requireSchool } from "@/owners.ts";
@@ -42,7 +48,7 @@ export default async function ContactPage({ params }: { params: Promise<{ owner:
   const [site, page] = await Promise.all([getSite(school.key), getPage(school.key, "kontak")]);
 
   return (
-    <main>
+    <Main>
       <PageHead
         heading="Kontak"
         body="Pertanyaan pendaftaran dan pertanyaan umum ditangani dua orang berbeda. Pilih yang sesuai."
@@ -58,7 +64,7 @@ export default async function ContactPage({ params }: { params: Promise<{ owner:
       )}
 
       <AdmissionBandSection schoolKey={school.key} admissionCta={site.admissionCta} />
-    </main>
+    </Main>
   );
 }
 

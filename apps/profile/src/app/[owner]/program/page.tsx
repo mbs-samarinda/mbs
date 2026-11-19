@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { AdmissionBandSection } from "@/app/[owner]/_components/admission.tsx";
 import { BlockSection } from "@/app/[owner]/_components/blocks.tsx";
-import { PageHead } from "@/app/[owner]/_components/section.tsx";
+import { Main, PageHead } from "@/app/[owner]/_components/section.tsx";
 import { getPage } from "@/cms/pages.ts";
 import { getSite } from "@/cms/site.ts";
 import { requireSchool } from "@/owners.ts";
@@ -40,7 +40,7 @@ export default async function ProgramPage({ params }: { params: Promise<{ owner:
   const [site, page] = await Promise.all([getSite(school.key), getPage(school.key, "program")]);
 
   return (
-    <main>
+    <Main>
       <PageHead
         heading="Program akademik"
         body="Kurikulum, jenjang, keunggulan, dan program yang dijalankan sekolah."
@@ -58,6 +58,6 @@ export default async function ProgramPage({ params }: { params: Promise<{ owner:
       ))}
 
       <AdmissionBandSection schoolKey={school.key} admissionCta={site.admissionCta} />
-    </main>
+    </Main>
   );
 }

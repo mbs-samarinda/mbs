@@ -34,7 +34,15 @@ import { admissionUrl, articleHref, type Owner, ownerUrl } from "@/owners.ts";
 
 import { ArticleMeta } from "./article-meta.tsx";
 import { Prose } from "./prose.tsx";
-import { Photo, FactStrip, WIDTH, SECTION, Fact, SectionHeading } from "./section.tsx";
+import {
+  Photo,
+  FactStrip,
+  WIDTH,
+  SECTION,
+  Fact,
+  SectionHeading,
+  photoTransition,
+} from "./section.tsx";
 
 /**
  * The lists an editor types one per line into a `text` field.
@@ -421,6 +429,7 @@ export function BlockSection({
                     label="Foto"
                     className="aspect-3/2 w-full"
                     inCard
+                    transition={photoTransition("/fasilitas", item.slug)}
                   />
                   <div className="flex flex-col gap-1 px-1 pb-1">
                     <h3 className="text-[17px] font-bold text-pretty">{item.title}</h3>
@@ -588,7 +597,18 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
           href={articleHref(article, ownerKey)}
           className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
         >
-          <Photo image={article.cover} label="Sampul" className="aspect-3/2 w-full" inCard />
+          <Photo
+            image={article.cover}
+            label="Sampul"
+            className="aspect-3/2 w-full"
+            inCard
+            transition={
+              // Another owner's article opens on its own host, with a full page load.
+              article.ownerKey === ownerKey
+                ? photoTransition(article.ownerKey, article.type, article.slug)
+                : undefined
+            }
+          />
           <div className="flex flex-col gap-1.5 px-1 pb-1">
             <ArticleMeta article={article} site={ownerKey} />
             <h3 className="text-[17px] font-bold text-pretty">{article.title}</h3>

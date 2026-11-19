@@ -18,7 +18,7 @@ import { articleHref, type Owner, OWNERS } from "@/owners.ts";
 
 import { AdmissionCardSection } from "./admission.tsx";
 import { ArticleMeta } from "./article-meta.tsx";
-import { Photo, SECTION, WIDTH } from "./section.tsx";
+import { Photo, SECTION, WIDTH, photoTransition } from "./section.tsx";
 
 /** What the listing reads out of the URL. The params stay English; the copy does not. */
 export type Params = {
@@ -157,6 +157,12 @@ const Row = ({ entry, site, nested }: { entry: Article; site: Owner["key"]; nest
           image={entry.cover}
           label="Sampul"
           className="aspect-3/2 w-full md:w-50 md:shrink-0"
+          transition={
+            // Another owner's article opens on its own host, with a full page load.
+            entry.ownerKey === site
+              ? photoTransition(entry.ownerKey, entry.type, entry.slug)
+              : undefined
+          }
         />
         <div className="flex flex-col gap-1.5">
           <ArticleMeta article={entry} site={site} />

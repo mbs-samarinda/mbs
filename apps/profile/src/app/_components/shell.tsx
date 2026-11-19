@@ -86,7 +86,9 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
     // you are on and the bar carries the admission action, and neither is worth
     // scrolling back up for. z-40 leaves the layers above it free for the
     // sheet, which portals to the body and sits at z-50.
-    <header className="sticky top-0 z-40 bg-background">
+    // Named so a page change leaves it still while the page under it fades
+    // (`globals.css`).
+    <header className="sticky top-0 z-40 bg-background [view-transition-name:site-header]">
       <div
         className={`flex items-center justify-between gap-4 border-b border-border bg-muted ${GUTTER}`}
       >

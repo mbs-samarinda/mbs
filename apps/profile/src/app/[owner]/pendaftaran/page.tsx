@@ -8,6 +8,7 @@ import { Suspense } from "react";
 
 import { type CycleFacts, formatFee, getCycleFacts, isOpen, splitDocuments } from "@/admission.ts";
 import {
+  Main,
   Fact,
   FactStrip,
   PageHead,
@@ -47,7 +48,7 @@ export default async function AdmissionPage({ params }: { params: Promise<{ owne
   const [site, page] = await Promise.all([getSite(school.key), getPage(school.key, "pendaftaran")]);
 
   return (
-    <main>
+    <Main>
       <PageHead
         heading="Pendaftaran santri baru"
         body="Tanggal, biaya, dan syarat di halaman ini dibaca langsung dari sistem pendaftaran."
@@ -64,7 +65,7 @@ export default async function AdmissionPage({ params }: { params: Promise<{ owne
       </Suspense>
       <EditorBlocks blocks={page?.blocks ?? []} />
       <Contacts site={site} />
-    </main>
+    </Main>
   );
 }
 

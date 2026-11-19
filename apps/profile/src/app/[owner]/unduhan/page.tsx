@@ -1,7 +1,7 @@
 import { DownloadIcon, FileTextIcon } from "lucide-react";
 import type { Metadata } from "next";
 
-import { PageHead, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { Main, PageHead, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
 import { formatDate } from "@/articles.ts";
 import { mediaUrl } from "@/cms/client.ts";
 import { getFiles, type Berkas } from "@/cms/files.ts";
@@ -49,7 +49,7 @@ export default async function UnduhanPage({ params }: { params: Promise<{ owner:
   const files = await getFiles(school.key);
 
   return (
-    <main>
+    <Main>
       <PageHead heading="Unduhan" body="Berkas resmi sekolah untuk santri dan orang tua." />
 
       <section className={SECTION}>
@@ -129,6 +129,6 @@ export default async function UnduhanPage({ params }: { params: Promise<{ owner:
           )}
         </div>
       </section>
-    </main>
+    </Main>
   );
 }

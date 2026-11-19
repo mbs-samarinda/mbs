@@ -8,7 +8,13 @@ import { Suspense } from "react";
 import { AdmissionCardSection } from "@/app/[owner]/_components/admission.tsx";
 import { TypeBadge } from "@/app/[owner]/_components/article-meta.tsx";
 import { Prose } from "@/app/[owner]/_components/prose.tsx";
-import { Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import {
+  Main,
+  Photo,
+  SECTION,
+  WIDTH,
+  photoTransition,
+} from "@/app/[owner]/_components/section.tsx";
 import {
   ARTICLE_KINDS,
   type Article,
@@ -98,12 +104,17 @@ export default async function ArticlePage({ params }: { params: Params }) {
   const school = isUmbrella(owner) ? null : owner;
 
   return (
-    <main>
+    <Main>
       <Head article={article} listed={Boolean(school)} />
 
       <section className={SECTION}>
         <div className={`${WIDTH} flex flex-col gap-8`}>
-          <Photo image={article.cover} label="Sampul" className="aspect-video w-full" />
+          <Photo
+            image={article.cover}
+            label="Sampul"
+            className="aspect-video w-full"
+            transition={photoTransition(article.ownerKey, article.type, article.slug)}
+          />
 
           <div className="flex flex-col gap-10 lg:flex-row lg:gap-12">
             <div className="flex-1">
@@ -129,7 +140,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
           <MoreNews owner={owner} article={article} />
         </Suspense>
       )}
-    </main>
+    </Main>
   );
 }
 

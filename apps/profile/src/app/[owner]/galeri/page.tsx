@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { PageHead, Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { Main, PageHead, Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
 import { getAlbums } from "@/cms/gallery.ts";
 import { getPage } from "@/cms/pages.ts";
 import { requireSchool } from "@/owners.ts";
@@ -43,7 +43,7 @@ export default async function GaleriPage({ params }: { params: Promise<{ owner: 
   const albums = await getAlbums(school.key);
 
   return (
-    <main>
+    <Main>
       <PageHead heading="Galeri" body="Foto kegiatan santri, per kegiatan." />
 
       <section className={SECTION}>
@@ -76,6 +76,6 @@ export default async function GaleriPage({ params }: { params: Promise<{ owner: 
           )}
         </div>
       </section>
-    </main>
+    </Main>
   );
 }

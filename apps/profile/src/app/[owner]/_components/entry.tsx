@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getEntries, type Entry, type EntryCollection, type FullEntry } from "@/cms/entries.ts";
 import { type Owner } from "@/owners.ts";
 
-import { Photo, WIDTH, SECTION } from "./section.tsx";
+import { Photo, WIDTH, SECTION, photoTransition } from "./section.tsx";
 
 /**
  * The two collections whose records own a page, and the words each wears.
@@ -153,7 +153,20 @@ export async function MoreEntries({
  * ordering rather than on the order written here. The card clips, so the corners
  * a visitor sees are the card's.
  */
-export const EntryCard = ({ entry, base }: { entry: Entry; base: string }) => (
+export const EntryCard = ({
+  entry,
+  base,
+  travels = false,
+}: {
+  entry: Entry;
+  base: string;
+  /**
+   * The photo carries into the page the card opens. Off in the row of others at
+   * the foot of a detail page: that row lists the page being left, so its hero
+   * and this card's photo would cross on the way.
+   */
+  travels?: boolean;
+}) => (
   <Link
     href={`${base}/${entry.slug}`}
     className="flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
@@ -163,6 +176,7 @@ export const EntryCard = ({ entry, base }: { entry: Entry; base: string }) => (
       label="Foto"
       className="aspect-43/20 w-full rounded-none!"
       inCard
+      transition={travels ? photoTransition(base, entry.slug) : undefined}
     />
     <div className="flex flex-col gap-1.5 p-4.5">
       <h3 className="text-[17px] font-bold text-pretty">{entry.title}</h3>
