@@ -319,6 +319,22 @@ cleanup_candidate
 # outside the box, with every internal probe still passing.
 "${COMPOSE[@]}" up -d
 
+# The Caddyfile is a single-file bind mount, and the release unpacks it with
+# tar, which writes a new file rather than rewriting the old one. A running
+# Caddy keeps reading the old file, even after `caddy reload`, and `up -d` above
+# leaves Caddy alone because its compose definition did not change. So Caddy is
+# recreated, and only when the file it sees differs from the one on disk; a
+# normal deploy never restarts it. The new file is validated in a throwaway
+# container first, so a broken one fails the deploy while the old Caddy serves.
+if [[ "$(docker exec "$PROJECT-caddy-1" cat /etc/caddy/Caddyfile 2>/dev/null)" != "$(cat "$ROOT/Caddyfile")" ]]; then
+  log "Caddyfile changed, validating and recreating caddy"
+  if ! "${COMPOSE[@]}" run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile; then
+    echo "The new Caddyfile is invalid. The running Caddy was not touched." >&2
+    exit 1
+  fi
+  "${COMPOSE[@]}" up -d --force-recreate --no-deps caddy
+fi
+
 log "Waiting for the live container"
 if ! wait_for profile; then
   echo "The swapped-in profile never started listening." >&2
