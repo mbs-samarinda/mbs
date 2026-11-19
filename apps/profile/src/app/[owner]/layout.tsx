@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { LinkStatus } from "@/app/[owner]/_components/pending-spinner.tsx";
 import { Footer, Header } from "@/app/_components/shell.tsx";
 import { ThemeScript } from "@/app/_components/theme-script.tsx";
 import { getSite } from "@/cms/site.ts";
@@ -65,6 +66,7 @@ export default async function OwnerLayout({
         <Header owner={owner} site={site} />
         {children}
         <Footer owner={owner} site={site} />
+        <LinkStatus />
       </body>
     </html>
   );
