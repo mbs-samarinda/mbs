@@ -7,6 +7,7 @@ import { Suspense } from "react";
 
 import { AdmissionCardSection } from "@/app/[owner]/_components/admission.tsx";
 import { TypeBadge } from "@/app/[owner]/_components/article-meta.tsx";
+import { PendingSpinner } from "@/app/[owner]/_components/pending-spinner.tsx";
 import { Prose } from "@/app/[owner]/_components/prose.tsx";
 import {
   Main,
@@ -358,8 +359,10 @@ async function MoreNews({ owner, article }: { owner: Owner; article: FullArticle
 const Card = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
   <Link
     href={articleHref(entry, site)}
-    className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
+    className="relative flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
   >
+    {/* On the photo, which the card's padding insets by 12px. */}
+    <PendingSpinner className="top-5 right-5" />
     <Photo image={entry.cover} label="Sampul" className="aspect-3/2 w-full" inCard />
     <div className="flex flex-col gap-1.5 px-1 pb-1">
       <h3 className="text-[17px] font-bold text-pretty">{entry.title}</h3>

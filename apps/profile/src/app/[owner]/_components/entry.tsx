@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getEntries, type Entry, type EntryCollection, type FullEntry } from "@/cms/entries.ts";
 import { type Owner } from "@/owners.ts";
 
+import { PendingSpinner } from "./pending-spinner.tsx";
 import { Photo, WIDTH, SECTION, photoTransition } from "./section.tsx";
 
 /**
@@ -169,8 +170,9 @@ export const EntryCard = ({
 }) => (
   <Link
     href={`${base}/${entry.slug}`}
-    className="flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
+    className="relative flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
   >
+    <PendingSpinner />
     <Photo
       image={entry.images[0] ?? null}
       label="Foto"

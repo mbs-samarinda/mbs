@@ -224,3 +224,48 @@
     animation: 180ms var(--ease-out) both page-fade-in;
   }
 }
+
+/* `PendingSpinner`: a card's page is still loading. It waits 150ms before
+   showing, so a page that arrives quickly never flashes it. Under reduced
+   motion the ring pulses once and stays solid until the page arrives. */
+.pending-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--background);
+  box-shadow: var(--shadow-raised);
+  opacity: 0;
+  animation: pending-in 150ms var(--ease-out) 150ms forwards;
+}
+.pending-spinner::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in oklch, var(--primary) 25%, transparent);
+  border-top-color: var(--primary);
+  animation: pending-spin 600ms linear infinite;
+}
+
+@keyframes pending-in {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pending-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@keyframes pending-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pending-spinner::after {
+    border-color: var(--primary);
+    animation: pending-pulse 1s ease-in-out;
+  }
+}

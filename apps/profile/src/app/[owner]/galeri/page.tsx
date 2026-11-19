@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { PendingSpinner } from "@/app/[owner]/_components/pending-spinner.tsx";
 import { Main, PageHead, Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
 import { getAlbums } from "@/cms/gallery.ts";
 import { getPage } from "@/cms/pages.ts";
@@ -54,7 +55,11 @@ export default async function GaleriPage({ params }: { params: Promise<{ owner: 
             <ul className="grid grid-cols-2 gap-x-3 gap-y-6 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-10">
               {albums.map((album) => (
                 <li key={album.slug}>
-                  <Link href={`/galeri/${album.slug}`} className="group flex flex-col gap-2.5">
+                  <Link
+                    href={`/galeri/${album.slug}`}
+                    className="group relative flex flex-col gap-2.5"
+                  >
+                    <PendingSpinner />
                     <Photo
                       image={album.photos[0] ?? null}
                       label="Sampul"

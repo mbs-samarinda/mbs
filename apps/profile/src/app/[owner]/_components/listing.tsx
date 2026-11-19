@@ -18,6 +18,7 @@ import { articleHref, type Owner, OWNERS } from "@/owners.ts";
 
 import { AdmissionCardSection } from "./admission.tsx";
 import { ArticleMeta } from "./article-meta.tsx";
+import { PendingSpinner } from "./pending-spinner.tsx";
 import { Photo, SECTION, WIDTH, photoTransition } from "./section.tsx";
 
 /** What the listing reads out of the URL. The params stay English; the copy does not. */
@@ -151,8 +152,11 @@ const Row = ({ entry, site, nested }: { entry: Article; site: Owner["key"]; nest
     <li className="border-b border-border first:border-t">
       <Link
         href={articleHref(entry, site)}
-        className="flex flex-col gap-3 py-5 hover:opacity-90 md:flex-row md:items-start md:gap-5"
+        className="relative flex flex-col gap-3 py-5 hover:opacity-90 md:flex-row md:items-start md:gap-5"
       >
+        {/* On the photo: full width under 20px of padding on a phone, a 200px
+            block on the left from md. */}
+        <PendingSpinner className="top-7 right-2 md:right-auto md:left-42.5" />
         <Photo
           image={entry.cover}
           label="Sampul"

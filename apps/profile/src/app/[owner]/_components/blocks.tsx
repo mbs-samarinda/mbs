@@ -33,6 +33,7 @@ import { type Site } from "@/cms/site.ts";
 import { admissionUrl, articleHref, type Owner, ownerUrl } from "@/owners.ts";
 
 import { ArticleMeta } from "./article-meta.tsx";
+import { PendingSpinner } from "./pending-spinner.tsx";
 import { Prose } from "./prose.tsx";
 import {
   Photo,
@@ -422,8 +423,10 @@ export function BlockSection({
                 <Link
                   key={item.slug}
                   href={`/fasilitas/${item.slug}`}
-                  className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
+                  className="relative flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
                 >
+                  {/* On the photo, which the card's padding insets by 12px. */}
+                  <PendingSpinner className="top-5 right-5" />
                   <Photo
                     image={item.images[0] ?? null}
                     label="Foto"
@@ -462,8 +465,9 @@ export function BlockSection({
                   <Link
                     key={item.slug}
                     href={`/ekstrakurikuler/${item.slug}`}
-                    className="flex flex-col gap-2.5 rounded-xl border border-border bg-background p-4 hover:border-primary"
+                    className="relative flex flex-col gap-2.5 rounded-xl border border-border bg-background p-4 hover:border-primary"
                   >
+                    <PendingSpinner />
                     {/* Stroke 1.75 beside a 500 label, per the icon rule. */}
                     <Icon className="size-5 text-primary" strokeWidth={1.75} aria-hidden />
                     <span className="text-sm font-medium text-pretty">{item.title}</span>
@@ -595,8 +599,10 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
           // Slugs are unique per owner only, and one list now holds several.
           key={`${article.type}-${article.ownerKey}-${article.slug}`}
           href={articleHref(article, ownerKey)}
-          className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
+          className="relative flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
         >
+          {/* On the photo, which the card's padding insets by 12px. */}
+          <PendingSpinner className="top-5 right-5" />
           <Photo
             image={article.cover}
             label="Sampul"
