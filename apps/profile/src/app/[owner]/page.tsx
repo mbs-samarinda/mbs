@@ -8,7 +8,7 @@ import { isUmbrella, requireOwner } from "@/owners.ts";
 import { AdmissionBandSection } from "./_components/admission.tsx";
 import { BlockSection } from "./_components/blocks.tsx";
 import { Listing, ListingPlaceholder, type Params } from "./_components/listing.tsx";
-import { Main } from "./_components/section.tsx";
+import { Arrival, Main, Placeholder } from "./_components/section.tsx";
 
 export async function generateMetadata({
   params,
@@ -70,8 +70,16 @@ export default async function OwnerHomePage({
         // and not a block an editor can delete.
         <AdmissionBandSection schoolKey={school.key} admissionCta={site.admissionCta} />
       ) : (
-        <Suspense fallback={<ListingPlaceholder hasSidebar={false} hasFilters />}>
-          <Listing owner={owner} schoolKey={undefined} searchParams={searchParams} />
+        <Suspense
+          fallback={
+            <Placeholder>
+              <ListingPlaceholder hasSidebar={false} hasFilters />
+            </Placeholder>
+          }
+        >
+          <Arrival>
+            <Listing owner={owner} schoolKey={undefined} searchParams={searchParams} />
+          </Arrival>
         </Suspense>
       )}
     </Main>

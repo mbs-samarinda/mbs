@@ -66,12 +66,43 @@ export function SectionHeading({
  * leaves at once, set in `globals.css`. It sits on each page rather than in the layout because a
  * layout never remounts: there the whole page would also fade each time a
  * `<Suspense>` slot inside it filled in.
+ *
+ * A `Placeholder` or `Arrival` inside a page that is itself entering stays
+ * still: React animates only the outermost entering boundary. So a page that
+ * arrives whole fades in once; one that streams fades in, then its reveals play.
  */
 export const Main = ({ children }: { children: ReactNode }) => (
   <ViewTransition enter="page" exit="page" default="none">
     <main>{children}</main>
   </ViewTransition>
 );
+
+/**
+ * Wraps a `<Suspense>` fallback so it leaves quickly. It must be the outermost
+ * thing in the fallback, as `Arrival` must be in the content: React ignores one
+ * that sits inside a DOM element of the swapped part. So a fallback that redraws
+ * the whole section around its placeholder, like the admission band's, cannot
+ * animate just the part that changes.
+ */
+export const Placeholder = ({ children }: { children: ReactNode }) => (
+  <ViewTransition exit="placeholder" default="none">
+    {children}
+  </ViewTransition>
+);
+
+/** Wraps what replaces a `Placeholder`, so it rises into place. */
+export const Arrival = ({ children }: { children: ReactNode }) => (
+  <ViewTransition enter="arrival" default="none">
+    {children}
+  </ViewTransition>
+);
+
+/**
+ * The transition type of a listing link that only swaps the list, so a row's
+ * photo stays in its row instead of flying to where the same article sits in
+ * the new list. Back and forward carry no type, so there the photo still flies.
+ */
+export const LIST_SWAP = "list";
 
 /**
  * A photograph, or the labelled slot standing in for one.
@@ -131,7 +162,11 @@ export function Photo({
   return (
     // `default="none"` keeps the photo still in transitions it plays no part in;
     // `share` is what still pairs it with its partner on the next page.
-    <ViewTransition name={transition} share="morph" default="none">
+    <ViewTransition
+      name={transition}
+      share={{ [LIST_SWAP]: "none", default: "morph" }}
+      default="none"
+    >
       {photo}
     </ViewTransition>
   );

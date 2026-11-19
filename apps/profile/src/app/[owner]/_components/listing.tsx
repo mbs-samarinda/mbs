@@ -1,5 +1,6 @@
 import type { SchoolKey } from "@mbs/school-config";
 import Link from "next/link";
+import { ViewTransition } from "react";
 
 import {
   ARTICLE_KINDS,
@@ -19,7 +20,7 @@ import { articleHref, type Owner, OWNERS } from "@/owners.ts";
 import { AdmissionCardSection } from "./admission.tsx";
 import { ArticleMeta } from "./article-meta.tsx";
 import { PendingSpinner } from "./pending-spinner.tsx";
-import { Photo, SECTION, WIDTH, photoTransition } from "./section.tsx";
+import { LIST_SWAP, Photo, SECTION, WIDTH, photoTransition } from "./section.tsx";
 
 /** What the listing reads out of the URL. The params stay English; the copy does not. */
 export type Params = {
@@ -110,28 +111,37 @@ export async function Listing({
         </div>
 
         <div className="flex flex-col gap-10 lg:flex-row lg:gap-8">
-          <div className="flex flex-1 flex-col gap-6">
-            {listing.entries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Belum ada {active ? ARTICLE_KINDS[active].toLowerCase() : "artikel"}
-                {byOwner &&
-                  ` dari ${OWNER_FILTERS.find((candidate) => candidate.key === byOwner)?.level}`}
-                .
-              </p>
-            ) : (
-              <ul className="flex flex-col">
-                {listing.entries.map((entry) => (
-                  <Row
-                    key={`${entry.type}-${entry.ownerKey}-${entry.slug}`}
-                    entry={entry}
-                    site={owner.key}
-                    nested={!schoolKey}
-                  />
-                ))}
-              </ul>
-            )}
-            <Pages listing={listing} href={href} />
-          </div>
+          {/* A new key on each filter, month or page swaps the old list for the
+              new one as a crossfade. The chips and the sidebar stay still. */}
+          <ViewTransition
+            key={`${active}-${month}-${byOwner}-${listing.page}`}
+            enter="list"
+            exit="list"
+            default="none"
+          >
+            <div className="flex flex-1 flex-col gap-6">
+              {listing.entries.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Belum ada {active ? ARTICLE_KINDS[active].toLowerCase() : "artikel"}
+                  {byOwner &&
+                    ` dari ${OWNER_FILTERS.find((candidate) => candidate.key === byOwner)?.level}`}
+                  .
+                </p>
+              ) : (
+                <ul className="flex flex-col">
+                  {listing.entries.map((entry) => (
+                    <Row
+                      key={`${entry.type}-${entry.ownerKey}-${entry.slug}`}
+                      entry={entry}
+                      site={owner.key}
+                      nested={!schoolKey}
+                    />
+                  ))}
+                </ul>
+              )}
+              <Pages listing={listing} href={href} />
+            </div>
+          </ViewTransition>
 
           {schoolKey && (
             <div className="flex flex-col gap-4 lg:w-80 lg:shrink-0">
@@ -207,6 +217,7 @@ const Filter = ({
         // of one type, and a filter that lands on an empty page reads as a type
         // with no entries.
         href={href({ type: value, month, page: "1" })}
+        transitionTypes={[LIST_SWAP]}
         aria-current={active === value ? "page" : undefined}
         className={pill(active === value)}
       >
@@ -240,6 +251,7 @@ const OwnerFilter = ({
       <Link
         key={owner?.key ?? "semua"}
         href={href({ owner: owner?.key, page: "1" })}
+        transitionTypes={[LIST_SWAP]}
         aria-current={active === owner?.key ? "page" : undefined}
         className={pill(active === owner?.key)}
       >
@@ -271,6 +283,7 @@ const Archive = ({
         <Link
           key={entry.key}
           href={href({ month: active === entry.key ? undefined : entry.key, page: "1" })}
+          transitionTypes={[LIST_SWAP]}
           aria-current={active === entry.key ? "page" : undefined}
           className={`flex min-h-11 items-center text-sm tabular-nums underline-offset-4 hover:underline ${
             active === entry.key ? "font-bold text-primary" : ""
@@ -296,6 +309,7 @@ const Pages = ({
         <Link
           key={page}
           href={href({ page: String(page) })}
+          transitionTypes={[LIST_SWAP]}
           aria-current={page === listing.page ? "page" : undefined}
           className={`flex size-11 items-center justify-center rounded-lg border text-sm font-semibold tabular-nums ${
             page === listing.page
