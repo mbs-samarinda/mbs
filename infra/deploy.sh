@@ -113,6 +113,31 @@ for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_P
   fi
 done
 
+log "Checking the Caddyfile"
+# The Caddyfile is a single-file bind mount, and the release unpacks it with
+# tar, which writes a new file rather than rewriting the old one. A running
+# Caddy keeps reading the old file, even after `caddy reload`, and `compose up`
+# leaves Caddy alone because its compose definition did not change. So when
+# the file the running Caddy sees differs from the one on disk, Caddy is
+# recreated after the swap below; a normal deploy never restarts it. A Caddy
+# that is not running needs nothing: `compose up` starts it on the new file.
+#
+# Checked and validated here, before anything changes, so a broken file fails
+# the deploy with every service untouched. A plain `docker run` rather than
+# `compose run`, which would need this deploy's pins in images.env first.
+caddy_stale=false
+if docker exec "$PROJECT-caddy-1" true 2>/dev/null &&
+  ! docker exec "$PROJECT-caddy-1" cat /etc/caddy/Caddyfile | cmp -s - "$ROOT/Caddyfile"; then
+  caddy_image=$(sed -n 's/^ *image: \(caddy@sha256:[0-9a-f]*\)$/\1/p' "$ROOT/compose.prod.yml")
+  if [[ -z $caddy_image ]] || ! docker run --rm -e PROFILE_APEX -e CMS_HOST -e CADDY_EMAIL \
+    -v "$ROOT/Caddyfile:/etc/caddy/Caddyfile:ro" "$caddy_image" \
+    caddy validate --config /etc/caddy/Caddyfile; then
+    echo "The new Caddyfile in $ROOT is invalid. Nothing was changed; fix it and run the deploy again." >&2
+    exit 1
+  fi
+  caddy_stale=true
+fi
+
 log "Pinning $IMAGES_FILE"
 # Written before any compose command runs: compose interpolates the whole file
 # on every command, so every one of them needs these pins (see lib.sh).
@@ -319,19 +344,12 @@ cleanup_candidate
 # outside the box, with every internal probe still passing.
 "${COMPOSE[@]}" up -d
 
-# The Caddyfile is a single-file bind mount, and the release unpacks it with
-# tar, which writes a new file rather than rewriting the old one. A running
-# Caddy keeps reading the old file, even after `caddy reload`, and `up -d` above
-# leaves Caddy alone because its compose definition did not change. So Caddy is
-# recreated, and only when the file it sees differs from the one on disk; a
-# normal deploy never restarts it. The new file is validated in a throwaway
-# container first, so a broken one fails the deploy while the old Caddy serves.
-if [[ "$(docker exec "$PROJECT-caddy-1" cat /etc/caddy/Caddyfile 2>/dev/null)" != "$(cat "$ROOT/Caddyfile")" ]]; then
-  log "Caddyfile changed, validating and recreating caddy"
-  if ! "${COMPOSE[@]}" run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile; then
-    echo "The new Caddyfile is invalid. The running Caddy was not touched." >&2
-    exit 1
-  fi
+# Only when the check before pinning found Caddy's Caddyfile stale. A file that
+# validates can still fail when Caddy starts (a bind address or a certificate);
+# `--wait` cannot see that, since Caddy is "running" between restarts, so the
+# public probe below is the check, and its failure message names Caddy.
+if $caddy_stale; then
+  log "Recreating caddy on the new Caddyfile"
   "${COMPOSE[@]}" up -d --force-recreate --no-deps caddy
 fi
 
@@ -384,6 +402,9 @@ public_smoke() {
 }
 if ! public_smoke; then
   echo "The new profile is live but visitors cannot reach it through Caddy." >&2
+  if $caddy_stale; then
+    echo "Caddy was recreated on a new Caddyfile in this run; check: docker logs $PROJECT-caddy-1" >&2
+  fi
   exit 1
 fi
 
