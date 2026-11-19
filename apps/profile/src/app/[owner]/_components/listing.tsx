@@ -310,7 +310,9 @@ export const ListingPlaceholder = ({
   hasSidebar: boolean;
   hasFilters: boolean;
 }) => (
-  <section className={SECTION}>
+  // The apex's anchor sits here too: after a client-side navigation to
+  // `/#artikel` the router looks for it once, while this placeholder is showing.
+  <section id={hasSidebar ? undefined : "artikel"} className={`${SECTION} scroll-mt-28`}>
     <div className={`${WIDTH} flex flex-col gap-6`}>
       {/* The apex's listing opens with its own heading; a school page's title
           sits outside the boundary. */}

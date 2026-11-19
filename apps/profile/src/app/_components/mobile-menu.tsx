@@ -32,11 +32,13 @@ export function MobileMenu({
   items,
   owner,
   admissionCta,
+  admissionHref,
   cookieSuffix,
 }: {
   items: readonly MenuEntry[];
   owner: string;
   admissionCta: string;
+  admissionHref: string;
   /** Passed through to the theme control; see `theme-script.tsx` for why. */
   cookieSuffix: string;
 }) {
@@ -128,7 +130,7 @@ export function MobileMenu({
             instead of running off the screen. */}
         <div className="flex flex-wrap items-center gap-2 p-4">
           <ThemeSelect cookieSuffix={cookieSuffix} className="shrink-0" />
-          <Link href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "flex-1")}>
+          <Link href={admissionHref} className={cn(buttonVariants({ size: "touch" }), "flex-1")}>
             {admissionCta}
           </Link>
         </div>

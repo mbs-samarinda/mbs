@@ -30,7 +30,7 @@ import { type Media } from "@/cms/client.ts";
 import { type ActivityIcon } from "@/cms/entries.ts";
 import { type Block, type ValueIcon } from "@/cms/pages.ts";
 import { type Site } from "@/cms/site.ts";
-import { articleHref, type Owner, ownerUrl } from "@/owners.ts";
+import { admissionUrl, articleHref, type Owner, ownerUrl } from "@/owners.ts";
 
 import { ArticleMeta } from "./article-meta.tsx";
 import { Prose } from "./prose.tsx";
@@ -743,7 +743,10 @@ function Hero({
             <p className="max-w-[65ch] text-base text-pretty text-muted-foreground">{body}</p>
           )}
           <div className="flex flex-wrap gap-3">
-            <Link href="/pendaftaran" className={buttonVariants({ size: "touch" })}>
+            <Link
+              href={schoolKey ? "/pendaftaran" : admissionUrl()}
+              className={buttonVariants({ size: "touch" })}
+            >
               {admissionCta}
             </Link>
             {/* Both halves or neither: a label with no address is a button that

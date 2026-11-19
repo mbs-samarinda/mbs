@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { mediaUrl } from "@/cms/client.ts";
 import { type Site } from "@/cms/site.ts";
-import { isUmbrella, type Owner, ownerUrl } from "@/owners.ts";
+import { admissionUrl, isUmbrella, type Owner, ownerUrl } from "@/owners.ts";
 
 import { MobileMenu } from "./mobile-menu.tsx";
 import { toMenu } from "./nav-link.ts";
@@ -71,6 +71,13 @@ function LogoSlot({ logo, className }: { logo: Site["logo"]; className: string }
  * "Daftar", and the name wraps to make room rather than the buttons taking a
  * row of their own.
  */
+/**
+ * Where the header's admission button goes. The apex has no admission page, so
+ * it links straight to the admission app: a `<Link>` to `/pendaftaran` there
+ * would fetch it ahead of the click and hit the proxy's cross-site redirect.
+ */
+const admissionHref = (owner: Owner) => (isUmbrella(owner) ? admissionUrl() : "/pendaftaran");
+
 export function Header({ owner, site }: { owner: Owner; site: Site }) {
   const menu = isUmbrella(owner) ? [] : toMenu(site.menu);
 
@@ -168,6 +175,7 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
             items={menu}
             owner={owner.name}
             admissionCta={site.admissionCta}
+            admissionHref={admissionHref(owner)}
             cookieSuffix={COOKIE_SUFFIX}
           />
         )}
@@ -195,7 +203,10 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
           )}
         >
           <ThemeSelect cookieSuffix={COOKIE_SUFFIX} compact={menu.length === 0} />
-          <Link href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "shrink-0")}>
+          <Link
+            href={admissionHref(owner)}
+            className={cn(buttonVariants({ size: "touch" }), "shrink-0")}
+          >
             {menu.length > 0 ? (
               site.admissionCta
             ) : (

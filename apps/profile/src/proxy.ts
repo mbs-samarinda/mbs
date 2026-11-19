@@ -40,9 +40,8 @@ export function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // The apex has no admission page, but its header and mobile menu buttons say
-  // "Pendaftaran Bersama" and point here, like every school's do. Sending the
-  // path on keeps those buttons one shared component instead of four branches.
+  // The apex has no admission page. Its own buttons link to the admission app
+  // directly, so this catches a typed or shared `/pendaftaran` address.
   // 307, not 308: where the joint campaign lives is a choice that may change.
   if (isUmbrella(owner) && pathname === "/pendaftaran") {
     return NextResponse.redirect(`${admissionUrl()}${request.nextUrl.search}`, 307);
