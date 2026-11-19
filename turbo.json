@@ -17,7 +17,14 @@
       // infra/image-tag.sh tags every image with this hash, so anything here
       // decides whether a merge redeploys. Tests never reach a build output:
       // without these negations a test-only change would restart production.
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.test.*", "!test/**", "!vitest.config.*"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.test.*",
+        "!test/**",
+        "!e2e/**",
+        "!vitest.config.*",
+        "!playwright.config.*"
+      ],
       "outputs": [
         "dist/**",
         "build/**",

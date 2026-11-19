@@ -36,6 +36,9 @@ apps/cms/types/generated/
 apps/cms/public/uploads/*
 !apps/cms/public/uploads/.gitkeep
 
+# What Playwright leaves behind when an e2e test fails
+apps/profile/test-results/
+
 # Turborepo
 .turbo
 apps/cms/.strapi-updater.json

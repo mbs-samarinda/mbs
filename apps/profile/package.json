@@ -9,6 +9,7 @@
     "start": "next start --port 3002",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test",
     "lint": "oxlint -c ../../.oxlintrc.json",
     "format": "oxfmt -c ../../.oxfmtrc.json .",
     "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
@@ -29,6 +30,8 @@
   },
   "devDependencies": {
     "@mbs/typescript-config": "workspace:*",
+    "@next/playwright": "16.4.1",
+    "@playwright/test": "1.65.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^24.0.0",
     "@types/react": "19.2.18",

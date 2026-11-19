@@ -11,6 +11,8 @@
     "next.config.ts",
     "cache-handler.ts",
     "cache-handler.test.ts",
+    "e2e",
+    "playwright.config.ts",
     ".next/types/**/*.ts"
   ],
   "exclude": ["node_modules"]
