@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { EntryHead } from "@/app/[owner]/_components/entry.tsx";
-import { Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { Main, Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
 import { formatLongDate } from "@/articles.ts";
 import { mediaUrl } from "@/cms/client.ts";
 import { getAlbum } from "@/cms/gallery.ts";
@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-/** Blocking, for the reason `/fasilitas/[slug]` gives. */
+/** Blocking, for the reason `/artikel/[type]/[slug]` gives: a missing slug stays a real 404. */
 export const instant = false;
 
 /**
@@ -57,7 +57,7 @@ export default async function AlbumPage({ params }: { params: Params }) {
   const summary = `${album.photos.length} foto · ${formatLongDate(album.date)}`;
 
   return (
-    <main>
+    <Main>
       <EntryHead entry={{ title: album.title, summary }} section={SECTION_INFO} />
 
       <section className={SECTION}>
@@ -81,6 +81,6 @@ export default async function AlbumPage({ params }: { params: Params }) {
           ))}
         </ul>
       </section>
-    </main>
+    </Main>
   );
 }

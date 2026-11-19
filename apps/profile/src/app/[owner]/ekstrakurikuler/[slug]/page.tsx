@@ -8,7 +8,13 @@ import {
   MoreEntries,
 } from "@/app/[owner]/_components/entry.tsx";
 import { Prose } from "@/app/[owner]/_components/prose.tsx";
-import { Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import {
+  Main,
+  Photo,
+  SECTION,
+  WIDTH,
+  photoTransition,
+} from "@/app/[owner]/_components/section.tsx";
 import { mediaUrl } from "@/cms/client.ts";
 import { getEntry } from "@/cms/entries.ts";
 import { ownerUrl, requireSchool } from "@/owners.ts";
@@ -47,14 +53,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-/**
- * Blocking, and a slug nobody owns answers 200 rather than 404 — the same two
- * facts `/artikel/[type]/[slug]` records at length. There is no `generateStaticParams`
- * because the set of activities changes whenever an editor publishes, and once a
- * response has started streaming its headers are gone, so `notFound()` after an
- * `await` can only add `<meta name="robots" content="noindex">`. That is what
- * keeps a deleted activity out of a search index.
- */
+/** Blocking, for the reason `/artikel/[type]/[slug]` gives: a missing slug stays a real 404. */
 export const instant = false;
 
 /** One activity: what it is, how it runs, and what else a visitor could look at. */
@@ -65,12 +64,17 @@ export default async function EkstrakurikulerDetailPage({ params }: { params: Pa
   const { owner, entry } = found;
 
   return (
-    <main>
+    <Main>
       <EntryHead entry={entry} section={SECTION_INFO} />
 
       <section className={SECTION}>
         <div className={`${WIDTH} flex flex-col gap-8`}>
-          <Photo image={entry.images[0] ?? null} label="Foto" className="aspect-20/7 w-full" />
+          <Photo
+            image={entry.images[0] ?? null}
+            label="Foto"
+            className="aspect-20/7 w-full"
+            transition={photoTransition(SECTION_INFO.base, entry.slug)}
+          />
 
           <div className="flex flex-col gap-10 lg:flex-row lg:gap-12">
             <div className="flex-1">
@@ -83,6 +87,6 @@ export default async function EkstrakurikulerDetailPage({ params }: { params: Pa
       </section>
 
       <MoreEntries ownerKey={owner.key} collection="ekstrakurikuler-list" slug={entry.slug} />
-    </main>
+    </Main>
   );
 }

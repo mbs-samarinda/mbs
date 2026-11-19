@@ -49,6 +49,10 @@ const config: NextConfig = {
   // school key, which is also part of the cache key so two schools never share
   // a cached page for the same path.
   cacheComponents: true,
+  // A `<Link>` fetches only the destination's shared shell ahead of the click,
+  // one per route however many links point at it, not each page in full. The
+  // next major turns this on everywhere and removes the option.
+  partialPrefetching: true,
   // Every CMS read in `src/cms/`. Like the built-in "hours" profile, but `expire`
   // is a year, not a day: past `expire` an entry is a miss, so a Strapi outage
   // over a day turned every page into a 500. Past `revalidate`, or after a

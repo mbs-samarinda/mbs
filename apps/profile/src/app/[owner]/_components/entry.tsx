@@ -1,7 +1,10 @@
+import Link from "next/link";
+
 import { getEntries, type Entry, type EntryCollection, type FullEntry } from "@/cms/entries.ts";
 import { type Owner } from "@/owners.ts";
 
-import { Photo, WIDTH, SECTION } from "./section.tsx";
+import { PendingSpinner } from "./pending-spinner.tsx";
+import { Photo, WIDTH, SECTION, photoTransition } from "./section.tsx";
 
 /**
  * The two collections whose records own a page, and the words each wears.
@@ -42,15 +45,15 @@ export const EntryHead = ({
   <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
     <div className={`${WIDTH} flex flex-col gap-4`}>
       <nav aria-label="Remah roti" className="flex flex-wrap items-center gap-1.5 text-[13px]">
-        <a href="/" className="text-muted-foreground underline underline-offset-4">
+        <Link href="/" className="text-muted-foreground underline underline-offset-4">
           Beranda
-        </a>
+        </Link>
         <span aria-hidden className="text-muted-foreground">
           /
         </span>
-        <a href={section.base} className="text-muted-foreground underline underline-offset-4">
+        <Link href={section.base} className="text-muted-foreground underline underline-offset-4">
           {section.label}
-        </a>
+        </Link>
         <span aria-hidden className="text-muted-foreground">
           /
         </span>
@@ -122,12 +125,12 @@ export async function MoreEntries({
       <div className={`${WIDTH} flex flex-col gap-7`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <h2 className="text-[28px] font-bold text-balance">{section.more}</h2>
-          <a
+          <Link
             href={section.base}
             className="flex min-h-11 shrink-0 items-center text-sm font-semibold text-primary underline underline-offset-4"
           >
             {section.all}
-          </a>
+          </Link>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -151,16 +154,31 @@ export async function MoreEntries({
  * ordering rather than on the order written here. The card clips, so the corners
  * a visitor sees are the card's.
  */
-export const EntryCard = ({ entry, base }: { entry: Entry; base: string }) => (
-  <a
+export const EntryCard = ({
+  entry,
+  base,
+  travels = false,
+}: {
+  entry: Entry;
+  base: string;
+  /**
+   * The photo carries into the page the card opens. Off in the row of others at
+   * the foot of a detail page: that row lists the page being left, so its hero
+   * and this card's photo would cross on the way.
+   */
+  travels?: boolean;
+}) => (
+  <Link
     href={`${base}/${entry.slug}`}
-    className="flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
+    className="relative flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
   >
+    <PendingSpinner />
     <Photo
       image={entry.images[0] ?? null}
       label="Foto"
       className="aspect-43/20 w-full rounded-none!"
       inCard
+      transition={travels ? photoTransition(base, entry.slug) : undefined}
     />
     <div className="flex flex-col gap-1.5 p-4.5">
       <h3 className="text-[17px] font-bold text-pretty">{entry.title}</h3>
@@ -169,5 +187,5 @@ export const EntryCard = ({ entry, base }: { entry: Entry; base: string }) => (
         <p className="text-xs font-semibold text-primary tabular-nums">{entry.meta}</p>
       )}
     </div>
-  </a>
+  </Link>
 );

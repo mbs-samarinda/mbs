@@ -1,13 +1,21 @@
 import type { SchoolKey } from "@mbs/school-config";
 import { Mail, MessageCircle } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { AdmissionCardSection } from "@/app/[owner]/_components/admission.tsx";
 import { TypeBadge } from "@/app/[owner]/_components/article-meta.tsx";
+import { PendingSpinner } from "@/app/[owner]/_components/pending-spinner.tsx";
 import { Prose } from "@/app/[owner]/_components/prose.tsx";
-import { Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import {
+  Main,
+  Photo,
+  SECTION,
+  WIDTH,
+  photoTransition,
+} from "@/app/[owner]/_components/section.tsx";
 import {
   ARTICLE_KINDS,
   type Article,
@@ -63,19 +71,19 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 /**
- * Blocking rather than instant, and a slug nobody owns answers 200, not 404.
+ * Blocking on purpose, because that keeps a missing slug a real 404.
  *
- * `[slug]` has no `generateStaticParams` — the set of articles changes whenever
- * an editor publishes — so reading it is runtime data, and the article is read
- * in the page body rather than streamed. `instant = false` says that out loud
- * instead of leaving the route flagged by validation.
+ * `[slug]` has no `generateStaticParams`, since the set of articles changes
+ * whenever an editor publishes, so the article is read in the page body. Nothing
+ * above that read suspends, so the response waits for the CMS answer and
+ * `notFound()` still sets the status. A `loading.tsx` or a `<Suspense>` above the
+ * read would start streaming first. Once a response streams its headers are
+ * gone, so a missing slug would answer 200 and keep only the `noindex` Next
+ * injects. Measured in November 2026, the boundary bought no speed in exchange.
+ * The read is cached, and the page arrived as fast without it.
  *
- * The status is the part worth knowing. Once a response starts streaming its
- * headers are gone, so `notFound()` firing after an `await` cannot turn 200 into
- * 404; Next injects `<meta name="robots" content="noindex">` instead, which is
- * what keeps a deleted article out of an index. A real 404 would need the answer
- * before any `await`, and the answer lives in the CMS. A path no page claims at
- * all is a different mechanism and does return 404 — see `global-not-found.tsx`.
+ * `instant = false` only turns off the development warning that this route
+ * blocks. It changes nothing at runtime.
  */
 export const instant = false;
 
@@ -97,12 +105,17 @@ export default async function ArticlePage({ params }: { params: Params }) {
   const school = isUmbrella(owner) ? null : owner;
 
   return (
-    <main>
+    <Main>
       <Head article={article} listed={Boolean(school)} />
 
       <section className={SECTION}>
         <div className={`${WIDTH} flex flex-col gap-8`}>
-          <Photo image={article.cover} label="Sampul" className="aspect-video w-full" />
+          <Photo
+            image={article.cover}
+            label="Sampul"
+            className="aspect-video w-full"
+            transition={photoTransition(article.ownerKey, article.type, article.slug)}
+          />
 
           <div className="flex flex-col gap-10 lg:flex-row lg:gap-12">
             <div className="flex-1">
@@ -128,7 +141,7 @@ export default async function ArticlePage({ params }: { params: Params }) {
           <MoreNews owner={owner} article={article} />
         </Suspense>
       )}
-    </main>
+    </Main>
   );
 }
 
@@ -145,29 +158,29 @@ const Head = ({ article, listed }: { article: FullArticle; listed: boolean }) =>
     <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
       <div className={`${WIDTH} flex flex-col gap-4`}>
         <nav aria-label="Remah roti" className="flex flex-wrap items-center gap-1.5 text-[13px]">
-          <a href="/" className="text-muted-foreground underline underline-offset-4">
+          <Link href="/" className="text-muted-foreground underline underline-offset-4">
             Beranda
-          </a>
+          </Link>
           <span aria-hidden className="text-muted-foreground">
             /
           </span>
-          <a
+          <Link
             href={listed ? "/artikel" : "/#artikel"}
             className="text-muted-foreground underline underline-offset-4"
           >
             Artikel
-          </a>
+          </Link>
           {listed && (
             <>
               <span aria-hidden className="text-muted-foreground">
                 /
               </span>
-              <a
+              <Link
                 href={`/artikel/${article.type}`}
                 className="text-muted-foreground underline underline-offset-4"
               >
                 {ARTICLE_KINDS[article.type]}
-              </a>
+              </Link>
             </>
           )}
           <span aria-hidden className="text-muted-foreground">
@@ -321,12 +334,12 @@ async function MoreNews({ owner, article }: { owner: Owner; article: FullArticle
       <div className={`${WIDTH} flex flex-col gap-7`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <h2 className="text-[28px] font-bold text-balance">Artikel lainnya</h2>
-          <a
+          <Link
             href="/artikel"
             className="flex min-h-11 shrink-0 items-center text-sm font-semibold text-primary underline underline-offset-4"
           >
             Lihat semua artikel
-          </a>
+          </Link>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -344,10 +357,12 @@ async function MoreNews({ owner, article }: { owner: Owner; article: FullArticle
 }
 
 const Card = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
-  <a
+  <Link
     href={articleHref(entry, site)}
-    className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
+    className="relative flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
   >
+    {/* On the photo, which the card's padding insets by 12px. */}
+    <PendingSpinner className="top-5 right-5" />
     <Photo image={entry.cover} label="Sampul" className="aspect-3/2 w-full" inCard />
     <div className="flex flex-col gap-1.5 px-1 pb-1">
       <h3 className="text-[17px] font-bold text-pretty">{entry.title}</h3>
@@ -357,5 +372,5 @@ const Card = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
         {entry.byline && ` · ${entry.byline}`}
       </p>
     </div>
-  </a>
+  </Link>
 );

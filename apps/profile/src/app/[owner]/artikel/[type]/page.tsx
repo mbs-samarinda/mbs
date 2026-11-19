@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { Listing, ListingPlaceholder, type Params } from "@/app/[owner]/_components/listing.tsx";
-import { PageHead } from "@/app/[owner]/_components/section.tsx";
+import { Main, PageHead } from "@/app/[owner]/_components/section.tsx";
 import { ARTICLE_KINDS, ARTICLE_TYPES, isArticleType, type ArticleType } from "@/articles.ts";
 import { requireSchool } from "@/owners.ts";
 
@@ -38,12 +38,12 @@ export default async function TypePage({
   if (!isArticleType(type)) notFound();
 
   return (
-    <main>
+    <Main>
       <PageHead heading={ARTICLE_KINDS[type]} body={LEAD[type]} />
 
       <Suspense fallback={<ListingPlaceholder hasSidebar hasFilters={false} />}>
         <Listing owner={school} schoolKey={school.key} type={type} searchParams={searchParams} />
       </Suspense>
-    </main>
+    </Main>
   );
 }

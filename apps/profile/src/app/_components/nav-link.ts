@@ -12,12 +12,25 @@ import type { Site } from "@/cms/site.ts";
  * with a green build.
  *
  * No current-page state: marking one would mean reading the pathname on the
- * client, which `cacheComponents` turns into a dynamic hole in every page —
- * paid for a page that does not exist, since home is the only route built. The
- * switcher tab already says which site you are on. It comes back with the
- * second page, where it can be tested.
+ * client, which `cacheComponents` turns into a dynamic hole in every page. The
+ * switcher tab already says which site you are on.
  */
 export const NAV_LINK = "text-sm font-medium text-foreground transition-colors hover:text-primary";
+
+/**
+ * Closes a menu once a link inside it navigates this page. With client-side
+ * navigation the header survives the page change, so an open sheet or popover
+ * would otherwise stay over the new page. `<Link>` cancels the browser's default
+ * only when it navigates itself, so a Ctrl or Cmd click into a new tab leaves the
+ * menu open. One handler on the panel rather than one per link, and not
+ * `SheetClose`: as a link's wrapper it gives the link a button role.
+ */
+export const closeOnLink =
+  (setOpen: (open: boolean) => void) =>
+  (event: { target: EventTarget; defaultPrevented: boolean }) => {
+    if (event.defaultPrevented && event.target instanceof Element && event.target.closest("a"))
+      setOpen(false);
+  };
 
 /** One menu entry, decided once in the header so the row and the sheet cannot disagree. */
 export type MenuEntry =

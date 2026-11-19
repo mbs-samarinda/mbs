@@ -1,4 +1,5 @@
 import type { SchoolKey } from "@mbs/school-config";
+import Link from "next/link";
 
 import {
   ARTICLE_KINDS,
@@ -17,7 +18,8 @@ import { articleHref, type Owner, OWNERS } from "@/owners.ts";
 
 import { AdmissionCardSection } from "./admission.tsx";
 import { ArticleMeta } from "./article-meta.tsx";
-import { Photo, SECTION, WIDTH } from "./section.tsx";
+import { PendingSpinner } from "./pending-spinner.tsx";
+import { Photo, SECTION, WIDTH, photoTransition } from "./section.tsx";
 
 /** What the listing reads out of the URL. The params stay English; the copy does not. */
 export type Params = {
@@ -148,14 +150,23 @@ const Row = ({ entry, site, nested }: { entry: Article; site: Owner["key"]; nest
   const Title = nested ? "h3" : "h2";
   return (
     <li className="border-b border-border first:border-t">
-      <a
+      <Link
         href={articleHref(entry, site)}
-        className="flex flex-col gap-3 py-5 hover:opacity-90 md:flex-row md:items-start md:gap-5"
+        className="relative flex flex-col gap-3 py-5 hover:opacity-90 md:flex-row md:items-start md:gap-5"
       >
+        {/* On the photo: full width under 20px of padding on a phone, a 200px
+            block on the left from md. */}
+        <PendingSpinner className="top-7 right-2 md:right-auto md:left-42.5" />
         <Photo
           image={entry.cover}
           label="Sampul"
           className="aspect-3/2 w-full md:w-50 md:shrink-0"
+          transition={
+            // Another owner's article opens on its own host, with a full page load.
+            entry.ownerKey === site
+              ? photoTransition(entry.ownerKey, entry.type, entry.slug)
+              : undefined
+          }
         />
         <div className="flex flex-col gap-1.5">
           <ArticleMeta article={entry} site={site} />
@@ -166,7 +177,7 @@ const Row = ({ entry, site, nested }: { entry: Article; site: Owner["key"]; nest
             </p>
           )}
         </div>
-      </a>
+      </Link>
     </li>
   );
 };
@@ -190,7 +201,7 @@ const Filter = ({
 }) => (
   <nav aria-label="Saring menurut jenis" className="flex flex-wrap gap-2">
     {[undefined, ...ARTICLE_TYPES].map((value) => (
-      <a
+      <Link
         key={value ?? "semua"}
         // The page resets with the filter: page 3 of everything is rarely page 3
         // of one type, and a filter that lands on an empty page reads as a type
@@ -200,7 +211,7 @@ const Filter = ({
         className={pill(active === value)}
       >
         {value ? ARTICLE_KINDS[value] : "Semua"}
-      </a>
+      </Link>
     ))}
   </nav>
 );
@@ -226,14 +237,14 @@ const OwnerFilter = ({
 }) => (
   <nav aria-label="Saring menurut sekolah" className="flex flex-wrap gap-2">
     {[undefined, ...OWNER_FILTERS].map((owner) => (
-      <a
+      <Link
         key={owner?.key ?? "semua"}
         href={href({ owner: owner?.key, page: "1" })}
         aria-current={active === owner?.key ? "page" : undefined}
         className={pill(active === owner?.key)}
       >
         {owner?.level ?? "Semua sekolah"}
-      </a>
+      </Link>
     ))}
   </nav>
 );
@@ -257,7 +268,7 @@ const Archive = ({
     <nav aria-label="Arsip" className="flex flex-col gap-1 rounded-xl border border-border p-5">
       <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">Arsip</h2>
       {months.map((entry) => (
-        <a
+        <Link
           key={entry.key}
           href={href({ month: active === entry.key ? undefined : entry.key, page: "1" })}
           aria-current={active === entry.key ? "page" : undefined}
@@ -266,7 +277,7 @@ const Archive = ({
           }`}
         >
           {entry.label} ({entry.count})
-        </a>
+        </Link>
       ))}
     </nav>
   );
@@ -282,7 +293,7 @@ const Pages = ({
   listing.pages < 2 ? null : (
     <nav aria-label="Halaman" className="flex flex-wrap gap-2">
       {Array.from({ length: listing.pages }, (_, index) => index + 1).map((page) => (
-        <a
+        <Link
           key={page}
           href={href({ page: String(page) })}
           aria-current={page === listing.page ? "page" : undefined}
@@ -293,7 +304,7 @@ const Pages = ({
           }`}
         >
           {page}
-        </a>
+        </Link>
       ))}
     </nav>
   );
@@ -309,7 +320,9 @@ export const ListingPlaceholder = ({
   hasSidebar: boolean;
   hasFilters: boolean;
 }) => (
-  <section className={SECTION}>
+  // The apex's anchor sits here too: after a client-side navigation to
+  // `/#artikel` the router looks for it once, while this placeholder is showing.
+  <section id={hasSidebar ? undefined : "artikel"} className={`${SECTION} scroll-mt-28`}>
     <div className={`${WIDTH} flex flex-col gap-6`}>
       {/* The apex's listing opens with its own heading; a school page's title
           sits outside the boundary. */}

@@ -153,3 +153,119 @@
 :is(h1, h2, h3) {
   overflow-wrap: break-word;
 }
+
+/* Moving between pages on one site. The header stays put, the page under it
+   fades, and a card's photo travels into the hero of the page it opens
+   (`Main` and `Photo` in `section.tsx`). Exits are quicker than entrances. */
+::view-transition {
+  /* A tap during the fade reaches the page instead of the overlay. */
+  pointer-events: none;
+}
+
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header) {
+  display: none;
+}
+::view-transition-new(site-header) {
+  animation: none;
+}
+
+::view-transition-old(.page) {
+  animation: 120ms ease-out both page-fade-out;
+}
+::view-transition-new(.page) {
+  animation: 180ms var(--ease-out) both page-fade-in;
+}
+
+/* The photo is moving across the screen, not entering it, so it eases in and
+   out. A real photo changes shape between card and hero; the blur at mid-flight
+   hides the stretch. */
+::view-transition-group(.morph) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.77, 0, 0.175, 1);
+}
+::view-transition-image-pair(.morph) {
+  animation-name: photo-blur;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes page-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes photo-blur {
+  50% {
+    filter: blur(2px);
+  }
+}
+
+/* Reduced motion keeps the fades and stops the photo travelling. The shared
+   layer's reset cannot reach these: view-transition pseudo-elements match no
+   `*` selector. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation: none !important;
+  }
+  ::view-transition-image-pair(.morph) {
+    animation: none;
+  }
+  ::view-transition-old(.morph) {
+    animation: 120ms ease-out both page-fade-out;
+  }
+  ::view-transition-new(.morph) {
+    animation: 180ms var(--ease-out) both page-fade-in;
+  }
+}
+
+/* `PendingSpinner`: a card's page is still loading. It waits 150ms before
+   showing, so a page that arrives quickly never flashes it. Under reduced
+   motion the ring pulses once and stays solid until the page arrives. */
+.pending-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--background);
+  box-shadow: var(--shadow-raised);
+  opacity: 0;
+  animation: pending-in 150ms var(--ease-out) 150ms forwards;
+}
+.pending-spinner::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in oklch, var(--primary) 25%, transparent);
+  border-top-color: var(--primary);
+  animation: pending-spin 600ms linear infinite;
+}
+
+@keyframes pending-in {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pending-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@keyframes pending-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pending-spinner::after {
+    border-color: var(--primary);
+    animation: pending-pulse 1s ease-in-out;
+  }
+}

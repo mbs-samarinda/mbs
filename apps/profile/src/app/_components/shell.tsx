@@ -2,10 +2,11 @@ import { SCHOOLS } from "@mbs/school-config";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
 import Image from "next/image";
+import Link from "next/link";
 
 import { mediaUrl } from "@/cms/client.ts";
 import { type Site } from "@/cms/site.ts";
-import { isUmbrella, type Owner, ownerUrl } from "@/owners.ts";
+import { admissionUrl, isUmbrella, type Owner, ownerUrl } from "@/owners.ts";
 
 import { MobileMenu } from "./mobile-menu.tsx";
 import { toMenu } from "./nav-link.ts";
@@ -70,6 +71,13 @@ function LogoSlot({ logo, className }: { logo: Site["logo"]; className: string }
  * "Daftar", and the name wraps to make room rather than the buttons taking a
  * row of their own.
  */
+/**
+ * Where the header's admission button goes. The apex has no admission page, so
+ * it links straight to the admission app: a `<Link>` to `/pendaftaran` there
+ * would fetch it ahead of the click and hit the proxy's cross-site redirect.
+ */
+const admissionHref = (owner: Owner) => (isUmbrella(owner) ? admissionUrl() : "/pendaftaran");
+
 export function Header({ owner, site }: { owner: Owner; site: Site }) {
   const menu = isUmbrella(owner) ? [] : toMenu(site.menu);
 
@@ -78,7 +86,9 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
     // you are on and the bar carries the admission action, and neither is worth
     // scrolling back up for. z-40 leaves the layers above it free for the
     // sheet, which portals to the body and sits at z-50.
-    <header className="sticky top-0 z-40 bg-background">
+    // Named so a page change leaves it still while the page under it fades
+    // (`globals.css`).
+    <header className="sticky top-0 z-40 bg-background [view-transition-name:site-header]">
       <div
         className={`flex items-center justify-between gap-4 border-b border-border bg-muted ${GUTTER}`}
       >
@@ -139,7 +149,7 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
             the page past the screen, so there it wraps instead. The umbrella
             on a phone wraps too, below 393px: there the choice is a two-line
             name or a second row for its buttons, and the name costs less. */}
-        <a
+        <Link
           href="/"
           className={cn(
             "flex shrink-0 items-center gap-3 py-3 max-[20rem]:shrink lg:order-1",
@@ -160,13 +170,14 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
               <span className="text-[11px] text-muted-foreground">{site.brandSubline}</span>
             )}
           </span>
-        </a>
+        </Link>
 
         {menu.length > 0 && (
           <MobileMenu
             items={menu}
             owner={owner.name}
             admissionCta={site.admissionCta}
+            admissionHref={admissionHref(owner)}
             cookieSuffix={COOKIE_SUFFIX}
           />
         )}
@@ -194,7 +205,10 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
           )}
         >
           <ThemeSelect cookieSuffix={COOKIE_SUFFIX} compact={menu.length === 0} />
-          <a href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "shrink-0")}>
+          <Link
+            href={admissionHref(owner)}
+            className={cn(buttonVariants({ size: "touch" }), "shrink-0")}
+          >
             {menu.length > 0 ? (
               site.admissionCta
             ) : (
@@ -203,7 +217,7 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
                 <span className="max-md:hidden">{site.admissionCta}</span>
               </>
             )}
-          </a>
+          </Link>
         </div>
       </div>
     </header>
@@ -259,13 +273,13 @@ export function Footer({ owner, site }: { owner: Owner; site: Site }) {
             >
               <h2 className="text-xs font-bold">{column.heading}</h2>
               {column.links.map((link) => (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
                   className="flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground md:min-h-0"
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
             </nav>
           ))}

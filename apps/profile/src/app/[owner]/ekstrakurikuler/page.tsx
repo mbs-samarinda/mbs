@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { EntryCard } from "@/app/[owner]/_components/entry.tsx";
-import { PageHead, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
+import { Main, PageHead, SECTION, WIDTH } from "@/app/[owner]/_components/section.tsx";
 import { getEntries } from "@/cms/entries.ts";
 import { getPage } from "@/cms/pages.ts";
 import { requireSchool } from "@/owners.ts";
@@ -40,7 +40,7 @@ export default async function EkstrakurikulerPage({
   const entries = await getEntries(school.key, "ekstrakurikuler-list");
 
   return (
-    <main>
+    <Main>
       <PageHead
         heading="Ekstrakurikuler"
         body="Kegiatan rutin di luar jam pelajaran. Setiap kegiatan punya halaman sendiri."
@@ -55,12 +55,12 @@ export default async function EkstrakurikulerPage({
           ) : (
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {entries.map((entry) => (
-                <EntryCard key={entry.slug} entry={entry} base="/ekstrakurikuler" />
+                <EntryCard key={entry.slug} entry={entry} base="/ekstrakurikuler" travels />
               ))}
             </div>
           )}
         </div>
       </section>
-    </main>
+    </Main>
   );
 }

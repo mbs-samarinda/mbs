@@ -8,6 +8,7 @@ import { isUmbrella, requireOwner } from "@/owners.ts";
 import { AdmissionBandSection } from "./_components/admission.tsx";
 import { BlockSection } from "./_components/blocks.tsx";
 import { Listing, ListingPlaceholder, type Params } from "./_components/listing.tsx";
+import { Main } from "./_components/section.tsx";
 
 export async function generateMetadata({
   params,
@@ -45,7 +46,7 @@ export default async function OwnerHomePage({
   const school = isUmbrella(owner) ? null : owner;
 
   return (
-    <main>
+    <Main>
       {/* The apex's school cards open with their own section heading, so the
           page title is for assistive technology alone — unless an editor gave
           it a hero, which carries the page's h1 itself. */}
@@ -73,6 +74,6 @@ export default async function OwnerHomePage({
           <Listing owner={owner} schoolKey={undefined} searchParams={searchParams} />
         </Suspense>
       )}
-    </main>
+    </Main>
   );
 }
