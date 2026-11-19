@@ -162,15 +162,26 @@
   pointer-events: none;
 }
 
+/* A list swap (`LIST_SWAP` in section.tsx) leaves the header in the page
+   itself, like the chips, rather than in a layer of its own. In WebKit that
+   layer vanished for a moment on every filter tap. Page changes keep it, so
+   the fading page never draws over the bar. */
+html:active-view-transition-type(list) header {
+  view-transition-name: none;
+}
+
 ::view-transition-group(site-header) {
   animation: none;
   z-index: 100;
 }
-::view-transition-old(site-header) {
-  display: none;
-}
+/* The old header stays under the new one. They match, so nothing ghosts.
+   Hidden, WebKit showed no bar for a moment on filter taps, likely because it
+   draws the live new copy a frame late. `normal` because the default
+   `plus-lighter` adds the two copies and brightens the bar. */
+::view-transition-old(site-header),
 ::view-transition-new(site-header) {
   animation: none;
+  mix-blend-mode: normal;
 }
 
 /* The old page leaves at once and only the new one fades in. A crossfade
