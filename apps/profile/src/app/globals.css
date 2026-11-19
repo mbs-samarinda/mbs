@@ -154,9 +154,9 @@
   overflow-wrap: break-word;
 }
 
-/* Moving between pages on one site. The header stays put, the page under it
-   fades, and a card's photo travels into the hero of the page it opens
-   (`Main` and `Photo` in `section.tsx`). Exits are quicker than entrances. */
+/* Moving between pages on one site. The header stays put, the new page fades in
+   under it, and a card's photo travels into the hero of the page it opens
+   (`Main` and `Photo` in `section.tsx`). */
 ::view-transition {
   /* A tap during the fade reaches the page instead of the overlay. */
   pointer-events: none;
@@ -173,10 +173,16 @@
   animation: none;
 }
 
-::view-transition-old(.page) {
-  animation: 120ms ease-out both page-fade-out;
+/* The old page leaves at once and only the new one fades in. A crossfade
+   showed both at the same time, two unrelated layouts with text over text. The
+   rest of the document, mostly the footer, does the same: it sits at a
+   different height on every page, so its old copy would ghost too. */
+::view-transition-old(.page),
+::view-transition-old(root) {
+  display: none;
 }
-::view-transition-new(.page) {
+::view-transition-new(.page),
+::view-transition-new(root) {
   animation: 180ms var(--ease-out) both page-fade-in;
 }
 

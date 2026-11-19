@@ -62,8 +62,8 @@ export function SectionHeading({
 }
 
 /**
- * Every page's `<main>`. Pages enter and leave with a fade under the header,
- * set in `globals.css`. It sits on each page rather than in the layout because a
+ * Every page's `<main>`. The new page fades in under the header and the old one
+ * leaves at once, set in `globals.css`. It sits on each page rather than in the layout because a
  * layout never remounts: there the whole page would also fade each time a
  * `<Suspense>` slot inside it filled in.
  */
