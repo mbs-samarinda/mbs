@@ -44,6 +44,8 @@
 {$CMS_HOST} {
 	encode zstd gzip
 
+	# No HSTS line here: Strapi's own `strapi::security` middleware already sends one.
+
 	# Caddy imposes no body limit of its own, so this *adds* a ceiling rather
 	# than raising one. It is the binding limit: the upload plugin sets no
 	# sizeLimit, leaving Strapi's own 200MB default above this. 100MB is well
