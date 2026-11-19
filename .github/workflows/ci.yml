@@ -175,7 +175,9 @@ jobs:
         env:
           EXPOSE_TESTING_API: "1"
           CMS_URL: http://localhost:1337
-      - run: pnpm --filter @mbs/profile exec playwright install --with-deps --only-shell chromium
+      # No --with-deps: on this runner it only adds fonts, and fetching them
+      # from the apt mirror took 3.5 of the job's 5 minutes.
+      - run: pnpm --filter @mbs/profile exec playwright install --only-shell chromium
       - name: Wait for the CMS seed
         run: |
           for _ in $(seq 90); do
