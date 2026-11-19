@@ -15,13 +15,17 @@ import { ownerFromBrowserHost } from "@/owners.ts";
  * An error boundary is a client component, so the owner cannot come from
  * `params` here. It comes from the hostname, which the proxy has already
  * checked; a hostname belonging to nobody never reaches a page.
+ *
+ * `retry`, not `reset`: the usual cause is the CMS being briefly unreachable,
+ * and only `retry` fetches the page from the server again. `reset` redraws
+ * the same failed result.
  */
 export default function OwnerError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   const owner = ownerFromBrowserHost(globalThis.location?.hostname);
 
@@ -33,7 +37,7 @@ export default function OwnerError({
       body="Bukan kesalahanmu. Coba muat ulang; bila masih sama, hubungi panitia dengan kode di bawah."
       owner={owner}
       action={
-        <Button size="touch" onClick={reset}>
+        <Button size="touch" onClick={retry}>
           Coba lagi
         </Button>
       }
