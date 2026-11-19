@@ -20,6 +20,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 
 import { type CycleFacts, formatFee, getCycleFacts, isOpen } from "@/admission.ts";
@@ -410,7 +411,7 @@ export function BlockSection({
             <SectionHeading head={block.head} />
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {block.items.map((item) => (
-                <a
+                <Link
                   key={item.slug}
                   href={`/fasilitas/${item.slug}`}
                   className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 hover:border-primary"
@@ -427,7 +428,7 @@ export function BlockSection({
                       <p className="text-[13px] text-muted-foreground">{item.summary}</p>
                     )}
                   </div>
-                </a>
+                </Link>
               ))}
             </div>
           </div>
@@ -449,7 +450,7 @@ export function BlockSection({
               {block.items.map((item) => {
                 const Icon = ACTIVITY_ICONS[item.icon];
                 return (
-                  <a
+                  <Link
                     key={item.slug}
                     href={`/ekstrakurikuler/${item.slug}`}
                     className="flex flex-col gap-2.5 rounded-xl border border-border bg-background p-4 hover:border-primary"
@@ -457,7 +458,7 @@ export function BlockSection({
                     {/* Stroke 1.75 beside a 500 label, per the icon rule. */}
                     <Icon className="size-5 text-primary" strokeWidth={1.75} aria-hidden />
                     <span className="text-sm font-medium text-pretty">{item.title}</span>
-                  </a>
+                  </Link>
                 );
               })}
             </div>
@@ -485,12 +486,12 @@ export function BlockSection({
                   <span className="flex-1 text-sm font-semibold text-pretty">{item.title}</span>
                   <span className="text-[13px] text-muted-foreground">{item.recipient}</span>
                   {item.berita && (
-                    <a
+                    <Link
                       href={`/artikel/berita/${item.berita.slug}`}
                       className="text-[13px] font-semibold text-primary underline underline-offset-4"
                     >
                       Baca ceritanya
-                    </a>
+                    </Link>
                   )}
                 </li>
               ))}
@@ -581,7 +582,7 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {articles.map((article) => (
-        <a
+        <Link
           // Slugs are unique per owner only, and one list now holds several.
           key={`${article.type}-${article.ownerKey}-${article.slug}`}
           href={articleHref(article, ownerKey)}
@@ -595,7 +596,7 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
               <p className="text-[13px] text-muted-foreground">{article.summary}</p>
             )}
           </div>
-        </a>
+        </Link>
       ))}
     </div>
   );
@@ -742,18 +743,18 @@ function Hero({
             <p className="max-w-[65ch] text-base text-pretty text-muted-foreground">{body}</p>
           )}
           <div className="flex flex-wrap gap-3">
-            <a href="/pendaftaran" className={buttonVariants({ size: "touch" })}>
+            <Link href="/pendaftaran" className={buttonVariants({ size: "touch" })}>
               {admissionCta}
-            </a>
+            </Link>
             {/* Both halves or neither: a label with no address is a button that
                 goes nowhere, and an address with no label is invisible. */}
             {secondaryLabel && secondaryHref && (
-              <a
+              <Link
                 href={secondaryHref}
                 className={buttonVariants({ variant: "outline", size: "touch" })}
               >
                 {secondaryLabel}
-              </a>
+              </Link>
             )}
           </div>
           {schoolKey && (

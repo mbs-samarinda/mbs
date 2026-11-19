@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { type ReactNode } from "react";
 
 import { mediaUrl, type Media } from "@/cms/client.ts";
@@ -49,12 +50,12 @@ export function SectionHeading({
         )}
       </div>
       {head.linkLabel && head.linkHref && (
-        <a
+        <Link
           href={head.linkHref}
           className="flex min-h-11 shrink-0 items-center text-sm font-semibold text-primary underline underline-offset-4"
         >
           {head.linkLabel}
-        </a>
+        </Link>
       )}
     </div>
   );

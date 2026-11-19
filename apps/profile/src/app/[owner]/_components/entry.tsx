@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { getEntries, type Entry, type EntryCollection, type FullEntry } from "@/cms/entries.ts";
 import { type Owner } from "@/owners.ts";
 
@@ -42,15 +44,15 @@ export const EntryHead = ({
   <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
     <div className={`${WIDTH} flex flex-col gap-4`}>
       <nav aria-label="Remah roti" className="flex flex-wrap items-center gap-1.5 text-[13px]">
-        <a href="/" className="text-muted-foreground underline underline-offset-4">
+        <Link href="/" className="text-muted-foreground underline underline-offset-4">
           Beranda
-        </a>
+        </Link>
         <span aria-hidden className="text-muted-foreground">
           /
         </span>
-        <a href={section.base} className="text-muted-foreground underline underline-offset-4">
+        <Link href={section.base} className="text-muted-foreground underline underline-offset-4">
           {section.label}
-        </a>
+        </Link>
         <span aria-hidden className="text-muted-foreground">
           /
         </span>
@@ -122,12 +124,12 @@ export async function MoreEntries({
       <div className={`${WIDTH} flex flex-col gap-7`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <h2 className="text-[28px] font-bold text-balance">{section.more}</h2>
-          <a
+          <Link
             href={section.base}
             className="flex min-h-11 shrink-0 items-center text-sm font-semibold text-primary underline underline-offset-4"
           >
             {section.all}
-          </a>
+          </Link>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -152,7 +154,7 @@ export async function MoreEntries({
  * a visitor sees are the card's.
  */
 export const EntryCard = ({ entry, base }: { entry: Entry; base: string }) => (
-  <a
+  <Link
     href={`${base}/${entry.slug}`}
     className="flex flex-col overflow-hidden rounded-xl border border-border bg-background hover:border-primary"
   >
@@ -169,5 +171,5 @@ export const EntryCard = ({ entry, base }: { entry: Entry; base: string }) => (
         <p className="text-xs font-semibold text-primary tabular-nums">{entry.meta}</p>
       )}
     </div>
-  </a>
+  </Link>
 );

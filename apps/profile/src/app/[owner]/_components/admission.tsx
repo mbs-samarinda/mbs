@@ -1,6 +1,7 @@
 import { type SchoolKey } from "@mbs/school-config";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
+import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 
 import { type CycleFacts, formatFee, getCycleFacts, isOpen } from "@/admission.ts";
@@ -49,7 +50,7 @@ function AdmissionBand({
             <h2 className="text-2xl font-bold text-balance md:text-3xl">{heading}</h2>
             <p className="text-sm text-pretty opacity-90">{body}</p>
           </div>
-          <a
+          <Link
             href="/pendaftaran"
             // `cn` and not a template string: the default variant already sets
             // `bg-primary`, and two background utilities in one attribute are
@@ -66,7 +67,7 @@ function AdmissionBand({
             )}
           >
             {admissionCta}
-          </a>
+          </Link>
         </div>
 
         {facts === null && <BandFactsPlaceholder />}
@@ -191,12 +192,12 @@ function AdmissionCard({ facts }: { facts: CycleFacts | null }) {
       <p className="text-[13px] text-pretty tabular-nums">
         {facts === null ? <span className="block h-9 w-full rounded-md bg-info/10" /> : body}
       </p>
-      <a
+      <Link
         href="/pendaftaran"
         className="flex min-h-11 items-center text-sm font-semibold text-primary underline underline-offset-4"
       >
         Buka halaman pendaftaran
-      </a>
+      </Link>
     </aside>
   );
 }

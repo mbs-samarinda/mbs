@@ -1,4 +1,5 @@
 import type { SchoolKey } from "@mbs/school-config";
+import Link from "next/link";
 
 import {
   ARTICLE_KINDS,
@@ -148,7 +149,7 @@ const Row = ({ entry, site, nested }: { entry: Article; site: Owner["key"]; nest
   const Title = nested ? "h3" : "h2";
   return (
     <li className="border-b border-border first:border-t">
-      <a
+      <Link
         href={articleHref(entry, site)}
         className="flex flex-col gap-3 py-5 hover:opacity-90 md:flex-row md:items-start md:gap-5"
       >
@@ -166,7 +167,7 @@ const Row = ({ entry, site, nested }: { entry: Article; site: Owner["key"]; nest
             </p>
           )}
         </div>
-      </a>
+      </Link>
     </li>
   );
 };
@@ -190,7 +191,7 @@ const Filter = ({
 }) => (
   <nav aria-label="Saring menurut jenis" className="flex flex-wrap gap-2">
     {[undefined, ...ARTICLE_TYPES].map((value) => (
-      <a
+      <Link
         key={value ?? "semua"}
         // The page resets with the filter: page 3 of everything is rarely page 3
         // of one type, and a filter that lands on an empty page reads as a type
@@ -200,7 +201,7 @@ const Filter = ({
         className={pill(active === value)}
       >
         {value ? ARTICLE_KINDS[value] : "Semua"}
-      </a>
+      </Link>
     ))}
   </nav>
 );
@@ -226,14 +227,14 @@ const OwnerFilter = ({
 }) => (
   <nav aria-label="Saring menurut sekolah" className="flex flex-wrap gap-2">
     {[undefined, ...OWNER_FILTERS].map((owner) => (
-      <a
+      <Link
         key={owner?.key ?? "semua"}
         href={href({ owner: owner?.key, page: "1" })}
         aria-current={active === owner?.key ? "page" : undefined}
         className={pill(active === owner?.key)}
       >
         {owner?.level ?? "Semua sekolah"}
-      </a>
+      </Link>
     ))}
   </nav>
 );
@@ -257,7 +258,7 @@ const Archive = ({
     <nav aria-label="Arsip" className="flex flex-col gap-1 rounded-xl border border-border p-5">
       <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">Arsip</h2>
       {months.map((entry) => (
-        <a
+        <Link
           key={entry.key}
           href={href({ month: active === entry.key ? undefined : entry.key, page: "1" })}
           aria-current={active === entry.key ? "page" : undefined}
@@ -266,7 +267,7 @@ const Archive = ({
           }`}
         >
           {entry.label} ({entry.count})
-        </a>
+        </Link>
       ))}
     </nav>
   );
@@ -282,7 +283,7 @@ const Pages = ({
   listing.pages < 2 ? null : (
     <nav aria-label="Halaman" className="flex flex-wrap gap-2">
       {Array.from({ length: listing.pages }, (_, index) => index + 1).map((page) => (
-        <a
+        <Link
           key={page}
           href={href({ page: String(page) })}
           aria-current={page === listing.page ? "page" : undefined}
@@ -293,7 +294,7 @@ const Pages = ({
           }`}
         >
           {page}
-        </a>
+        </Link>
       ))}
     </nav>
   );

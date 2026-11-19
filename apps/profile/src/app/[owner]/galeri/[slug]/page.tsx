@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-/** Blocking, for the reason `/fasilitas/[slug]` gives. */
+/** Blocking, for the reason `/artikel/[type]/[slug]` gives: a missing slug stays a real 404. */
 export const instant = false;
 
 /**

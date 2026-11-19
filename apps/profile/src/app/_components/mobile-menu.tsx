@@ -11,8 +11,10 @@ import {
 } from "@mbs/ui/components/sheet";
 import { cn } from "cn";
 import { ChevronDownIcon, MenuIcon, XIcon } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 
-import { NAV_LINK, menuKey, type MenuEntry } from "./nav-link.ts";
+import { NAV_LINK, closeOnLink, menuKey, type MenuEntry } from "./nav-link.ts";
 import { ThemeSelect } from "./theme.tsx";
 
 /**
@@ -38,8 +40,9 @@ export function MobileMenu({
   /** Passed through to the theme control; see `theme-script.tsx` for why. */
   cookieSuffix: string;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         render={<Button variant="ghost" size="touch" className="order-2 gap-1.5 px-2 md:hidden" />}
       >
@@ -49,7 +52,12 @@ export function MobileMenu({
       </SheetTrigger>
       {/* From above, where the control is: the panel arrives over the header it
           was opened from instead of from an edge nothing was touching. */}
-      <SheetContent side="top" showCloseButton={false} className="max-h-[85dvh] gap-0 pb-2">
+      <SheetContent
+        side="top"
+        showCloseButton={false}
+        onClick={closeOnLink(setOpen)}
+        className="max-h-[85dvh] gap-0 pb-2"
+      >
         {/* The sheet ships a 28px close button — the committee scale. The
             visitor here is on a phone, so the panel brings its own at 44px and
             keeps the title's room for a long school name. */}
@@ -91,24 +99,24 @@ export function MobileMenu({
                   <div className="flex flex-col pb-1 pl-4">
                     {/* The overview first, as in the desktop popover. */}
                     {[...(item.overview ? [item.overview] : []), ...item.links].map((link) => (
-                      <a
+                      <Link
                         key={menuKey(link)}
                         href={link.href}
                         className={cn(NAV_LINK, "flex h-11 items-center text-muted-foreground")}
                       >
                         {link.label}
-                      </a>
+                      </Link>
                     ))}
                   </div>
                 </details>
               ) : (
-                <a
+                <Link
                   key={menuKey(item)}
                   href={item.href}
                   className={cn("flex h-11 items-center", NAV_LINK)}
                 >
                   {item.label}
-                </a>
+                </Link>
               ),
             )}
           </nav>
@@ -120,9 +128,9 @@ export function MobileMenu({
             instead of running off the screen. */}
         <div className="flex flex-wrap items-center gap-2 p-4">
           <ThemeSelect cookieSuffix={cookieSuffix} className="shrink-0" />
-          <a href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "flex-1")}>
+          <Link href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "flex-1")}>
             {admissionCta}
-          </a>
+          </Link>
         </div>
       </SheetContent>
     </Sheet>

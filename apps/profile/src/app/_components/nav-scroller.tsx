@@ -4,9 +4,10 @@ import { Button } from "@mbs/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@mbs/ui/components/popover";
 import { cn } from "cn";
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { NAV_LINK, menuKey, type MenuEntry } from "./nav-link.ts";
+import { NAV_LINK, closeOnLink, menuKey, type MenuEntry } from "./nav-link.ts";
 
 /**
  * The navigation row, always on one line, with an arrow over whatever is cut
@@ -99,9 +100,9 @@ export function NavScroller({
           "links" in item ? (
             <Group key={menuKey(item)} item={item} />
           ) : (
-            <a key={menuKey(item)} href={item.href} className={NAV_LINK}>
+            <Link key={menuKey(item)} href={item.href} className={NAV_LINK}>
               {item.label}
-            </a>
+            </Link>
           ),
         )}
       </div>
@@ -152,8 +153,9 @@ const ROW = "flex min-h-10 items-center rounded-md px-3 text-sm font-medium hove
  * hairline.
  */
 function Group({ item }: { item: Extract<MenuEntry, { links: unknown }> }) {
+  const [open, setOpen] = useState(false);
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className={cn(
           NAV_LINK,
@@ -167,19 +169,24 @@ function Group({ item }: { item: Extract<MenuEntry, { links: unknown }> }) {
           className="size-4 transition-transform duration-150 group-data-popup-open:rotate-180 motion-reduce:transition-none"
         />
       </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={8} className="w-auto min-w-50 gap-0 p-1.5">
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        className="w-auto min-w-50 gap-0 p-1.5"
+        onClick={closeOnLink(setOpen)}
+      >
         {item.overview && (
-          <a
+          <Link
             href={item.overview.href}
             className={cn(ROW, "mb-1 rounded-b-none border-b border-border")}
           >
             {item.overview.label}
-          </a>
+          </Link>
         )}
         {item.links.map((link) => (
-          <a key={menuKey(link)} href={link.href} className={ROW}>
+          <Link key={menuKey(link)} href={link.href} className={ROW}>
             {link.label}
-          </a>
+          </Link>
         ))}
       </PopoverContent>
     </Popover>

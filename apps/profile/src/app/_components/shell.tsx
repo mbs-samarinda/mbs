@@ -2,6 +2,7 @@ import { SCHOOLS } from "@mbs/school-config";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
 import Image from "next/image";
+import Link from "next/link";
 
 import { mediaUrl } from "@/cms/client.ts";
 import { type Site } from "@/cms/site.ts";
@@ -139,7 +140,7 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
             the page past the screen, so there it wraps instead. The umbrella
             on a phone wraps too, below 393px: there the choice is a two-line
             name or a second row for its buttons, and the name costs less. */}
-        <a
+        <Link
           href="/"
           className={cn(
             "flex shrink-0 items-center gap-3 py-3 max-[20rem]:shrink lg:order-1",
@@ -160,7 +161,7 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
               <span className="text-[11px] text-muted-foreground">{site.brandSubline}</span>
             )}
           </span>
-        </a>
+        </Link>
 
         {menu.length > 0 && (
           <MobileMenu
@@ -194,7 +195,7 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
           )}
         >
           <ThemeSelect cookieSuffix={COOKIE_SUFFIX} compact={menu.length === 0} />
-          <a href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "shrink-0")}>
+          <Link href="/pendaftaran" className={cn(buttonVariants({ size: "touch" }), "shrink-0")}>
             {menu.length > 0 ? (
               site.admissionCta
             ) : (
@@ -203,7 +204,7 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
                 <span className="max-md:hidden">{site.admissionCta}</span>
               </>
             )}
-          </a>
+          </Link>
         </div>
       </div>
     </header>
@@ -259,13 +260,13 @@ export function Footer({ owner, site }: { owner: Owner; site: Site }) {
             >
               <h2 className="text-xs font-bold">{column.heading}</h2>
               {column.links.map((link) => (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
                   className="flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground md:min-h-0"
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
             </nav>
           ))}

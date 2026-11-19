@@ -47,12 +47,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-/**
- * Blocking, and a slug nobody owns answers 200 rather than 404 — the two facts
- * `/artikel/[type]/[slug]` records at length and `/ekstrakurikuler/[slug]` repeats. The
- * answer lives behind an `await`, and once a response has started streaming its
- * headers are gone, so `notFound()` can only add `noindex`.
- */
+/** Blocking, for the reason `/artikel/[type]/[slug]` gives: a missing slug stays a real 404. */
 export const instant = false;
 
 /** One facility: what it is, how it is used, and what else a visitor could see. */

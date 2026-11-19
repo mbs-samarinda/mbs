@@ -47,14 +47,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
-/**
- * Blocking, and a slug nobody owns answers 200 rather than 404 — the same two
- * facts `/artikel/[type]/[slug]` records at length. There is no `generateStaticParams`
- * because the set of activities changes whenever an editor publishes, and once a
- * response has started streaming its headers are gone, so `notFound()` after an
- * `await` can only add `<meta name="robots" content="noindex">`. That is what
- * keeps a deleted activity out of a search index.
- */
+/** Blocking, for the reason `/artikel/[type]/[slug]` gives: a missing slug stays a real 404. */
 export const instant = false;
 
 /** One activity: what it is, how it runs, and what else a visitor could look at. */
