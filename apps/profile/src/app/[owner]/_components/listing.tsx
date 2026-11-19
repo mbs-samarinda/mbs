@@ -112,7 +112,7 @@ export async function Listing({
 
         <div className="flex flex-col gap-10 lg:flex-row lg:gap-8">
           {/* A new key on each filter, month or page swaps the old list for the
-              new one as a crossfade. The chips and the sidebar stay still. */}
+              new one, which fades in. The chips and the sidebar stay still. */}
           <ViewTransition
             key={`${active}-${month}-${byOwner}-${listing.page}`}
             enter="list"

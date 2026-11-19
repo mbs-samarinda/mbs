@@ -183,23 +183,19 @@
    filling in, and a fade there would flash the whole page each time. The cost:
    a page drawn without `Main`, like the error page, now appears without a fade. */
 ::view-transition-old(.page),
+::view-transition-old(.list),
 ::view-transition-old(root) {
   display: none;
 }
-::view-transition-new(.page) {
+/* A filter, month or page number swaps only the list, by the same rule: the
+   new list can be shorter and move the scroll, which left the fading old one
+   over the chips. */
+::view-transition-new(.page),
+::view-transition-new(.list) {
   animation: 180ms var(--ease-out) both page-fade-in;
 }
 ::view-transition-new(root) {
   animation: none;
-}
-
-/* A filter, month or page number swaps the list in place: the old list fades
-   out a little faster than the new one fades in, so the two barely overlap. */
-::view-transition-old(.list) {
-  animation: 120ms var(--ease-out) both page-fade-out;
-}
-::view-transition-new(.list) {
-  animation: 180ms var(--ease-out) both page-fade-in;
 }
 
 /* Streamed content: the placeholder gets out of the way fast, and what
