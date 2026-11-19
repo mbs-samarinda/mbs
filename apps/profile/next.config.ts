@@ -71,7 +71,13 @@ const config: NextConfig = {
   // The root layout lives inside `[owner]`, so an unmatched path has no layout
   // to render a `not-found.tsx` in. This file convention answers those from
   // outside the tree instead.
-  experimental: { globalNotFound: true },
+  experimental: {
+    globalNotFound: true,
+    // Lets `e2e/` hold a page at its instant UI. The e2e job builds with this
+    // set and calls `next build` directly: turbo passes only the variables
+    // listed in turbo.json, so a turbo build, the one images ship, never has it.
+    exposeTestingApiInProductionBuild: process.env.EXPOSE_TESTING_API === "1",
+  },
 };
 
 export default config;

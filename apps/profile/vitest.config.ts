@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 // The owner tests assert the hosts an apex resolves to, and the apex is read
 // from the environment at import. Pinning it here keeps the suite answering the
@@ -7,5 +7,9 @@ import { defineConfig } from "vitest/config";
 // the code. The tests that care about another apex stub it themselves.
 export default defineConfig({
   resolve: { tsconfigPaths: true },
-  test: { env: { PROFILE_APEX: "mbss.sch.id" } },
+  test: {
+    env: { PROFILE_APEX: "mbss.sch.id" },
+    // Playwright's, run by `test:e2e` against a built site and a CMS.
+    exclude: [...configDefaults.exclude, "e2e/**"],
+  },
 });

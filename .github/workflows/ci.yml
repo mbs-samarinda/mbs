@@ -120,6 +120,79 @@ jobs:
       # which is what the test's beforeAll does.
       - run: pnpm --filter @mbs/cms test:integration
 
+  # Clicks through the profile in a browser and checks each page change shows
+  # its shell at once (apps/profile/e2e). It runs the real CMS with its seed,
+  # not a stand-in: Strapi boots and seeds in about 20 s, and fixtures would be
+  # the content model written a second time. No API runs; the admission facts
+  # then read as unavailable, which is all the test needs.
+  e2e:
+    name: test (instant navigation)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+        env:
+          POSTGRES_USER: mbs
+          POSTGRES_PASSWORD: mbs_local_dev
+          POSTGRES_DB: mbs_cms_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mbs -d mbs_cms_e2e"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      # The build job has usually put this in the remote cache already. CMS_URL
+      # is set per step below, not for the job: it is in every build's turbo
+      # hash, so here it would miss that cache entry.
+      - run: pnpm exec turbo run build --filter=@mbs/cms
+      - name: Start the CMS
+        working-directory: apps/cms
+        # Not production: the seed skips a production CMS on purpose.
+        env:
+          NODE_ENV: development
+          DATABASE_CLIENT: postgres
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_NAME: mbs_cms_e2e
+          DATABASE_USERNAME: mbs
+          DATABASE_PASSWORD: mbs_local_dev
+          APP_KEYS: e2e-value-long-enough-1,e2e-value-long-enough-2
+          API_TOKEN_SALT: e2e-value-long-enough
+          ADMIN_JWT_SECRET: e2e-value-long-enough
+          TRANSFER_TOKEN_SALT: e2e-value-long-enough
+          JWT_SECRET: e2e-value-long-enough
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
+        run: pnpm exec strapi start > "$RUNNER_TEMP/cms.log" 2>&1 &
+      # Outside turbo on purpose: turbo would drop EXPOSE_TESTING_API, which
+      # is what keeps it out of every build an image ships.
+      - run: pnpm --filter @mbs/profile build
+        env:
+          EXPOSE_TESTING_API: "1"
+          CMS_URL: http://localhost:1337
+      # No --with-deps: on this runner it only adds fonts, and fetching them
+      # from the apt mirror took 3.5 of the job's 5 minutes.
+      - run: pnpm --filter @mbs/profile exec playwright install --only-shell chromium
+      - name: Wait for the CMS seed
+        run: |
+          for _ in $(seq 90); do
+            curl -fsS http://localhost:1337/api/site-list | grep -q '"ownerKey":"smp"' && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/cms.log"
+          exit 1
+      - run: pnpm --filter @mbs/profile test:e2e
+        env:
+          CMS_URL: http://localhost:1337
+          PROFILE_CACHE_DIR: ${{ runner.temp }}/profile-cache
+      - if: failure()
+        run: cat "$RUNNER_TEMP/cms.log"
+
   build:
     runs-on: ubuntu-latest
     steps:
