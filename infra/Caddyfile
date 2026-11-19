@@ -18,12 +18,19 @@
 {$PROFILE_APEX}, www.{$PROFILE_APEX}, smp.{$PROFILE_APEX}, sma.{$PROFILE_APEX}, smk.{$PROFILE_APEX} {
 	encode zstd gzip
 
-	# Everything, including /api. The profile owns /api/revalidate, and nothing
-	# else under /api is reachable from a browser on these hosts: `admission.ts`
-	# reads the API from the server, over the compose network, so the API needs
-	# no public route here. Sending /api/* to the API service instead would take
-	# the revalidate endpoint away from the app that implements it. The admission
-	# and committee apps get their own hosts, and their own site blocks.
+	# No `includeSubDomains`: after the apex cutover that would force HTTPS on
+	# every *.mbss.sch.id, including hosts this box does not serve.
+	header Strict-Transport-Security "max-age=31536000"
+
+	# Only the CMS calls this, over the compose network at profile:3002, so the
+	# internet has no reason to reach it. The secret stays as the second lock.
+	respond /api/revalidate 404
+
+	# Everything else, including the rest of /api. Nothing else under /api is
+	# reachable from a browser on these hosts: `admission.ts` reads the API from
+	# the server, over the compose network, so the API needs no public route here.
+	# The admission and committee apps get their own hosts, and their own site
+	# blocks.
 	#
 	# The profile resolves the owner from the Host header, so the original host
 	# has to survive the hop. Caddy passes it through unchanged by default; the
@@ -36,6 +43,8 @@
 
 {$CMS_HOST} {
 	encode zstd gzip
+
+	# No HSTS line here: Strapi's own `strapi::security` middleware already sends one.
 
 	# Caddy imposes no body limit of its own, so this *adds* a ceiling rather
 	# than raising one. It is the binding limit: the upload plugin sets no

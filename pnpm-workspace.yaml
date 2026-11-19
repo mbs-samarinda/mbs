@@ -9,3 +9,13 @@ allowBuilds:
   esbuild: true
   lefthook: true
   sharp: true
+
+# The one Next version. better-auth lists Next as an optional peer, so without
+# the override the API and admission-admin keep resolving whatever Next the
+# lockfile first saw, and a security bump to the profile leaves an old copy in
+# the tree.
+catalog:
+  next: 16.4.5
+
+overrides:
+  "better-auth>next": "catalog:"
