@@ -175,15 +175,41 @@
 
 /* The old page leaves at once and only the new one fades in. A crossfade
    showed both at the same time, two unrelated layouts with text over text. The
-   rest of the document, mostly the footer, does the same: it sits at a
-   different height on every page, so its old copy would ghost too. */
+   rest of the document, mostly the footer, leaves at once too: it sits at a
+   different height on every page, so its old copy would ghost.
+
+   The rest of the document then shows without a fade of its own. Every view
+   transition captures it, including a filter swapping a list and a placeholder
+   filling in, and a fade there would flash the whole page each time. The cost:
+   a page drawn without `Main`, like the error page, now appears without a fade. */
 ::view-transition-old(.page),
 ::view-transition-old(root) {
   display: none;
 }
-::view-transition-new(.page),
-::view-transition-new(root) {
+::view-transition-new(.page) {
   animation: 180ms var(--ease-out) both page-fade-in;
+}
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* A filter, month or page number swaps the list in place: the old list fades
+   out a little faster than the new one fades in, so the two barely overlap. */
+::view-transition-old(.list) {
+  animation: 120ms var(--ease-out) both page-fade-out;
+}
+::view-transition-new(.list) {
+  animation: 180ms var(--ease-out) both page-fade-in;
+}
+
+/* Streamed content: the placeholder gets out of the way fast, and what
+   replaces it rises 6px as it fades in. Kept small because it plays on most
+   page loads. */
+::view-transition-old(.placeholder) {
+  animation: 100ms var(--ease-out) both page-fade-out;
+}
+::view-transition-new(.arrival) {
+  animation: 200ms var(--ease-out) both arrive;
 }
 
 /* The photo is moving across the screen, not entering it, so it eases in and
@@ -207,15 +233,21 @@
     opacity: 0;
   }
 }
+@keyframes arrive {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
 @keyframes photo-blur {
   50% {
     filter: blur(2px);
   }
 }
 
-/* Reduced motion keeps the fades and stops the photo travelling. The shared
-   layer's reset cannot reach these: view-transition pseudo-elements match no
-   `*` selector. */
+/* Reduced motion keeps the fades and stops the photo travelling and streamed
+   content rising. The shared layer's reset cannot reach these:
+   view-transition pseudo-elements match no `*` selector. */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*) {
     animation: none !important;
@@ -226,7 +258,8 @@
   ::view-transition-old(.morph) {
     animation: 120ms ease-out both page-fade-out;
   }
-  ::view-transition-new(.morph) {
+  ::view-transition-new(.morph),
+  ::view-transition-new(.arrival) {
     animation: 180ms var(--ease-out) both page-fade-in;
   }
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { Listing, ListingPlaceholder, type Params } from "@/app/[owner]/_components/listing.tsx";
-import { Main, PageHead } from "@/app/[owner]/_components/section.tsx";
+import { Arrival, Main, PageHead, Placeholder } from "@/app/[owner]/_components/section.tsx";
 import { getPage } from "@/cms/pages.ts";
 import { requireSchool } from "@/owners.ts";
 
@@ -39,8 +39,16 @@ export default async function ArtikelPage({
     <Main>
       <PageHead heading="Artikel" body="Berita, pengumuman, dan opini terkini." />
 
-      <Suspense fallback={<ListingPlaceholder hasSidebar hasFilters />}>
-        <Listing owner={school} schoolKey={school.key} searchParams={searchParams} />
+      <Suspense
+        fallback={
+          <Placeholder>
+            <ListingPlaceholder hasSidebar hasFilters />
+          </Placeholder>
+        }
+      >
+        <Arrival>
+          <Listing owner={school} schoolKey={school.key} searchParams={searchParams} />
+        </Arrival>
       </Suspense>
     </Main>
   );

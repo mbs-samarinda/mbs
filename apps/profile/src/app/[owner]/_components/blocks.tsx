@@ -36,7 +36,9 @@ import { ArticleMeta } from "./article-meta.tsx";
 import { PendingSpinner } from "./pending-spinner.tsx";
 import { Prose } from "./prose.tsx";
 import {
+  Arrival,
   Photo,
+  Placeholder,
   FactStrip,
   WIDTH,
   SECTION,
@@ -522,8 +524,16 @@ export function BlockSection({
                 a notice that expired at 10:05 has to be gone at 10:05, not when
                 the cache next refills. The articles themselves are cached; only
                 the cut is live. */}
-            <Suspense fallback={<NewsPlaceholder count={block.limit} />}>
-              <NewsGrid ownerKey={owner.key} limit={block.limit} />
+            <Suspense
+              fallback={
+                <Placeholder>
+                  <NewsPlaceholder count={block.limit} />
+                </Placeholder>
+              }
+            >
+              <Arrival>
+                <NewsGrid ownerKey={owner.key} limit={block.limit} />
+              </Arrival>
             </Suspense>
           </div>
         </section>
@@ -758,8 +768,16 @@ function Hero({
             <p className="text-[13px] font-bold tracking-wide text-primary uppercase">{eyebrow}</p>
           )}
           {schoolKey && (
-            <Suspense fallback={<StatusPlaceholder />}>
-              <CycleStatus schoolKey={schoolKey} />
+            <Suspense
+              fallback={
+                <Placeholder>
+                  <StatusPlaceholder />
+                </Placeholder>
+              }
+            >
+              <Arrival>
+                <CycleStatus schoolKey={schoolKey} />
+              </Arrival>
             </Suspense>
           )}
           <h1 className="text-[32px] leading-tight font-extrabold text-balance md:text-[44px]">
@@ -787,8 +805,16 @@ function Hero({
             )}
           </div>
           {schoolKey && (
-            <Suspense fallback={<FactsPlaceholder count={3} />}>
-              <HeroFacts schoolKey={schoolKey} />
+            <Suspense
+              fallback={
+                <Placeholder>
+                  <FactsPlaceholder count={3} />
+                </Placeholder>
+              }
+            >
+              <Arrival>
+                <HeroFacts schoolKey={schoolKey} />
+              </Arrival>
             </Suspense>
           )}
         </div>
