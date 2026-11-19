@@ -106,7 +106,7 @@ log "Checking $ENV_FILE"
 # PROFILE_APEX is not an error — it is a 404 on every host, which reads as a
 # failed smoke check rather than as a misconfigured box. So they are asserted
 # here, once, before anything starts.
-for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD; do
+for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD CMS_HOST CADDY_EMAIL; do
   if [[ -z ${!required:-} ]]; then
     echo "$ENV_FILE is missing $required" >&2
     exit 1
@@ -123,19 +123,12 @@ log "Checking the Caddyfile"
 # it. A Caddy that is not running needs nothing: `compose up` starts it on the
 # new file.
 #
-# Validated on every deploy, before anything changes. A plain `docker run`
-# rather than `compose run`, which would need this deploy's pins first. A
-# broken file cannot be kept off the disk from here: it is already where Caddy
-# will read it on its next restart.
+# Validated again here, before anything changes, with this box's real values.
+# The release already validated it before copying it, so a failure here is
+# rare. When it happens the broken file cannot be kept off the disk from here:
+# it is already where Caddy will read it on its next restart.
 readonly CADDY_REVERT="It is already in $ROOT, and Caddy loads it on its next restart. Revert the Caddyfile change and release again; redeploying older image tags does not touch it."
-caddy_image=$(sed -n 's/^ *image: \(caddy@sha256:[0-9a-f]*\)$/\1/p' "$ROOT/compose.prod.yml")
-if [[ -z $caddy_image ]]; then
-  echo "Could not find the pinned caddy image in $ROOT/compose.prod.yml." >&2
-  exit 1
-fi
-if ! docker run --rm -e PROFILE_APEX -e CMS_HOST -e CADDY_EMAIL \
-  -v "$ROOT/Caddyfile:/etc/caddy/Caddyfile:ro" "$caddy_image" \
-  caddy validate --config /etc/caddy/Caddyfile; then
+if ! "$ROOT/validate-caddyfile.sh" "$ROOT"; then
   echo "The Caddyfile is invalid, so nothing was deployed. $CADDY_REVERT" >&2
   exit 1
 fi

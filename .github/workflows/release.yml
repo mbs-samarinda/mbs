@@ -174,6 +174,16 @@ jobs:
             | ssh -o BatchMode=yes "$VPS_USER@${{ secrets.VPS_HOST }}" \
               'docker login ghcr.io -u ${{ github.actor }} --password-stdin'
 
+      # Before the copy, not in deploy.sh: the copy writes the Caddyfile where the
+      # running Caddy reads it on its next restart, so an invalid one must never
+      # reach the box. Placeholder values; only their shape matters here.
+      - name: Validate the Caddyfile
+        env:
+          PROFILE_APEX: mbss.sch.id
+          CMS_HOST: cms.mbss.sch.id
+          CADDY_EMAIL: ci@example.com
+        run: infra/validate-caddyfile.sh infra
+
       - name: Send the files the box runs from
         # compose.prod.yml, the Caddyfile, the init script and deploy.sh live in
         # Git, not in any image, so the box needs this commit's copies before it
@@ -187,6 +197,7 @@ jobs:
           tar -cz -C infra \
             compose.prod.yml Caddyfile postgres \
             deploy.sh backup.sh restore-drill.sh install-backup-cron.sh lib.sh \
+            validate-caddyfile.sh \
             | ssh -o BatchMode=yes "$VPS_USER@${{ secrets.VPS_HOST }}" \
               'mkdir -p /opt/mbs && tar -xz -C /opt/mbs && chmod +x /opt/mbs/*.sh'
 

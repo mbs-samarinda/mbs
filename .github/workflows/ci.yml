@@ -37,6 +37,19 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
 
+  # The release also validates before it copies anything to the box; this
+  # makes a broken Caddyfile show on the pull request, before anyone merges.
+  caddyfile:
+    name: caddyfile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: infra/validate-caddyfile.sh infra
+        env:
+          PROFILE_APEX: mbss.sch.id
+          CMS_HOST: cms.mbss.sch.id
+          CADDY_EMAIL: ci@example.com
+
   typecheck:
     runs-on: ubuntu-latest
     steps:
