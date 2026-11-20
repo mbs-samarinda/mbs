@@ -106,12 +106,12 @@ build_envs() {
     DATABASE_PORT="$PG_PORT" DATABASE_NAME=mbs_cms DATABASE_USERNAME=mbs_cms
     DATABASE_PASSWORD="$CMS_DB_PASSWORD" DATABASE_SSL=false
     PROFILE_REVALIDATE_URL="http://localhost:$PROFILE_PORT/api/revalidate"
-    PROFILE_APEX=localhost REVALIDATE_SECRET="$REVALIDATE_SECRET"
+    PROFILE_APEX=localhost REVALIDATE_SECRET="$REVALIDATE_SECRET" CMS_READ_TOKEN="${CMS_READ_TOKEN:-}"
     AWS_BUCKET= APP_KEYS="$APP_KEYS" API_TOKEN_SALT="$CMS_SALT" ADMIN_JWT_SECRET="$CMS_SALT"
     TRANSFER_TOKEN_SALT="$CMS_SALT" JWT_SECRET="$CMS_SALT" ENCRYPTION_KEY="$CMS_SALT"
     BOOT_LOCK_TIMEOUT=30s)
   PROFILE_ENV=(PROFILE_APEX=localhost CMS_URL="http://localhost:$CMS_PORT"
-    API_BASE_URL="http://localhost:$API_PORT" REVALIDATE_SECRET="$REVALIDATE_SECRET"
+    API_BASE_URL="http://localhost:$API_PORT" REVALIDATE_SECRET="$REVALIDATE_SECRET" CMS_READ_TOKEN="${CMS_READ_TOKEN:-}"
     PROFILE_CACHE_DIR="$SCRATCH/profile-cache" MEDIA_BASE_URL=)
 }
 
@@ -133,9 +133,9 @@ pg_ready() {
 # Bodies are read whole before matching: `curl | grep -q` fails under pipefail,
 # because grep stops reading at the first match and curl dies on the closed pipe.
 api_ready() { [[ $(curl -fsS "http://127.0.0.1:$API_PORT/health") == *'"ok"'* ]]; }
-# 200 with all four seeded Site rows proves the seed and the public grant ran.
+# 200 with all four seeded Site rows proves the seed and the read token ran.
 cms_ready() {
-  curl -fsS "http://127.0.0.1:$CMS_PORT/api/site-list" \
+  curl -fsS -H "authorization: Bearer ${CMS_READ_TOKEN:-}" "http://127.0.0.1:$CMS_PORT/api/site-list" \
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).data.length===4?0:1))'
 }
 profile_ready() {
@@ -162,6 +162,7 @@ cmd_up() {
   CONTAINER=mbs-verify-pg-$RUN
   AUTH_SECRET=$(openssl rand -hex 32)
   REVALIDATE_SECRET=$(openssl rand -hex 24)
+  CMS_READ_TOKEN=$(openssl rand -hex 32)
   APP_KEYS=$(openssl rand -hex 16),$(openssl rand -hex 16)
   CMS_SALT=$(openssl rand -hex 16)
   git -C "$REPO" status --porcelain >"$SCRATCH/git-status.before"
@@ -178,6 +179,7 @@ CMS_PORT=$CMS_PORT
 PROFILE_PORT=$PROFILE_PORT
 AUTH_SECRET=$AUTH_SECRET
 REVALIDATE_SECRET=$REVALIDATE_SECRET
+CMS_READ_TOKEN=$CMS_READ_TOKEN
 APP_KEYS=$APP_KEYS
 CMS_SALT=$CMS_SALT
 GIT_REV=$(git -C "$REPO" rev-parse --short HEAD)
@@ -296,6 +298,7 @@ SMP_URL=http://smp.localhost:$PROFILE_PORT
 SMK_URL=http://smk.localhost:$PROFILE_PORT
 SMA_URL=http://sma.localhost:$PROFILE_PORT
 REVALIDATE_SECRET=$REVALIDATE_SECRET
+CMS_READ_TOKEN=${CMS_READ_TOKEN:-}
 EOF
 }
 

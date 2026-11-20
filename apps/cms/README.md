@@ -26,7 +26,7 @@ anybody works in.
 - `src/index.ts` registers the document middleware and runs bootstrap: seeds
   and backfills, under a Postgres advisory lock.
 - `src/owner-scope.ts` is the editor role and the check that keeps an editor
-  inside their own schools. `src/public-read.ts` is what the Public role reads.
+  inside their own schools. `src/profile-read.ts` is what the profile reads, and the token it reads with.
 - `src/backfills.ts` repairs rows that already exist, once per database.
 - `src/revalidate.ts` tells the profile app that published content changed.
 - `src/seed/` holds what a fresh database starts with.
@@ -51,7 +51,8 @@ late and finds nothing. Migrations run before that sync.
 Never change a component field's type in place. Add a new field, backfill it,
 then remove the old one.
 
-Permissions are code too. The editor role and the Public role's content
-grants are rebuilt from `src/owner-scope.ts` and `src/public-read.ts` on every
-boot, so a change made to either in the admin panel is reverted on the next
-start.
+Permissions are code too. The editor role, the Public role's content grants
+and the `profile-read` API token are rebuilt from `src/owner-scope.ts` and
+`src/profile-read.ts` on every boot, so a change made to any of them in the
+admin panel is reverted on the next start. The token's key is
+`CMS_READ_TOKEN`, the same value as in `apps/profile/.env`.

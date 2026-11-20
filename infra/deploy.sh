@@ -106,7 +106,7 @@ log "Checking $ENV_FILE"
 # PROFILE_APEX is not an error — it is a 404 on every host, which reads as a
 # failed smoke check rather than as a misconfigured box. So they are asserted
 # here, once, before anything starts.
-for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD CMS_HOST CADDY_EMAIL; do
+for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET CMS_READ_TOKEN POSTGRES_PASSWORD CMS_DB_PASSWORD CMS_HOST CADDY_EMAIL; do
   if [[ -z ${!required:-} ]]; then
     echo "$ENV_FILE is missing $required" >&2
     exit 1
@@ -241,6 +241,7 @@ docker run -d --name "$CANDIDATE" --network "$NETWORK" \
   -e "MEDIA_BASE_URL=$MEDIA_BASE_URL" \
   -e API_BASE_URL=http://api:3001 \
   -e "REVALIDATE_SECRET=$REVALIDATE_SECRET" \
+  -e "CMS_READ_TOKEN=$CMS_READ_TOKEN" \
   -e PROFILE_CACHE_DIR=/app/.cache/content \
   --mount "type=volume,source=${PROJECT}_content-cache,target=/app/.cache/content" \
   "$REGISTRY/mbs-profile:$PROFILE_TAG" >/dev/null

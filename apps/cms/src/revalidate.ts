@@ -1,12 +1,12 @@
 import type { Core } from "@strapi/strapi";
 
-import { PUBLIC_READ } from "./public-read";
+import { PROFILE_READ } from "./profile-read";
 
 /**
  * What the profile sites read. A change to any of these can change a public
  * page, so the profile is told to drop its content cache.
  */
-const PUBLIC_CONTENT = new Set<string>(PUBLIC_READ);
+const PUBLIC_CONTENT = new Set<string>(PROFILE_READ);
 
 /**
  * What counts as a change the public can see.
