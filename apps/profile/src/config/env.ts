@@ -18,7 +18,7 @@ const EnvSchema = z.object({
   // from the same value.
   CMS_URL: optional(z.url().default("http://localhost:1337")),
   // Optional so a build with no environment still compiles. Production sets
-  // it in compose. Unset, reads go out with no token.
+  // it in compose. Unset, every read gets 403.
   CMS_READ_TOKEN: optional(z.string().min(32).optional()),
   // Fastify. The one source of admission facts.
   API_BASE_URL: optional(z.url().default("http://localhost:3001")),

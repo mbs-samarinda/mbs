@@ -28,41 +28,26 @@ const MIN_KEY_LENGTH = 32;
 const actions = () => PROFILE_READ.flatMap((uid) => [`${uid}.find`, `${uid}.findOne`]);
 
 /**
- * Makes the Public role's content grants exactly `PROFILE_READ`, on every boot.
+ * Takes every content grant off the Public and Authenticated roles, on every
+ * boot.
  *
- * Kept for one release only. Deploys restart the CMS before the profile, so the
- * profile still running from the last release reads without a token until it
- * is swapped. The next release takes these grants away, because Strapi answers
- * `?status=draft` to anyone allowed to `find`.
+ * Strapi answers `?status=draft` to anyone allowed to `find`, so a grant on
+ * either role puts every unpublished draft on the internet. Authenticated
+ * counts too: sign-up is open, so anyone can get its login. Nothing here uses
+ * those accounts; the profile reads with its token. Removed on every boot, not
+ * once, so a grant ticked in the admin panel does not outlive a restart.
  *
- * Only `api::` actions are touched: the role also holds the users-permissions
+ * Only `api::` actions are touched: the roles also hold the users-permissions
  * plugin's own defaults, which are not ours to manage.
  */
-export async function syncPublicRead(strapi: Core.Strapi) {
-  const role: { id: number } | null = await strapi.db
+export async function revokeUserRoleReads(strapi: Core.Strapi) {
+  const roles: { id: number }[] = await strapi.db
     .query("plugin::users-permissions.role")
-    .findOne({ where: { type: "public" }, select: ["id"] });
+    .findMany({ where: { type: { $in: ["public", "authenticated"] } }, select: ["id"] });
 
-  if (!role) {
-    strapi.log.warn("No public role yet; skipping public read permissions this boot.");
-    return;
-  }
-
-  const permissions = strapi.db.query("plugin::users-permissions.permission");
-  const wanted = new Set(actions());
-  const held: { id: number; action: string }[] = await permissions.findMany({
-    where: { role: role.id, action: { $startsWith: "api::" } },
-    select: ["id", "action"],
+  await strapi.db.query("plugin::users-permissions.permission").deleteMany({
+    where: { role: { $in: roles.map((role) => role.id) }, action: { $startsWith: "api::" } },
   });
-
-  const extra = held.filter((row) => !wanted.has(row.action));
-  if (extra.length > 0) {
-    await permissions.deleteMany({ where: { id: { $in: extra.map((row) => row.id) } } });
-  }
-  for (const action of wanted) {
-    if (held.some((row) => row.action === action)) continue;
-    await permissions.create({ data: { action, role: role.id } });
-  }
 }
 
 type TokenService = {
@@ -93,9 +78,9 @@ type EncryptionService = { encrypt(value: string): string | null };
  * an admin token. Starting over undoes all of those without a check for each.
  * "Regenerate" in the panel works until the next boot.
  *
- * Unset means no profile reads this CMS with a token (a CMS running alone, or a
- * fresh clone without `.env`). Any old `profile-read` token is still removed,
- * so unsetting the key is how to switch off a leaked one.
+ * Unset means no profile reads this CMS (a CMS running alone); a profile
+ * pointed at it gets 403 on every read. Any old `profile-read` token is still
+ * removed, so unsetting the key is how to switch off a leaked one.
  */
 export async function syncProfileToken(strapi: Core.Strapi) {
   const key = process.env.CMS_READ_TOKEN;
@@ -136,7 +121,9 @@ export async function syncProfileToken(strapi: Core.Strapi) {
   await Promise.all(ids.map((id) => tokens.revoke(id)));
 
   if (!key || !created) {
-    strapi.log.warn("CMS_READ_TOKEN is unset; no read token for the profile.");
+    strapi.log.warn(
+      "CMS_READ_TOKEN is unset, so the profile cannot read content. Locally, copy it from .env.example into apps/cms/.env and apps/profile/.env.",
+    );
     return;
   }
   await rows.update({
