@@ -15,7 +15,7 @@ allowBuilds:
 # lockfile first saw, and a security bump to the profile leaves an old copy in
 # the tree.
 catalog:
-  next: 16.4.5
+  next: 16.4.6
 
 overrides:
   "better-auth>next": "catalog:"

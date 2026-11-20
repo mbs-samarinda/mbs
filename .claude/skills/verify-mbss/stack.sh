@@ -31,11 +31,20 @@ log() { echo "stack: $*" >&2; }
 resolve_run() {
   local run=${1:-}
   if [[ -z $run ]]; then
-    # Newest run that is still up; a stopped run keeps its folder but not its state.
+    # Newest run that is still up and was started from this checkout. $ROOT is
+    # shared by every checkout on the machine, so without the checkout match a
+    # bare `down` stops another agent's stack. A stopped run keeps its folder
+    # but not its state.
     for d in $(ls -1t "$ROOT" 2>/dev/null); do
-      [[ -f $ROOT/$d/state.env ]] && { run=$d; break; }
+      grep -qxF "RUN_REPO=$(printf %q "$REPO")" "$ROOT/$d/state.env" 2>/dev/null && { run=$d; break; }
     done
-    [[ -n $run ]] || die "no running stack under $ROOT"
+    if [[ -z $run ]]; then
+      # Runs started before RUN_REPO existed match no checkout; name them, so
+      # one this checkout started is not left running unseen.
+      local unowned
+      unowned=$(grep -L '^RUN_REPO=' "$ROOT"/*/state.env 2>/dev/null | xargs -r -n1 dirname | xargs -r -n1 basename | tr '\n' ' ')
+      die "no running stack from $REPO under $ROOT; pass its run id${unowned:+ (runs with no checkout recorded: $unowned)}"
+    fi
   fi
   [[ -f $ROOT/$run/state.env ]] || die "no state for run $run under $ROOT"
   echo "$run"
@@ -172,6 +181,7 @@ REVALIDATE_SECRET=$REVALIDATE_SECRET
 APP_KEYS=$APP_KEYS
 CMS_SALT=$CMS_SALT
 GIT_REV=$(git -C "$REPO" rev-parse --short HEAD)
+RUN_REPO=$(printf %q "$REPO")
 EOF
   build_envs
   # From here on, any way `up` ends before ready (die, a failed command under
@@ -210,16 +220,6 @@ EOF
       || die "profile exited; see $LOGS/profile.log"
     cp "$LOGS/profile.log" "$LOGS/profile.upgrade-notice.log"
     log "next stopped for its upgrade notice (kept in profile.upgrade-notice.log); retrying"
-  done
-
-  # next dev rewrote these on start. Keep its copy, so `down` can tell its
-  # rewrite apart from a later edit and restore only the former.
-  local f
-  mkdir -p "$SCRATCH/next-rewrote"
-  for f in apps/profile/AGENTS.md apps/profile/next-env.d.ts; do
-    if ! grep -q " $f\$" "$SCRATCH/git-status.before" && ! git -C "$REPO" diff --quiet -- "$f"; then
-      cp "$REPO/$f" "$SCRATCH/next-rewrote/${f//\//_}"
-    fi
   done
 
   UP_RUN=
@@ -307,15 +307,6 @@ cmd_down() {
 
   # A run must not leave tracked files changed. Report it; reverting is the
   # caller's call, since the user may have been editing at the same time.
-  # Restore what next dev rewrote, but only while the file still holds exactly
-  # its rewrite: an edit made during the run is the user's and stays.
-  local f saved
-  for f in apps/profile/AGENTS.md apps/profile/next-env.d.ts; do
-    saved=$SCRATCH/next-rewrote/${f//\//_}
-    if [[ -f $saved ]] && cmp -s "$saved" "$REPO/$f"; then
-      git -C "$REPO" checkout -- "$f" && log "restored $f, which next dev rewrote"
-    fi
-  done
   git -C "$REPO" status --porcelain >"$EVIDENCE/git-status.after"
   if ! diff -q "$SCRATCH/git-status.before" "$EVIDENCE/git-status.after" >/dev/null; then
     log "WARNING: git status changed during the run:"

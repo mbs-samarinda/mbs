@@ -3,17 +3,19 @@
 
 pre-commit:
   # Sequential on purpose: oxfmt rewrites the staged files and oxlint has to
-  # read what it wrote.
+  # read what it wrote. --no-error-on-unmatched-pattern because a commit whose
+  # only scripts sit in an ignored folder, such as .claude/, gives each tool no
+  # files, which they otherwise treat as a failure.
   commands:
     format:
       priority: 1
       glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
-      run: pnpm exec oxfmt -c .oxfmtrc.json {staged_files}
+      run: pnpm exec oxfmt -c .oxfmtrc.json --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
     lint:
       priority: 2
       glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
-      run: pnpm exec oxlint -c .oxlintrc.json {staged_files}
+      run: pnpm exec oxlint -c .oxlintrc.json --no-error-on-unmatched-pattern {staged_files}
 
 commit-msg:
   commands:
