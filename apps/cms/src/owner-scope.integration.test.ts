@@ -783,6 +783,21 @@ void describe("permissions", () => {
     );
   });
 
+  void it("removes the profile token when CMS_READ_TOKEN is unset", async () => {
+    const key = process.env.CMS_READ_TOKEN;
+    delete process.env.CMS_READ_TOKEN;
+    try {
+      await boot();
+      assert.equal(
+        await strapi.db.query("admin::api-token").count({ where: { name: "profile-read" } }),
+        0,
+      );
+    } finally {
+      process.env.CMS_READ_TOKEN = key;
+      await boot();
+    }
+  });
+
   // 4820194 is `BOOT_LOCK` in `index.ts`, copied for the reason given at the top.
   void it("waits for another instance's boot to finish", async () => {
     const knex = strapi.db.connection;

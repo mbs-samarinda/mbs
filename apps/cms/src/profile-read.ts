@@ -88,21 +88,18 @@ type EncryptionService = { encrypt(value: string): string | null };
  * `REVALIDATE_SECRET`, instead of a key someone copies out of the admin panel
  * once and loses.
  *
- * Deleted and created again rather than updated. A row with this name or this
- * key may have been edited in the panel: renamed, given an expiry, widened, or
- * turned into an admin token. Starting over undoes all of those without a check
- * for each. "Regenerate" in the panel works until the next boot.
+ * Created again rather than updated. A row with this name or this key may have
+ * been edited in the panel: renamed, given an expiry, widened, or turned into
+ * an admin token. Starting over undoes all of those without a check for each.
+ * "Regenerate" in the panel works until the next boot.
  *
- * Unset means no profile reads this CMS with a token (a CMS running alone, or
- * a fresh clone without `.env`), so nothing is created.
+ * Unset means no profile reads this CMS with a token (a CMS running alone, or a
+ * fresh clone without `.env`). Any old `profile-read` token is still removed,
+ * so unsetting the key is how to switch off a leaked one.
  */
 export async function syncProfileToken(strapi: Core.Strapi) {
   const key = process.env.CMS_READ_TOKEN;
-  if (!key) {
-    strapi.log.warn("CMS_READ_TOKEN is unset; no read token for the profile.");
-    return;
-  }
-  if (key.length < MIN_KEY_LENGTH) {
+  if (key && key.length < MIN_KEY_LENGTH) {
     throw new Error(`CMS_READ_TOKEN must be at least ${MIN_KEY_LENGTH} characters.`);
   }
 
@@ -112,11 +109,25 @@ export async function syncProfileToken(strapi: Core.Strapi) {
   /* oxlint-enable typescript/no-unsafe-type-assertion */
 
   const rows = strapi.db.query("admin::api-token");
-  const accessKey = tokens.hash(key);
   const previous: { id: number }[] = await rows.findMany({
-    where: { $or: [{ name: PROFILE_TOKEN_NAME }, { accessKey }] },
+    where: key
+      ? { $or: [{ name: PROFILE_TOKEN_NAME }, { accessKey: tokens.hash(key) }] }
+      : { name: PROFILE_TOKEN_NAME },
     select: ["id"],
   });
+
+  // The new token first, so a failed create leaves the old one working.
+  const created = key
+    ? await tokens.create({
+        name: PROFILE_TOKEN_NAME,
+        description:
+          "How the profile sites read content. Rebuilt from CMS_READ_TOKEN on every boot.",
+        type: "custom",
+        lifespan: null,
+        permissions: actions(),
+      })
+    : null;
+
   // `revoke` leaves a content token's permission rows behind; every boot would add more.
   const ids = previous.map((row) => row.id);
   await strapi.db
@@ -124,16 +135,13 @@ export async function syncProfileToken(strapi: Core.Strapi) {
     .deleteMany({ where: { token: { id: { $in: ids } } } });
   await Promise.all(ids.map((id) => tokens.revoke(id)));
 
-  const { id } = await tokens.create({
-    name: PROFILE_TOKEN_NAME,
-    description: "How the profile sites read content. Rebuilt from CMS_READ_TOKEN on every boot.",
-    type: "custom",
-    lifespan: null,
-    permissions: actions(),
-  });
+  if (!key || !created) {
+    strapi.log.warn("CMS_READ_TOKEN is unset; no read token for the profile.");
+    return;
+  }
   await rows.update({
-    where: { id },
+    where: { id: created.id },
     // `encryptedKey` is what the panel shows when someone views the token.
-    data: { accessKey, encryptedKey: encryption.encrypt(key) },
+    data: { accessKey: tokens.hash(key), encryptedKey: encryption.encrypt(key) },
   });
 }
