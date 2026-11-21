@@ -61,6 +61,8 @@ services:
       # cache of the container actually serving visitors.
       PROFILE_REVALIDATE_URL: http://profile:3002/api/revalidate
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
+      # The profile reads content with it; the CMS sets its read token to it on boot.
+      CMS_READ_TOKEN: ${CMS_READ_TOKEN:?set CMS_READ_TOKEN}
       # Builds the public address each Kolaborasi invite shows. Same value as the
       # profile's, or a staging CMS writes production addresses into its invites.
       PROFILE_APEX: ${PROFILE_APEX:?set PROFILE_APEX}
@@ -189,6 +191,8 @@ services:
       MEDIA_BASE_URL: ${MEDIA_BASE_URL:?set MEDIA_BASE_URL}
       API_BASE_URL: http://api:3001
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
+      # The profile reads content with it; the CMS sets its read token to it on boot.
+      CMS_READ_TOKEN: ${CMS_READ_TOKEN:?set CMS_READ_TOKEN}
       PROFILE_CACHE_DIR: /app/.cache/content
     volumes:
       # The `"use cache"` store. On a volume so a redeploy does not start cold

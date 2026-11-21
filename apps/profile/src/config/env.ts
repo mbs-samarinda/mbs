@@ -14,9 +14,12 @@ const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((value) => (value === "" ? undefined : value), schema);
 
 const EnvSchema = z.object({
-  // Strapi. Public content, read-only, no token: the Public role carries
-  // find/findOne, granted by the CMS on boot.
+  // Strapi. Published content, read with a token the CMS creates on boot
+  // from the same value.
   CMS_URL: optional(z.url().default("http://localhost:1337")),
+  // Optional so a build with no environment still compiles. Production sets
+  // it in compose. Unset, reads go out with no token.
+  CMS_READ_TOKEN: optional(z.string().min(32).optional()),
   // Fastify. The one source of admission facts.
   API_BASE_URL: optional(z.url().default("http://localhost:3001")),
   // Shared with the CMS, which sends it when content is published. Optional on
@@ -33,6 +36,7 @@ if (!parsed.success) {
 
 export const config = {
   cmsUrl: parsed.data.CMS_URL.replace(/\/$/, ""),
+  cmsReadToken: parsed.data.CMS_READ_TOKEN,
   apiBaseUrl: parsed.data.API_BASE_URL.replace(/\/$/, ""),
   revalidateSecret: parsed.data.REVALIDATE_SECRET,
 } as const;

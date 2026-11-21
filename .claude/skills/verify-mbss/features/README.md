@@ -21,7 +21,7 @@ This folder is the maintained source for verifying what MBSS visitors and editor
 
 - Save a `shot` before and after each action. Keep `drive.log`: it lists every console error and failed request.
 - A React `console.error` or a `pageerror` on a page is a finding even when the page looks right.
-- A change made in Strapi needs a second, read-only view: the profile page, plus `$CMS_URL/api/<plural>` or the `POST /api/revalidate` line in `logs/profile.log`.
+- A change made in Strapi needs a second, read-only view: the profile page, plus `$CMS_URL/api/<plural>` with the read token or the `POST /api/revalidate` line in `logs/profile.log`.
 - Name the feature ID and the entry point next to each artifact. If an entry point cannot be reached, report the command you tried and the missing precondition. Never report it as verified through a different path.
 
 ## Feature entry contract

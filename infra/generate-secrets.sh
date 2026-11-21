@@ -55,6 +55,7 @@ cat <<VALUES
 POSTGRES_PASSWORD=$(hex 32)
 CMS_DB_PASSWORD=$(hex 32)
 REVALIDATE_SECRET=$(hex 24)
+CMS_READ_TOKEN=$(hex 32)
 # Four, comma-separated, as config/server.ts reads with env.array.
 APP_KEYS=$(b64 16),$(b64 16),$(b64 16),$(b64 16)
 API_TOKEN_SALT=$(b64 16)

@@ -94,10 +94,14 @@ export async function cmsData(collection: string, params: [string, string][]): P
   const query = new URLSearchParams(params);
   const response = await fetch(`${config.cmsUrl}/api/${collection}?${query}`, {
     signal: AbortSignal.timeout(CMS_TIMEOUT_MS),
+    headers: config.cmsReadToken ? { authorization: `Bearer ${config.cmsReadToken}` } : {},
   }).catch((error: unknown) => {
     throw new Error(`CMS request for ${collection} failed`, { cause: error });
   });
 
+  if (response.status === 401 || response.status === 403) {
+    throw new Error(`CMS refused ${collection} (${response.status}): check CMS_READ_TOKEN`);
+  }
   if (!response.ok) {
     throw new Error(`CMS returned ${response.status} for ${collection}`);
   }

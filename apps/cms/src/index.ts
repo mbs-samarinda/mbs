@@ -11,7 +11,7 @@ import {
 } from "./backfills";
 import { trackCollaborations } from "./collaboration";
 import { assertOwnerScope, registerOwnerScope, syncEditorRole } from "./owner-scope";
-import { syncPublicRead } from "./public-read";
+import { syncProfileToken, syncPublicRead } from "./profile-read";
 import { changesPublicPages, notifyProfile } from "./revalidate";
 import { seedRoutePages, seedSampleRecords, seedSites } from "./seed/run";
 
@@ -99,6 +99,7 @@ export default {
       await registerOwnerScope(strapi);
       await syncEditorRole(strapi);
       await syncPublicRead(strapi);
+      await syncProfileToken(strapi);
       await seedSites(strapi);
       // Galeri first: Unduhan anchors on the footer's `/berita` link, which
       // Artikel then replaces. Artikel has to rename the `berita` page before

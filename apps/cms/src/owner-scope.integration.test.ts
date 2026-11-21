@@ -46,6 +46,7 @@ process.env.ADMIN_JWT_SECRET ??= FILLER;
 process.env.TRANSFER_TOKEN_SALT ??= FILLER;
 process.env.JWT_SECRET ??= FILLER;
 process.env.ENCRYPTION_KEY ??= "0123456789abcdef0123456789abcdef";
+process.env.CMS_READ_TOKEN ??= `${FILLER}-read-token`;
 // No profile to notify, and the seeds below would fire one request per publish.
 delete process.env.PROFILE_REVALIDATE_URL;
 
@@ -74,6 +75,8 @@ const CREATE = "plugin::content-manager.explorer.create";
 const DELETE = "plugin::content-manager.explorer.delete";
 const PUBLISH = "plugin::content-manager.explorer.publish";
 const KOLABORASI = "api::kolaborasi.kolaborasi";
+const { PROFILE_READ } = require("./profile-read.ts") as typeof import("./profile-read");
+const PROFILE_ACTIONS = PROFILE_READ.flatMap((uid) => [`${uid}.find`, `${uid}.findOne`]);
 
 type AdminUser = { id: number; roles?: { code?: string }[] };
 type Rule = { action: string; subject: string };
@@ -744,6 +747,55 @@ void describe("permissions", () => {
       await permissions.count({ where: { action: `${KOLABORASI}.find`, role: role.id } }),
       1,
     );
+  });
+
+  void it("rebuilds the profile token on boot, undoing panel edits", async () => {
+    const tokens = strapi.service("admin::api-token-content-api") as unknown as {
+      hash(key: string): string;
+    };
+    const accessKey = tokens.hash(process.env.CMS_READ_TOKEN ?? "");
+    const rows = strapi.db.query("admin::api-token");
+    const original: { id: number } = await rows.findOne({ where: { name: "profile-read" } });
+    // An admin renames it, gives it an expiry and a write grant.
+    await rows.update({
+      where: { id: original.id },
+      data: { name: "renamed", expiresAt: new Date(Date.now() + 60_000), lifespan: 60_000 },
+    });
+    await strapi.db.query("admin::api-token-permission").create({
+      data: { action: "api::berita.berita.create", token: original.id },
+    });
+
+    await boot();
+
+    const opened: { name: string; expiresAt: unknown; permissions: { action: string }[] }[] =
+      await rows.findMany({ where: { accessKey }, populate: ["permissions"] });
+    assert.equal(opened.length, 1, "exactly one token opens with CMS_READ_TOKEN");
+    assert.equal(opened[0]?.name, "profile-read");
+    assert.equal(opened[0]?.expiresAt, null);
+    assert.deepEqual(
+      opened[0]?.permissions.map((row) => row.action).toSorted(),
+      PROFILE_ACTIONS.toSorted(),
+    );
+    assert.equal(
+      await strapi.db.query("admin::api-token-permission").count({ where: { token: null } }),
+      0,
+      "no permission rows left behind",
+    );
+  });
+
+  void it("removes the profile token when CMS_READ_TOKEN is unset", async () => {
+    const key = process.env.CMS_READ_TOKEN;
+    delete process.env.CMS_READ_TOKEN;
+    try {
+      await boot();
+      assert.equal(
+        await strapi.db.query("admin::api-token").count({ where: { name: "profile-read" } }),
+        0,
+      );
+    } finally {
+      process.env.CMS_READ_TOKEN = key;
+      await boot();
+    }
   });
 
   // 4820194 is `BOOT_LOCK` in `index.ts`, copied for the reason given at the top.
