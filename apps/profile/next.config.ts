@@ -38,6 +38,12 @@ const config: NextConfig = {
   // symlinks that does not survive a `COPY` into a thin image.
   output: "standalone",
   images: {
+    // Next 16 refuses to optimize images from local addresses, so Strapi's
+    // uploads on localhost broke every photo in development. Production media
+    // sits on S3's public host, so the guard against fetching internal
+    // addresses stays on there. A local `next start` against a local CMS still
+    // shows broken photos.
+    dangerouslyAllowLocalIP: process.env.NODE_ENV === "development",
     remotePatterns: [
       remote(cms, "/uploads/**"),
       // The bucket path, not /uploads/**: the S3 provider keys objects at the

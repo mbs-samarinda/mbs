@@ -6,7 +6,8 @@ import { Main, Photo, SECTION, WIDTH } from "@/app/[owner]/_components/section.t
 import { formatLongDate } from "@/articles.ts";
 import { mediaUrl } from "@/cms/client.ts";
 import { getAlbum } from "@/cms/gallery.ts";
-import { ownerUrl, requireSchool } from "@/owners.ts";
+import { requireSchool } from "@/owners.ts";
+import { shareMetadata } from "@/share.ts";
 
 type Params = Promise<{ owner: string; slug: string }>;
 
@@ -32,13 +33,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   return {
     title,
-    description,
-    openGraph: {
-      title,
-      description,
-      url: `${ownerUrl(owner)}galeri/${album.slug}`,
-      images: share ? [mediaUrl(share)] : undefined,
-    },
+    ...shareMetadata(owner, `galeri/${album.slug}`, { description, image: share }),
   };
 }
 

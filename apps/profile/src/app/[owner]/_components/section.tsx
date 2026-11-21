@@ -17,6 +17,17 @@ import { mediaUrl, type Media } from "@/cms/client.ts";
 export const SECTION = "px-4 py-12 md:px-12 md:py-12 lg:px-30 lg:py-15";
 export const WIDTH = "mx-auto w-full max-w-300";
 
+/**
+ * How wide a photo renders, so the browser downloads a file near that size
+ * rather than the original. Content tops out at 1200px, inside a 120px gutter
+ * from 1440px up.
+ */
+export const PHOTO_SIZES = {
+  full: "(min-width: 1440px) 1200px, 100vw",
+  /** A two-column grid at tablet, three on a desktop page. */
+  third: "(min-width: 1024px) 400px, (min-width: 768px) 50vw, 100vw",
+} as const;
+
 /** The title and standfirst a content page opens with. */
 export const PageHead = ({ heading, body }: { heading: string; body: string }) => (
   <section className={`${SECTION} pb-0 md:pb-0 lg:pb-0`}>
@@ -125,19 +136,21 @@ export function Photo({
   inCard = false,
   sizes,
   transition,
+  preload = false,
 }: {
   image: Media | null;
   label: string;
   className: string;
   inCard?: boolean;
   /**
-   * How wide the photo renders, for a grid of small ones. Without it the browser
-   * picks from the photo's own width, so a phone downloads a full-size original
-   * for every thumbnail.
+   * How wide the photo renders. Required: without it the browser picks from the
+   * photo's own width, so a phone downloads a full-size original.
    */
-  sizes?: string;
+  sizes: string;
   /** From `photoTransition`, the same on the card and on the page it opens. */
   transition?: string | undefined;
+  /** For the one photo that is the biggest thing on first load. Lazy otherwise. */
+  preload?: boolean;
 }) {
   const edge = inCard ? "" : "outline outline-black/10 dark:outline-white/12";
 
@@ -148,6 +161,7 @@ export function Photo({
       width={image.width}
       height={image.height}
       sizes={sizes}
+      preload={preload}
       className={`rounded-lg object-cover ${edge} ${className}`}
     />
   ) : (

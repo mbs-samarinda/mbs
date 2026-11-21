@@ -6,6 +6,8 @@
    error to notice. Tailwind emits a utility only where one is used, so the
    aliases cost nothing until then. */
 @theme inline {
+  /* next/font's copy of Jakarta, set on <html> by the root layout. */
+  --font-sans: var(--font-jakarta), sans-serif;
   --color-accent-brand: var(--accent-brand);
   --color-surface-brand: var(--surface-brand);
 }

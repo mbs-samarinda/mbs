@@ -20,6 +20,7 @@ import { formatDate } from "@/articles.ts";
 import { getPage, type Block } from "@/cms/pages.ts";
 import { getSite, type Site } from "@/cms/site.ts";
 import { admissionUrl, requireSchool } from "@/owners.ts";
+import { shareMetadata } from "@/share.ts";
 
 export async function generateMetadata({
   params,
@@ -31,7 +32,10 @@ export async function generateMetadata({
   const page = await getPage(school.key, "pendaftaran");
   return {
     title: page?.seo?.metaTitle ?? "Pendaftaran",
-    description: page?.seo?.metaDescription ?? undefined,
+    ...shareMetadata(school, "pendaftaran", {
+      description: page?.seo?.metaDescription,
+      image: page?.seo?.shareImage,
+    }),
   };
 }
 

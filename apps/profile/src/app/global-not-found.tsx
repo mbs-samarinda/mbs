@@ -5,6 +5,7 @@ import { getSite, type Site } from "@/cms/site.ts";
 import { isUmbrella, ownerFromHostname, type Owner } from "@/owners.ts";
 
 import { Exception } from "./_components/exception.tsx";
+import { jakarta } from "./_components/font.ts";
 import { Footer, Header } from "./_components/shell.tsx";
 import { ThemeScript } from "./_components/theme-script.tsx";
 
@@ -46,7 +47,7 @@ export default async function GlobalNotFound() {
   const site = await loadSite(owner);
 
   return (
-    <html lang="id" data-owner={owner?.key} suppressHydrationWarning>
+    <html lang="id" data-owner={owner?.key} className={jakarta.variable} suppressHydrationWarning>
       <body>
         <ThemeScript />
         {owner && site && <Header owner={owner} site={site} />}

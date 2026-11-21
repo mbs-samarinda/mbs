@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { LinkStatus } from "@/app/[owner]/_components/pending-spinner.tsx";
+import { jakarta } from "@/app/_components/font.ts";
+import { JsonLd, organizationOf } from "@/app/_components/json-ld.tsx";
 import { Footer, Header } from "@/app/_components/shell.tsx";
 import { ThemeScript } from "@/app/_components/theme-script.tsx";
-import { getSite } from "@/cms/site.ts";
-import { ownerHost, OWNERS, requireOwner } from "@/owners.ts";
+import { mediaUrl } from "@/cms/client.ts";
+import { getSite, type Site } from "@/cms/site.ts";
+import { type Owner, OWNERS, ownerUrl, requireOwner } from "@/owners.ts";
 
 import "@/app/globals.css";
 
@@ -23,7 +26,7 @@ export async function generateMetadata({
   return {
     // Every relative URL in metadata (Open Graph, canonical) resolves against
     // the owner's own host, not whichever host built the page.
-    metadataBase: new URL(`https://${ownerHost(owner)}`),
+    metadataBase: new URL(ownerUrl(owner)),
     title: { default: owner.name, template: `%s · ${owner.name}` },
     description: site.tagline,
   };
@@ -60,9 +63,10 @@ export default async function OwnerLayout({
     // `suppressHydrationWarning` because the theme script below sets a class on
     // this element before React hydrates. It suppresses one level only, which
     // is exactly the element the script touches.
-    <html lang="id" data-owner={owner.key} suppressHydrationWarning>
+    <html lang="id" data-owner={owner.key} className={jakarta.variable} suppressHydrationWarning>
       <body>
         <ThemeScript />
+        <JsonLd data={siteLd(owner, site)} />
         <Header owner={owner} site={site} />
         {children}
         <Footer owner={owner} site={site} />
@@ -70,6 +74,26 @@ export default async function OwnerLayout({
       </body>
     </html>
   );
+}
+
+/** The owner as a search result describes it: address, map pin, phone and accounts. */
+function siteLd(owner: Owner, site: Site) {
+  // Free text in the CMS, so a pin is sent only when it reads as two numbers.
+  const pin = site.mapsCoordinates?.split(",").map(Number) ?? [];
+  const [latitude, longitude] = pin.length === 2 && pin.every(Number.isFinite) ? pin : [];
+  return {
+    ...organizationOf(owner),
+    description: site.tagline,
+    ...(site.logo ? { logo: mediaUrl(site.logo) } : {}),
+    ...(site.address ? { address: site.address } : {}),
+    ...(latitude !== undefined && longitude !== undefined
+      ? { geo: { "@type": "GeoCoordinates", latitude, longitude } }
+      : {}),
+    ...(site.headerPhone?.href.startsWith("tel:")
+      ? { telephone: site.headerPhone.href.slice("tel:".length) }
+      : {}),
+    ...(site.socials.length > 0 ? { sameAs: site.socials.map((social) => social.href) } : {}),
+  };
 }
 
 /**
