@@ -37,7 +37,7 @@ that app needs. Two of them want real values before anything starts:
   them and fails with the list of what is missing. Set `BOOTSTRAP_ADMIN_EMAIL`
   to your own Google address too: nothing can grant staff access before one
   administrator exists, so nothing can grant staff access without it. The
-  committee UI that consumed this is being rebuilt; the API side still needs it.
+  committee app that consumed this is not built yet; the API side still needs it.
 - **`apps/cms`** — Strapi's own secrets, and its own database connection.
   Unset, Strapi quietly falls back to SQLite instead of the `mbs_cms` database
   compose just created.
@@ -49,8 +49,6 @@ The rest of each file already holds a working local default.
 ```
 apps/
   api                Fastify + oRPC. The only source of truth for admission.
-  admission          React + Vite. The parent application.
-  admission-admin    React + Vite. The committee application.
   profile            Next.js. One app serving every school subdomain.
   cms                Strapi. Profile content only, with its own database.
 
@@ -71,13 +69,8 @@ talk over HTTP.
 ```
 3001  api
 3002  profile
-5173  admission
-5174  admission-admin
 1337  cms
 ```
-
-Both Vite apps proxy `/api` to the API, the same way Caddy does in production,
-so neither needs an API URL in its environment.
 
 ## Checks
 
@@ -134,7 +127,7 @@ Base UI primitives. Add a component from any app and the CLI puts it in the
 right place:
 
 ```bash
-pnpm dlx shadcn@latest add dialog -c apps/admission
+pnpm dlx shadcn@latest add dialog -c apps/profile
 ```
 
 Base components land in `packages/ui/src/components`; anything specific to one
@@ -144,11 +137,9 @@ app stays in that app. Import them by path:
 import { Button } from "@mbs/ui/components/button";
 ```
 
-The shared components join class names with the `cn` package. Only
-`packages/ui` and `apps/profile` depend on it. The admission apps do not, though
-their `components.json` points shadcn's `utils` alias at it, so add it to an
-admission app (`pnpm add cn --filter <app>`) before the CLI writes its first
-app-local component there.
+The shared components join class names with the `cn` package. A new app adds
+it (`pnpm add cn --filter <app>`) before the CLI writes its first app-local
+component there.
 
 Design tokens and the Tailwind entry point live in
 `packages/ui/src/styles/globals.css`. Each app's `src/styles.css` imports it and
