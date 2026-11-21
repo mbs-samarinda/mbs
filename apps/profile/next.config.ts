@@ -85,8 +85,9 @@ const config: NextConfig = {
     exposeTestingApiInProductionBuild: process.env.EXPOSE_TESTING_API === "1",
   },
   poweredByHeader: false,
-  // The Content-Security-Policy is set per request in `proxy.ts`, because the
-  // host allowed to frame a preview is only known at runtime. HSTS is Caddy's,
+  // Pages get their Content-Security-Policy per request in `proxy.ts`, because
+  // the host allowed to frame them is only known at runtime. `/api` gets a
+  // fixed one below. HSTS is Caddy's,
   // because only Caddy knows the request came over HTTPS.
   async headers() {
     return [
@@ -95,6 +96,17 @@ const config: NextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+      {
+        // The proxy skips `/api`, so its CSP does not reach these. Nothing here
+        // is ever framed, not even by the CMS.
+        source: "/api/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+          },
         ],
       },
     ];

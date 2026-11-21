@@ -337,9 +337,9 @@ const handler: CacheHandler = {
   // otherwise each load their own copy of the manifest, and the second rename
   // would drop the first one's tag.
   //
-  // Marks follow Next's default handler. With `durations` (a profile was named,
-  // as the publish webhook's `"max"` is) the tag goes stale now and expires
-  // `expire` seconds later. Without, it expires now.
+  // Marks follow Next's default handler. With `durations` (a profile was named)
+  // the tag goes stale now and expires `expire` seconds later; the publish
+  // webhook's `{ expire: 0 }` makes both now. Without, it expires now.
   updateTags(tagNames, durations) {
     const write = tagWrites.then(async () => {
       const manifest = await loadTags();

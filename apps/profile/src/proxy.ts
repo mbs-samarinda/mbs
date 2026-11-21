@@ -31,13 +31,13 @@ const UNCLAIMED = "/__not-found";
 export function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const owner = ownerFromHostname(host);
-  if (!owner) return new NextResponse("Unknown owner host", { status: 404 });
+  if (!owner) return secured(new NextResponse("Unknown owner host", { status: 404 }));
 
   if (/^www\./i.test(host)) {
     // Built from scratch rather than by editing `nextUrl`: that carries the
     // port Next listens on behind the reverse proxy, which is not public.
     const { pathname, search } = request.nextUrl;
-    return NextResponse.redirect(`https://${ownerHost(owner)}${pathname}${search}`, 308);
+    return secured(NextResponse.redirect(`https://${ownerHost(owner)}${pathname}${search}`, 308));
   }
 
   const { pathname } = request.nextUrl;
@@ -46,7 +46,7 @@ export function proxy(request: NextRequest) {
   // directly, so this catches a typed or shared `/pendaftaran` address.
   // 307, not 308: where the joint campaign lives is a choice that may change.
   if (isUmbrella(owner) && pathname === "/pendaftaran") {
-    return NextResponse.redirect(`${admissionUrl()}${request.nextUrl.search}`, 307);
+    return secured(NextResponse.redirect(`${admissionUrl()}${request.nextUrl.search}`, 307));
   }
 
   const url = request.nextUrl.clone();
@@ -74,6 +74,11 @@ export function proxy(request: NextRequest) {
   } else {
     response = NextResponse.rewrite(url);
   }
+  return secured(response);
+}
+
+/** Every response the proxy sends carries the page CSP; `next.config.ts` covers `/api`. */
+function secured(response: NextResponse): NextResponse {
   response.headers.set("Content-Security-Policy", contentSecurityPolicy());
   return response;
 }

@@ -107,11 +107,16 @@ export async function cmsData(collection: string, params: [string, string][]): P
   if (!(await draftMode()).isEnabled) return request(collection, query);
 
   query.set("status", "draft");
-  const drafts = await request(collection, query);
-  const dated = await withPublishedDates(collection, drafts);
-  // Strapi sorted the drafts by a date they do not have; sort again by the one
-  // they now carry.
-  return query.get("sort[0]") === "publishedAt:desc"
+  // Every draft's `publishedAt` is null, so sorting by it ties every row and
+  // pages of one list could overlap. Drafts are paged by creation instead, then
+  // sorted again below by the dates they are given.
+  const byDate = query.get("sort[0]") === "publishedAt:desc";
+  if (byDate) {
+    query.set("sort[0]", "createdAt:desc");
+    query.set("sort[1]", "documentId:asc");
+  }
+  const dated = await withPublishedDates(collection, await request(collection, query));
+  return byDate
     ? dated.toSorted((a, b) => text(b, "publishedAt").localeCompare(text(a, "publishedAt")))
     : dated;
 }
