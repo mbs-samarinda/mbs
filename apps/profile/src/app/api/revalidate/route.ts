@@ -32,10 +32,13 @@ export async function POST(request: Request) {
     return Response.json({ revalidated: false }, { status: 401 });
   }
 
-  // `max` asks for the tag to be marked stale, not expired: serve the old page
-  // while Next refetches, rather than make the next visitor wait on Strapi.
-  // Whether a stale entry is served that way is up to `cache-handler.ts`.
-  revalidateTag(CMS_TAG, "max");
+  // Expired, not stale: the next visitor waits on Strapi for the new page
+  // instead of getting the old one once more. Editors check their publish
+  // straight away, and "max" showed them the version they had just replaced.
+  // Strapi has just answered the publish, so it is up. The cost: every page on
+  // all four sites refills on its next visit, and if Strapi goes down in that
+  // window those visits fail rather than serve the old page.
+  revalidateTag(CMS_TAG, { expire: 0 });
   return Response.json({ revalidated: true, tag: CMS_TAG });
 }
 

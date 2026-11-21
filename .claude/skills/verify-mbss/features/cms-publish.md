@@ -30,12 +30,12 @@ Preconditions:
 - **Open the entry.** Run `drive --state ... goto:$CMS_URL/admin/content-manager/collection-types/api::pengumuman.pengumuman see:heading:Pengumuman tryclick:button:Skip click:link:3 see:button:Publish shot:edit`. `edit.aria.txt` has `heading "Perubahan jam layanan tata usaha" [level=1]` and `textbox "title"`.
 - **Edit and publish.** Run `drive --state ... <the open-entry steps> "fill:textbox:title=Jam layanan tata usaha diperpanjang" click:button:Save text:Saved click:button:Publish shot:published`. The heading changes to the new title.
 - **Side effects.** Run `grep 'POST /api/revalidate' "$EVIDENCE/logs/profile.log"`; it shows `200`. Run `curl -s -H "authorization: Bearer $CMS_READ_TOKEN" "$CMS_URL/api/pengumuman-list?filters%5BownerKey%5D=smp&fields%5B0%5D=title"`; it returns the new title.
-- **Visible on the site.** Visit the profile twice. Run `drive goto:$SMP_URL/artikel/pengumuman shot:after-first`, wait 3 s, then `drive goto:$SMP_URL/artikel/pengumuman "text:Jam layanan tata usaha diperpanjang" shot:after`. The second visit shows the new title.
+- **Visible on the site.** Run `drive goto:$SMP_URL/artikel/pengumuman "text:Jam layanan tata usaha diperpanjang" shot:after`. The first visit shows the new title.
 - **Revalidate refuses strangers.** Run `curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:$PROFILE_PORT/api/revalidate`; it prints `401`. Run it again with `-H "x-revalidate-secret: $REVALIDATE_SECRET"`; it returns `{"revalidated":true,"tag":"cms"}`.
 
 ## Gotchas
 
-- The **first** profile visit after a publish still shows the old content. `revalidateTag(tag, "max")` marks the cache stale, serves the stale page once, and rebuilds it in the background. Only the visit after that proves the change. A single visit that fails is not a regression; a second visit that fails is.
+- A publish expires the content cache (`revalidateTag(tag, { expire: 0 })`), so the first visit after it waits on Strapi and shows the change. Old content on that visit is a regression.
 - Strapi shows a "Content manager" guided tour the first time an admin opens a list, and it blocks clicks. `tryclick:button:Skip` dismisses it, and does nothing once a saved `--state` remembers it was dismissed.
 - Save alone changes only the draft. The site must not change until Publish. That is worth asserting on its own.
 - `text:Published` can match the entry's old status badge. Prove publication through the profile page and the REST read, not that text.

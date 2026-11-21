@@ -3,6 +3,7 @@ import { buttonVariants } from "@mbs/ui/components/button";
 import { cn } from "cn";
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { mediaUrl } from "@/cms/client.ts";
 import { type Site } from "@/cms/site.ts";
@@ -78,7 +79,12 @@ function LogoSlot({ logo, className }: { logo: Site["logo"]; className: string }
  */
 const admissionHref = (owner: Owner) => (isUmbrella(owner) ? admissionUrl() : "/pendaftaran");
 
-export function Header({ owner, site }: { owner: Owner; site: Site }) {
+/**
+ * `notice` is a strip above both rows, sticky with them, for the preview
+ * banner. Inside the header rather than above it, so the two stick as one and
+ * the header never slides under it.
+ */
+export function Header({ owner, site, notice }: { owner: Owner; site: Site; notice?: ReactNode }) {
   const menu = isUmbrella(owner) ? [] : toMenu(site.menu);
 
   return (
@@ -89,6 +95,7 @@ export function Header({ owner, site }: { owner: Owner; site: Site }) {
     // Named so a page change leaves it still while the page under it fades
     // (`globals.css`).
     <header className="sticky top-0 z-40 bg-background [view-transition-name:site-header]">
+      {notice}
       <div
         className={`flex items-center justify-between gap-4 border-b border-border bg-muted ${GUTTER}`}
       >

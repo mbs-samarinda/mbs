@@ -85,21 +85,28 @@ const config: NextConfig = {
     exposeTestingApiInProductionBuild: process.env.EXPOSE_TESTING_API === "1",
   },
   poweredByHeader: false,
-  // A baseline, not a script allow-list. A strict `script-src` needs a nonce on
-  // every one of Next's inline scripts, which ties every page to per-request
-  // rendering for good; editors cannot inject a script anyway (`prose.tsx`).
-  // HSTS is Caddy's, because only Caddy knows the request came over HTTPS.
+  // Pages get their Content-Security-Policy per request in `proxy.ts`, because
+  // the host allowed to frame them is only known at runtime. `/api` gets a
+  // fixed one below. HSTS is Caddy's,
+  // because only Caddy knows the request came over HTTPS.
   async headers() {
     return [
       {
         source: "/:path*",
         headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+      {
+        // The proxy skips `/api`, so its CSP does not reach these. Nothing here
+        // is ever framed, not even by the CMS.
+        source: "/api/:path*",
+        headers: [
           {
             key: "Content-Security-Policy",
             value: "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
           },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         ],
       },
     ];
