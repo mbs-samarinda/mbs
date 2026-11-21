@@ -2,6 +2,9 @@ node_modules/
 dist/
 build/
 .next/
+# Next rewrites it on every dev start and build, with different paths for
+# each, and its docs say not to track it. tsc passes without it.
+next-env.d.ts
 .turbo/
 coverage/
 *.tsbuildinfo

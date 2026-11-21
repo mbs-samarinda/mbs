@@ -15,6 +15,8 @@
 //   see:<role>:<name>             wait until such an element is visible
 //   text:<text>                   wait until this text is visible anywhere
 //   shot:<label>                  save <label>.png, <label>.aria.txt, <label>.url
+//   errors                        ask next dev (/_next/mcp get_errors) for the
+//                                 open page's errors; fails if there are any
 //
 // --state loads and saves cookies, so a CMS login survives between runs.
 // Everything printed to the console or failing over the network goes to
@@ -80,6 +82,47 @@ const split = (s, sep) => {
   const i = s.indexOf(sep);
   return i === -1 ? [s, ""] : [s.slice(0, i), s.slice(i + 1)];
 };
+// next dev's own error report, with source-mapped stacks, which a pageerror
+// line lacks. It reads from the browsers connected right now, so it has to run
+// as a step, while this page is still open.
+const nextErrors = async () => {
+  const { port } = new URL(page.url());
+  // Every stack port is explicit; none means no page yet, or not next dev.
+  if (!port) throw new Error(`no port in ${page.url()}; goto a profile page first`);
+  const response = await fetch(`http://127.0.0.1:${port}/_next/mcp`, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "get_errors", arguments: {} },
+    }),
+  });
+  const data = (await response.text()).split("\n").find((line) => line.startsWith("data: "));
+  if (!data) throw new Error(`no MCP answer (HTTP ${response.status}); is this next dev?`);
+  const answer = JSON.parse(data.slice(6));
+  if (answer.error) throw new Error(`MCP error: ${answer.error.message}`);
+  const report = JSON.parse(answer.result.content[0].text);
+  if (report.error) throw new Error(report.error);
+  const lines = [
+    ...report.configErrors.map((e) => `config ${e.message ?? JSON.stringify(e)}`),
+    ...report.sessionErrors.flatMap(({ url, buildError, runtimeErrors }) => [
+      ...(buildError ? [`build ${url} ${buildError}`] : []),
+      ...runtimeErrors.map(({ message, stack }) => {
+        // React's own frames come first and carry no line; the first that
+        // does is usually ours.
+        const frame = stack?.find((f) => f.line != null);
+        const at = frame ? ` at ${frame.file}:${frame.line}` : "";
+        return `runtime ${url} ${message}${at}`;
+      }),
+    ]),
+  ];
+  for (const line of lines) log(`  next-error ${line}`);
+  if (lines.length > 0) throw new Error(`next dev reports ${lines.length} error(s)`);
+  log("  next dev reports no errors");
+};
+
 const byRole = (spec) => {
   const [role, name] = split(spec, ":");
   return page.getByRole(role, { name, exact: true }).first();
@@ -117,7 +160,8 @@ for (const [n, step] of args.entries()) {
       writeFileSync(join(out, `${rest}.aria.txt`), await page.locator("body").ariaSnapshot());
       writeFileSync(join(out, `${rest}.url`), `${page.url()}\n`);
       log(`  saved ${rest}.png ${rest}.aria.txt`);
-    } else throw new Error(`unknown step "${cmd}"`);
+    } else if (cmd === "errors") await nextErrors();
+    else throw new Error(`unknown step "${cmd}"`);
   } catch (error) {
     log(`  FAILED ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
     await page.screenshot({ path: join(out, `fail-${n + 1}.png`), fullPage: true }).catch(() => {});

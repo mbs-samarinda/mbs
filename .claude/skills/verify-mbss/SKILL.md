@@ -65,6 +65,7 @@ node $S/drive.mjs --out "$EVIDENCE/<feature-id>" [--state <file>] [--mobile] <st
 | `see:<role>:<name>` | wait up to 30 s for that element |
 | `text:<text>` | wait up to 30 s for that text anywhere |
 | `shot:<label>` | save `<label>.png` (full page), `<label>.aria.txt` (accessibility tree) and `<label>.url` |
+| `errors` | ask `next dev` for the open page's errors through its MCP endpoint (`/_next/mcp`, tool `get_errors`); log each with its source file and line, and fail if there are any |
 
 Steps run in order. On the first failure it saves `fail-<n>.png` and exits 1. Everything goes into `<out>/drive.log`, including every `console.error`, page error, HTTP 4xx/5xx and request that got no answer at all (`failed net::...`). `--state` keeps cookies and local storage between calls, which a Strapi login needs. `--mobile` uses a Pixel 7 viewport.
 
@@ -91,6 +92,7 @@ Proof standards:
 - Capture the action and the state it led to, a `shot` before and after, not just the final screen.
 - Check side effects too. A publish should show `POST /api/revalidate 200` in `logs/profile.log`, and the published row should be visible through `$CMS_URL/api/<plural>`.
 - Read `drive.log` for `console.error` and `pageerror`. A page that looks right but logs React errors is a finding, not a pass.
+- End each profile journey with an `errors` step. It sees what `next dev` saw, with the source line, and it only works while the page is open, so it must be a step, not a later call.
 - Fixture rows inserted with SQL (for example, an admission cycle) are setup, never proof of the feature that would create them. Say which you did.
 - Mocks are never used. Every layer is the real app, and only Google sign-in and Midtrans are out of reach.
 
@@ -102,9 +104,9 @@ $S/stack.sh down        # or: $S/stack.sh down <run>
 
 `down` kills only the process groups this run started, using the ids it saved at launch. It stops only `mbs-verify-pg-<run>`; `--rm` removes the container and its data. It then deletes the run's scratch folder. Never kill by process name, and never touch `mbs-postgres`, its `postgres-data` volume or any other container. This machine runs other projects' containers, some of them production.
 
-`next dev` rewrites `apps/profile/AGENTS.md` and `next-env.d.ts` on start. `down` restores those two files, but only if they were clean before the run. It then compares `git status` with how it looked at launch and prints a warning if anything else changed. Report that warning; do not revert other files yourself. The evidence folder survives `down`. Check it is still there before reporting.
+`down` compares `git status` with how it looked at launch and prints a warning if anything changed. Report that warning; do not revert files yourself. If the change is `next dev` rewriting `apps/profile/AGENTS.md`, the installed Next has a new agent block: commit it rather than reverting it. The evidence folder survives `down`. Check it is still there before reporting.
 
 ## Helpers
 
-- `stack.sh up | doctor [run] | admin [run] | env [run] | api-off [run] | api-on [run] | down [run]`. `api-off` and `api-on` stop and restart only the API, for pages that must handle it being unreachable. Without `[run]`, it uses the newest run that is still up. Run `stack.sh` with no arguments for usage.
+- `stack.sh up | doctor [run] | admin [run] | env [run] | api-off [run] | api-on [run] | down [run]`. `api-off` and `api-on` stop and restart only the API, for pages that must handle it being unreachable. Without `[run]`, it uses the newest run still up that this checkout started; other agents' runs need their id, and you should never stop one. Run `stack.sh` with no arguments for usage.
 - `drive.mjs --out <dir> <step>...`, as shown above. Run it with no arguments for usage.
