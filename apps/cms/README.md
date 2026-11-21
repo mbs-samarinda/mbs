@@ -51,8 +51,9 @@ late and finds nothing. Migrations run before that sync.
 Never change a component field's type in place. Add a new field, backfill it,
 then remove the old one.
 
-Permissions are code too. The editor role, the Public role's content grants
-and the `profile-read` API token are rebuilt from `src/owner-scope.ts` and
-`src/profile-read.ts` on every boot, so a change made to any of them in the
+Permissions are code too. The editor role and the `profile-read` API token
+are rebuilt from `src/owner-scope.ts` and `src/profile-read.ts` on every boot,
+and the Public and Authenticated roles lose every content grant, because Strapi answers
+`?status=draft` to anyone who may `find`. A change made to any of them in the
 admin panel is reverted on the next start. The token's key is
 `CMS_READ_TOKEN`, the same value as in `apps/profile/.env`.

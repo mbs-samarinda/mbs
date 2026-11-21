@@ -591,8 +591,8 @@ void describe("collaboration", () => {
   });
 
   // The profile's two queries, in object form, against published rows only —
-  // what the public REST endpoint reads. The suite has no HTTP listener, so the
-  // public role's permission is checked separately.
+  // what the profile's REST reads see. The suite has no HTTP listener, so the
+  // read token's permission is checked separately.
   // Pengumuman runs through the same hooks. Its own case proves the second
   // relation is wired, and that its address names its own type.
   void it("invites, lists and clears a pengumuman the same way", async () => {
@@ -670,13 +670,13 @@ void describe("collaboration", () => {
     );
     assert.equal((await listing("smp")).length, 0);
 
-    const role: { id: number } = await strapi.db
-      .query("plugin::users-permissions.role")
-      .findOne({ where: { type: "public" } });
-    const find = await strapi.db
-      .query("plugin::users-permissions.permission")
-      .findOne({ where: { action: `${KOLABORASI}.find`, role: role.id } });
-    assert.ok(find, "the public role must be able to find Kolaborasi");
+    const token: { permissions: { action: string }[] } = await strapi.db
+      .query("admin::api-token")
+      .findOne({ where: { name: "profile-read" }, populate: ["permissions"] });
+    assert.ok(
+      token.permissions.some((row) => row.action === `${KOLABORASI}.find`),
+      "the profile's token must be able to find Kolaborasi",
+    );
   });
 });
 
@@ -732,20 +732,27 @@ void describe("permissions", () => {
     assert.deepEqual(await ids(), held);
   });
 
-  void it("takes public read off a type that is not on the list", async () => {
-    const role: { id: number } = await strapi.db
+  // A `find` on either role would let anyone read unpublished drafts with
+  // `?status=draft`; sign-up is open, so Authenticated is anyone too.
+  void it("takes content grants ticked in the panel off Public and Authenticated", async () => {
+    const roles: { id: number }[] = await strapi.db
       .query("plugin::users-permissions.role")
-      .findOne({ where: { type: "public" } });
+      .findMany({ where: { type: { $in: ["public", "authenticated"] } } });
+    assert.equal(roles.length, 2);
     const permissions = strapi.db.query("plugin::users-permissions.permission");
-    const action = "api::penugasan-editor.penugasan-editor.find";
-    await permissions.create({ data: { action, role: role.id } });
+    await Promise.all(
+      roles.map((role) =>
+        permissions.create({ data: { action: `${KOLABORASI}.find`, role: role.id } }),
+      ),
+    );
 
     await boot();
 
-    assert.equal(await permissions.count({ where: { action, role: role.id } }), 0);
     assert.equal(
-      await permissions.count({ where: { action: `${KOLABORASI}.find`, role: role.id } }),
-      1,
+      await permissions.count({
+        where: { role: { $in: roles.map((role) => role.id) }, action: { $startsWith: "api::" } },
+      }),
+      0,
     );
   });
 

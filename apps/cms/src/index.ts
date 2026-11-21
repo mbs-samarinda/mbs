@@ -11,7 +11,7 @@ import {
 } from "./backfills";
 import { trackCollaborations } from "./collaboration";
 import { assertOwnerScope, registerOwnerScope, syncEditorRole } from "./owner-scope";
-import { syncProfileToken, syncPublicRead } from "./profile-read";
+import { revokeUserRoleReads, syncProfileToken } from "./profile-read";
 import { changesPublicPages, notifyProfile } from "./revalidate";
 import { seedRoutePages, seedSampleRecords, seedSites } from "./seed/run";
 
@@ -72,7 +72,7 @@ async function withBootLock(strapi: Core.Strapi, run: () => Promise<void>) {
 export default {
   register({ strapi }: { strapi: Core.Strapi }) {
     // Registered here rather than configured in the admin panel's webhook
-    // screen, for the same reason the public read permissions are: a fresh
+    // screen, for the same reason the profile's read token is: a fresh
     // clone has to work without somebody remembering a manual step, and a
     // forgotten webhook shows up as content that is silently hours stale.
     strapi.documents.use(async (context, next) => {
@@ -98,7 +98,7 @@ export default {
       // does not know yet drops the condition and grants the permission outright.
       await registerOwnerScope(strapi);
       await syncEditorRole(strapi);
-      await syncPublicRead(strapi);
+      await revokeUserRoleReads(strapi);
       await syncProfileToken(strapi);
       await seedSites(strapi);
       // Galeri first: Unduhan anchors on the footer's `/berita` link, which
