@@ -133,13 +133,14 @@ jobs:
       # which is what the test's beforeAll does.
       - run: pnpm --filter @mbs/cms test:integration
 
-  # Clicks through the profile in a browser and checks each page change shows
-  # its shell at once (apps/profile/e2e). It runs the real CMS with its seed,
-  # not a stand-in: Strapi boots and seeds in about 20 s, and fixtures would be
-  # the content model written a second time. No API runs; the admission facts
-  # then read as unavailable, which is all the test needs.
+  # Clicks through the profile in a browser (apps/profile/e2e): each host serves
+  # its own site, every menu page renders, and each page change shows its shell
+  # at once. It runs the real CMS with its seed, not a stand-in: Strapi boots
+  # and seeds in about 20 s, and fixtures would be the content model written a
+  # second time. No API runs; the admission facts then read as unavailable,
+  # which is all the tests need.
   e2e:
-    name: test (instant navigation)
+    name: test (profile e2e)
     runs-on: ubuntu-latest
 
     services:
