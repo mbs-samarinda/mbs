@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { getPage, PageRow } from "./pages.ts";
 
 // `cacheLife` throws outside a Next server; the reads are tested here as functions.
+vi.mock("next/headers", () => ({ draftMode: async () => ({ isEnabled: false }) }));
 vi.mock("next/cache", () => ({ cacheLife: () => {}, cacheTag: () => {} }));
 
 test("an icon the CMS added before the site knew it falls back instead of crashing", () => {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import { draftMode } from "next/headers";
+import { type ReactNode, Suspense } from "react";
 
 import { LinkStatus } from "@/app/[owner]/_components/pending-spinner.tsx";
 import { jakarta } from "@/app/_components/font.ts";
@@ -67,7 +68,17 @@ export default async function OwnerLayout({
       <body>
         <ThemeScript />
         <JsonLd data={siteLd(owner, site)} />
-        <Header owner={owner} site={site} />
+        <Header
+          owner={owner}
+          site={site}
+          notice={
+            // Its own boundary: reading Draft Mode is per request, and the rest
+            // of the shell need not wait for it.
+            <Suspense fallback={null}>
+              <PreviewBanner />
+            </Suspense>
+          }
+        />
         {children}
         <Footer owner={owner} site={site} />
         <LinkStatus />
@@ -94,6 +105,35 @@ function siteLd(owner: Owner, site: Site) {
       : {}),
     ...(site.socials.length > 0 ? { sameAs: site.socials.map((social) => social.href) } : {}),
   };
+}
+
+/**
+ * Shown on every page while this browser is in Draft Mode. Pinned with the
+ * header, because the mode outlives the CMS tab: an editor who later opens the
+ * site for some other reason still sees drafts, and must not mistake them for
+ * what visitors see.
+ */
+async function PreviewBanner() {
+  if (!(await draftMode()).isEnabled) return null;
+  return (
+    <aside
+      aria-label="Pratinjau draf"
+      className="flex flex-wrap items-center justify-center gap-x-3 bg-warning px-4 py-1 text-xs font-medium text-background"
+    >
+      <p>Pratinjau draf. Pengunjung belum melihat perubahan ini.</p>
+      {/* A plain form, not a server action: a server action's redirect renders
+          the target in the same request, past the proxy that adds the owner,
+          and lands on a 404. Forms are never prefetched, unlike a link. */}
+      <form method="post" action="/api/draft">
+        <button
+          type="submit"
+          className="inline-flex h-6 items-center rounded-md px-2 underline underline-offset-2 transition-colors hover:bg-background/15"
+        >
+          Keluar dari pratinjau
+        </button>
+      </form>
+    </aside>
+  );
 }
 
 /**

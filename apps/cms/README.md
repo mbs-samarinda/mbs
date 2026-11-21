@@ -57,3 +57,8 @@ and the Public and Authenticated roles lose every content grant, because Strapi 
 `?status=draft` to anyone who may `find`. A change made to any of them in the
 admin panel is reverted on the next start. The token's key is
 `CMS_READ_TOKEN`, the same value as in `apps/profile/.env`.
+
+The Preview button beside each entry opens the entry's page on its school's
+site in Draft Mode (`src/preview.ts`). The link is signed with
+`PREVIEW_SECRET`, the same value as in `apps/profile/.env`, and lasts an hour.
+Unset, the button is hidden.

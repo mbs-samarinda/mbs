@@ -63,6 +63,8 @@ services:
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
       # The profile reads content with it; the CMS sets its read token to it on boot.
       CMS_READ_TOKEN: ${CMS_READ_TOKEN:?set CMS_READ_TOKEN}
+      # Signs the Preview button's links; the profile checks them with it.
+      PREVIEW_SECRET: ${PREVIEW_SECRET:?set PREVIEW_SECRET}
       # Builds the public address each Kolaborasi invite shows. Same value as the
       # profile's, or a staging CMS writes production addresses into its invites.
       PROFILE_APEX: ${PROFILE_APEX:?set PROFILE_APEX}
@@ -193,6 +195,10 @@ services:
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?set REVALIDATE_SECRET}
       # The profile reads content with it; the CMS sets its read token to it on boot.
       CMS_READ_TOKEN: ${CMS_READ_TOKEN:?set CMS_READ_TOKEN}
+      # Checks the CMS's signed Preview links. Same value as the CMS's.
+      PREVIEW_SECRET: ${PREVIEW_SECRET:?set PREVIEW_SECRET}
+      # Strapi's Preview pane shows the site in a frame; only this host may.
+      CMS_HOST: ${CMS_HOST:?set CMS_HOST}
       PROFILE_CACHE_DIR: /app/.cache/content
     volumes:
       # The `"use cache"` store. On a volume so a redeploy does not start cold

@@ -33,5 +33,5 @@ test("a wrong secret of any length, or none, is a 401", async () => {
 });
 
 test("the right secret drops the content cache", async () => {
-  expect(await post(SECRET, SECRET)).toEqual({ status: 200, calls: [["cms", "max"]] });
+  expect(await post(SECRET, SECRET)).toEqual({ status: 200, calls: [["cms", { expire: 0 }]] });
 });

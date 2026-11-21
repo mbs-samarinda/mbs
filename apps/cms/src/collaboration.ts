@@ -1,6 +1,7 @@
 import type { Core, UID } from "@strapi/strapi";
 import { errors } from "@strapi/utils";
 
+import { profileOrigin } from "./profile-urls";
 import { OWNER_KEYS } from "./seed/home-page";
 
 export const KOLABORASI_UID = "api::kolaborasi.kolaborasi";
@@ -15,15 +16,13 @@ type ArticleUid = keyof typeof ARTICLES;
 
 const isArticle = (uid: string): uid is ArticleUid => uid in ARTICLES;
 
-// The CMS has no list of the profile's hosts — `PUBLIC_URL` is its own address —
-// so the rule is copied from the profile's `ownerHost`, apex included. Staging
-// sets `PROFILE_APEX`; left unset or empty, the copy names production, which is what an
-// invitee reading it needs to recognise.
+// Left unset or empty, the copy names production, which is what an invitee
+// reading it needs to recognise. Staging sets `PROFILE_APEX`.
 const APEX = process.env.PROFILE_APEX || "mbss.sch.id";
 
 // The Kolaborasi field names double as the address segment, `/artikel/berita/…`.
 const articleUrl = (uid: ArticleUid, ownerKey: string, slug: string) =>
-  `https://${ownerKey === "mbs" ? APEX : `${ownerKey}.${APEX}`}/artikel/${ARTICLES[uid]}/${slug}`;
+  `${profileOrigin(ownerKey, APEX)}/artikel/${ARTICLES[uid]}/${slug}`;
 
 /**
  * The schools an article may invite: never the umbrella, never its own owner,

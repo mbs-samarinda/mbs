@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { getArticleIndex } from "./articles.ts";
 
 // `cacheLife` throws outside a Next server; the reads are tested here as functions.
+vi.mock("next/headers", () => ({ draftMode: async () => ({ isEnabled: false }) }));
 vi.mock("next/cache", () => ({ cacheLife: () => {}, cacheTag: () => {} }));
 vi.mock("next/server", () => ({ connection: async () => {} }));
 

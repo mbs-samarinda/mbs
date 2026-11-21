@@ -27,6 +27,18 @@ const EnvSchema = z.object({
   // cache window instead of being told. The route refuses every request while
   // it is unset rather than accepting unauthenticated ones.
   REVALIDATE_SECRET: optional(z.string().min(16).optional()),
+  // Shared with the CMS, which signs its Preview links with it. Unset turns
+  // preview off: every link is refused and no browser stays in Draft Mode.
+  PREVIEW_SECRET: optional(z.string().min(32).optional()),
+  // The CMS admin's public host, `cms.mbss.sch.id`. Its Preview pane shows the
+  // site in a frame, and this is the one host allowed to. Unset, no host may,
+  // and preview works only in a tab of its own.
+  CMS_HOST: optional(
+    z
+      .string()
+      .regex(/^[a-z0-9.-]+(:\d+)?$/i)
+      .optional(),
+  ),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
@@ -39,4 +51,6 @@ export const config = {
   cmsReadToken: parsed.data.CMS_READ_TOKEN,
   apiBaseUrl: parsed.data.API_BASE_URL.replace(/\/$/, ""),
   revalidateSecret: parsed.data.REVALIDATE_SECRET,
+  previewSecret: parsed.data.PREVIEW_SECRET,
+  cmsHost: parsed.data.CMS_HOST,
 } as const;

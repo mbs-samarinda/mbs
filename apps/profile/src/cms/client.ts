@@ -1,3 +1,4 @@
+import { draftMode } from "next/headers";
 import { z } from "zod";
 
 import { config } from "@/config/env.ts";
@@ -89,10 +90,70 @@ export function parseRows<T>(row: z.ZodType, data: unknown[]): T[] {
   return list(row).parse(data) as T[];
 }
 
-/** The `data` list exactly as Strapi sent it, before any row is checked. */
+/**
+ * The `data` list exactly as Strapi sent it, before any row is checked.
+ *
+ * In Draft Mode it asks for drafts. Every caller is a `"use cache"` function,
+ * which Next re-runs on each draft request and never saves, so drafts never
+ * reach a visitor's cache. `draftMode()` is the one request value Next lets a
+ * cached function read.
+ *
+ * Known noise: on each preview render Next 16.4 logs "Unexpected cache miss
+ * after cache warming phase" per route, because its warming step expects
+ * entries Draft Mode never saves. The page still renders the drafts.
+ */
 export async function cmsData(collection: string, params: [string, string][]): Promise<unknown[]> {
   const query = new URLSearchParams(params);
-  const response = await fetch(`${config.cmsUrl}/api/${collection}?${query}`, {
+  if (!(await draftMode()).isEnabled) return request(collection, query);
+
+  query.set("status", "draft");
+  const drafts = await request(collection, query);
+  const dated = await withPublishedDates(collection, drafts);
+  // Strapi sorted the drafts by a date they do not have; sort again by the one
+  // they now carry.
+  return query.get("sort[0]") === "publishedAt:desc"
+    ? dated.toSorted((a, b) => text(b, "publishedAt").localeCompare(text(a, "publishedAt")))
+    : dated;
+}
+
+/**
+ * A draft has no `publishedAt`: Strapi keeps that on the published version.
+ * Every page dates and orders articles and files by it, so each draft takes
+ * its published version's date, and one never published takes now, the date
+ * it would get if published at this moment.
+ */
+async function withPublishedDates(collection: string, drafts: unknown[]): Promise<unknown[]> {
+  const ids = drafts.map((row) => text(row, "documentId")).filter(Boolean);
+  if (ids.length === 0) return drafts;
+
+  const query = new URLSearchParams([
+    ["fields[0]", "publishedAt"],
+    ["pagination[pageSize]", String(PAGE_LIMIT)],
+    ...ids.map((id, i): [string, string] => [`filters[documentId][$in][${i}]`, id]),
+  ]);
+  const published = new Map(
+    (await request(collection, query)).map((row) => [
+      text(row, "documentId"),
+      text(row, "publishedAt"),
+    ]),
+  );
+  const now = new Date().toISOString();
+  return drafts.map((row) =>
+    typeof row === "object" && row !== null
+      ? { ...row, publishedAt: published.get(text(row, "documentId")) || now }
+      : row,
+  );
+}
+
+/** A string field of a row Strapi sent, or "" when it is missing or not a string. */
+const text = (row: unknown, field: string): string => {
+  const value: unknown =
+    typeof row === "object" && row !== null ? Reflect.get(row, field) : undefined;
+  return typeof value === "string" ? value : "";
+};
+
+async function request(collection: string, query: URLSearchParams): Promise<unknown[]> {
+  const response = await fetch(`${config.cmsUrl}/api/${collection}?${query.toString()}`, {
     signal: AbortSignal.timeout(CMS_TIMEOUT_MS),
     headers: config.cmsReadToken ? { authorization: `Bearer ${config.cmsReadToken}` } : {},
   }).catch((error: unknown) => {
