@@ -6,6 +6,7 @@ import { Listing, ListingPlaceholder, type Params } from "@/app/[owner]/_compone
 import { Arrival, Main, PageHead, Placeholder } from "@/app/[owner]/_components/section.tsx";
 import { ARTICLE_KINDS, ARTICLE_TYPES, isArticleType, type ArticleType } from "@/articles.ts";
 import { requireSchool } from "@/owners.ts";
+import { shareMetadata } from "@/share.ts";
 
 type RouteParams = Promise<{ owner: string; type: string }>;
 
@@ -22,7 +23,12 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: RouteParams }): Promise<Metadata> {
   const { type } = await params;
-  return isArticleType(type) ? { title: ARTICLE_KINDS[type], description: LEAD[type] } : {};
+  if (!isArticleType(type)) return {};
+  const school = await requireSchool(params);
+  return {
+    title: ARTICLE_KINDS[type],
+    ...shareMetadata(school, `artikel/${type}`, { description: LEAD[type] }),
+  };
 }
 
 /** One type's articles, newest first, with its own month archive. */

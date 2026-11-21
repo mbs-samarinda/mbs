@@ -374,6 +374,9 @@ importers:
 
   apps/profile:
     dependencies:
+      '@fontsource-variable/plus-jakarta-sans':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@mbs/api-contract':
         specifier: workspace:*
         version: link:../../packages/api-contract

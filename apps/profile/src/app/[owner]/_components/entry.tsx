@@ -4,7 +4,7 @@ import { getEntries, type Entry, type EntryCollection, type FullEntry } from "@/
 import { type Owner } from "@/owners.ts";
 
 import { PendingSpinner } from "./pending-spinner.tsx";
-import { Photo, WIDTH, SECTION, photoTransition } from "./section.tsx";
+import { Photo, PHOTO_SIZES, WIDTH, SECTION, photoTransition } from "./section.tsx";
 
 /**
  * The two collections whose records own a page, and the words each wears.
@@ -174,6 +174,7 @@ export const EntryCard = ({
   >
     <PendingSpinner />
     <Photo
+      sizes={PHOTO_SIZES.third}
       image={entry.images[0] ?? null}
       label="Foto"
       className="aspect-43/20 w-full rounded-none!"

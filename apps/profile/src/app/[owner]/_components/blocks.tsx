@@ -38,6 +38,7 @@ import { Prose } from "./prose.tsx";
 import {
   Arrival,
   Photo,
+  PHOTO_SIZES,
   Placeholder,
   FactStrip,
   WIDTH,
@@ -125,7 +126,12 @@ export function BlockSection({
           <div
             className={`${WIDTH} flex flex-col gap-8 md:flex-row md:items-center ${block.imageSide === "akhir" ? "md:flex-row-reverse" : ""}`}
           >
-            <Photo image={block.image} label="Foto" className="aspect-4/3 w-full md:w-72" />
+            <Photo
+              sizes="(min-width: 768px) 288px, 100vw"
+              image={block.image}
+              label="Foto"
+              className="aspect-4/3 w-full md:w-72"
+            />
             <div className="flex flex-col gap-3">
               {block.heading && (
                 <p className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
@@ -259,6 +265,7 @@ export function BlockSection({
                   className="flex items-center gap-4 rounded-xl border border-border bg-background p-3 md:flex-col md:items-stretch md:gap-0 md:p-0"
                 >
                   <Photo
+                    sizes="(min-width: 1024px) 300px, (min-width: 768px) 50vw, 72px"
                     image={person.photo}
                     label="Foto"
                     inCard
@@ -430,6 +437,7 @@ export function BlockSection({
                   {/* On the photo, which the card's padding insets by 12px. */}
                   <PendingSpinner className="top-5 right-5" />
                   <Photo
+                    sizes={PHOTO_SIZES.third}
                     image={item.images[0] ?? null}
                     label="Foto"
                     className="aspect-3/2 w-full"
@@ -614,6 +622,7 @@ async function NewsGrid({ ownerKey, limit }: { ownerKey: Owner["key"]; limit: nu
           {/* On the photo, which the card's padding insets by 12px. */}
           <PendingSpinner className="top-5 right-5" />
           <Photo
+            sizes={PHOTO_SIZES.third}
             image={article.cover}
             label="Sampul"
             className="aspect-3/2 w-full"
@@ -663,7 +672,13 @@ function SchoolCard({ card }: { card: Extract<Block, { kind: "schools" }>["items
       href={ownerUrl(school)}
       className="flex flex-col overflow-hidden rounded-xl border border-border bg-background transition-colors duration-150 ease-[ease] hover:border-primary"
     >
-      <Photo image={card.photo} label="Foto" className="aspect-43/20 w-full rounded-none!" inCard />
+      <Photo
+        sizes={PHOTO_SIZES.third}
+        image={card.photo}
+        label="Foto"
+        className="aspect-43/20 w-full rounded-none!"
+        inCard
+      />
       <div className="flex flex-col gap-2.5 p-5">
         <span className="flex flex-wrap items-center gap-2.5">
           {/* Sized for "Dibuka", not for the hero's full sentence: a
@@ -821,6 +836,7 @@ function Hero({
         {/* min-w-0: an image's width attribute is otherwise its flex minimum,
             and it takes the text column's share. */}
         <Photo
+          sizes="(min-width: 1440px) 570px, (min-width: 1280px) 50vw, 100vw"
           image={image}
           label="Foto sekolah"
           className="aspect-video xl:aspect-4/3 xl:min-w-0 xl:flex-1"

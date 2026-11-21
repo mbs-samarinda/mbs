@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { getPage } from "@/cms/pages.ts";
 import { getSite } from "@/cms/site.ts";
 import { isUmbrella, requireOwner } from "@/owners.ts";
+import { shareMetadata } from "@/share.ts";
 
 import { AdmissionBandSection } from "./_components/admission.tsx";
 import { BlockSection } from "./_components/blocks.tsx";
@@ -23,7 +24,10 @@ export async function generateMetadata({
     // "page · owner" template: "Beranda · SMK Terpadu Madina" says nothing the
     // second half does not.
     title: { absolute: page?.seo?.metaTitle ?? owner.name },
-    description: page?.seo?.metaDescription ?? undefined,
+    ...shareMetadata(owner, "", {
+      description: page?.seo?.metaDescription,
+      image: page?.seo?.shareImage,
+    }),
   };
 }
 

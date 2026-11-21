@@ -49,10 +49,13 @@ test("every apex path but the home is rewritten to an unclaimed path", () => {
   }
 });
 
-test("the apex keeps its home, its favicon and its own articles", () => {
+test("the apex keeps its home, its crawler files and its own articles", () => {
   for (const [path, rewrite] of [
     ["/", "http://mbss.sch.id/mbs"],
     ["/favicon.ico", "http://mbss.sch.id/mbs/favicon.ico"],
+    ["/og.png", "http://mbss.sch.id/mbs/og.png"],
+    ["/robots.txt", "http://mbss.sch.id/mbs/robots.txt"],
+    ["/sitemap-pages.xml", "http://mbss.sch.id/mbs/sitemap-pages.xml"],
     ["/artikel/opini/x", "http://mbss.sch.id/mbs/artikel/opini/x"],
   ] as const) {
     const response = proxy(request("mbss.sch.id", path));

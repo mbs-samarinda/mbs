@@ -15,6 +15,7 @@
     "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
   },
   "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
     "@mbs/api-contract": "workspace:*",
     "@mbs/school-config": "workspace:*",
     "@mbs/ui": "workspace:*",

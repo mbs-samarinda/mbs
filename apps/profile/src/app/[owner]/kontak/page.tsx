@@ -14,6 +14,7 @@ import {
 import { getPage, type Block } from "@/cms/pages.ts";
 import { getSite, type Site } from "@/cms/site.ts";
 import { type Owner, requireSchool } from "@/owners.ts";
+import { shareMetadata } from "@/share.ts";
 
 export async function generateMetadata({
   params,
@@ -25,7 +26,10 @@ export async function generateMetadata({
   const page = await getPage(school.key, "kontak");
   return {
     title: page?.seo?.metaTitle ?? "Kontak",
-    description: page?.seo?.metaDescription ?? undefined,
+    ...shareMetadata(school, "kontak", {
+      description: page?.seo?.metaDescription,
+      image: page?.seo?.shareImage,
+    }),
   };
 }
 

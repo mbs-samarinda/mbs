@@ -12,10 +12,12 @@ import { Prose } from "@/app/[owner]/_components/prose.tsx";
 import {
   Main,
   Photo,
+  PHOTO_SIZES,
   SECTION,
   WIDTH,
   photoTransition,
 } from "@/app/[owner]/_components/section.tsx";
+import { JsonLd, organizationOf } from "@/app/_components/json-ld.tsx";
 import {
   ARTICLE_KINDS,
   type Article,
@@ -32,6 +34,7 @@ import {
 } from "@/cms/articles.ts";
 import { mediaUrl } from "@/cms/client.ts";
 import { articleHref, isUmbrella, type Owner, ownerUrl, requireOwner } from "@/owners.ts";
+import { shareMetadata } from "@/share.ts";
 
 import { CopyLink } from "./_components/copy-link.tsx";
 
@@ -58,15 +61,11 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   return {
     title,
-    description,
-    openGraph: {
-      title,
+    ...shareMetadata(owner, `artikel/${article.type}/${article.slug}`, {
       description,
-      type: "article",
+      image: share,
       publishedTime: article.publishedAt,
-      url: `${ownerUrl(owner)}artikel/${article.type}/${article.slug}`,
-      images: share ? [mediaUrl(share)] : undefined,
-    },
+    }),
   };
 }
 
@@ -106,11 +105,27 @@ export default async function ArticlePage({ params }: { params: Params }) {
 
   return (
     <Main>
+      <JsonLd
+        data={{
+          // Berita is reporting; a notice or an opinion piece is not news.
+          "@type": article.type === "berita" ? "NewsArticle" : "Article",
+          headline: article.title,
+          datePublished: article.publishedAt,
+          url: `${ownerUrl(owner)}artikel/${article.type}/${article.slug}`,
+          ...(article.cover ? { image: mediaUrl(article.cover) } : {}),
+          // The school, even on an Opini: its writer's name reaches this page
+          // only inside the byline string.
+          author: organizationOf(owner),
+          publisher: organizationOf(owner),
+        }}
+      />
       <Head article={article} listed={Boolean(school)} />
 
       <section className={SECTION}>
         <div className={`${WIDTH} flex flex-col gap-8`}>
           <Photo
+            sizes={PHOTO_SIZES.full}
+            preload
             image={article.cover}
             label="Sampul"
             className="aspect-video w-full"
@@ -363,7 +378,13 @@ const Card = ({ entry, site }: { entry: Article; site: Owner["key"] }) => (
   >
     {/* On the photo, which the card's padding insets by 12px. */}
     <PendingSpinner className="top-5 right-5" />
-    <Photo image={entry.cover} label="Sampul" className="aspect-3/2 w-full" inCard />
+    <Photo
+      sizes={PHOTO_SIZES.third}
+      image={entry.cover}
+      label="Sampul"
+      className="aspect-3/2 w-full"
+      inCard
+    />
     <div className="flex flex-col gap-1.5 px-1 pb-1">
       <h3 className="text-[17px] font-bold text-pretty">{entry.title}</h3>
       {entry.summary && <p className="text-[13px] text-muted-foreground">{entry.summary}</p>}

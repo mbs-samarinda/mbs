@@ -168,6 +168,7 @@ const Row = ({ entry, site, nested }: { entry: Article; site: Owner["key"]; nest
             block on the left from md. */}
         <PendingSpinner className="top-7 right-2 md:right-auto md:left-42.5" />
         <Photo
+          sizes="(min-width: 768px) 200px, 100vw"
           image={entry.cover}
           label="Sampul"
           className="aspect-3/2 w-full md:w-50 md:shrink-0"

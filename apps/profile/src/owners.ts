@@ -59,10 +59,16 @@ const APEX = process.env.PROFILE_APEX ?? "mbss.sch.id";
 /**
  * The paths the apex answers: its home, and the umbrella's own articles, which
  * its home lists beside the schools'. Every other page is a school's. The
- * favicon is here because the proxy rewrites it to the owner's `public/<owner>/`
- * file like any other path.
+ * favicon, share image, robots.txt and sitemap are here because the proxy
+ * rewrites them under the owner like any other path.
  */
-const UMBRELLA_PATHS = new Set(["/", "/favicon.ico"]);
+const UMBRELLA_PATHS = new Set([
+  "/",
+  "/favicon.ico",
+  "/og.png",
+  "/robots.txt",
+  "/sitemap-pages.xml",
+]);
 
 /**
  * Whether this owner has no page at this path.

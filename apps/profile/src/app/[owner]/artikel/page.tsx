@@ -5,6 +5,7 @@ import { Listing, ListingPlaceholder, type Params } from "@/app/[owner]/_compone
 import { Arrival, Main, PageHead, Placeholder } from "@/app/[owner]/_components/section.tsx";
 import { getPage } from "@/cms/pages.ts";
 import { requireSchool } from "@/owners.ts";
+import { shareMetadata } from "@/share.ts";
 
 export async function generateMetadata({
   params,
@@ -16,7 +17,10 @@ export async function generateMetadata({
   const page = await getPage(school.key, "artikel");
   return {
     title: page?.seo?.metaTitle ?? "Artikel",
-    description: page?.seo?.metaDescription ?? undefined,
+    ...shareMetadata(school, "artikel", {
+      description: page?.seo?.metaDescription,
+      image: page?.seo?.shareImage,
+    }),
   };
 }
 

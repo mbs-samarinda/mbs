@@ -5,6 +5,7 @@ import { Button } from "@mbs/ui/components/button";
 import { ownerFromBrowserHost } from "@/owners.ts";
 
 import { Exception } from "./_components/exception.tsx";
+import { jakarta } from "./_components/font.ts";
 
 import "./globals.css";
 
@@ -29,7 +30,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
   const name = owner?.name ?? "Madina Boarding School";
 
   return (
-    <html lang="id" data-owner={owner?.key ?? "mbs"}>
+    <html lang="id" data-owner={owner?.key ?? "mbs"} className={jakarta.variable}>
       <body>
         <header className="border-b border-border px-4 md:px-12 lg:px-30">
           <a href="/" className="flex items-center gap-3 py-3">

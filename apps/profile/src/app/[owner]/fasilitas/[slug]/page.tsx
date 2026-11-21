@@ -11,13 +11,14 @@ import { Prose } from "@/app/[owner]/_components/prose.tsx";
 import {
   Main,
   Photo,
+  PHOTO_SIZES,
   SECTION,
   WIDTH,
   photoTransition,
 } from "@/app/[owner]/_components/section.tsx";
-import { mediaUrl } from "@/cms/client.ts";
 import { getEntry } from "@/cms/entries.ts";
-import { ownerUrl, requireSchool } from "@/owners.ts";
+import { requireSchool } from "@/owners.ts";
+import { shareMetadata } from "@/share.ts";
 
 type Params = Promise<{ owner: string; slug: string }>;
 
@@ -43,13 +44,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
   return {
     title,
-    description,
-    openGraph: {
-      title,
-      description,
-      url: `${ownerUrl(owner)}fasilitas/${entry.slug}`,
-      images: share ? [mediaUrl(share)] : undefined,
-    },
+    ...shareMetadata(owner, `fasilitas/${entry.slug}`, { description, image: share }),
   };
 }
 
@@ -70,6 +65,8 @@ export default async function FasilitasDetailPage({ params }: { params: Params }
       <section className={SECTION}>
         <div className={`${WIDTH} flex flex-col gap-8`}>
           <Photo
+            sizes={PHOTO_SIZES.full}
+            preload
             image={entry.images[0] ?? null}
             label="Foto"
             className="aspect-20/7 w-full"

@@ -6,6 +6,7 @@ import { Main, PageHead, Photo, SECTION, WIDTH } from "@/app/[owner]/_components
 import { getAlbums } from "@/cms/gallery.ts";
 import { getPage } from "@/cms/pages.ts";
 import { requireSchool } from "@/owners.ts";
+import { shareMetadata } from "@/share.ts";
 
 export async function generateMetadata({
   params,
@@ -17,7 +18,10 @@ export async function generateMetadata({
   const page = await getPage(school.key, "galeri");
   return {
     title: page?.seo?.metaTitle ?? "Galeri",
-    description: page?.seo?.metaDescription ?? undefined,
+    ...shareMetadata(school, "galeri", {
+      description: page?.seo?.metaDescription,
+      image: page?.seo?.shareImage,
+    }),
   };
 }
 
