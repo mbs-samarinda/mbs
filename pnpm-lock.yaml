@@ -331,6 +331,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@mbs/api-contract':
+        specifier: workspace:*
+        version: link:../api-contract
       '@mbs/school-config':
         specifier: workspace:*
         version: link:../school-config

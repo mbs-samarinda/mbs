@@ -6,6 +6,7 @@ import {
   COMMAND_PAYLOADS,
   type ApplicantProfileInput,
   type ApplicationCommand,
+  type CommandPayload,
   type SchoolKey,
 } from "@mbs/api-contract";
 import type { Database, Transaction } from "@mbs/db";
@@ -224,7 +225,10 @@ async function runCommand(
   command: ApplicationCommand,
   steps: {
     isRetry: (earlier: ApplicationEventRow, tx: Transaction) => Promise<boolean>;
-    write: (tx: Transaction, application: ApplicationRow) => Promise<{ payloadVersion: number }>;
+    write: (
+      tx: Transaction,
+      application: ApplicationRow,
+    ) => Promise<CommandPayload<ApplicationCommand>>;
   },
 ): Promise<{ event: ApplicationEventRow; replayed: boolean }> {
   const id = actorId(input.actor);

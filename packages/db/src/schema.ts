@@ -1,3 +1,4 @@
+import type { ApplicantProfile, ApplicationCommand, CommandPayload } from "@mbs/api-contract";
 import {
   ACTOR_TYPES,
   APPLICATION_COMMANDS,
@@ -297,7 +298,7 @@ export const applicantProfileVersions = pgTable(
       .notNull()
       .references(() => applications.id),
     version: integer("version").notNull(),
-    data: jsonb("data").notNull(),
+    data: jsonb("data").$type<ApplicantProfile>().notNull(),
     authorUserId: text("author_user_id")
       .notNull()
       .references(() => user.id),
@@ -322,7 +323,7 @@ export const applicationEvents = pgTable(
     // else's.
     actorId: text("actor_id").notNull(),
     familyVisible: boolean("family_visible").notNull(),
-    payload: jsonb("payload").notNull(),
+    payload: jsonb("payload").$type<CommandPayload<ApplicationCommand>>().notNull(),
     payloadVersion: integer("payload_version").notNull(),
     idempotencyKey: text("idempotency_key"),
     requestId: text("request_id"),
