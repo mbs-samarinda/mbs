@@ -123,7 +123,6 @@ describe("transition", () => {
         }
       }
     }
-    // Guards against a loop that silently skipped everything.
     expect(refused).toBeGreaterThan(500);
   });
 

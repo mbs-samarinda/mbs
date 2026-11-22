@@ -20,20 +20,12 @@ export class ConflictError extends Error {
   readonly code = "CONFLICT";
 }
 
-// The application domain's conflicts. Each is a ConflictError, so the boundary
-// maps them without knowing them; the names let callers and tests tell them
-// apart.
-
-/** The stage table has no row for this command at the application's stage. */
 export class IllegalTransitionError extends ConflictError {}
 
-/** The command was made against an older view of the application. */
 export class StaleSequenceError extends ConflictError {}
 
-/** This child already applied to this school in this cycle. */
 export class DuplicateApplicationError extends ConflictError {}
 
-/** The cycle is not taking registrations, or not at this school. */
 export class RegistrationClosedError extends ConflictError {}
 
 /** Postgres 23505. Drizzle wraps the driver error, so the code may sit on `cause`. */

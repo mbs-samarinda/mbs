@@ -46,16 +46,11 @@ import {
 } from "./repository.ts";
 import { requiredCommand, transition } from "./stages.ts";
 
-/**
- * Who is acting. A family acts as its Better Auth user, staff as their staff
- * profile, and a system job by name, such as the result publisher.
- */
 export type Actor =
   | { type: "FAMILY"; userId: string }
   | { type: "STAFF"; staff: StaffContext }
   | { type: "SYSTEM"; job: string };
 
-/** Where a write came from. Stored on the event; never personal data beyond the IP. */
 export type RequestMeta = {
   requestId?: string | null;
   ipAddress?: string | null;
@@ -70,14 +65,6 @@ function actorId(actor: Actor) {
   return actor.job;
 }
 
-/**
- * The family registers one child at one school. Everything the application
- * starts with is written in one transaction: the application, the documents it
- * was promised, profile version 1, the family's access and the SUBMIT event.
- *
- * Retrying with the same idempotency key and the same form returns the first
- * result.
- */
 export async function submitApplication(
   db: Database,
   input: {
@@ -92,9 +79,6 @@ export async function submitApplication(
   const profile = ApplicantProfile.parse(input.profile);
 
   return db.transaction(async (tx) => {
-    // Locks first, always in this order: the cycle row, then the school's
-    // counter. The terms are read after both, so a settings save or a close
-    // that this waited for is what it decides on.
     if (!(await lockCycleForSubmission(tx, input.cycleId))) {
       throw new NotFoundError("No such cycle.");
     }
@@ -102,9 +86,6 @@ export async function submitApplication(
     const cycle = await findSubmissionTerms(tx, input.cycleId, input.schoolKey);
     if (!cycle) throw new NotFoundError("No such cycle.");
 
-    // Before the window check, so a retry of a submission that landed just
-    // before closing still gets its application back. Under the lock, so a
-    // retry that raced its own first attempt still finds it.
     if (input.idempotencyKey) {
       const earlier = await findEventByIdempotencyKey(
         tx,
@@ -114,7 +95,6 @@ export async function submitApplication(
       );
       if (earlier) {
         const application = await findApplicationById(tx, earlier.applicationId);
-        // Matched on the form it sent, as saveProfile matches its retries.
         const firstForm = await findProfileVersion(tx, earlier.applicationId, 1);
         if (
           earlier.command !== "SUBMIT" ||
@@ -132,8 +112,6 @@ export async function submitApplication(
       throw new RegistrationClosedError("Registration is not open at this school.");
     }
 
-    // Names nothing about the other application: the family asking may not
-    // be the family that applied.
     if (await isNikTaken(tx, input.cycleId, cycle.schoolId, profile.nik)) {
       throw new DuplicateApplicationError(DUPLICATE_MESSAGE);
     }
@@ -153,8 +131,6 @@ export async function submitApplication(
       lastEventSeq: 1,
       createdByUserId: input.userId,
     }).catch((error: unknown) => {
-      // The lock orders submissions, but a profile save can move another
-      // application onto this NIK in between.
       if (isUniqueViolation(error)) throw new DuplicateApplicationError(DUPLICATE_MESSAGE);
       throw error;
     });
@@ -181,7 +157,6 @@ export async function submitApplication(
       idempotencyKey: input.idempotencyKey,
       ...input.meta,
     }).catch((error: unknown) => {
-      // The same key sent to another school at the same moment.
       if (isUniqueViolation(error)) throw reusedKey();
       throw error;
     });
@@ -190,7 +165,6 @@ export async function submitApplication(
   });
 }
 
-/** What every command on an existing application carries. */
 type CommandContext = {
   applicationId: string;
   actor: Actor;
@@ -199,40 +173,22 @@ type CommandContext = {
   meta?: RequestMeta;
 };
 
-/**
- * Runs one command on an application through the stage table. In one
- * transaction it locks the application, replays an idempotency key the actor
- * already used, checks `expectedSeq` against the newest event, appends the
- * event and moves the application.
- */
 export async function applyCommand(
   db: Database,
   input: CommandInput & CommandContext,
 ): Promise<{ event: ApplicationEventRow; replayed: boolean }> {
-  // The type already leaves it out. This holds for callers that cast, such as
-  // the simulator: an EDIT_PROFILE event with no profile version behind it
-  // would be a lie in the timeline.
   if ((input.command as ApplicationCommand) === "EDIT_PROFILE") {
     throw new IllegalTransitionError("A profile edit goes through saveProfile.");
   }
-  // The row is history the moment it commits, so it is checked before it is
-  // written rather than when someone first tries to read it.
   const payload = COMMAND_PAYLOADS[input.command].parse(input.payload);
 
   return runCommand(db, input, input.command, {
-    // A retry repeats its request exactly. Anything else under the same key is
-    // a different request, and returning the old event would hide it.
     isRetry: async (earlier) =>
       earlier.command === input.command && sameAsStored(earlier.payload, payload),
     write: async () => payload,
   });
 }
 
-/**
- * Appends a new version of the family's form and an EDIT_PROFILE event in one
- * transaction, through the same checks as every other command. A retry with
- * the same key and the same form returns the version it first wrote.
- */
 export async function saveProfile(
   db: Database,
   input: CommandContext & { profile: ApplicantProfileInput },
@@ -241,8 +197,6 @@ export async function saveProfile(
   const author = authorUserId(input.actor);
 
   const result = await runCommand(db, input, "EDIT_PROFILE", {
-    // The payload holds a version number chosen at write time, so a retry is
-    // matched on the form it saved, not on the payload.
     isRetry: async (earlier, tx) => {
       if (earlier.command !== "EDIT_PROFILE") return false;
       const { version } = COMMAND_PAYLOADS.EDIT_PROFILE.parse(earlier.payload);
@@ -272,12 +226,6 @@ export async function saveProfile(
   return { version, ...result };
 }
 
-/**
- * The one path every command on an existing application takes. `isRetry`
- * says whether an earlier event under the same key is this same request.
- * `write` runs once the command is allowed, writes anything the command owns
- * besides the event, and returns the event's payload.
- */
 async function runCommand(
   db: Database,
   input: CommandContext,
@@ -347,7 +295,6 @@ async function runCommand(
       idempotencyKey: input.idempotencyKey,
       ...input.meta,
     }).catch((error: unknown) => {
-      // The same key on another application, sent at the same moment.
       if (isUniqueViolation(error)) throw reusedKey();
       throw error;
     });
@@ -366,18 +313,12 @@ async function runCommand(
   });
 }
 
-/** The Better Auth user a profile version is written by. */
 function authorUserId(actor: Actor) {
   if (actor.type === "FAMILY") return actor.userId;
   if (actor.type === "STAFF") return actor.staff.authUserId;
   throw new ForbiddenError("A system job does not edit a family's form.");
 }
 
-/**
- * The domain's own check, whatever the procedure already did. An application
- * the actor may not see is NOT_FOUND, so its existence never leaks. A
- * principal sees everything in its schools and changes nothing.
- */
 async function authorize(tx: Transaction, actor: Actor, applicationId: string, schoolKey: string) {
   if (actor.type === "FAMILY") {
     if (!(await hasAccess(tx, applicationId, actor.userId))) {
@@ -391,11 +332,6 @@ async function authorize(tx: Transaction, actor: Actor, applicationId: string, s
   }
 }
 
-/**
- * Whether a value matches what jsonb stored for it. The round trip drops
- * `undefined` fields the way storing did, so a retry that sends
- * `{ reason: undefined }` matches the row written without the key.
- */
 function sameAsStored(stored: unknown, value: unknown) {
   return isDeepStrictEqual(stored, JSON.parse(JSON.stringify(value)));
 }

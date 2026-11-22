@@ -1,22 +1,3 @@
--- History rows describe the past, so the database refuses to change them. The
--- trigger below blocks UPDATE, DELETE and TRUNCATE on every append-only table.
--- `apps/api/src/history-tables.integration.test.ts` lists those tables and fails
--- when one of them lacks it, so a new append-only table attaches it in the
--- migration that creates it.
---
--- The one way past it is correct_history(reason), run by hand as the database
--- owner, for a real correction, a legal erasure, or a migration that fills a
--- new column on old rows. It writes a HISTORY_CORRECTION row to audit_logs and
--- points mbs.history_correction at it. The row records its transaction, and
--- the trigger trusts the flag only during that transaction, so setting the flag
--- by hand, or reusing an old correction's id, opens nothing. Run it at the top level of
--- the transaction: inside a savepoint the row gets the savepoint's own
--- transaction id and the check refuses, which is the safe way to fail.
---
--- A correction's own row is never changed or removed, not even by a correction,
--- so audit_logs refuses TRUNCATE outright. Never drop or disable the trigger
--- instead.
---
 -- Only correct_history writes a HISTORY_CORRECTION row: it runs as the NOLOGIN
 -- role mbs_history_admin, and a second trigger refuses that action from any
 -- other role. A superuser or the tables' owner can still disable triggers or
@@ -52,10 +33,9 @@ BEGIN
     END IF;
   END IF;
 
-  -- The flag may hold anything, so it is checked before the cast, which would
-  -- otherwise fail with a type error instead of the message below. The stored
-  -- 64-bit transaction id never wraps around. xmin is checked as well because
-  -- only xmin differs inside a savepoint: there the correction is refused.
+  -- The stored 64-bit transaction id never wraps around. xmin is checked as
+  -- well because only xmin differs inside a savepoint: there the correction is
+  -- refused.
   IF flag ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND EXISTS (
     SELECT 1 FROM audit_logs
     WHERE id = flag::uuid

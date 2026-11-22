@@ -4,11 +4,6 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { resetTables } from "./test/reset.ts";
 
-/**
- * Every table whose rows describe the past. A new append-only table joins this
- * list in the change that creates it, and its migration attaches
- * `forbid_history_change()`.
- */
 const HISTORY_TABLES = [
   schema.auditLogs,
   schema.applicationEvents,
@@ -55,8 +50,6 @@ describe("the history tables", () => {
     expect(has(triggers, table, BEFORE | TRUNCATE)).toBe(true);
   });
 
-  // The other direction: a guarded table missing from the list means the list
-  // stopped being the record of what is append-only.
   it("lists every table that carries the guard", async () => {
     const guarded = new Set((await guardTriggers()).map((trigger) => trigger.table));
 
@@ -83,7 +76,6 @@ describe("forbid_history_change", () => {
     return row!;
   }
 
-  /** Every audit row except the corrections each test reset leaves behind. */
   function ordinaryRows() {
     return db
       .select()
@@ -98,8 +90,6 @@ describe("forbid_history_change", () => {
   }
 
   it.each([
-    // Aimed at the seeded row: a whole-table statement would hit a reset's
-    // correction row first and fail for that reason instead.
     ["update", sql`update audit_logs set action = 'rewritten' where action = 'cycle.create'`],
     ["delete", sql`delete from audit_logs where action = 'cycle.create'`],
     ["truncate", sql`truncate audit_logs`],
@@ -130,7 +120,6 @@ describe("forbid_history_change", () => {
       .where(sql`${schema.auditLogs.metadata}->>'reason' = ${reason}`);
     expect(corrections).toMatchObject([{ actorType: "DATABASE", action: "HISTORY_CORRECTION" }]);
 
-    // The gate closed with the transaction.
     await expect(
       db.execute(sql`delete from audit_logs where action = 'cycle.created'`),
     ).rejects.toMatchObject({ cause: { message: expect.stringMatching(APPEND_ONLY) } });
@@ -142,8 +131,6 @@ describe("forbid_history_change", () => {
   ])("refuses a flag set by hand to %s", async (_name, flag) => {
     await expect(
       db.transaction(async (tx) => {
-        // Written in this transaction, so only the action check stands between
-        // this flag and an open gate.
         const [row] = await tx
           .insert(schema.auditLogs)
           .values({ actorType: "STAFF", action: "x", entityType: "x", entityId: "x" })
@@ -169,8 +156,6 @@ describe("forbid_history_change", () => {
     expect(await ordinaryRows()).toHaveLength(1);
   });
 
-  // The flag names a row whose xmin is the savepoint's own transaction id, not
-  // the top-level one, so the check fails closed.
   it("refuses a correction made inside a savepoint", async () => {
     await seedAuditRow();
 
@@ -265,9 +250,6 @@ describe("forbid_history_change", () => {
     expect(row!.metadata).toEqual({ reason, xact });
   });
 
-  // The API connects as the owning superuser today, which can bypass any
-  // trigger. This is the role the guard is built for: one that may read and
-  // write audit_logs but owns nothing.
   it("gives a role that owns nothing no way past the guard", async () => {
     await seedAuditRow();
     const reason = `a real fix ${crypto.randomUUID()}`;
@@ -276,13 +258,11 @@ describe("forbid_history_change", () => {
     const role = `history_test_${crypto.randomUUID().replaceAll("-", "")}`;
 
     const outcomes: Record<string, string> = {};
-    // Roles are cluster-wide. Rolling the whole transaction back removes it.
     await db
       .transaction(async (tx) => {
         await tx.execute(sql.raw(`create role ${role} nologin`));
         await tx.execute(sql.raw(`grant usage on schema public to ${role}`));
         await tx.execute(sql.raw(`grant select, insert, update, delete on audit_logs to ${role}`));
-        // LOCAL: a session-wide role would stay on the pooled connection.
         await tx.execute(sql.raw(`set local role ${role}`));
 
         const attempts = {

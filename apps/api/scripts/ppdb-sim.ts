@@ -1,19 +1,3 @@
-/**
- * Seeds PPDB data by calling the real domain functions, so every row it writes
- * went through the stage table, the locks and the idempotency checks.
- *
- *   pnpm ppdb-sim --count 20 --to ENROLLED [--seed demo] [--school smp,sma]
- *                 (default: every school taking part in the open cycle)
- *                 [--nik 6472010101010001] [--profile-edits 3] [--timings]
- *   pnpm ppdb-sim apply SMP-0001 APPROVE_PAYMENT [--expected-seq 2] [--key k]
- *                 [--payload '{"reason":"..."}']
- *
- * The same `--seed` makes the same NIKs, accounts and idempotency keys, so a
- * second run replays every step and writes nothing new, in the cycle the seed
- * first ran in. A rerun with a further `--to` or more `--profile-edits`
- * replays what exists and adds the rest. Reads DATABASE_URL, falling back to
- * apps/api/.env.
- */
 import { createHash, randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { parseArgs } from "node:util";
@@ -45,8 +29,6 @@ import type { StaffContext } from "../src/modules/auth/authorization.ts";
 
 const DAY = 86_400_000;
 
-// Not a real staff row: event actor ids are plain text, and a staff profile
-// here would show up in the committee's staff list.
 const SIM_STAFF: StaffContext = {
   id: "00000000-0000-4000-8000-000000005157",
   name: "ppdb-sim",
@@ -55,7 +37,6 @@ const SIM_STAFF: StaffContext = {
   authUserId: "ppdb-sim",
 };
 
-/** A valid payload for every command. The compiler checks none is missing. */
 const SAMPLE_PAYLOADS: { [C in ApplicationCommand]: CommandPayload<C> } = {
   SUBMIT: { payloadVersion: 1 },
   UPLOAD_PAYMENT_PROOF: { payloadVersion: 1 },
@@ -82,8 +63,6 @@ const SAMPLE_PAYLOADS: { [C in ApplicationCommand]: CommandPayload<C> } = {
   WITHDRAW: { payloadVersion: 1 },
   ADD_NOTE: { payloadVersion: 1, note: "Catatan dari simulator." },
   CHANGE_INTERVIEW_MODE: { payloadVersion: 1, mode: "ONLINE" },
-  // Only to satisfy the type: applyCommand refuses EDIT_PROFILE, and
-  // --profile-edits runs edits through saveProfile.
   EDIT_PROFILE: { payloadVersion: 1, version: 2 },
 };
 
@@ -129,15 +108,10 @@ function profileFor(seed: string, index: number, nik: string, edit = 0): Applica
     schoolOfOrigin: `SD Negeri ${(hash[5]! % 40) + 1} Samarinda`,
     guardianName: pick(FIRST_NAMES, hash, 6),
     guardianRelation: "Orang tua",
-    // Each edit changes the phone, so every save is a real change.
     guardianPhone: `0812${String(hash.readUInt32BE(7) % 10_000_000).padStart(7, "0")}${edit}`,
   };
 }
 
-/**
- * The shortest walk from PAYMENT_DUE to `target` over the stage table, so a
- * new row in TRANSITIONS is a new route here without touching this file.
- */
 function pathTo(target: ApplicationStage): ApplicationCommand[] | null {
   const moves = APPLICATION_COMMANDS.flatMap((command) => {
     const row = TRANSITIONS[command];
@@ -183,17 +157,9 @@ function actorFor(command: ApplicationCommand, familyUserId: string, as?: ActorT
 }
 
 function commandInput(command: ApplicationCommand, payload: unknown): CommandInput {
-  // TypeScript cannot pair a command chosen at run time with its payload type.
-  // The domain parses the payload against the command's schema before it
-  // writes anything, so a wrong pairing is refused there, never stored.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   return { command, payload } as CommandInput;
 }
 
-/**
- * The cycle this seed already wrote to, so a rerun replays there even after
- * that cycle closed. Otherwise the open cycle, created if there is none.
- */
 async function cycleFor(db: Database, seed: string) {
   const [earlier] = await db
     .select({ cycleId: schema.applications.admissionCycleId })
@@ -247,7 +213,6 @@ async function openCycle(db: Database) {
   return cycle.id;
 }
 
-/** A school with no settings row takes part at the cycle's defaults. */
 async function takingPart(db: Database, cycleId: string) {
   const settings = await listSchoolSettings(db, cycleId);
   return SCHOOL_KEYS.filter(
@@ -301,9 +266,6 @@ async function walk(db: Database, args: Args) {
       );
       let newRows = submitted.replayed ? 0 : 1;
       let replayedRows = submitted.replayed ? 1 : 0;
-      // A replayed step returns before the seq check, so only a new step moves
-      // this. Starting from the stored seq lets a rerun that walks further, or
-      // edits more, continue where the last run stopped.
       let seq = submitted.application.lastEventSeq;
       const record = (result: { replayed: boolean; event: { seq: number } }) => {
         if (result.replayed) {
@@ -369,8 +331,6 @@ async function applyOne(
   registrationNumber: string,
   command: ApplicationCommand,
 ) {
-  // Looks the number up in the open cycle without creating one: running one
-  // command should never open a cycle as a side effect.
   const [row] = await db
     .select({ application: schema.applications })
     .from(schema.applications)
@@ -416,7 +376,6 @@ type Args = {
   count: number;
   to: ApplicationStage;
   seed: string;
-  // Null means every school taking part in the open cycle.
   schools: SchoolKey[] | null;
   nik: string | null;
   profileEdits: number;

@@ -11,11 +11,6 @@ import { and, desc, eq, sql } from "drizzle-orm";
 export type ApplicationRow = typeof schema.applications.$inferSelect;
 export type ApplicationEventRow = typeof schema.applicationEvents.$inferSelect;
 
-/**
- * Share-locks the cycle row until the transaction ends. Saving a school's
- * settings and changing the cycle both lock it for update, so they wait for
- * submissions in flight, and a submission waits for them to commit.
- */
 export async function lockCycleForSubmission(tx: Transaction, cycleId: string) {
   const rows = await tx
     .select({ id: schema.admissionCycles.id })
@@ -26,10 +21,6 @@ export async function lockCycleForSubmission(tx: Transaction, cycleId: string) {
 }
 
 /**
- * Everything a submission is decided on: the cycle, the school's settings for
- * it, and whether the database clock is inside the registration window. A
- * school with no settings row takes part at the cycle's defaults.
- *
  * Read only after the locks are held, in its own statement. A query that
  * waits on a row lock re-reads the locked row but keeps its older view of the
  * rows joined to it, so a settings save it waited for would go unseen.
@@ -63,10 +54,6 @@ export async function findSubmissionTerms(tx: Transaction, cycleId: string, scho
   return { ...row, isEnabled: row.isEnabled ?? true };
 }
 
-/**
- * Serializes submissions to one school in one cycle until the transaction
- * ends, so two families cannot be handed the same registration number.
- */
 export async function lockRegistrationCounter(tx: Transaction, cycleId: string, schoolKey: string) {
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext('applications.registration_seq'), hashtext(${cycleId} || ':' || ${schoolKey}))`,
@@ -111,12 +98,6 @@ export async function insertApplication(
   return row!;
 }
 
-/**
- * The registration documents promised at creation: later edits to the cycle's
- * list change nothing here. Registrasi ulang documents are copied when the
- * result is published (PUBLISH_ACCEPTED, built in P10), because the school
- * usually sets them after registration opens.
- */
 export async function snapshotDocumentRequirements(
   tx: Transaction,
   applicationId: string,
@@ -181,7 +162,6 @@ export async function findProfileVersion(tx: Transaction, applicationId: string,
   return rows[0] ?? null;
 }
 
-/** Holds the application row until the transaction ends: one writer at a time. */
 export async function lockApplication(tx: Transaction, applicationId: string) {
   const rows = await tx
     .select({ application: schema.applications, schoolKey: schema.schools.key })
@@ -264,8 +244,6 @@ export async function recordEventOnApplication(
       stage: values.stage,
       lastEventSeq: values.lastEventSeq,
       interviewMode: values.interviewMode,
-      // Same-stage commands such as ADD_NOTE leave this alone, so it keeps
-      // saying how long the application has waited where it is.
       stageChangedAt: values.stageChanged ? sql`now()` : undefined,
       updatedAt: sql`now()`,
     })

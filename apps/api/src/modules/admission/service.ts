@@ -223,8 +223,6 @@ export async function upsertSchoolAdmissionSetting(
       acceptedInstructions: input.acceptedInstructions,
       rejectedInstructions: input.rejectedInstructions,
     });
-    // Registration documents only. Registrasi ulang's list gets its own screen,
-    // and saving this one must not wipe it.
     await replaceDocumentRequirements(tx, input.cycleId, schoolId, "APPLICATION", input.documents);
     await appendAuditLog(tx, {
       actorType: "STAFF",

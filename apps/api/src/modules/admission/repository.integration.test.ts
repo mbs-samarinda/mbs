@@ -146,8 +146,6 @@ describe("getCurrentCycle", () => {
     ]);
   });
 
-  // The page tells a family what to bring to register. Registrasi ulang asks
-  // for more later, and printing that here would ask for it too early.
   it("lists only the documents asked for at registration", async () => {
     await joinSchoolToCycle("2027/2028", "OPEN", dates.registrationOpenAt);
 

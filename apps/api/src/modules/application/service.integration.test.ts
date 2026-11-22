@@ -154,7 +154,6 @@ describe("submitApplication", () => {
     expect(access).toMatchObject([{ applicationId: application.id, userId: "family-1" }]);
 
     const promised = await db.select().from(schema.applicationDocumentRequirements);
-    // Registrasi ulang documents wait for the result to be published.
     expect(promised.map(({ stage, type }) => `${stage}:${type}`)).toEqual([
       "APPLICATION:KARTU_KELUARGA",
     ]);
@@ -284,7 +283,6 @@ describe("submitApplication", () => {
 });
 
 describe("submitApplication racing a change to the cycle", () => {
-  /** Until some query in this database waits for a row lock. */
   async function untilSomeoneWaits() {
     for (;;) {
       // oxlint-disable-next-line eslint/no-await-in-loop
@@ -298,11 +296,6 @@ describe("submitApplication racing a change to the cycle", () => {
     }
   }
 
-  /**
-   * Holds the cycle row the way upsertSchoolAdmissionSetting and
-   * setAdmissionCycleStatus do, runs `during` inside that transaction, and
-   * starts a submission that has to wait for it to commit.
-   */
   async function submitWhileHeld(during: (tx: Transaction) => Promise<unknown>) {
     let submission!: ReturnType<typeof submit>;
     await db.transaction(async (tx) => {
@@ -402,7 +395,6 @@ describe("applyCommand", () => {
     const applicationId = await atPaymentReview();
 
     const first = await approve(applicationId, "approve-1");
-    // The retry still carries the seq the first attempt saw.
     const retry = await approve(applicationId, "approve-1");
 
     expect(retry.replayed).toBe(true);
@@ -451,7 +443,6 @@ describe("applyCommand", () => {
         applicationId: application.id,
         actor: FAMILY,
         command: "WITHDRAW",
-        // The stored payload drops the key; the retry still sends it.
         payload: { payloadVersion: 1, reason: undefined },
         expectedSeq: 1,
         idempotencyKey: "withdraw-1",
@@ -740,7 +731,6 @@ describe("saveProfile", () => {
     const { application } = await submit();
 
     const first = await edit(application.id, 1, { childFullName: "Aisyah P." }, { key: "edit-1" });
-    // The retry still carries the seq the first attempt saw.
     const retry = await edit(application.id, 1, { childFullName: "Aisyah P." }, { key: "edit-1" });
 
     expect(retry).toMatchObject({ replayed: true, version: first.version });
@@ -820,8 +810,6 @@ describe("saveProfile", () => {
       applyCommand(db, {
         applicationId: application.id,
         actor: FAMILY,
-        // A caller that casts, as the simulator does for commands chosen at run time.
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         ...({
           command: "EDIT_PROFILE",
           payload: { payloadVersion: 1, version: 2 },

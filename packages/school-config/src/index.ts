@@ -43,15 +43,9 @@ export const DOCUMENT_TYPES = [
 export const STAFF_ROLES = ["ADMINISTRATOR", "STAFF", "PRINCIPAL"] as const;
 export const STAFF_LOGIN_EMAIL_KINDS = ["INSTITUTIONAL", "PERSONAL"] as const;
 
-/** Registration documents, or the extra ones asked for at registrasi ulang. */
 export const DOCUMENT_STAGES = ["APPLICATION", "REREGISTRATION"] as const;
 export const INTERVIEW_MODES = ["OFFLINE", "ONLINE"] as const;
 
-/**
- * Where one application stands. The last four are end stages: nothing moves an
- * application out of them. `TRANSITIONS` in the API says which command moves
- * an application from one stage to the next.
- */
 export const APPLICATION_STAGES = [
   "PAYMENT_DUE",
   "PAYMENT_REVIEW",
@@ -70,11 +64,6 @@ export const APPLICATION_STAGES = [
   "WITHDRAWN",
 ] as const;
 
-/**
- * Everything that can happen to an application. Each `application_events` row
- * is one of these, so the list only ever grows: an old row must still name a
- * command that exists.
- */
 export const APPLICATION_COMMANDS = [
   "SUBMIT",
   "UPLOAD_PAYMENT_PROOF",
@@ -101,7 +90,6 @@ export const APPLICATION_COMMANDS = [
   "EDIT_PROFILE",
 ] as const;
 
-/** Who acted. `SYSTEM` is the API's own worker, such as the result publisher. */
 export const ACTOR_TYPES = ["FAMILY", "STAFF", "SYSTEM"] as const;
 
 /**

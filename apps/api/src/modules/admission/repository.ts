@@ -160,10 +160,6 @@ export async function listSchoolSettings(db: Executor, cycleId: string) {
     .where(eq(schema.schoolAdmissionSettings.admissionCycleId, cycleId));
 }
 
-/**
- * One stage at a time. The public page and the committee's registration screen
- * show what a family brings to register; registrasi ulang asks for its own.
- */
 export async function listDocumentRequirements(
   db: Executor,
   cycleId: string,
@@ -214,7 +210,6 @@ export async function upsertSchoolSetting(
     });
 }
 
-/** Replaced wholesale within one stage: the client sends that stage's complete list. */
 export async function replaceDocumentRequirements(
   db: Executor,
   cycleId: string,

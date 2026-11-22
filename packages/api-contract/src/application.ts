@@ -24,11 +24,6 @@ export const Nik = z
   .transform((value) => value.replaceAll(/[\s.]/g, ""))
   .pipe(z.string().regex(/^\d{16}$/, "A NIK is 16 digits."));
 
-/**
- * The registration form: only what identifies the child and reaches the
- * family. The email comes from the account. Everything else waits for the
- * stage that needs it.
- */
 export const ApplicantProfile = z.object({
   childFullName: z.string().trim().min(1).max(200),
   nik: Nik,
@@ -46,11 +41,6 @@ export type ApplicantProfileInput = z.input<typeof ApplicantProfile>;
 const Reason = z.string().trim().min(1).max(2000);
 const v1 = { payloadVersion: z.literal(1) };
 
-/**
- * What each command records in its event. A stored payload is history, so a
- * schema only ever gains optional fields. A change that would break an old row
- * is a new `payloadVersion` beside the old one, never an edit to it.
- */
 export const COMMAND_PAYLOADS = {
   SUBMIT: z.object(v1),
   UPLOAD_PAYMENT_PROOF: z.object(v1),
@@ -65,20 +55,15 @@ export const COMMAND_PAYLOADS = {
   RESCHEDULE_INTERVIEW: z.object({ ...v1, reason: Reason.optional() }),
   RECORD_ATTENDED: z.object(v1),
   RECORD_NO_SHOW: z.object(v1),
-  // Kept from the family until the result is published, so the publish step
-  // reads the latest decision from here.
   DECIDE: z.object({ ...v1, decision: z.enum(["ACCEPTED", "NOT_ACCEPTED"]) }),
   PUBLISH_ACCEPTED: z.object(v1),
   PUBLISH_NOT_ACCEPTED: z.object(v1),
   SUBMIT_REREGISTRATION: z.object(v1),
   REQUEST_REREGISTRATION_FIX: z.object({ ...v1, reason: Reason }),
   CONFIRM_ENROLLMENT: z.object(v1),
-  // A family may leave without explaining why.
   WITHDRAW: z.object({ ...v1, reason: Reason.optional() }),
   ADD_NOTE: z.object({ ...v1, note: Reason }),
   CHANGE_INTERVIEW_MODE: z.object({ ...v1, mode: InterviewMode }),
-  // The profile version this edit wrote. The data itself is in
-  // applicant_profile_versions, which holds personal data; the event does not.
   EDIT_PROFILE: z.object({ ...v1, version: z.number().int().min(1) }),
 } satisfies Record<ApplicationCommand, z.ZodType<{ payloadVersion: 1 }>>;
 

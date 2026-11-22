@@ -5,7 +5,6 @@ import type {
   CommandPayload,
 } from "@mbs/api-contract";
 
-/** Nothing moves an application out of these. */
 export const END_STAGES = [
   "ENROLLED",
   "NOT_ADVANCED",
@@ -14,15 +13,11 @@ export const END_STAGES = [
 ] as const satisfies readonly ApplicationStage[];
 
 type Transition = {
-  /** `NONE` is the one command that creates an application. */
   from: readonly ApplicationStage[] | "NONE" | "ANY_OPEN";
-  /** `SAME` records an event without moving the application. */
   to: ApplicationStage | "SAME";
   actors: readonly ActorType[];
   familyVisible: boolean;
-  /** The email template P2's outbox sends, or null for none. */
   notification: string | null;
-  /** Fields the application's newest event of another command must carry. */
   requires?: Requirement;
 };
 
@@ -34,12 +29,6 @@ const FAMILY = ["FAMILY"] as const;
 const STAFF = ["STAFF"] as const;
 const SYSTEM = ["SYSTEM"] as const;
 
-/**
- * Every write to an application's stage goes through this table (see
- * knowledge/docs/admission.md, "Stages are one table"). A new step is a new
- * row here, never an `if` somewhere else. Keyed by command, so a command added
- * to APPLICATION_COMMANDS without a row fails to compile.
- */
 export const TRANSITIONS = {
   SUBMIT: {
     from: "NONE",
@@ -132,10 +121,6 @@ export const TRANSITIONS = {
     familyVisible: true,
     notification: "interview-missed",
   },
-  // A decision can be changed until it is published. The family sees nothing
-  // until PUBLISH_*, so it is hidden and sends nothing. Refusing a change after
-  // resultPublishAt needs a clock, which is the publish step's job, not this
-  // table's.
   DECIDE: {
     from: ["INTERVIEWED", "DECIDED"],
     to: "DECIDED",
@@ -143,7 +128,6 @@ export const TRANSITIONS = {
     familyVisible: false,
     notification: null,
   },
-  // Publishing announces the decision, so it must agree with the newest one.
   PUBLISH_ACCEPTED: {
     from: ["DECIDED"],
     to: "REREGISTRATION",
@@ -188,7 +172,6 @@ export const TRANSITIONS = {
     familyVisible: true,
     notification: "withdrawn",
   },
-  // Internal: families never see staff notes.
   ADD_NOTE: {
     from: "ANY_OPEN",
     to: "SAME",
@@ -196,8 +179,6 @@ export const TRANSITIONS = {
     familyVisible: false,
     notification: null,
   },
-  // Until the interview is booked, the family may switch between offline and
-  // online, and staff may switch it for them.
   CHANGE_INTERVIEW_MODE: {
     from: ["DOCUMENTS_DUE", "DOCUMENTS_REVIEW", "SCREENING", "INTERVIEW_PENDING"],
     to: "SAME",
@@ -205,8 +186,6 @@ export const TRANSITIONS = {
     familyVisible: true,
     notification: null,
   },
-  // Every save of the family's form, so the timeline shows each change and
-  // staff acting on an older view get a conflict.
   EDIT_PROFILE: {
     from: "ANY_OPEN",
     to: "SAME",
@@ -224,18 +203,11 @@ export function isEndStage(stage: ApplicationStage) {
   return (END_STAGES as readonly ApplicationStage[]).includes(stage);
 }
 
-/** The command whose newest payload `transition` needs for `command`, if any. */
 export function requiredCommand(command: ApplicationCommand) {
   const row: Transition = TRANSITIONS[command];
   return row.requires?.command ?? null;
 }
 
-/**
- * Whether `actorType` may run `command` on an application in `stage` (null
- * before it exists), and where it lands. Pure: it reads only the table and
- * `newest`, the payload of the application's newest `requiredCommand` event
- * (null when there is none). The caller reads it under the application lock.
- */
 export function transition(
   stage: ApplicationStage | null,
   command: ApplicationCommand,
@@ -250,8 +222,6 @@ export function transition(
     return { ok: false, refusal: "REQUIREMENT_UNMET" };
   }
 
-  // `fromAllows` only lets a null stage through for NONE rows, whose `to` is a
-  // real stage, so SAME always has a stage to stay in.
   const to = row.to === "SAME" ? stage! : row.to;
   return { ok: true, to, familyVisible: row.familyVisible, notification: row.notification };
 }
