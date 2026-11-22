@@ -50,7 +50,7 @@ export function createNotificationWorker(options: WorkerOptions) {
   let waitingForLock = false;
   let again = false;
   let running = false;
-  let stopping = false;
+  let stopped: Promise<void> | null = null;
 
   async function sendOne(row: ClaimedNotification) {
     if (row.reclaimed) {
@@ -128,7 +128,7 @@ export function createNotificationWorker(options: WorkerOptions) {
   async function sendBatch() {
     const rows = await claimDue(db, batchSize, leaseSeconds);
     for (const [index, row] of rows.entries()) {
-      if (stopping) {
+      if (stopped) {
         const untried = rows.slice(index);
         // oxlint-disable-next-line eslint/no-await-in-loop
         await Promise.all(
@@ -244,24 +244,28 @@ export function createNotificationWorker(options: WorkerOptions) {
     wake,
 
     start() {
+      if (stopped) throw new Error("A stopped notification worker cannot start again");
       if (running) return;
       running = true;
       schedule(0);
     },
 
-    async stop() {
-      running = false;
-      stopping = true;
-      if (timer) clearTimeout(timer);
-      timer = null;
-      await ticking;
-      await current?.catch(() => undefined);
-      await releaseLock();
-      codes.clear();
-      mailer.close();
+    stop() {
+      stopped ??= (async () => {
+        running = false;
+        if (timer) clearTimeout(timer);
+        timer = null;
+        await ticking;
+        await current?.catch(() => undefined);
+        await releaseLock();
+        codes.clear();
+        mailer.close();
+      })();
+      return stopped;
     },
 
     async sendSignInCode(recipient: string, code: string, minutes: number) {
+      if (stopped) throw new Error("A stopped notification worker cannot send");
       const id = randomUUID();
       codes.set(id, {
         email: TEMPLATES[SIGN_IN_CODE_TEMPLATE].render({ code, minutes }),

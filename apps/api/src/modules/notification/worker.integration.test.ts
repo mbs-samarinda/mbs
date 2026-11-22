@@ -352,6 +352,17 @@ describe("notification worker", () => {
       Array.from({ length: rows.length - 1 }, () => ({ status: "PENDING", attemptCount: 0 })),
     );
   });
+  it("refuses to start again once stopped, and closes its mailer once", async () => {
+    const closes = vi.fn();
+    const running = worker({ ...createFakeMailer(), close: closes });
+    running.start();
+    await Promise.all([running.stop(), running.stop()]);
+
+    expect(() => running.start()).toThrow();
+    await expect(running.sendSignInCode("ibu@example.test", "482913", 5)).rejects.toThrow();
+    await running.stop();
+    expect(closes).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("the outbox table", () => {
