@@ -11,21 +11,25 @@ import { and, desc, eq, sql } from "drizzle-orm";
 export type ApplicationRow = typeof schema.applications.$inferSelect;
 export type ApplicationEventRow = typeof schema.applicationEvents.$inferSelect;
 
-export async function lockCycleForSubmission(tx: Transaction, cycleId: string) {
-  const rows = await tx
+/**
+ * Takes the submission's locks in their one fixed order, then reads the terms
+ * it decides on. The terms are read only after the locks are held, in their own
+ * statement. A query that waits on a row lock re-reads the locked row but keeps
+ * its older view of the rows joined to it, so a settings save it waited for
+ * would go unseen.
+ */
+export async function lockForSubmission(tx: Transaction, cycleId: string, schoolKey: string) {
+  const cycle = await tx
     .select({ id: schema.admissionCycles.id })
     .from(schema.admissionCycles)
     .where(eq(schema.admissionCycles.id, cycleId))
     .for("share");
-  return rows.length > 0;
-}
+  if (cycle.length === 0) return null;
 
-/**
- * Read only after the locks are held, in its own statement. A query that
- * waits on a row lock re-reads the locked row but keeps its older view of the
- * rows joined to it, so a settings save it waited for would go unseen.
- */
-export async function findSubmissionTerms(tx: Transaction, cycleId: string, schoolKey: string) {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext('applications.registration_seq'), hashtext(${cycleId} || ':' || ${schoolKey}))`,
+  );
+
   const { registrationOpenAt, registrationCloseAt } = schema.admissionCycles;
   const rows = await tx
     .select({
@@ -52,12 +56,6 @@ export async function findSubmissionTerms(tx: Transaction, cycleId: string, scho
   const row = rows[0];
   if (!row) return null;
   return { ...row, isEnabled: row.isEnabled ?? true };
-}
-
-export async function lockRegistrationCounter(tx: Transaction, cycleId: string, schoolKey: string) {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtext('applications.registration_seq'), hashtext(${cycleId} || ':' || ${schoolKey}))`,
-  );
 }
 
 export async function nextRegistrationSeq(tx: Transaction, cycleId: string, schoolId: string) {

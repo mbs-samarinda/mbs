@@ -27,7 +27,6 @@ import {
   findLatestProfileVersion,
   findNewestEventOf,
   findProfileVersion,
-  findSubmissionTerms,
   grantAccess,
   hasAccess,
   insertApplication,
@@ -35,8 +34,7 @@ import {
   insertProfileVersion,
   isNikTaken,
   lockApplication,
-  lockCycleForSubmission,
-  lockRegistrationCounter,
+  lockForSubmission,
   nextRegistrationSeq,
   recordEventOnApplication,
   snapshotDocumentRequirements,
@@ -79,11 +77,7 @@ export async function submitApplication(
   const profile = ApplicantProfile.parse(input.profile);
 
   return db.transaction(async (tx) => {
-    if (!(await lockCycleForSubmission(tx, input.cycleId))) {
-      throw new NotFoundError("No such cycle.");
-    }
-    await lockRegistrationCounter(tx, input.cycleId, input.schoolKey);
-    const cycle = await findSubmissionTerms(tx, input.cycleId, input.schoolKey);
+    const cycle = await lockForSubmission(tx, input.cycleId, input.schoolKey);
     if (!cycle) throw new NotFoundError("No such cycle.");
 
     if (input.idempotencyKey) {
