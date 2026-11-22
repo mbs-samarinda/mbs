@@ -1,5 +1,5 @@
 import { createDatabase, schema } from "@mbs/db";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, ne } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ConflictError, ForbiddenError } from "../../errors.ts";
@@ -112,6 +112,7 @@ describe("cycles", () => {
     const entries = await db
       .select()
       .from(schema.auditLogs)
+      .where(ne(schema.auditLogs.action, "HISTORY_CORRECTION"))
       .orderBy(asc(schema.auditLogs.createdAt));
     expect(entries.map((entry) => entry.action)).toEqual(["cycle.create", "cycle.setStatus"]);
     expect(entries[1]?.metadata).toEqual({ from: "DRAFT", to: "OPEN" });
