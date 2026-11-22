@@ -168,8 +168,7 @@ export function createNotificationWorker(options: WorkerOptions) {
         () => false,
       );
       if (still) return true;
-      lock.release();
-      lock = null;
+      await releaseLock();
     }
     const reserved = await db.$client.reserve();
     let held: boolean;
