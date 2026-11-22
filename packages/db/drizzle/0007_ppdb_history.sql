@@ -46,7 +46,8 @@ CREATE TABLE "application_events" (
 	"ip_address" text,
 	"user_agent" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "application_events_application_id_seq_unique" UNIQUE("application_id","seq")
+	CONSTRAINT "application_events_application_id_seq_unique" UNIQUE("application_id","seq"),
+	CONSTRAINT "application_events_only_submit_lacks_from_stage" CHECK ((from_stage is null) = (command = 'SUBMIT'))
 );
 --> statement-breakpoint
 CREATE TABLE "applications" (

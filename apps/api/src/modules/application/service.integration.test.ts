@@ -604,6 +604,30 @@ describe("applyCommand", () => {
     }
     expect(await eventsOf(application.id)).toHaveLength(1);
   });
+
+  it.each([
+    ["a later event without a from stage", "ADD_NOTE", null],
+    ["a SUBMIT with a from stage", "SUBMIT", "PAYMENT_DUE"],
+  ] as const)("refuses %s", async (_name, command, fromStage) => {
+    const { application } = await submit();
+
+    await expect(
+      db.insert(schema.applicationEvents).values({
+        applicationId: application.id,
+        seq: 2,
+        command,
+        fromStage,
+        toStage: "PAYMENT_DUE",
+        actorType: "STAFF",
+        actorId: staff.id,
+        familyVisible: false,
+        payload: { payloadVersion: 1 },
+        payloadVersion: 1,
+      }),
+    ).rejects.toMatchObject({
+      cause: { constraint_name: "application_events_only_submit_lacks_from_stage" },
+    });
+  });
 });
 
 describe("publishing the result", () => {

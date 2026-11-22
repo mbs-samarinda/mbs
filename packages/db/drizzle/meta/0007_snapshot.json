@@ -443,7 +443,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "application_events_only_submit_lacks_from_stage": {
+          "name": "application_events_only_submit_lacks_from_stage",
+          "value": "(from_stage is null) = (command = 'SUBMIT')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.applications": {

@@ -333,6 +333,10 @@ export const applicationEvents = pgTable(
   },
   (table) => [
     unique().on(table.applicationId, table.seq),
+    check(
+      "application_events_only_submit_lacks_from_stage",
+      sql`(from_stage is null) = (command = 'SUBMIT')`,
+    ),
     uniqueIndex("application_events_actor_idempotency_key")
       .on(table.actorType, table.actorId, table.idempotencyKey)
       .where(sql`idempotency_key is not null`),
