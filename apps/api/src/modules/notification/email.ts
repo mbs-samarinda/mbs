@@ -75,7 +75,12 @@ function replyCode(response: unknown) {
 /** The server's text and Nodemailer's message can quote the recipient, so neither goes further. */
 function toSendError(error: unknown) {
   if (!(error instanceof Error)) return new SendError("Unknown", null);
-  const code = "code" in error && typeof error.code === "string" ? error.code : error.name;
+  const code =
+    "originalCode" in error && typeof error.originalCode === "string"
+      ? error.originalCode
+      : "code" in error && typeof error.code === "string"
+        ? error.code
+        : error.name;
   const responseCode =
     "responseCode" in error && typeof error.responseCode === "number"
       ? String(error.responseCode)
