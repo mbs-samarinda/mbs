@@ -420,6 +420,12 @@ function parse(argv: string[]) {
 const { args, positionals } = parse(process.argv.slice(2));
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is not set.");
+// The sim writes fake families into append-only tables and can run any command
+// as an administrator, so it refuses every database that is not on this machine.
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+if (process.env.NODE_ENV === "production" || !LOCAL_HOSTS.has(new URL(databaseUrl).hostname)) {
+  throw new Error("ppdb-sim runs only against a local database, never production.");
+}
 const db = createDatabase(databaseUrl);
 
 try {

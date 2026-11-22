@@ -223,7 +223,12 @@ export async function insertEvent(
   tx: Transaction,
   values: typeof schema.applicationEvents.$inferInsert,
 ) {
-  const [row] = await tx.insert(schema.applicationEvents).values(values).returning();
+  // Write time, not transaction start: a command that waited on the row lock
+  // must not be stamped earlier than the event it waited behind.
+  const [row] = await tx
+    .insert(schema.applicationEvents)
+    .values({ ...values, createdAt: sql`clock_timestamp()` })
+    .returning();
   return row!;
 }
 
@@ -243,7 +248,7 @@ export async function recordEventOnApplication(
       stage: values.stage,
       lastEventSeq: values.lastEventSeq,
       interviewMode: values.interviewMode,
-      stageChangedAt: values.stageChanged ? sql`now()` : undefined,
+      stageChangedAt: values.stageChanged ? sql`clock_timestamp()` : undefined,
       updatedAt: sql`now()`,
     })
     .where(eq(schema.applications.id, applicationId));

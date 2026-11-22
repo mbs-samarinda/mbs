@@ -7,7 +7,7 @@ import {
 } from "@mbs/school-config";
 import { describe, expect, it } from "vitest";
 
-import { isEndStage, transition } from "./stages.ts";
+import { TRANSITIONS, isEndStage, transition } from "./stages.ts";
 
 const OPEN_STAGES = APPLICATION_STAGES.filter((stage) => !isEndStage(stage));
 
@@ -153,5 +153,12 @@ describe("transition", () => {
 
   it("keeps staff notes from the family", () => {
     expect(transition("SCREENING", "ADD_NOTE", "STAFF")).toMatchObject({ familyVisible: false });
+  });
+
+  it("emails the family on every stage change it can see", () => {
+    const silent = Object.entries(TRANSITIONS)
+      .filter(([, row]) => row.familyVisible && row.to !== "SAME" && row.notification === null)
+      .map(([command]) => command);
+    expect(silent).toEqual([]);
   });
 });

@@ -110,7 +110,7 @@ export const TRANSITIONS = {
     to: "INTERVIEWED",
     actors: STAFF,
     familyVisible: true,
-    notification: null,
+    notification: "interview-attended",
   },
   RECORD_NO_SHOW: {
     from: ["INTERVIEW_SCHEDULED"],
