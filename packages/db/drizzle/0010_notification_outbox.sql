@@ -1,4 +1,4 @@
-CREATE TYPE "public"."notification_attempt_outcome" AS ENUM('SENT', 'FAILED', 'LEASE_EXPIRED');--> statement-breakpoint
+CREATE TYPE "public"."notification_attempt_outcome" AS ENUM('SENT', 'FAILED', 'DELIVERY_UNKNOWN');--> statement-breakpoint
 CREATE TYPE "public"."notification_channel" AS ENUM('EMAIL');--> statement-breakpoint
 CREATE TYPE "public"."notification_status" AS ENUM('PENDING', 'SENDING', 'SENT', 'FAILED');--> statement-breakpoint
 CREATE TABLE "notification_attempts" (

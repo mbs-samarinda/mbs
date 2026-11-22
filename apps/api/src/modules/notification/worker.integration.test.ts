@@ -119,7 +119,7 @@ describe("notification worker", () => {
 
     expect(await rowOf(row!.id)).toMatchObject({ status: "SENT", attemptCount: 2 });
     expect(await attemptsOf(row!.id)).toMatchObject([
-      { attempt: 1, outcome: "LEASE_EXPIRED" },
+      { attempt: 1, outcome: "DELIVERY_UNKNOWN" },
       { attempt: 2, outcome: "SENT" },
     ]);
     const ids = mailer.sent.map((message) => messageIdFor(message.id, "mbss.test"));
@@ -235,7 +235,7 @@ describe("notification worker", () => {
       attemptCount: MAX_ATTEMPTS + 1,
     });
     expect(await attemptsOf(row!.id)).toMatchObject([
-      { attempt: MAX_ATTEMPTS, outcome: "LEASE_EXPIRED" },
+      { attempt: MAX_ATTEMPTS, outcome: "DELIVERY_UNKNOWN" },
       { attempt: MAX_ATTEMPTS + 1, outcome: "FAILED", errorClass: "TooManyAttempts" },
     ]);
   });

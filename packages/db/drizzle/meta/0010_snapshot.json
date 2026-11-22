@@ -1827,7 +1827,7 @@
     "public.notification_attempt_outcome": {
       "name": "notification_attempt_outcome",
       "schema": "public",
-      "values": ["SENT", "FAILED", "LEASE_EXPIRED"]
+      "values": ["SENT", "FAILED", "DELIVERY_UNKNOWN"]
     },
     "public.notification_channel": {
       "name": "notification_channel",

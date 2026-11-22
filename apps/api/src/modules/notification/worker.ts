@@ -9,7 +9,7 @@ import {
   claimDue,
   insertSignInCodeNotification,
   recordFailure,
-  recordLeaseExpired,
+  recordDeliveryUnknown,
   recordSent,
   releaseUntried,
   renewLease,
@@ -54,7 +54,7 @@ export function createNotificationWorker(options: WorkerOptions) {
 
   async function sendOne(row: ClaimedNotification) {
     if (row.reclaimed) {
-      await recordLeaseExpired(db, row);
+      await recordDeliveryUnknown(db, row);
       if (row.attemptCount > MAX_ATTEMPTS) {
         codes.delete(row.id);
         await recordFailure(db, row, {
@@ -132,7 +132,7 @@ export function createNotificationWorker(options: WorkerOptions) {
         const untried = rows.slice(index);
         // oxlint-disable-next-line eslint/no-await-in-loop
         await Promise.all(
-          untried.filter((left) => left.reclaimed).map((left) => recordLeaseExpired(db, left)),
+          untried.filter((left) => left.reclaimed).map((left) => recordDeliveryUnknown(db, left)),
         );
         // oxlint-disable-next-line eslint/no-await-in-loop
         await releaseUntried(db, untried);

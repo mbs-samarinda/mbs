@@ -150,10 +150,10 @@ export async function releaseUntried(db: Database, rows: ClaimedNotification[]) 
   );
 }
 
-export async function recordLeaseExpired(db: Database, row: ClaimedNotification) {
+export async function recordDeliveryUnknown(db: Database, row: ClaimedNotification) {
   await db
     .insert(schema.notificationAttempts)
-    .values({ notificationId: row.id, attempt: row.attemptCount - 1, outcome: "LEASE_EXPIRED" })
+    .values({ notificationId: row.id, attempt: row.attemptCount - 1, outcome: "DELIVERY_UNKNOWN" })
     .onConflictDoNothing();
 }
 

@@ -101,7 +101,7 @@ export const ACTOR_TYPES = ["FAMILY", "STAFF", "SYSTEM"] as const;
 
 export const NOTIFICATION_CHANNELS = ["EMAIL"] as const;
 export const NOTIFICATION_STATUSES = ["PENDING", "SENDING", "SENT", "FAILED"] as const;
-export const NOTIFICATION_ATTEMPT_OUTCOMES = ["SENT", "FAILED", "LEASE_EXPIRED"] as const;
+export const NOTIFICATION_ATTEMPT_OUTCOMES = ["SENT", "FAILED", "DELIVERY_UNKNOWN"] as const;
 export const SIGN_IN_CODE_TEMPLATE = "sign-in-code";
 
 /**
