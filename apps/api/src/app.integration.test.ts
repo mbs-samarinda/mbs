@@ -1,24 +1,14 @@
-import { createHmac } from "node:crypto";
-
+import { makeSignature } from "better-auth/crypto";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { buildApp } from "./app.ts";
-import { loadConfig } from "./config/env.ts";
+import { STAFF_HOST, testConfig } from "./test/config.ts";
 
 // Runs against the real database from docker-compose, per the testing strategy:
 // no mocked Drizzle, no second imaginary database.
-const config = loadConfig({
-  NODE_ENV: "test",
-  LOG_LEVEL: "error",
-  DATABASE_URL: process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
-  BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-to-pass",
-  BETTER_AUTH_URL: "http://localhost:3001",
-  GOOGLE_CLIENT_ID: "test-client-id",
-  GOOGLE_CLIENT_SECRET: "test-client-secret",
-  ADMIN_APP_URL: "http://localhost:5174",
-});
+const config = testConfig();
 
 const app = await buildApp(config);
 
@@ -123,15 +113,17 @@ describe("unexpected errors", () => {
       (...args: unknown[]) => void printed.push(args),
     );
     const token = "session-token-that-must-not-be-logged";
-    const signature = createHmac("sha256", config.auth.secret).update(token).digest("base64");
+    const auth = await watched.auth.STAFF.$context;
+    const signature = await makeSignature(token, auth.secret);
     await watched.db.execute(sql`alter table session rename to session_away`);
     try {
       const response = await watched.inject({
         method,
         url,
         headers: {
+          host: STAFF_HOST,
           "content-type": "application/json",
-          cookie: `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`,
+          cookie: `${auth.authCookies.sessionToken.name}=${encodeURIComponent(`${token}.${signature}`)}`,
         },
         ...(method === "POST" ? { payload: { json: { schoolKey: "sma" } } } : {}),
       });
@@ -205,7 +197,7 @@ describe("sign-in gate", () => {
   // Better Auth turns this code into `?error=` on the committee app, which
   // shows its no-access line for this code only.
   it("refuses an unapproved address with the code the committee app expects", async () => {
-    const auth = await app.auth.$context;
+    const auth = await app.auth.STAFF.$context;
     await expect(
       auth.internalAdapter.createOAuthUser(
         { email: "stranger@gmail.com", name: "Stranger", emailVerified: true },

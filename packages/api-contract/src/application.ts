@@ -6,6 +6,8 @@ import {
 } from "@mbs/school-config";
 import { z } from "zod";
 
+import { SchoolKey } from "./schemas.ts";
+
 export const ApplicationStage = z.enum(APPLICATION_STAGES);
 export type ApplicationStage = z.infer<typeof ApplicationStage>;
 
@@ -72,3 +74,15 @@ export type CommandPayload<C extends ApplicationCommand> = z.infer<(typeof COMMA
 /** EDIT_PROFILE is left out: `saveProfile` writes its payload from the profile itself. */
 export const AppliedCommand = ApplicationCommand.exclude(["EDIT_PROFILE"]);
 export type AppliedCommand = z.infer<typeof AppliedCommand>;
+
+/**
+ * One application as its family sees it. P4 grows this into the status page;
+ * today it is what proves a family reaches only its own applications.
+ */
+export const ApplicantApplication = z.object({
+  id: z.uuid(),
+  registrationNumber: z.string(),
+  schoolKey: SchoolKey,
+  stage: ApplicationStage,
+});
+export type ApplicantApplication = z.infer<typeof ApplicantApplication>;

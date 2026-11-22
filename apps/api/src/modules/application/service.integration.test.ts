@@ -1,5 +1,5 @@
 import type { ApplicantProfileInput, AppliedCommand, SchoolKey } from "@mbs/api-contract";
-import { createDatabase, schema, type Transaction } from "@mbs/db";
+import { createDatabase, schema, type Database, type Transaction } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
@@ -15,7 +15,19 @@ import {
 } from "../../errors.ts";
 import { resetTables } from "../../test/reset.ts";
 import type { StaffContext } from "../auth/authorization.ts";
-import { applyCommand, saveProfile, submitApplication, type Actor } from "./service.ts";
+import * as service from "./service.ts";
+import type { Actor } from "./service.ts";
+
+// The outbox settings are the same for every call here.
+const OUTBOX = { familyAppUrl: "http://localhost:5173" };
+const submitApplication = (
+  target: Database,
+  input: Parameters<typeof service.submitApplication>[1],
+) => service.submitApplication(target, input, OUTBOX);
+const applyCommand = (target: Database, input: Parameters<typeof service.applyCommand>[1]) =>
+  service.applyCommand(target, input, OUTBOX);
+const saveProfile = (target: Database, input: Parameters<typeof service.saveProfile>[1]) =>
+  service.saveProfile(target, input, OUTBOX);
 
 const db = createDatabase(
   process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
@@ -627,6 +639,102 @@ describe("applyCommand", () => {
     ).rejects.toMatchObject({
       cause: { constraint_name: "application_events_only_submit_lacks_from_stage" },
     });
+  });
+});
+
+describe("family emails", () => {
+  async function emailsOf(applicationId: string) {
+    return db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.applicationId, applicationId))
+      .orderBy(asc(schema.notifications.createdAt), asc(schema.notifications.recipient));
+  }
+
+  it("queues one email per account with access, in the event's transaction, as rendered", async () => {
+    const { application, event } = await submit();
+    await db
+      .insert(schema.applicationAccess)
+      .values({ applicationId: application.id, userId: "family-2" });
+    const upload = await applyCommand(db, {
+      applicationId: application.id,
+      actor: FAMILY,
+      command: "UPLOAD_PAYMENT_PROOF",
+      payload: { payloadVersion: 1 },
+      expectedSeq: 1,
+      idempotencyKey: crypto.randomUUID(),
+    });
+
+    const emails = await emailsOf(application.id);
+    expect(emails.map((row) => [row.eventId, row.recipient, row.templateKey])).toEqual([
+      [event.id, "family-1@example.test", "application-submitted"],
+      [upload.event.id, "family-1@example.test", "payment-received"],
+      [upload.event.id, "family-2@example.test", "payment-received"],
+    ]);
+    expect(emails[0]).toMatchObject({ status: "PENDING", channel: "EMAIL", templateVersion: 1 });
+    expect(emails[0]?.subject).toContain(application.registrationNumber);
+    expect(emails[0]?.bodyText).toContain("Aisyah Putri");
+    expect(emails[0]?.bodyHtml).toContain("http://localhost:5173");
+  });
+
+  it("queues nothing for a replayed command or an event the family does not see", async () => {
+    const { application } = await submit({ key: "submit-1" });
+    await submit({ key: "submit-1" });
+    const upload = {
+      applicationId: application.id,
+      actor: FAMILY,
+      command: "UPLOAD_PAYMENT_PROOF",
+      payload: { payloadVersion: 1 },
+      expectedSeq: 1,
+      idempotencyKey: "upload-1",
+    } as const;
+    await applyCommand(db, upload);
+    await applyCommand(db, upload);
+    await applyCommand(db, {
+      applicationId: application.id,
+      actor: STAFF,
+      command: "ADD_NOTE",
+      payload: { payloadVersion: 1, note: "Berkas asli dibawa saat wawancara." },
+      expectedSeq: 2,
+      idempotencyKey: null,
+    });
+
+    expect((await emailsOf(application.id)).map((row) => row.templateKey)).toEqual([
+      "application-submitted",
+      "payment-received",
+    ]);
+  });
+
+  it("quotes a reason as the committee's note only when staff gave it", async () => {
+    const { application } = await submit();
+    await applyCommand(db, {
+      applicationId: application.id,
+      actor: FAMILY,
+      command: "WITHDRAW",
+      payload: { payloadVersion: 1, reason: "Pindah kota" },
+      expectedSeq: 1,
+      idempotencyKey: null,
+    });
+    const withdrawn = (await emailsOf(application.id)).find(
+      (row) => row.templateKey === "withdrawn",
+    );
+    expect(withdrawn?.bodyText).not.toContain("Pindah kota");
+    expect(withdrawn?.bodyText).not.toContain("Catatan dari panitia");
+  });
+
+  it("writes no email when the command fails", async () => {
+    const { application } = await submit();
+    await expect(
+      applyCommand(db, {
+        applicationId: application.id,
+        actor: STAFF,
+        command: "APPROVE_PAYMENT",
+        payload: { payloadVersion: 1 },
+        expectedSeq: 1,
+        idempotencyKey: null,
+      }),
+    ).rejects.toThrow(IllegalTransitionError);
+    expect(await emailsOf(application.id)).toHaveLength(1);
   });
 });
 

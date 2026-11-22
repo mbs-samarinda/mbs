@@ -6,7 +6,7 @@ import type {
   DocumentStage,
   InterviewMode,
 } from "@mbs/api-contract";
-import { schema, type Transaction } from "@mbs/db";
+import { schema, type Database, type Transaction } from "@mbs/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { takesPart } from "../admission/repository.ts";
@@ -252,6 +252,28 @@ export async function recordEventOnApplication(
       updatedAt: sql`now()`,
     })
     .where(eq(schema.applications.id, applicationId));
+}
+
+/** The application and its school key, only if `userId` holds access to it. */
+export async function findApplicationForUser(
+  db: Database | Transaction,
+  applicationId: string,
+  userId: string,
+) {
+  const rows = await db
+    .select({ application: schema.applications, schoolKey: schema.schools.key })
+    .from(schema.applications)
+    .innerJoin(
+      schema.applicationAccess,
+      and(
+        eq(schema.applicationAccess.applicationId, schema.applications.id),
+        eq(schema.applicationAccess.userId, userId),
+      ),
+    )
+    .innerJoin(schema.schools, eq(schema.schools.id, schema.applications.schoolId))
+    .where(eq(schema.applications.id, applicationId))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function updateApplicationNik(tx: Transaction, applicationId: string, nik: string) {

@@ -18,6 +18,8 @@ export async function appendAuditLog(
     entityId: string;
     metadata?: unknown;
     ipAddress?: string | null;
+    requestId?: string | null;
+    userAgent?: string | null;
   },
 ) {
   await db.insert(schema.auditLogs).values(entry);

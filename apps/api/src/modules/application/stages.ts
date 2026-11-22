@@ -193,8 +193,11 @@ export const TRANSITIONS = {
   },
 } as const satisfies Record<ApplicationCommand, Transition>;
 
+/** Every email the table names. `notification/templates.ts` must render each one. */
+export type NotificationKey = NonNullable<(typeof TRANSITIONS)[ApplicationCommand]["notification"]>;
+
 export type TransitionResult =
-  | { ok: true; to: ApplicationStage; familyVisible: boolean; notification: string | null }
+  | { ok: true; to: ApplicationStage; familyVisible: boolean; notification: NotificationKey | null }
   | { ok: false; refusal: "ILLEGAL_STAGE" | "ACTOR_NOT_ALLOWED" | "REQUIREMENT_UNMET" };
 
 export function isEndStage(stage: ApplicationStage) {
@@ -221,7 +224,12 @@ export function transition(
     return { ok: false, refusal: "REQUIREMENT_UNMET" };
   }
 
-  return { ok: true, to, familyVisible: row.familyVisible, notification: row.notification };
+  return {
+    ok: true,
+    to,
+    familyVisible: row.familyVisible,
+    notification: TRANSITIONS[command].notification,
+  };
 }
 
 function destination(row: Transition, stage: ApplicationStage | null) {

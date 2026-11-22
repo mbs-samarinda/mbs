@@ -6,6 +6,8 @@ import { createDatabase } from "@mbs/db";
 import { sql } from "drizzle-orm";
 import { expect, it } from "vitest";
 
+import { TEST_ENV } from "./test/config.ts";
+
 async function freePort() {
   const probe = createServer().listen(0);
   await once(probe, "listening");
@@ -22,15 +24,13 @@ function startServer(port: number) {
   return spawn(process.execPath, ["src/server.ts"], {
     env: {
       ...process.env,
+      ...TEST_ENV,
       NODE_ENV: "production",
       LOG_LEVEL: "info",
       PORT: String(port),
       DATABASE_URL: databaseUrl,
-      BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-to-pass",
-      BETTER_AUTH_URL: "http://localhost:3001",
-      GOOGLE_CLIENT_ID: "test-client-id",
-      GOOGLE_CLIENT_SECRET: "test-client-secret",
-      ADMIN_APP_URL: "http://localhost:5174",
+      // On, so the shutdown below also stops the notification worker.
+      NOTIFICATION_WORKER: "on",
       BOOTSTRAP_ADMIN_EMAIL: "",
     },
     stdio: ["ignore", "pipe", "inherit"],

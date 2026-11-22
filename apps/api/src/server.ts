@@ -36,4 +36,8 @@ if (config.bootstrapAdminEmail) {
 
 started = true;
 if (shuttingDown) shutDown();
-else await app.listen({ port: config.port, host: "0.0.0.0" });
+else {
+  await app.listen({ port: config.port, host: "0.0.0.0" });
+  // app.close() stops it again, before the pool closes.
+  if (config.mail.workerEnabled && !shuttingDown) app.notifications.start();
+}

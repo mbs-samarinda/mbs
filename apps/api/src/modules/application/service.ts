@@ -10,6 +10,7 @@ import {
   type SchoolKey,
 } from "@mbs/api-contract";
 import type { Database, Transaction } from "@mbs/db";
+import { isSchoolKey } from "@mbs/school-config";
 
 import {
   ConflictError,
@@ -22,8 +23,10 @@ import {
   StaleSequenceError,
 } from "../../errors.ts";
 import type { StaffContext } from "../auth/authorization.ts";
+import { enqueueEventEmails, type OutboxSettings } from "../notification/outbox.ts";
 import {
   findApplicationById,
+  findApplicationForUser,
   findEventByIdempotencyKey,
   findLatestProfileVersion,
   findNewestEventOf,
@@ -43,7 +46,22 @@ import {
   type ApplicationEventRow,
   type ApplicationRow,
 } from "./repository.ts";
-import { requiredCommand, transition } from "./stages.ts";
+import { requiredCommand, transition, type NotificationKey } from "./stages.ts";
+
+/**
+ * The application, if this family holds access to it. Any other id is
+ * NOT_FOUND, exactly as for an id that does not exist, so a family learns
+ * nothing about other families' applications.
+ */
+export async function loadFamilyApplication(
+  db: Database,
+  family: { userId: string },
+  applicationId: string,
+) {
+  const found = await findApplicationForUser(db, applicationId, family.userId);
+  if (!found || !isSchoolKey(found.schoolKey)) throw new NotFoundError("No such application.");
+  return { ...found.application, schoolKey: found.schoolKey };
+}
 
 export type Actor =
   | { type: "FAMILY"; userId: string }
@@ -74,6 +92,7 @@ export async function submitApplication(
     idempotencyKey: string | null;
     meta?: RequestMeta;
   },
+  outbox: OutboxSettings,
 ): Promise<{ application: ApplicationRow; event: ApplicationEventRow; replayed: boolean }> {
   const profile = ApplicantProfile.parse(input.profile);
 
@@ -155,8 +174,34 @@ export async function submitApplication(
       if (isUniqueViolation(error)) throw reusedKey();
       throw error;
     });
+    await notifyFamily(tx, result, { application, event, schoolKey: input.schoolKey }, outbox);
 
     return { application, event, replayed: false };
+  });
+}
+
+/**
+ * Queues the stage table's email for this event, in the event's own
+ * transaction, when the family may see it. A replayed command returns before
+ * this, so it queues nothing new.
+ */
+async function notifyFamily(
+  tx: Transaction,
+  result: { familyVisible: boolean; notification: NotificationKey | null },
+  written: { application: ApplicationRow; event: ApplicationEventRow; schoolKey: string },
+  outbox: OutboxSettings,
+) {
+  if (!result.familyVisible || !result.notification) return;
+  if (!isSchoolKey(written.schoolKey)) throw new Error(`Unknown school ${written.schoolKey}.`);
+  await enqueueEventEmails(tx, {
+    applicationId: written.application.id,
+    eventId: written.event.id,
+    schoolKey: written.schoolKey,
+    registrationNumber: written.application.registrationNumber,
+    // The email quotes a reason as the committee's note, so only staff's.
+    payload: written.event.actorType === "STAFF" ? written.event.payload : null,
+    template: result.notification,
+    settings: outbox,
   });
 }
 
@@ -171,11 +216,12 @@ type CommandContext = {
 export async function applyCommand(
   db: Database,
   input: CommandContext & { command: ApplicationCommand; payload: unknown },
+  outbox: OutboxSettings,
 ): Promise<{ event: ApplicationEventRow; replayed: boolean }> {
   const command = AppliedCommand.parse(input.command);
   const payload = COMMAND_PAYLOADS[command].parse(input.payload);
 
-  return runCommand(db, input, command, {
+  return runCommand(db, input, command, outbox, {
     isRetry: async (earlier) =>
       earlier.command === command && sameAsStored(earlier.payload, payload),
     write: async () => payload,
@@ -185,11 +231,12 @@ export async function applyCommand(
 export async function saveProfile(
   db: Database,
   input: CommandContext & { profile: ApplicantProfileInput },
+  outbox: OutboxSettings,
 ): Promise<{ version: number; event: ApplicationEventRow; replayed: boolean }> {
   const profile = ApplicantProfile.parse(input.profile);
   const author = authorUserId(input.actor);
 
-  const result = await runCommand(db, input, "EDIT_PROFILE", {
+  const result = await runCommand(db, input, "EDIT_PROFILE", outbox, {
     isRetry: async (earlier, tx) => {
       if (earlier.command !== "EDIT_PROFILE") return false;
       const { version } = COMMAND_PAYLOADS.EDIT_PROFILE.parse(earlier.payload);
@@ -223,6 +270,7 @@ async function runCommand(
   db: Database,
   input: CommandContext,
   command: ApplicationCommand,
+  outbox: OutboxSettings,
   steps: {
     isRetry: (earlier: ApplicationEventRow, tx: Transaction) => Promise<boolean>;
     write: (
@@ -304,6 +352,7 @@ async function runCommand(
           ? COMMAND_PAYLOADS.CHANGE_INTERVIEW_MODE.parse(payload).mode
           : undefined,
     });
+    await notifyFamily(tx, result, { application, event, schoolKey }, outbox);
 
     return { event, replayed: false };
   });

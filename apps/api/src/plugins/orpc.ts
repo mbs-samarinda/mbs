@@ -8,8 +8,14 @@ import { requireRole, resolveStaff, type SessionUser } from "../modules/auth/aut
 
 export type ApiContext = {
   db: Database;
-  /** The Better Auth session user, already resolved for this request. */
-  sessionUser: SessionUser | null;
+  /**
+   * The signed-in user of each app, resolved once per request by the auth
+   * instance of the host the request came to. At most one is set, and each
+   * procedure reads only its own, so a family session never authorizes staff
+   * work, even for a person who is both.
+   */
+  familyUser: SessionUser | null;
+  staffUser: SessionUser | null;
   /** This request's logger, so a log line carries the request id. */
   log: FastifyBaseLogger;
 };
@@ -44,8 +50,17 @@ export const publicProcedure = os.use(translateErrors);
 
 /** Proves the caller is an active, approved staff member before the handler runs. */
 export const staffProcedure = publicProcedure.use(async ({ context, next }) =>
-  next({ context: { staff: await resolveStaff(context.db, context.sessionUser) } }),
+  next({ context: { staff: await resolveStaff(context.db, context.staffUser) } }),
 );
+
+/**
+ * Proves a family session. What the family may see is checked per
+ * application by `loadFamilyApplication`, inside the handler.
+ */
+export const familyProcedure = publicProcedure.use(async ({ context, next }) => {
+  if (!context.familyUser) throw new UnauthorizedError("Not signed in.");
+  return next({ context: { family: { userId: context.familyUser.id } } });
+});
 
 /** Everything under `admin` is administrator-only. Schools are still checked separately. */
 export const administratorProcedure = staffProcedure.use(({ context, next }) => {

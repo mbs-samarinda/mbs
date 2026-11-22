@@ -132,10 +132,12 @@ services:
       # right one. Enforced where the secrets are made, in slice 7.
       DATABASE_URL: postgres://mbs:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/mbs_core
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL}
+      FAMILY_APP_URL: ${FAMILY_APP_URL:?set FAMILY_APP_URL}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET}
       ADMIN_APP_URL: ${ADMIN_APP_URL:?set ADMIN_APP_URL}
+      SMTP_URL: ${SMTP_URL:?set SMTP_URL}
+      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
     # Without one, `up --wait` counts a crash-looping api as started and the
     # deploy goes green. /ready rather than /health so a wrong database password
