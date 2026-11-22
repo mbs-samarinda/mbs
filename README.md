@@ -22,7 +22,7 @@ live in `packages/ui/src/styles/globals.css` and, one block per owner,
 
 ```bash
 pnpm install
-docker compose up -d                    # PostgreSQL, core and CMS databases
+docker compose up -d                    # PostgreSQL, core and CMS databases, Mailpit
 cp apps/api/.env.example apps/api/.env
 cp apps/cms/.env.example apps/cms/.env
 DATABASE_URL=postgres://mbs:mbs_local_dev@localhost:5432/mbs_core pnpm db:migrate
@@ -70,6 +70,7 @@ talk over HTTP.
 3001  api
 3002  profile
 1337  cms
+8025  Mailpit, the inbox for every email the API sends: http://localhost:8025
 ```
 
 ## Checks
