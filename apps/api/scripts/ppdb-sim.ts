@@ -9,8 +9,10 @@
  *                 [--payload '{"reason":"..."}']
  *
  * The same `--seed` makes the same NIKs, accounts and idempotency keys, so a
- * second run replays every step and writes nothing new. Reads DATABASE_URL,
- * falling back to apps/api/.env.
+ * second run replays every step and writes nothing new, in the cycle the seed
+ * first ran in. A rerun with a further `--to` or more `--profile-edits`
+ * replays what exists and adds the rest. Reads DATABASE_URL, falling back to
+ * apps/api/.env.
  */
 import { createHash, randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
@@ -188,6 +190,35 @@ function commandInput(command: ApplicationCommand, payload: unknown): CommandInp
   return { command, payload } as CommandInput;
 }
 
+/**
+ * The cycle this seed already wrote to, so a rerun replays there even after
+ * that cycle closed. Otherwise the open cycle, created if there is none.
+ */
+async function cycleFor(db: Database, seed: string) {
+  const [earlier] = await db
+    .select({ cycleId: schema.applications.admissionCycleId })
+    .from(schema.applicationEvents)
+    .innerJoin(
+      schema.applications,
+      eq(schema.applications.id, schema.applicationEvents.applicationId),
+    )
+    .where(
+      and(
+        eq(schema.applicationEvents.actorId, simUserId(seed, 0)),
+        eq(schema.applicationEvents.idempotencyKey, stepKey(seed, 0, 1)),
+      ),
+    );
+  return earlier?.cycleId ?? openCycle(db);
+}
+
+function simUserId(seed: string, index: number) {
+  return `ppdb-sim-${seed}-${index}`;
+}
+
+function stepKey(seed: string, index: number, step: string | number) {
+  return `ppdb-sim:${seed}:${index}:${step}`;
+}
+
 async function openCycle(db: Database) {
   const [existing] = await db
     .select()
@@ -241,7 +272,7 @@ async function walk(db: Database, args: Args) {
   const path = pathTo(target);
   if (!path) throw new Error(`No route from PAYMENT_DUE to ${target}.`);
 
-  const cycleId = await openCycle(db);
+  const cycleId = await cycleFor(db, args.seed);
   const schools = args.schools ?? (await takingPart(db, cycleId));
   if (schools.length === 0) throw new Error("No school takes part in the open cycle.");
   let written = 0;
@@ -251,9 +282,9 @@ async function walk(db: Database, args: Args) {
 
   for (let index = 0; index < args.count; index += 1) {
     const schoolKey = schools[index % schools.length]!;
-    const userId = `ppdb-sim-${args.seed}-${index}`;
+    const userId = simUserId(args.seed, index);
     const nik = args.nik ?? nikFor(args.seed, index);
-    const key = (step: string | number) => `ppdb-sim:${args.seed}:${index}:${step}`;
+    const key = (step: string | number) => stepKey(args.seed, index, step);
 
     try {
       // oxlint-disable-next-line eslint/no-await-in-loop
@@ -269,8 +300,19 @@ async function walk(db: Database, args: Args) {
         }),
       );
       let newRows = submitted.replayed ? 0 : 1;
-      // Each step is one event, so `seen` is also the seq the next step expects.
-      let seen = 1;
+      let replayedRows = submitted.replayed ? 1 : 0;
+      // A replayed step returns before the seq check, so only a new step moves
+      // this. Starting from the stored seq lets a rerun that walks further, or
+      // edits more, continue where the last run stopped.
+      let seq = submitted.application.lastEventSeq;
+      const record = (result: { replayed: boolean; event: { seq: number } }) => {
+        if (result.replayed) {
+          replayedRows += 1;
+        } else {
+          newRows += 1;
+          seq = result.event.seq;
+        }
+      };
 
       for (let edit = 1; edit <= args.profileEdits; edit += 1) {
         // oxlint-disable-next-line eslint/no-await-in-loop
@@ -279,12 +321,11 @@ async function walk(db: Database, args: Args) {
             applicationId: submitted.application.id,
             actor: { type: "FAMILY", userId },
             profile: profileFor(args.seed, index, nik, edit),
-            expectedSeq: seen,
+            expectedSeq: seq,
             idempotencyKey: key(`edit-${edit}`),
           }),
         );
-        newRows += saved.replayed ? 0 : 1;
-        seen += 1;
+        record(saved);
       }
 
       for (const [step, command] of path.entries()) {
@@ -298,16 +339,15 @@ async function walk(db: Database, args: Args) {
             ...commandInput(command, payload),
             applicationId: submitted.application.id,
             actor: actorFor(command, userId),
-            expectedSeq: seen,
+            expectedSeq: seq,
             idempotencyKey: key(step + 2),
           }),
         );
-        newRows += result.replayed ? 0 : 1;
-        seen += 1;
+        record(result);
       }
 
       written += newRows;
-      replayed += seen - newRows;
+      replayed += replayedRows;
       print(`${submitted.application.registrationNumber}  ${target}  ${newRows} new steps`);
     } catch (error) {
       failed += 1;
