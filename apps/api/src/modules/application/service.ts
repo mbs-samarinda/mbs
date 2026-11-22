@@ -169,7 +169,12 @@ export async function submitApplication(
       if (isUniqueViolation(error)) throw reusedKey();
       throw error;
     });
-    await notifyFamily(tx, result, { application, event, schoolKey: input.schoolKey }, outbox);
+    await notifyFamily(
+      tx,
+      result,
+      { application, event, schoolKey: input.schoolKey, staffReason: null },
+      outbox,
+    );
 
     return { application, event, replayed: false };
   });
@@ -178,7 +183,12 @@ export async function submitApplication(
 async function notifyFamily(
   tx: Transaction,
   result: { familyVisible: boolean; notification: NotificationKey | null },
-  written: { application: ApplicationRow; event: ApplicationEventRow; schoolKey: string },
+  written: {
+    application: ApplicationRow;
+    event: ApplicationEventRow;
+    schoolKey: string;
+    staffReason: string | null;
+  },
   outbox: OutboxSettings,
 ) {
   if (!result.familyVisible || !result.notification) return;
@@ -188,7 +198,7 @@ async function notifyFamily(
     eventId: written.event.id,
     schoolKey: written.schoolKey,
     registrationNumber: written.application.registrationNumber,
-    payload: written.event.actorType === "STAFF" ? written.event.payload : null,
+    staffReason: written.staffReason,
     template: result.notification,
     settings: outbox,
   });
@@ -341,7 +351,9 @@ async function runCommand(
           ? COMMAND_PAYLOADS.CHANGE_INTERVIEW_MODE.parse(payload).mode
           : undefined,
     });
-    await notifyFamily(tx, result, { application, event, schoolKey }, outbox);
+    const staffReason =
+      input.actor.type === "STAFF" && "reason" in payload ? (payload.reason ?? null) : null;
+    await notifyFamily(tx, result, { application, event, schoolKey, staffReason }, outbox);
 
     return { event, replayed: false };
   });

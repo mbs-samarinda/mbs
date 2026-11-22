@@ -19,7 +19,7 @@ export async function enqueueEventEmails(
     eventId: string;
     schoolKey: SchoolKey;
     registrationNumber: string;
-    payload: unknown;
+    staffReason: string | null;
     template: EventTemplateKey;
     settings: OutboxSettings;
   },
@@ -39,7 +39,7 @@ export async function enqueueEventEmails(
     childName: childFullName,
     schoolKey: input.schoolKey,
     registrationNumber: input.registrationNumber,
-    reason: stringField(input.payload, "reason"),
+    reason: input.staffReason,
     appUrl: input.settings.familyAppUrl,
   });
 
@@ -215,10 +215,4 @@ async function releaseClaim(
     .where(and(eq(n.id, row.id), eq(n.status, "SENDING"), eq(n.attemptCount, row.attemptCount)))
     .returning({ id: n.id });
   return updated.length > 0;
-}
-
-function stringField(value: unknown, key: string) {
-  if (typeof value !== "object" || value === null) return null;
-  const field: unknown = new Map(Object.entries(value)).get(key);
-  return typeof field === "string" && field.length > 0 ? field : null;
 }

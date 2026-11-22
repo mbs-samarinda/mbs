@@ -719,6 +719,29 @@ describe("family emails", () => {
     );
     expect(withdrawn?.bodyText).not.toContain("Pindah kota");
     expect(withdrawn?.bodyText).not.toContain("Catatan dari panitia");
+
+    const rejected = await submit({
+      userId: "family-2",
+      profile: profile({ nik: "6472010101010002" }),
+    });
+    for (const [seq, actor, command, payload] of [
+      [1, { type: "FAMILY", userId: "family-2" }, "UPLOAD_PAYMENT_PROOF", { payloadVersion: 1 }],
+      [2, STAFF, "REJECT_PAYMENT", { payloadVersion: 1, reason: "Foto buram" }],
+    ] as const) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await applyCommand(db, {
+        applicationId: rejected.application.id,
+        actor,
+        command,
+        payload,
+        expectedSeq: seq,
+        idempotencyKey: null,
+      });
+    }
+    const refusal = (await emailsOf(rejected.application.id)).find(
+      (row) => row.templateKey === "payment-rejected",
+    );
+    expect(refusal?.bodyText).toContain("Catatan dari panitia: Foto buram");
   });
 
   it("writes no email when the command fails", async () => {
