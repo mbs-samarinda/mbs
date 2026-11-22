@@ -15,11 +15,10 @@ export type ApplicationRow = typeof schema.applications.$inferSelect;
 export type ApplicationEventRow = typeof schema.applicationEvents.$inferSelect;
 
 /**
- * Takes the submission's locks in their one fixed order, then reads the terms
- * it decides on. The terms are read only after the locks are held, in their own
- * statement. A query that waits on a row lock re-reads the locked row but keeps
- * its older view of the rows joined to it, so a settings save it waited for
- * would go unseen.
+ * The terms are read only after the locks are held, in their own statement. A
+ * query that waits on a row lock re-reads the locked row but keeps its older
+ * view of the rows joined to it, so a settings save it waited for would go
+ * unseen.
  */
 export async function lockForSubmission(tx: Transaction, cycleId: string, schoolKey: string) {
   const cycle = await tx

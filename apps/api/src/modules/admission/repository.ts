@@ -4,7 +4,6 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 type Executor = Database | Transaction;
 
-/** A school with no settings row for a cycle takes part in it. */
 export const takesPart = sql<boolean>`coalesce(${schema.schoolAdmissionSettings.isEnabled}, true)`;
 
 /**
