@@ -100,6 +100,24 @@ export const APPLICATION_COMMANDS = [
 export const ACTOR_TYPES = ["FAMILY", "STAFF", "SYSTEM"] as const;
 
 /**
+ * How a notification reaches a family. Email is the only channel in v1.
+ * WhatsApp joins as a new value, so old rows keep the channel they went by.
+ */
+export const NOTIFICATION_CHANNELS = ["EMAIL"] as const;
+/** A queued message: waiting, being sent under a lease, sent, or given up on. */
+export const NOTIFICATION_STATUSES = ["PENDING", "SENDING", "SENT", "FAILED"] as const;
+/**
+ * How one send try ended. `LEASE_EXPIRED` is a try whose worker stopped
+ * before it reported back, so nobody knows whether it went out.
+ */
+export const NOTIFICATION_ATTEMPT_OUTCOMES = ["SENT", "FAILED", "LEASE_EXPIRED"] as const;
+/**
+ * The one template whose content is a secret. The database refuses to store
+ * the rendered subject or body of a notification with this key.
+ */
+export const SIGN_IN_CODE_TEMPLATE = "sign-in-code";
+
+/**
  * Narrows a string read from the database to a school key. The schools table
  * holds the same fixed list, but its column is text, so this is where that
  * promise is checked rather than assumed.

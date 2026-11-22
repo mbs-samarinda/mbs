@@ -1,4 +1,4 @@
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { bigint, boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 /**
  * Better Auth's own tables. It owns authentication mechanics; the MBSS tables
@@ -67,6 +67,18 @@ export const account = pgTable(
   },
   (table) => [index("account_user_id_idx").on(table.userId)],
 );
+
+/**
+ * Better Auth's request counts per client and path, kept in the database so a
+ * restart does not reset them. Better Auth deletes rows whose window has passed.
+ */
+export const rateLimit = pgTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  // Epoch milliseconds, as Better Auth writes them.
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});
 
 export const verification = pgTable(
   "verification",
