@@ -1,6 +1,6 @@
 ---
 name: verify-mbss
-description: Launch an isolated MBSS stack (throwaway Postgres, API, Strapi CMS, Next.js profile site) and drive it in headless Chromium to prove a change works the way a visitor or editor sees it. Use after changing the profile site, the CMS, or the public admission endpoint, or whenever asked to verify, screenshot, or demo MBSS behavior.
+description: Launch an isolated MBSS stack (throwaway Postgres, Mailpit, API, Strapi CMS, Next.js profile site) and drive it in headless Chromium to prove a change works the way a visitor or editor sees it. Use after changing the profile site, the CMS, the API (sign-in, admission, email), or the public admission endpoint, or whenever asked to verify, screenshot, or demo MBSS behavior.
 ---
 
 # Verify MBSS
@@ -22,9 +22,11 @@ $S/stack.sh up          # prints the run id on its last line once everything is 
 eval "$($S/stack.sh env)"  # sets RUN, EVIDENCE, SMP_URL, CMS_URL, ... in this shell
 ```
 
-`up` builds everything from empty. It starts Postgres 18 in a `--rm` container named `mbs-verify-pg-<run>`, runs the core migrations, and starts the API. Strapi then boots against its own `mbs_cms` database, runs its migrations and seeds all four sites, and sets up the profile's read token. Send it on REST reads, as the profile does: `-H "authorization: Bearer $CMS_READ_TOKEN"` (`stack.sh env` sets it). Without it the CMS answers 403, even for published rows. Last comes `next dev` for the profile. It only prints the run id after each layer passes a real check: the API's `/health` says ok, the CMS serves 4 published sites, and `smp.localhost` renders "SMP Islam Terpadu Madina". A fresh run takes about 1–2 minutes. If `up` fails, it tears down what it started and names the log to read.
+`up` builds everything from empty. It starts Postgres 18 in a `--rm` container named `mbs-verify-pg-<run>`, starts Mailpit (`axllent/mailpit`, also `--rm`, named `mbs-verify-mail-<run>`) to catch every email, runs the core migrations, and starts the API with its notification worker on and pointed at that Mailpit. Strapi then boots against its own `mbs_cms` database, runs its migrations and seeds all four sites, and sets up the profile's read token. Send it on REST reads, as the profile does: `-H "authorization: Bearer $CMS_READ_TOKEN"` (`stack.sh env` sets it). Without it the CMS answers 403, even for published rows. Last comes `next dev` for the profile. It only prints the run id after each layer passes a real check: the API's `/health` says ok, the CMS serves 4 published sites, and `smp.localhost` renders "SMP Islam Terpadu Madina". A fresh run takes about 1–2 minutes. If `up` fails, it tears down what it started and names the log to read.
 
-Ports: Postgres `55432`, API `3101`, CMS `1437`, profile `3102`. These are deliberately not the dev ports (5432, 3001, 1337, 3002), so a running `pnpm dev` is left alone. Override them with `PG_PORT`, `API_PORT`, `CMS_PORT` and `PROFILE_PORT`. `stack.sh` sets every key the apps need, with fresh secrets for each run, so the user's values never decide where a run points. The apps still load their own `apps/*/.env` files, which fill in any key `stack.sh` leaves unset, such as `DATABASE_SCHEMA` or `AWS_ENDPOINT`. If a run behaves differently from a fresh clone, check those files first.
+Ports: Postgres `55432`, API `3101`, CMS `1437`, profile `3102`, Mailpit SMTP `51125` and web `58125`. These are deliberately not the dev ports (5432, 3001, 1337, 3002, 1025, 8025), so a running `pnpm dev` is left alone. Override them with `PG_PORT`, `API_PORT`, `CMS_PORT`, `PROFILE_PORT`, `MAIL_SMTP_PORT` and `MAIL_WEB_PORT`.
+
+The API picks its auth instance from the `Host` header. Send `Host: $FAMILY_HOST` for the parent app's routes and email codes, and `Host: $STAFF_HOST` for the committee app's. Any other host, `localhost:3101` included, gets no `/api/auth/*` routes and no session. Run the simulator through the stack, `stack.sh sim -- <args>`, so it uses the run's database and auth key. `stack.sh sim -- --staff-session <email>` prints a staff `host:` and `cookie:` pair for `curl` or a browser. Read sent email from Mailpit's API at `$MAIL_URL/api/v1/messages`, or open `$MAIL_URL` in Chromium. `stack.sh` sets every key the apps need, with fresh secrets for each run, so the user's values never decide where a run points. The apps still load their own `apps/*/.env` files, which fill in any key `stack.sh` leaves unset, such as `DATABASE_SCHEMA` or `AWS_ENDPOINT`. If a run behaves differently from a fresh clone, check those files first.
 
 Site URLs (`*.localhost` resolves to 127.0.0.1 in Chromium):
 
@@ -47,7 +49,7 @@ To log in to Strapi, run `$S/stack.sh admin` once per run. It creates `verify@mb
 $S/stack.sh doctor      # read-only; exits 1 if any line says FAIL
 ```
 
-It checks that each process group is alive, and that each port is owned by this run's process, not someone else's. It checks that the container answers and that Strapi wrote its 4 `sites` rows into the verify database, not into a dev database. It also checks the API, the CMS and the profile from outside. Its first line shows the commit the run started from next to the current one. If they differ, the stack is running old code for anything that does not hot-reload. Run doctor before driving, and again whenever something looks off.
+It checks that each process group is alive, and that each port is owned by this run's process, not someone else's. It checks that the Postgres container and Mailpit answer and that Strapi wrote its 4 `sites` rows into the verify database, not into a dev database. It also checks the API, the CMS and the profile from outside. Its first line shows the commit the run started from next to the current one. If they differ, the stack is running old code for anything that does not hot-reload. Run doctor before driving, and again whenever something looks off.
 
 ## Drive
 
@@ -108,5 +110,5 @@ $S/stack.sh down        # or: $S/stack.sh down <run>
 
 ## Helpers
 
-- `stack.sh up | doctor [run] | admin [run] | env [run] | api-off [run] | api-on [run] | down [run]`. `api-off` and `api-on` stop and restart only the API, for pages that must handle it being unreachable. Without `[run]`, it uses the newest run still up that this checkout started; other agents' runs need their id, and you should never stop one. Run `stack.sh` with no arguments for usage.
+- `stack.sh up | doctor [run] | admin [run] | env [run] | api-off [run] | api-on [run] | mail-off [run] | mail-on [run] | sim [run] -- <args> | down [run]`. `api-off` and `api-on` stop and restart only the API, for pages that must handle it being unreachable. `mail-off` and `mail-on` do the same for Mailpit, to watch the outbox retry. Mailpit keeps nothing across a restart. Without `[run]`, it uses the newest run still up that this checkout started; other agents' runs need their id, and you should never stop one. Run `stack.sh` with no arguments for usage.
 - `drive.mjs --out <dir> <step>...`, as shown above. Run it with no arguments for usage.

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Starts, checks and stops one isolated MBSS stack for verification:
-# a throwaway Postgres container, the API, Strapi and the profile site, each on
+# a throwaway Postgres container, a Mailpit container that catches every email,
+# the API, Strapi and the profile site, each on
 # its own port and fed only the environment written here. The apps' own .env
 # files fill in anything not set, so every key they read is set explicitly.
 #
@@ -10,6 +11,9 @@
 #   stack.sh env    [run]  print the run's URLs and paths as shell assignments
 #   stack.sh api-off [run] stop only the API (to see pages with it unreachable)
 #   stack.sh api-on  [run] start the API again and wait for /health
+#   stack.sh mail-off [run] stop Mailpit (to see the outbox retry)
+#   stack.sh mail-on  [run] start Mailpit again, empty, on the same ports
+#   stack.sh sim [run] -- <args>  run pnpm ppdb-sim with the run's API config
 #   stack.sh down   [run]  stop what this run started, keep the evidence
 #
 # [run] defaults to the newest run under $MBS_VERIFY_ROOT that is still up.
@@ -22,6 +26,9 @@ PG_PORT=${PG_PORT:-55432}
 API_PORT=${API_PORT:-3101}
 CMS_PORT=${CMS_PORT:-1437}
 PROFILE_PORT=${PROFILE_PORT:-3102}
+MAIL_SMTP_PORT=${MAIL_SMTP_PORT:-51125}
+MAIL_WEB_PORT=${MAIL_WEB_PORT:-58125}
+MAILPIT_IMAGE=axllent/mailpit:v1.34.0
 CMS_DB_PASSWORD=mbs_cms_verify
 CORE_DB_PASSWORD=mbs_verify
 
@@ -98,9 +105,11 @@ stop_group() {
 build_envs() {
   API_ENV=(DATABASE_URL="postgres://mbs:$CORE_DB_PASSWORD@127.0.0.1:$PG_PORT/mbs_core"
     NODE_ENV=development LOG_LEVEL=info PORT="$API_PORT"
-    BETTER_AUTH_SECRET="$AUTH_SECRET" BETTER_AUTH_URL="http://localhost:$API_PORT"
+    BETTER_AUTH_SECRET="$AUTH_SECRET"
     GOOGLE_CLIENT_ID=verify-placeholder GOOGLE_CLIENT_SECRET=verify-placeholder
-    ADMIN_APP_URL=http://localhost:5174 BOOTSTRAP_ADMIN_EMAIL=)
+    FAMILY_APP_URL=http://localhost:5173 ADMIN_APP_URL=http://localhost:5174
+    SMTP_URL="smtp://127.0.0.1:$MAIL_SMTP_PORT" MAIL_FROM="PPDB MBSS <ppdb@mbss.test>"
+    NOTIFICATION_WORKER=on BOOTSTRAP_ADMIN_EMAIL=)
   CMS_ENV=(HOST=127.0.0.1 PORT="$CMS_PORT" PUBLIC_URL="http://localhost:$CMS_PORT"
     NODE_ENV=development DATABASE_CLIENT=postgres DATABASE_HOST=127.0.0.1
     DATABASE_PORT="$PG_PORT" DATABASE_NAME=mbs_cms DATABASE_USERNAME=mbs_cms
@@ -140,6 +149,14 @@ cms_ready() {
   curl -fsS -H "authorization: Bearer ${CMS_READ_TOKEN:-}" "http://127.0.0.1:$CMS_PORT/api/site-list" \
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).data.length===4?0:1))'
 }
+# /readyz answers an empty 200 once Mailpit accepts mail.
+mail_ready() { curl -fsS -o /dev/null "http://127.0.0.1:$MAIL_WEB_PORT/readyz"; }
+# No volume: a restarted Mailpit starts empty, which is what an outage test wants.
+start_mail() {
+  docker run --rm -d --name "$MAIL_CONTAINER" \
+    -p "127.0.0.1:$MAIL_SMTP_PORT:1025" -p "127.0.0.1:$MAIL_WEB_PORT:8025" "$MAILPIT_IMAGE" >/dev/null
+  wait_for 30 mailpit mail_ready || die "mailpit not ready; see docker logs $MAIL_CONTAINER"
+}
 profile_ready() {
   [[ $(curl -fsS --max-time 120 -H "Host: smp.localhost:$PROFILE_PORT" \
     "http://127.0.0.1:$PROFILE_PORT/") == *"SMP Islam Terpadu Madina"* ]]
@@ -149,8 +166,8 @@ profile_ready() {
 
 cmd_up() {
   command -v docker >/dev/null || die "docker is not installed"
-  for p in "$PG_PORT" "$API_PORT" "$CMS_PORT" "$PROFILE_PORT"; do
-    port_busy "$p" && die "port $p is already in use; set PG_PORT/API_PORT/CMS_PORT/PROFILE_PORT or stop the other stack"
+  for p in "$PG_PORT" "$API_PORT" "$CMS_PORT" "$PROFILE_PORT" "$MAIL_SMTP_PORT" "$MAIL_WEB_PORT"; do
+    port_busy "$p" && die "port $p is already in use; set PG_PORT/API_PORT/CMS_PORT/PROFILE_PORT/MAIL_SMTP_PORT/MAIL_WEB_PORT or stop the other stack"
   done
   local held
   held=$(procs_in "$REPO/apps/profile" "next" ; procs_in "$REPO/apps/cms" "strapi")
@@ -162,6 +179,7 @@ cmd_up() {
   SCRATCH=$dir/scratch LOGS=$dir/evidence/logs
   mkdir -p "$SCRATCH/profile-cache" "$LOGS"
   CONTAINER=mbs-verify-pg-$RUN
+  MAIL_CONTAINER=mbs-verify-mail-$RUN
   AUTH_SECRET=$(openssl rand -hex 32)
   REVALIDATE_SECRET=$(openssl rand -hex 24)
   CMS_READ_TOKEN=$(openssl rand -hex 32)
@@ -176,6 +194,9 @@ SCRATCH=$SCRATCH
 EVIDENCE=$dir/evidence
 LOGS=$LOGS
 CONTAINER=$CONTAINER
+MAIL_CONTAINER=$MAIL_CONTAINER
+MAIL_SMTP_PORT=$MAIL_SMTP_PORT
+MAIL_WEB_PORT=$MAIL_WEB_PORT
 PG_PORT=$PG_PORT
 API_PORT=$API_PORT
 CMS_PORT=$CMS_PORT
@@ -203,6 +224,7 @@ EOF
     -v "$REPO/infra/postgres/init-cms-db.sh:/docker-entrypoint-initdb.d/init-cms-db.sh:ro" \
     -p "127.0.0.1:$PG_PORT:5432" postgres:18-alpine >/dev/null
   wait_for 90 postgres pg_ready || die "postgres not ready; see docker logs $CONTAINER"
+  start_mail
 
   (cd "$REPO/packages/db" && env "${API_ENV[@]}" pnpm exec drizzle-kit migrate) >"$LOGS/migrate.log" 2>&1 \
     || die "core migrations failed; see $LOGS/migrate.log"
@@ -253,6 +275,7 @@ cmd_doctor() {
   check "port $CMS_PORT owned by this run's cms" port_owner "$CMS_PORT" cms
   check "port $PROFILE_PORT owned by this run's profile" port_owner "$PROFILE_PORT" profile
   check "postgres container $CONTAINER answers" pg_ready
+  check "mailpit $MAIL_CONTAINER answers on $MAIL_WEB_PORT" mail_ready
   cms_tables() {
     docker exec -e PGPASSWORD="$CMS_DB_PASSWORD" "$CONTAINER" \
       psql -h 127.0.0.1 -U mbs_cms -d mbs_cms -tAc "select count(*) from sites" | grep -x 4
@@ -288,6 +311,27 @@ cmd_api_on() {
   wait_for 60 api api_ready || die "api not ready; see $LOGS/api.log"
 }
 
+cmd_mail_off() {
+  load_run "${1:-}"
+  docker stop "$MAIL_CONTAINER" >/dev/null && log "stopped $MAIL_CONTAINER"
+}
+
+cmd_mail_on() {
+  load_run "${1:-}"
+  docker inspect "$MAIL_CONTAINER" >/dev/null 2>&1 && die "mailpit is already running"
+  start_mail
+}
+
+# With the API's own environment, so --staff-session signs with the run's key
+# and every step writes to the run's database.
+cmd_sim() {
+  local run=
+  [[ ${1:-} != -- ]] && { run=$1; shift; }
+  [[ ${1:-} == -- ]] && shift
+  load_run "$run"
+  (cd "$REPO" && env "${API_ENV[@]}" node apps/api/scripts/ppdb-sim.ts "$@")
+}
+
 cmd_env() {
   load_run "${1:-}"
   cat <<EOF
@@ -297,6 +341,10 @@ CONTAINER=$CONTAINER
 API_URL=http://localhost:$API_PORT
 CMS_URL=http://localhost:$CMS_PORT
 PROFILE_PORT=$PROFILE_PORT
+MAIL_URL=http://localhost:$MAIL_WEB_PORT
+MAIL_SMTP=smtp://127.0.0.1:$MAIL_SMTP_PORT
+FAMILY_HOST=localhost:5173
+STAFF_HOST=localhost:5174
 APEX_URL=http://localhost:$PROFILE_PORT
 SMP_URL=http://smp.localhost:$PROFILE_PORT
 SMK_URL=http://smk.localhost:$PROFILE_PORT
@@ -312,6 +360,7 @@ cmd_down() {
   local name
   for name in profile cms api; do stop_group "$name"; done
   docker stop "$CONTAINER" >/dev/null 2>&1 && log "stopped $CONTAINER" || true
+  docker stop "${MAIL_CONTAINER:-}" >/dev/null 2>&1 && log "stopped $MAIL_CONTAINER" || true
 
   # A run must not leave tracked files changed. Report it; reverting is the
   # caller's call, since the user may have been editing at the same time.
@@ -332,6 +381,9 @@ case ${1:-} in
   env) cmd_env "${2:-}" ;;
   api-off) cmd_api_off "${2:-}" ;;
   api-on) cmd_api_on "${2:-}" ;;
+  mail-off) cmd_mail_off "${2:-}" ;;
+  mail-on) cmd_mail_on "${2:-}" ;;
+  sim) shift; cmd_sim "$@" ;;
   down) cmd_down "${2:-}" ;;
-  *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
