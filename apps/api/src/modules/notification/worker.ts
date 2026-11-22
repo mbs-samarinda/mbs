@@ -20,6 +20,8 @@ import { TEMPLATES, type RenderedEmail } from "./templates.ts";
 export const RETRY_MINUTES = [1, 5, 30, 120, 720] as const;
 export const MAX_ATTEMPTS = RETRY_MINUTES.length + 1;
 
+export const WORKER_LOCK_KEY = 7_316_041;
+
 type WorkerOptions = {
   db: Database;
   mailer: Mailer;
@@ -41,7 +43,10 @@ export function createNotificationWorker(options: WorkerOptions) {
 
   const codes = new Map<string, { email: RenderedEmail; expiresAt: number }>();
   let timer: NodeJS.Timeout | null = null;
+  let ticking: Promise<void> | null = null;
   let current: Promise<number> | null = null;
+  let lock: Awaited<ReturnType<typeof db.$client.reserve>> | null = null;
+  let waitingForLock = false;
   let again = false;
   let running = false;
   let stopping = false;
@@ -149,11 +154,59 @@ export function createNotificationWorker(options: WorkerOptions) {
     return current;
   }
 
+  async function holdLock() {
+    if (lock) {
+      const still = await lock<{ held: boolean }[]>`
+        select exists (
+          select from pg_locks
+          where locktype = 'advisory' and pid = pg_backend_pid() and granted
+            and classid = 0 and objid = ${WORKER_LOCK_KEY}::oid and objsubid = 1
+        ) as held
+      `.then(
+        ([row]) => row?.held === true,
+        () => false,
+      );
+      if (still) return true;
+      lock.release();
+      lock = null;
+    }
+    const reserved = await db.$client.reserve();
+    let held: boolean;
+    try {
+      const [row] = await reserved<{ held: boolean }[]>`
+        select pg_try_advisory_lock(${WORKER_LOCK_KEY}::bigint) as held
+      `;
+      held = row?.held === true;
+    } catch (error) {
+      reserved.release();
+      throw error;
+    }
+    if (held) {
+      if (waitingForLock) log.info("notification worker took over the outbox");
+      waitingForLock = false;
+      lock = reserved;
+      return true;
+    }
+    reserved.release();
+    if (!waitingForLock) log.info("another process sends the outbox; this worker waits");
+    waitingForLock = true;
+    return false;
+  }
+
+  async function releaseLock() {
+    if (!lock) return;
+    await lock`select pg_advisory_unlock(${WORKER_LOCK_KEY}::bigint)`.catch(() => undefined);
+    lock.release();
+    lock = null;
+  }
+
   async function tick() {
     timer = null;
     let claimed = 0;
+    let held = false;
     try {
-      claimed = await runOnce();
+      held = await holdLock();
+      if (held) claimed = await runOnce();
     } catch (error) {
       log.error(
         { errorClass: error instanceof Error ? error.constructor.name : typeof error },
@@ -161,16 +214,24 @@ export function createNotificationWorker(options: WorkerOptions) {
       );
     }
     if (!running) return;
-    const busy = claimed >= batchSize || again;
+    const busy = held && (claimed >= batchSize || again);
     again = false;
-    timer = setTimeout(() => void tick(), busy ? 0 : pollMs);
+    schedule(busy ? 0 : pollMs);
+  }
+
+  function schedule(ms: number) {
+    timer = setTimeout(() => {
+      ticking = tick().finally(() => {
+        ticking = null;
+      });
+    }, ms);
   }
 
   function wake() {
     if (!running) return;
     if (timer) {
       clearTimeout(timer);
-      timer = setTimeout(() => void tick(), 0);
+      schedule(0);
     } else {
       again = true;
     }
@@ -183,7 +244,7 @@ export function createNotificationWorker(options: WorkerOptions) {
     start() {
       if (running) return;
       running = true;
-      timer = setTimeout(() => void tick(), 0);
+      schedule(0);
     },
 
     async stop() {
@@ -191,7 +252,9 @@ export function createNotificationWorker(options: WorkerOptions) {
       stopping = true;
       if (timer) clearTimeout(timer);
       timer = null;
+      await ticking;
       await current?.catch(() => undefined);
+      await releaseLock();
       codes.clear();
       mailer.close();
     },

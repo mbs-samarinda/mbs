@@ -1,7 +1,7 @@
 import { createDatabase, schema } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
 import Fastify from "fastify";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetTables } from "../../test/reset.ts";
 import { createFakeMailer, messageIdFor, type FakeMailer } from "./email.ts";
@@ -147,6 +147,47 @@ describe("notification worker", () => {
       .from(schema.notifications)
       .groupBy(schema.notifications.status);
     expect(statuses).toEqual([{ status: "SENT", count: rows.length }]);
+  });
+
+  it("lets one polling worker send at a time, and another take over when it stops", async () => {
+    const lines: { msg: string }[] = [];
+    const waitingLog = Fastify({
+      logger: { level: "info", stream: { write: (line: string) => lines.push(JSON.parse(line)) } },
+    }).log;
+    const firstMailer = createFakeMailer();
+    const secondMailer = createFakeMailer();
+    const first = createNotificationWorker({ db, mailer: firstMailer, log, pollMs: 20 });
+    const second = createNotificationWorker({
+      db,
+      mailer: secondMailer,
+      log: waitingLog,
+      pollMs: 20,
+    });
+    const allSent = async () => {
+      const left = await db
+        .select({ id: schema.notifications.id })
+        .from(schema.notifications)
+        .where(sql`${schema.notifications.status} <> 'SENT'`);
+      expect(left).toEqual([]);
+    };
+
+    await queue(1);
+    first.start();
+    await vi.waitFor(() => expect(firstMailer.sent).toHaveLength(1));
+    second.start();
+    await queue(3);
+    await vi.waitFor(allSent);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(firstMailer.sent).toHaveLength(4);
+    expect(secondMailer.sent).toEqual([]);
+    expect(lines.filter((line) => line.msg.includes("this worker waits"))).toHaveLength(1);
+
+    await first.stop();
+    await queue(2);
+    await vi.waitFor(allSent);
+    await second.stop();
+    expect(firstMailer.sent).toHaveLength(4);
+    expect(secondMailer.sent).toHaveLength(2);
   });
 
   it("sends a sign-in code it holds, and fails one it lost in a restart", async () => {
