@@ -135,6 +135,14 @@ async function attemptsOf(id: string) {
     .orderBy(asc(schema.notificationAttempts.attempt));
 }
 
+function capturedLog() {
+  const lines: { level: number; msg: string; errorClass?: string; after?: string }[] = [];
+  const captured = Fastify({
+    logger: { level: "info", stream: { write: (line: string) => lines.push(JSON.parse(line)) } },
+  }).log;
+  return { lines, log: captured };
+}
+
 async function lockHolders() {
   return db.execute<{ pid: number }>(sql`
     select pid from pg_locks
@@ -145,17 +153,17 @@ async function lockHolders() {
 
 async function stallingProxy() {
   const target = new URL(databaseUrl);
-  const sockets = new Set<Socket>();
-  let stalled = false;
+  const sockets: Socket[] = [];
+  const stalled = new Set<Socket>();
   const server = createServer((client) => {
     const upstream = connect(Number(target.port || 5432), target.hostname);
+    sockets.push(client);
     for (const [from, to] of [
       [client, upstream],
       [upstream, client],
     ] as const) {
-      sockets.add(from);
       from.on("data", (chunk) => {
-        if (!stalled) to.write(chunk);
+        if (!stalled.has(client)) to.write(chunk);
       });
       from.on("close", () => to.destroy());
       from.on("error", () => to.destroy());
@@ -168,8 +176,8 @@ async function stallingProxy() {
   url.host = `127.0.0.1:${address.port}`;
   return {
     url: url.toString(),
-    stall() {
-      stalled = true;
+    stallFirstConnection() {
+      stalled.add(sockets[0]!);
     },
     close() {
       for (const socket of sockets) socket.destroy();
@@ -281,10 +289,7 @@ describe("notification worker", () => {
   });
 
   it("lets one polling worker send at a time, and another take over when it stops", async () => {
-    const lines: { msg: string }[] = [];
-    const waitingLog = Fastify({
-      logger: { level: "info", stream: { write: (line: string) => lines.push(JSON.parse(line)) } },
-    }).log;
+    const { lines, log: waitingLog } = capturedLog();
     const firstMailer = createFakeMailer();
     const secondMailer = createFakeMailer();
     const first = worker(firstMailer, { pollMs: 20 });
@@ -445,7 +450,7 @@ describe("notification worker", () => {
       Array.from({ length: rows.length - 1 }, () => ({ status: "PENDING", attemptCount: 0 })),
     );
   });
-  it("lets go of the lock when its check hangs, and still stops", async () => {
+  it("stops while its lock check hangs, and lets go of the lock", async () => {
     const proxy = await stallingProxy();
     const proxied = createDatabase(proxy.url);
     const running = worker(createFakeMailer(), {
@@ -457,12 +462,56 @@ describe("notification worker", () => {
     running.start();
     await vi.waitFor(async () => expect(await lockHolders()).toHaveLength(1));
 
-    proxy.stall();
+    proxy.stallFirstConnection();
     await new Promise((resolve) => setTimeout(resolve, 60));
     const stopping = Date.now();
     await running.stop();
+
     expect(Date.now() - stopping).toBeLessThan(1_000);
     await vi.waitFor(async () => expect(await lockHolders()).toEqual([]));
+    await proxied.$client.end({ timeout: 0 });
+    proxy.close();
+  });
+
+  it("logs when its lock check hangs, and again when it takes the lock back", async () => {
+    const proxy = await stallingProxy();
+    const proxied = createDatabase(proxy.url);
+    const { lines, log: capture } = capturedLog();
+    const running = worker(createFakeMailer(), {
+      db: proxied,
+      databaseUrl: proxy.url,
+      log: capture,
+      pollMs: 20,
+      timeoutMs: 200,
+    });
+    running.start();
+    await vi.waitFor(async () => expect(await lockHolders()).toHaveLength(1));
+    const [before] = await lockHolders();
+
+    proxy.stallFirstConnection();
+
+    await vi.waitFor(() =>
+      expect(
+        lines.map(({ level, msg, errorClass, after }) => ({ level, msg, errorClass, after })),
+      ).toEqual([
+        {
+          level: 40,
+          msg: "notification worker lost the outbox lock",
+          errorClass: "LockTimeout",
+          after: undefined,
+        },
+        {
+          level: 30,
+          msg: "notification worker took the outbox lock",
+          errorClass: undefined,
+          after: "failing",
+        },
+      ]),
+    );
+    const holders = await lockHolders();
+    expect(holders).toHaveLength(1);
+    expect(holders[0]?.pid).not.toBe(before?.pid);
+    await running.stop();
     await proxied.$client.end({ timeout: 0 });
     proxy.close();
   });

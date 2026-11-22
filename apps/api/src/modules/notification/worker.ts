@@ -57,7 +57,7 @@ export function createNotificationWorker(options: WorkerOptions) {
   let sendingCodes: Promise<void> | null = null;
   let codesAgain = false;
   let lock: SessionConnection | null = null;
-  let waitingForLock = false;
+  let lockState: "held" | "waiting" | "failing" | null = null;
   let running = false;
   let stopped: Promise<void> | null = null;
 
@@ -211,35 +211,45 @@ export function createNotificationWorker(options: WorkerOptions) {
 
   async function holdLock() {
     if (lock) {
-      const still = await bounded(lock<{ held: boolean }[]>`
+      const lost = await bounded(lock<{ held: boolean }[]>`
         select exists (
           select from pg_locks
           where locktype = 'advisory' and pid = pg_backend_pid() and granted
             and classid = 0 and objid = ${WORKER_LOCK_KEY}::oid and objsubid = 1
         ) as held
-      `).then(
-        ([row]) => row?.held === true,
-        () => false,
-      );
-      if (still) return true;
+      `).then(([row]) => (row?.held === true ? null : "LockGone"), classOf);
+      if (!lost) return true;
+      log.warn({ errorClass: lost }, "notification worker lost the outbox lock");
+      lockState = "failing";
       void dropLock();
     }
     const connection = createSessionConnection(options.databaseUrl);
+    let failure: string | null = null;
     const held = await bounded(connection<{ held: boolean }[]>`
       select pg_try_advisory_lock(${WORKER_LOCK_KEY}::bigint) as held
     `).then(
       ([row]) => row?.held === true,
-      () => false,
+      (error: unknown) => {
+        failure = classOf(error);
+        return false;
+      },
     );
     if (held) {
-      if (waitingForLock) log.info("notification worker took over the outbox");
-      waitingForLock = false;
+      if (lockState) log.info({ after: lockState }, "notification worker took the outbox lock");
+      lockState = "held";
       lock = connection;
       return true;
     }
     void connection.end({ timeout: 0 });
-    if (!waitingForLock) log.info("another process sends the outbox; this worker waits");
-    waitingForLock = true;
+    if (failure) {
+      if (lockState !== "failing") {
+        log.warn({ errorClass: failure }, "notification worker could not take the outbox lock");
+      }
+      lockState = "failing";
+    } else {
+      if (lockState !== "waiting") log.info("another process sends the outbox; this worker waits");
+      lockState = "waiting";
+    }
     return false;
   }
 
