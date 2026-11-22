@@ -42,6 +42,7 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     genReqId: () => randomUUID(),
     logger: {
       level: config.logLevel,
+      serializers: { req: requestLogFields },
       ...(config.isProduction ? {} : { transport: { target: "pino-pretty" } }),
     },
   });
@@ -225,4 +226,17 @@ function redactArg(arg: unknown): unknown {
  */
 function redactMessage(message: string) {
   return message.replace(/\nparams: [\s\S]*/, "\nparams: [redacted]");
+}
+
+/**
+ * Fastify's request log fields without the query string. Sign-in callbacks
+ * carry one-time codes there, and no request query is worth that risk.
+ */
+export function requestLogFields(request: Pick<FastifyRequest, "method" | "url" | "host" | "ip">) {
+  return {
+    method: request.method,
+    url: request.url.replace(/\?.*$/s, ""),
+    host: request.host,
+    remoteAddress: request.ip,
+  };
 }
