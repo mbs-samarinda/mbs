@@ -144,7 +144,7 @@ export function createNotificationWorker(options: WorkerOptions) {
     return rows.length;
   }
 
-  function runOnce(): Promise<number> {
+  function runBatch(): Promise<number> {
     if (current) {
       again = true;
       return current;
@@ -206,7 +206,7 @@ export function createNotificationWorker(options: WorkerOptions) {
     let held = false;
     try {
       held = await holdLock();
-      if (held) claimed = await runOnce();
+      if (held) claimed = await runBatch();
     } catch (error) {
       log.error(
         { errorClass: error instanceof Error ? error.constructor.name : typeof error },
@@ -238,7 +238,9 @@ export function createNotificationWorker(options: WorkerOptions) {
   }
 
   return {
-    runOnce,
+    async poll() {
+      return (await holdLock()) ? runBatch() : 0;
+    },
     wake,
 
     start() {

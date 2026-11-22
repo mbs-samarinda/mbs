@@ -77,7 +77,7 @@ async function requestCode(email: string) {
     type: "sign-in",
   });
   expect(response.statusCode).toBe(200);
-  await app.notifications.runOnce();
+  await app.notifications.poll();
   const message = mailer.sent.at(-1);
   const code = /\b(\d{6})\b/.exec(message?.text ?? "")?.[1];
   if (!code) throw new Error("no code in the email");

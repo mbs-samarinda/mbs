@@ -1,13 +1,13 @@
 import { createDatabase, schema } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
 import Fastify from "fastify";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetTables } from "../../test/reset.ts";
 import { submitApplication } from "../application/service.ts";
-import { createFakeMailer, messageIdFor, type FakeMailer } from "./email.ts";
+import { createFakeMailer, messageIdFor, type Mailer } from "./email.ts";
 import { claimDue } from "./outbox.ts";
-import { createNotificationWorker, MAX_ATTEMPTS } from "./worker.ts";
+import { createNotificationWorker, MAX_ATTEMPTS, type NotificationWorker } from "./worker.ts";
 
 const db = createDatabase(
   process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
@@ -75,8 +75,18 @@ beforeEach(async () => {
   await db.delete(schema.notifications);
 });
 
-function worker(mailer: FakeMailer, options: { batchSize?: number } = {}) {
-  return createNotificationWorker({ db, mailer, log, ...options });
+const workers: NotificationWorker[] = [];
+afterEach(async () => {
+  await Promise.all(workers.splice(0).map((each) => each.stop()));
+});
+
+function worker(
+  mailer: Mailer,
+  options: Partial<Parameters<typeof createNotificationWorker>[0]> = {},
+) {
+  const created = createNotificationWorker({ db, mailer, log, ...options });
+  workers.push(created);
+  return created;
 }
 
 async function queue(count = 1) {
@@ -122,18 +132,19 @@ describe("notification worker", () => {
     const mailer = createFakeMailer();
     const [row] = await queue();
     mailer.failNext();
+    const running = worker(mailer);
 
-    await worker(mailer).runOnce();
+    await running.poll();
     const waiting = await rowOf(row!.id);
     expect(waiting).toMatchObject({ status: "PENDING", attemptCount: 1, sentAt: null });
     const wait = waiting.nextAttemptAt.getTime() - Date.now();
     expect(wait).toBeGreaterThan(50_000);
     expect(wait).toBeLessThan(70_000);
-    await worker(mailer).runOnce();
+    await running.poll();
     expect(mailer.sent).toEqual([]);
 
     await makeDue(row!.id);
-    await worker(mailer).runOnce();
+    await running.poll();
 
     expect(await rowOf(row!.id)).toMatchObject({ status: "SENT", attemptCount: 2 });
     expect(mailer.sent.map((message) => message.id)).toEqual([row!.id]);
@@ -147,12 +158,13 @@ describe("notification worker", () => {
     const mailer = createFakeMailer();
     const [row] = await queue();
     mailer.failNext(MAX_ATTEMPTS + 1);
+    const running = worker(mailer);
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS + 1; attempt += 1) {
       // oxlint-disable-next-line eslint/no-await-in-loop
       await makeDue(row!.id);
       // oxlint-disable-next-line eslint/no-await-in-loop
-      await worker(mailer).runOnce();
+      await running.poll();
     }
 
     expect(await rowOf(row!.id)).toMatchObject({ status: "FAILED", attemptCount: MAX_ATTEMPTS });
@@ -163,16 +175,18 @@ describe("notification worker", () => {
     const mailer = createFakeMailer();
     const [row] = await queue();
 
+    const running = worker(mailer);
+
     const [claimed] = await claimDue(db, 10, 60);
     await mailer.send({ id: claimed!.id, to: claimed!.recipient, subject: "", text: "", html: "" });
-    await worker(mailer).runOnce();
+    await running.poll();
     expect(mailer.sent).toHaveLength(1);
 
     await db
       .update(schema.notifications)
       .set({ leaseUntil: sql`now() - interval '1 second'` })
       .where(eq(schema.notifications.id, row!.id));
-    await worker(mailer).runOnce();
+    await running.poll();
 
     expect(await rowOf(row!.id)).toMatchObject({ status: "SENT", attemptCount: 2 });
     expect(await attemptsOf(row!.id)).toMatchObject([
@@ -183,22 +197,24 @@ describe("notification worker", () => {
     expect(new Set(ids).size).toBe(1);
   });
 
-  it("never lets two workers send one row twice", async () => {
-    const mailer = createFakeMailer();
+  it("claims nothing in a worker that does not hold the lock", async () => {
+    const aMailer = createFakeMailer();
+    const bMailer = createFakeMailer();
     const rows = await queue(60);
-    const a = worker(mailer, { batchSize: 7 });
-    const b = worker(mailer, { batchSize: 7 });
+    const a = worker(aMailer, { batchSize: 7 });
+    const b = worker(bMailer, { batchSize: 7 });
 
-    let claimed = 1;
+    let claimed = await a.poll();
     while (claimed > 0) {
       // oxlint-disable-next-line eslint/no-await-in-loop
-      const counts = await Promise.all([a.runOnce(), b.runOnce(), a.runOnce(), b.runOnce()]);
+      const counts = await Promise.all([b.poll(), a.poll(), b.poll()]);
       claimed = counts.reduce((sum, count) => sum + count, 0);
     }
 
-    const sent = mailer.sent.map((message) => message.id);
+    const sent = aMailer.sent.map((message) => message.id);
     expect(sent).toHaveLength(rows.length);
     expect(new Set(sent).size).toBe(rows.length);
+    expect(bMailer.sent).toEqual([]);
     const statuses = await db
       .select({ status: schema.notifications.status, count: sql<number>`count(*)::int` })
       .from(schema.notifications)
@@ -213,13 +229,8 @@ describe("notification worker", () => {
     }).log;
     const firstMailer = createFakeMailer();
     const secondMailer = createFakeMailer();
-    const first = createNotificationWorker({ db, mailer: firstMailer, log, pollMs: 20 });
-    const second = createNotificationWorker({
-      db,
-      mailer: secondMailer,
-      log: waitingLog,
-      pollMs: 20,
-    });
+    const first = worker(firstMailer, { pollMs: 20 });
+    const second = worker(secondMailer, { log: waitingLog, pollMs: 20 });
     const allSent = async () => {
       const left = await db
         .select({ id: schema.notifications.id })
@@ -251,12 +262,13 @@ describe("notification worker", () => {
     const mailer = createFakeMailer();
     const first = worker(mailer);
     const held = await first.sendSignInCode("ibu@example.test", "482913", 5);
-    await first.runOnce();
+    await first.poll();
     expect(mailer.sent).toMatchObject([{ id: held, to: "ibu@example.test" }]);
     expect(mailer.sent[0]?.text).toContain("482913");
 
     await first.sendSignInCode("ibu@example.test", "771204", 5);
-    await worker(mailer).runOnce();
+    await first.stop();
+    await worker(mailer).poll();
 
     const rows = await db
       .select()
@@ -284,7 +296,7 @@ describe("notification worker", () => {
       })
       .where(eq(schema.notifications.id, row!.id));
 
-    await worker(mailer).runOnce();
+    await worker(mailer).poll();
 
     expect(mailer.sent).toEqual([]);
     expect(await rowOf(row!.id)).toMatchObject({
@@ -303,7 +315,7 @@ describe("notification worker", () => {
     const running = worker(mailer, { batchSize: 5 });
     const code = await running.sendSignInCode("ayah@example.test", "135790", 5);
 
-    await running.runOnce();
+    await running.poll();
 
     expect(mailer.sent[0]?.id).toBe(code);
   });
@@ -321,8 +333,8 @@ describe("notification worker", () => {
       },
     };
     const rows = await queue(4);
-    const running = createNotificationWorker({ db, mailer: slow, log });
-    const batch = running.runOnce();
+    const running = worker(slow);
+    const batch = running.poll();
     await sending;
     const stopped = running.stop();
     release();
