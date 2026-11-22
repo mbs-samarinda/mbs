@@ -80,6 +80,9 @@ const SAMPLE_PAYLOADS: { [C in ApplicationCommand]: CommandPayload<C> } = {
   WITHDRAW: { payloadVersion: 1 },
   ADD_NOTE: { payloadVersion: 1, note: "Catatan dari simulator." },
   CHANGE_INTERVIEW_MODE: { payloadVersion: 1, mode: "ONLINE" },
+  // Only to satisfy the type: applyCommand refuses EDIT_PROFILE, and
+  // --profile-edits runs edits through saveProfile.
+  EDIT_PROFILE: { payloadVersion: 1, version: 2 },
 };
 
 const FIRST_NAMES = ["Aisyah", "Fatimah", "Rizki", "Hasan", "Nadia", "Umar", "Zahra", "Bilal"];
@@ -266,16 +269,18 @@ async function walk(db: Database, args: Args) {
         }),
       );
       let newRows = submitted.replayed ? 0 : 1;
+      // Each step is one event, so `seen` is also the seq the next step expects.
       let seen = 1;
 
       for (let edit = 1; edit <= args.profileEdits; edit += 1) {
         // oxlint-disable-next-line eslint/no-await-in-loop
-        const saved = await timed("SAVE_PROFILE", () =>
+        const saved = await timed("EDIT_PROFILE", () =>
           saveProfile(db, {
             applicationId: submitted.application.id,
-            userId,
+            actor: { type: "FAMILY", userId },
             profile: profileFor(args.seed, index, nik, edit),
-            expectedVersion: edit,
+            expectedSeq: seen,
+            idempotencyKey: key(`edit-${edit}`),
           }),
         );
         newRows += saved.replayed ? 0 : 1;
@@ -293,7 +298,7 @@ async function walk(db: Database, args: Args) {
             ...commandInput(command, payload),
             applicationId: submitted.application.id,
             actor: actorFor(command, userId),
-            expectedSeq: step + 1,
+            expectedSeq: seen,
             idempotencyKey: key(step + 2),
           }),
         );

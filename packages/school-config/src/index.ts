@@ -98,6 +98,7 @@ export const APPLICATION_COMMANDS = [
   "WITHDRAW",
   "ADD_NOTE",
   "CHANGE_INTERVIEW_MODE",
+  "EDIT_PROFILE",
 ] as const;
 
 /** Who acted. `SYSTEM` is the API's own worker, such as the result publisher. */

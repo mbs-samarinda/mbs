@@ -191,6 +191,15 @@ export const TRANSITIONS = {
     familyVisible: true,
     notification: null,
   },
+  // Every save of the family's form, so the timeline shows each change and
+  // staff acting on an older view get a conflict.
+  EDIT_PROFILE: {
+    from: "ANY_OPEN",
+    to: "SAME",
+    actors: ["FAMILY", "STAFF"],
+    familyVisible: true,
+    notification: null,
+  },
 } as const satisfies Record<ApplicationCommand, Transition>;
 
 export type TransitionResult =

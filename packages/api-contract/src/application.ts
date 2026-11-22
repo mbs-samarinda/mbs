@@ -77,11 +77,18 @@ export const COMMAND_PAYLOADS = {
   WITHDRAW: z.object({ ...v1, reason: Reason.optional() }),
   ADD_NOTE: z.object({ ...v1, note: Reason }),
   CHANGE_INTERVIEW_MODE: z.object({ ...v1, mode: InterviewMode }),
+  // The profile version this edit wrote. The data itself is in
+  // applicant_profile_versions, which holds personal data; the event does not.
+  EDIT_PROFILE: z.object({ ...v1, version: z.number().int().min(1) }),
 } satisfies Record<ApplicationCommand, z.ZodType<{ payloadVersion: 1 }>>;
 
 export type CommandPayload<C extends ApplicationCommand> = z.infer<(typeof COMMAND_PAYLOADS)[C]>;
 
-/** One command and its payload, with the pairing checked by the compiler. */
+/**
+ * One command and its payload, with the pairing checked by the compiler.
+ * EDIT_PROFILE is left out: its payload is written by `saveProfile`, which
+ * takes the profile itself.
+ */
 export type CommandInput = {
-  [C in ApplicationCommand]: { command: C; payload: CommandPayload<C> };
-}[ApplicationCommand];
+  [C in Exclude<ApplicationCommand, "EDIT_PROFILE">]: { command: C; payload: CommandPayload<C> };
+}[Exclude<ApplicationCommand, "EDIT_PROFILE">];

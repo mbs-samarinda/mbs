@@ -41,6 +41,10 @@ const DESIGN: [ApplicationStage | null, ApplicationCommand, ApplicationStage, Ac
   ...OPEN_STAGES.map(
     (stage) => [stage, "ADD_NOTE", stage, ["STAFF"]] satisfies (typeof DESIGN)[number],
   ),
+  ...OPEN_STAGES.map(
+    (stage) =>
+      [stage, "EDIT_PROFILE", stage, ["FAMILY", "STAFF"]] satisfies (typeof DESIGN)[number],
+  ),
   ...(["DOCUMENTS_DUE", "DOCUMENTS_REVIEW", "SCREENING", "INTERVIEW_PENDING"] as const).map(
     (stage) =>
       [

@@ -1,4 +1,4 @@
-import type { ApplicantProfileInput, SchoolKey } from "@mbs/api-contract";
+import type { ApplicantProfileInput, CommandInput, SchoolKey } from "@mbs/api-contract";
 import { createDatabase, schema } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -518,58 +518,153 @@ describe("applyCommand", () => {
 });
 
 describe("saveProfile", () => {
-  it("appends a version for every save, and the newest NIK becomes the application's", async () => {
+  function edit(
+    applicationId: string,
+    expectedSeq: number,
+    overrides: Partial<ApplicantProfileInput>,
+    options: { key?: string | null; actor?: Actor } = {},
+  ) {
+    return saveProfile(db, {
+      applicationId,
+      actor: options.actor ?? FAMILY,
+      profile: profile(overrides),
+      expectedSeq,
+      idempotencyKey: options.key === undefined ? crypto.randomUUID() : options.key,
+    });
+  }
+
+  it("appends a version and an event for every save, and the newest NIK becomes the application's", async () => {
     const { application } = await submit();
 
-    for (const [expectedVersion, name] of [
-      [1, "Aisyah P."],
-      [2, "Aisyah Putri Ramadhani"],
-    ] as const) {
-      // oxlint-disable-next-line eslint/no-await-in-loop
-      await saveProfile(db, {
-        applicationId: application.id,
-        userId: "family-1",
-        profile: profile({ childFullName: name }),
-        expectedVersion,
-      });
-    }
-    const { version } = await saveProfile(db, {
-      applicationId: application.id,
-      userId: "family-1",
-      profile: profile({ childFullName: "Aisyah Putri Ramadhani", nik: "6472010101019999" }),
-      expectedVersion: 3,
+    await edit(application.id, 1, { childFullName: "Aisyah P." });
+    await edit(application.id, 2, { childFullName: "Aisyah Putri Ramadhani" });
+    const { version, event } = await edit(application.id, 3, {
+      childFullName: "Aisyah Putri Ramadhani",
+      nik: "6472010101019999",
     });
 
     expect(version).toBe(4);
+    expect(event).toMatchObject({
+      seq: 4,
+      command: "EDIT_PROFILE",
+      fromStage: "PAYMENT_DUE",
+      toStage: "PAYMENT_DUE",
+      familyVisible: true,
+      payload: { payloadVersion: 1, version: 4 },
+    });
     const versions = await db
       .select()
       .from(schema.applicantProfileVersions)
       .orderBy(asc(schema.applicantProfileVersions.version));
     expect(versions.map((row) => row.version)).toEqual([1, 2, 3, 4]);
+    expect((await eventsOf(application.id)).map((row) => row.command)).toEqual([
+      "SUBMIT",
+      "EDIT_PROFILE",
+      "EDIT_PROFILE",
+      "EDIT_PROFILE",
+    ]);
     const [row] = await db
       .select()
       .from(schema.applications)
       .where(eq(schema.applications.id, application.id));
-    expect(row!.nik).toBe("6472010101019999");
+    expect(row).toMatchObject({ nik: "6472010101019999", lastEventSeq: 4 });
   });
 
-  it("returns the saved version to a retry, and a conflict to an older view", async () => {
+  it("returns the first result to an identical retry", async () => {
     const { application } = await submit();
-    const edit = {
-      applicationId: application.id,
-      userId: "family-1",
-      profile: profile({ childFullName: "Aisyah P." }),
-      expectedVersion: 1,
-    };
 
-    const first = await saveProfile(db, edit);
-    const retry = await saveProfile(db, edit);
+    const first = await edit(application.id, 1, { childFullName: "Aisyah P." }, { key: "edit-1" });
+    // The retry still carries the seq the first attempt saw.
+    const retry = await edit(application.id, 1, { childFullName: "Aisyah P." }, { key: "edit-1" });
 
-    expect(retry).toEqual({ version: first.version, replayed: true });
-    await expect(
-      saveProfile(db, { ...edit, profile: profile({ childFullName: "Lain" }) }),
-    ).rejects.toBeInstanceOf(StaleSequenceError);
+    expect(retry).toMatchObject({ replayed: true, version: first.version });
+    expect(retry.event.id).toBe(first.event.id);
     expect(await db.$count(schema.applicantProfileVersions)).toBe(2);
+    expect(await eventsOf(application.id)).toHaveLength(2);
+  });
+
+  it("refuses a key reused for a different form", async () => {
+    const { application } = await submit();
+    await edit(application.id, 1, { childFullName: "Aisyah P." }, { key: "edit-1" });
+
+    await expect(
+      edit(application.id, 2, { childFullName: "Lain" }, { key: "edit-1" }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(await db.$count(schema.applicantProfileVersions)).toBe(2);
+  });
+
+  it("returns a conflict to a save from an older view", async () => {
+    const { application } = await submit();
+    await edit(application.id, 1, { childFullName: "Aisyah P." });
+
+    await expect(edit(application.id, 1, { childFullName: "Lain" })).rejects.toBeInstanceOf(
+      StaleSequenceError,
+    );
+    expect(await db.$count(schema.applicantProfileVersions)).toBe(2);
+  });
+
+  it("gives staff acting on the view before an edit a conflict", async () => {
+    const { application } = await submit();
+    await applyCommand(db, {
+      applicationId: application.id,
+      actor: FAMILY,
+      command: "UPLOAD_PAYMENT_PROOF",
+      payload: { payloadVersion: 1 },
+      expectedSeq: 1,
+      idempotencyKey: null,
+    });
+    await edit(application.id, 2, { guardianPhone: "081200000000" });
+
+    await expect(
+      applyCommand(db, {
+        applicationId: application.id,
+        actor: STAFF,
+        command: "APPROVE_PAYMENT",
+        payload: { payloadVersion: 1 },
+        expectedSeq: 2,
+        idempotencyKey: null,
+      }),
+    ).rejects.toBeInstanceOf(StaleSequenceError);
+  });
+
+  it("lets staff edit the form, recorded under their account", async () => {
+    await db.insert(schema.user).values({
+      id: staff.authUserId,
+      name: "Panitia",
+      email: "panitia@example.test",
+      emailVerified: true,
+      updatedAt: new Date(),
+    });
+    const { application } = await submit();
+
+    const { event } = await edit(application.id, 1, { schoolOfOrigin: "SD 2" }, { actor: STAFF });
+
+    expect(event).toMatchObject({ actorType: "STAFF", actorId: staff.id });
+    const [latest] = await db
+      .select()
+      .from(schema.applicantProfileVersions)
+      .where(eq(schema.applicantProfileVersions.version, 2));
+    expect(latest!.authorUserId).toBe(staff.authUserId);
+  });
+
+  it("is not a command applyCommand runs, so no edit event lacks its version", async () => {
+    const { application } = await submit();
+
+    await expect(
+      applyCommand(db, {
+        applicationId: application.id,
+        actor: FAMILY,
+        // A caller that casts, as the simulator does for commands chosen at run time.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+        ...({
+          command: "EDIT_PROFILE",
+          payload: { payloadVersion: 1, version: 2 },
+        } as unknown as CommandInput),
+        expectedSeq: 1,
+        idempotencyKey: null,
+      }),
+    ).rejects.toBeInstanceOf(IllegalTransitionError);
+    expect(await eventsOf(application.id)).toHaveLength(1);
   });
 
   it("refuses to change the form of a finished application", async () => {
@@ -583,28 +678,20 @@ describe("saveProfile", () => {
       idempotencyKey: null,
     });
 
-    await expect(
-      saveProfile(db, {
-        applicationId: application.id,
-        userId: "family-1",
-        profile: profile({ childFullName: "Lain" }),
-        expectedVersion: 1,
-      }),
-    ).rejects.toBeInstanceOf(IllegalTransitionError);
+    await expect(edit(application.id, 2, { childFullName: "Lain" })).rejects.toBeInstanceOf(
+      IllegalTransitionError,
+    );
+    expect(await db.$count(schema.applicantProfileVersions)).toBe(1);
   });
 
-  it("refuses a NIK that already applied to the same school", async () => {
+  it("refuses a NIK that already applied to the same school, and writes nothing", async () => {
     await submit({ profile: profile({ nik: "6472010101010001" }) });
     const { application } = await submit({ profile: profile({ nik: "6472010101010002" }) });
 
-    await expect(
-      saveProfile(db, {
-        applicationId: application.id,
-        userId: "family-1",
-        profile: profile({ nik: "6472010101010001" }),
-        expectedVersion: 1,
-      }),
-    ).rejects.toBeInstanceOf(DuplicateApplicationError);
+    await expect(edit(application.id, 1, { nik: "6472010101010001" })).rejects.toBeInstanceOf(
+      DuplicateApplicationError,
+    );
     expect(await db.$count(schema.applicantProfileVersions)).toBe(2);
+    expect(await eventsOf(application.id)).toHaveLength(1);
   });
 });
