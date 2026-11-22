@@ -53,7 +53,7 @@ export async function getCurrentCycle(
   // The committee's own screen reads every school's requirements for one cycle,
   // so this reuses that query and keeps the one school's rows rather than adding
   // a second, narrower one. Three schools' worth of rows is a handful.
-  const requirements = await listDocumentRequirements(db, row.id);
+  const requirements = await listDocumentRequirements(db, row.id, "APPLICATION");
 
   return {
     id: row.id,
@@ -180,7 +180,7 @@ export async function listSchoolAdmissionSettings(
 
   const [settings, requirements] = await Promise.all([
     listSchoolSettings(db, input.cycleId),
-    listDocumentRequirements(db, input.cycleId),
+    listDocumentRequirements(db, input.cycleId, "APPLICATION"),
   ]);
 
   return actor.schoolKeys.map((schoolKey) => {
@@ -223,7 +223,9 @@ export async function upsertSchoolAdmissionSetting(
       acceptedInstructions: input.acceptedInstructions,
       rejectedInstructions: input.rejectedInstructions,
     });
-    await replaceDocumentRequirements(tx, input.cycleId, schoolId, input.documents);
+    // Registration documents only. Registrasi ulang's list gets its own screen,
+    // and saving this one must not wipe it.
+    await replaceDocumentRequirements(tx, input.cycleId, schoolId, "APPLICATION", input.documents);
     await appendAuditLog(tx, {
       actorType: "STAFF",
       actorId: actor.id,

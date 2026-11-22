@@ -1,6 +1,11 @@
 import {
+  ACTOR_TYPES,
+  APPLICATION_COMMANDS,
+  APPLICATION_STAGES,
   CYCLE_STATUSES,
+  DOCUMENT_STAGES,
   DOCUMENT_TYPES,
+  INTERVIEW_MODES,
   STAFF_LOGIN_EMAIL_KINDS,
   STAFF_ROLES,
 } from "@mbs/school-config";
@@ -94,6 +99,7 @@ export const schoolAdmissionSettings = pgTable(
 // what was required, and a typo in a configured type would silently create a
 // requirement nothing can ever satisfy. A new document costs one migration.
 export const documentType = pgEnum("document_type", DOCUMENT_TYPES);
+export const documentStage = pgEnum("document_stage", DOCUMENT_STAGES);
 
 /**
  * What one school asks for in one cycle. Three states, two columns: no row
@@ -115,13 +121,15 @@ export const documentRequirements = pgTable(
       .references(() => schools.id),
     type: documentType("document_type").notNull(),
     required: boolean("required").notNull(),
+    stage: documentStage("stage").notNull().default("APPLICATION"),
   },
-  // Named explicitly: the generated name is 71 characters and Postgres
-  // truncates identifiers at 63, so the snapshot would not match the database.
+  // Named explicitly: the generated name is longer than the 63 characters
+  // Postgres keeps, so the snapshot would not match the database.
   (table) => [
-    unique("document_requirements_cycle_school_type_unique").on(
+    unique("document_requirements_cycle_school_stage_type_unique").on(
       table.admissionCycleId,
       table.schoolId,
+      table.stage,
       table.type,
     ),
   ],
@@ -190,8 +198,14 @@ export const staffSchoolAccess = pgTable(
 );
 
 /**
- * Append-only business history. Application code inserts and never updates or
- * deletes. This is not the server log: it answers who changed what, and when.
+ * Append-only business history. This is not the server log: it answers who
+ * changed what, and when.
+ *
+ * Every append-only table carries the `forbid_history_change()` trigger, so
+ * the database refuses an update, delete or truncate. The one way past it is
+ * the bypass function in migration 0008, run by hand, which writes its own row
+ * here. The list of these tables is in
+ * `apps/api/src/history-tables.integration.test.ts`.
  */
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -203,5 +217,157 @@ export const auditLogs = pgTable("audit_logs", {
   // Sanitized. Never NIK, document contents, cookies or tokens.
   metadata: jsonb("metadata"),
   ipAddress: text("ip_address"),
+  requestId: text("request_id"),
+  userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const applicationStage = pgEnum("application_stage", APPLICATION_STAGES);
+export const applicationCommand = pgEnum("application_command", APPLICATION_COMMANDS);
+export const actorType = pgEnum("actor_type", ACTOR_TYPES);
+export const interviewMode = pgEnum("interview_mode", INTERVIEW_MODES);
+
+/**
+ * One child at one school in one cycle. This row is the current state, kept so
+ * lists and locks have one row to read. The history behind it is in
+ * `application_events` and `applicant_profile_versions`, which only grow.
+ */
+export const applications = pgTable(
+  "applications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    admissionCycleId: uuid("admission_cycle_id")
+      .notNull()
+      .references(() => admissionCycles.id),
+    schoolId: uuid("school_id")
+      .notNull()
+      .references(() => schools.id),
+    // Counts from 1 per cycle and school. People read the number; it unlocks
+    // nothing.
+    registrationSeq: integer("registration_seq").notNull(),
+    registrationNumber: text("registration_number").notNull(),
+    stage: applicationStage("stage").notNull(),
+    interviewMode: interviewMode("interview_mode"),
+    // A copy of the latest profile's NIK, so the database itself refuses a
+    // second application to the same school.
+    nik: text("nik").notNull(),
+    // What the school charged when the family applied. A later fee change in
+    // the cycle settings never changes what this application owes.
+    registrationFee: integer("registration_fee").notNull(),
+    // A command names the seq it expects, so one made against an older view
+    // gets a conflict instead of overwriting.
+    lastEventSeq: integer("last_event_seq").notNull(),
+    stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("applications_cycle_school_seq_unique").on(
+      table.admissionCycleId,
+      table.schoolId,
+      table.registrationSeq,
+    ),
+    unique("applications_cycle_number_unique").on(table.admissionCycleId, table.registrationNumber),
+    // One child may apply to several MBSS schools, but only once to each.
+    unique("applications_cycle_school_nik_unique").on(
+      table.admissionCycleId,
+      table.schoolId,
+      table.nik,
+    ),
+    check("applications_nik_digits", sql`nik ~ '^[0-9]{16}$'`),
+  ],
+);
+
+/**
+ * The documents this application was asked for, copied from
+ * `document_requirements` when it was created. Append-only.
+ */
+export const applicationDocumentRequirements = pgTable(
+  "application_document_requirements",
+  {
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    stage: documentStage("stage").notNull(),
+    type: documentType("document_type").notNull(),
+    required: boolean("required").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.applicationId, table.stage, table.type] })],
+);
+
+/** Which signed-in account may act on which application. One account, many children. */
+export const applicationAccess = pgTable(
+  "application_access",
+  {
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.applicationId, table.userId] })],
+);
+
+/** Every save of the family's form, as a new row. Append-only. */
+export const applicantProfileVersions = pgTable(
+  "applicant_profile_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    version: integer("version").notNull(),
+    // An ApplicantProfile from @mbs/api-contract. Personal data: this is the record.
+    data: jsonb("data").notNull(),
+    authorUserId: text("author_user_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.applicationId, table.version)],
+);
+
+/**
+ * The timeline, one row per command in seq order. The family's status page,
+ * the committee's history and the email queue all read it, so they cannot
+ * disagree. Append-only.
+ */
+export const applicationEvents = pgTable(
+  "application_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    seq: integer("seq").notNull(),
+    command: applicationCommand("command").notNull(),
+    // Null only for SUBMIT, which creates the application.
+    fromStage: applicationStage("from_stage"),
+    toStage: applicationStage("to_stage").notNull(),
+    actorType: actorType("actor_type").notNull(),
+    // A Better Auth user id, a staff id, or the name of a system job. Never
+    // null, so a system job's idempotency keys are unique like anyone else's.
+    actorId: text("actor_id").notNull(),
+    familyVisible: boolean("family_visible").notNull(),
+    // Parsed by the command's schema in @mbs/api-contract before it is written.
+    payload: jsonb("payload").notNull(),
+    payloadVersion: integer("payload_version").notNull(),
+    idempotencyKey: text("idempotency_key"),
+    requestId: text("request_id"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique().on(table.applicationId, table.seq),
+    uniqueIndex("application_events_actor_idempotency_key")
+      .on(table.actorType, table.actorId, table.idempotencyKey)
+      .where(sql`idempotency_key is not null`),
+  ],
+);

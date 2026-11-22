@@ -12,7 +12,8 @@
  * `OWNERS` lives beside those blocks.
  *
  * The closed value lists of the admission domain (cycle status, document type,
- * staff role, login email kind) live here too, at the bottom.
+ * staff role, application stage and command, and the rest) live here too, at
+ * the bottom.
  */
 export const SCHOOLS = [
   { key: "smp", name: "SMP Islam Terpadu Madina", level: "SMP", subdomain: "smp" },
@@ -41,6 +42,66 @@ export const DOCUMENT_TYPES = [
 ] as const;
 export const STAFF_ROLES = ["ADMINISTRATOR", "STAFF", "PRINCIPAL"] as const;
 export const STAFF_LOGIN_EMAIL_KINDS = ["INSTITUTIONAL", "PERSONAL"] as const;
+
+/** Registration documents, or the extra ones asked for at registrasi ulang. */
+export const DOCUMENT_STAGES = ["APPLICATION", "REREGISTRATION"] as const;
+export const INTERVIEW_MODES = ["OFFLINE", "ONLINE"] as const;
+
+/**
+ * Where one application stands. The last four are end stages: nothing moves an
+ * application out of them. `TRANSITIONS` in the API says which command moves
+ * an application from one stage to the next.
+ */
+export const APPLICATION_STAGES = [
+  "PAYMENT_DUE",
+  "PAYMENT_REVIEW",
+  "DOCUMENTS_DUE",
+  "DOCUMENTS_REVIEW",
+  "SCREENING",
+  "INTERVIEW_PENDING",
+  "INTERVIEW_SCHEDULED",
+  "INTERVIEWED",
+  "DECIDED",
+  "REREGISTRATION",
+  "REREGISTRATION_REVIEW",
+  "ENROLLED",
+  "NOT_ADVANCED",
+  "NOT_ACCEPTED",
+  "WITHDRAWN",
+] as const;
+
+/**
+ * Everything that can happen to an application. Each `application_events` row
+ * is one of these, so the list only ever grows: an old row must still name a
+ * command that exists.
+ */
+export const APPLICATION_COMMANDS = [
+  "SUBMIT",
+  "UPLOAD_PAYMENT_PROOF",
+  "APPROVE_PAYMENT",
+  "REJECT_PAYMENT",
+  "SUBMIT_DOCUMENTS",
+  "REQUEST_DOCUMENT_FIX",
+  "VERIFY_DOCUMENTS",
+  "ADVANCE_TO_INTERVIEW",
+  "STOP_AT_SCREENING",
+  "SCHEDULE_INTERVIEW",
+  "RESCHEDULE_INTERVIEW",
+  "RECORD_ATTENDED",
+  "RECORD_NO_SHOW",
+  "DECIDE",
+  "PUBLISH_ACCEPTED",
+  "PUBLISH_NOT_ACCEPTED",
+  "SUBMIT_REREGISTRATION",
+  "REQUEST_REREGISTRATION_FIX",
+  "CONFIRM_ENROLLMENT",
+  "WITHDRAW",
+  "ADD_NOTE",
+  "CHANGE_INTERVIEW_MODE",
+] as const;
+
+/** Who acted. `SYSTEM` is the API's own worker, such as the result publisher. */
+export const ACTOR_TYPES = ["FAMILY", "STAFF", "SYSTEM"] as const;
 
 /**
  * Narrows a string read from the database to a school key. The schools table

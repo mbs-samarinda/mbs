@@ -50,6 +50,20 @@
       "when": 1794321841919,
       "tag": "0006_even_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795320193800,
+      "tag": "0007_ppdb_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795320200170,
+      "tag": "0008_history_guard",
+      "breakpoints": true
     }
   ]
 }

@@ -1,11 +1,11 @@
 import type { StaffRole } from "@mbs/api-contract";
 import { schema } from "@mbs/db";
 import { makeSignature } from "better-auth/crypto";
-import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { buildApp } from "./app.ts";
 import { loadConfig } from "./config/env.ts";
+import { resetTables } from "./test/reset.ts";
 
 const config = loadConfig({
   NODE_ENV: "test",
@@ -28,9 +28,13 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await db.execute(
-    sql`truncate ${schema.auditLogs}, ${schema.staffSchoolAccess}, ${schema.staffLoginEmails}, ${schema.staffUsers}, ${schema.user} cascade`,
-  );
+  await resetTables(db, [
+    schema.auditLogs,
+    schema.staffSchoolAccess,
+    schema.staffLoginEmails,
+    schema.staffUsers,
+    schema.user,
+  ]);
   await db
     .insert(schema.schools)
     .values([{ key: "smp" }, { key: "smk" }, { key: "sma" }])

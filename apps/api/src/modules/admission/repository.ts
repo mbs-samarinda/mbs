@@ -1,4 +1,4 @@
-import type { CycleStatus, DocumentType } from "@mbs/api-contract";
+import type { CycleStatus, DocumentStage, DocumentType } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
@@ -160,7 +160,15 @@ export async function listSchoolSettings(db: Executor, cycleId: string) {
     .where(eq(schema.schoolAdmissionSettings.admissionCycleId, cycleId));
 }
 
-export async function listDocumentRequirements(db: Executor, cycleId: string) {
+/**
+ * One stage at a time. The public page and the committee's registration screen
+ * show what a family brings to register; registrasi ulang asks for its own.
+ */
+export async function listDocumentRequirements(
+  db: Executor,
+  cycleId: string,
+  stage: DocumentStage,
+) {
   return db
     .select({
       schoolKey: schema.schools.key,
@@ -169,7 +177,12 @@ export async function listDocumentRequirements(db: Executor, cycleId: string) {
     })
     .from(schema.documentRequirements)
     .innerJoin(schema.schools, eq(schema.schools.id, schema.documentRequirements.schoolId))
-    .where(eq(schema.documentRequirements.admissionCycleId, cycleId))
+    .where(
+      and(
+        eq(schema.documentRequirements.admissionCycleId, cycleId),
+        eq(schema.documentRequirements.stage, stage),
+      ),
+    )
     .orderBy(asc(schema.documentRequirements.type));
 }
 
@@ -201,11 +214,12 @@ export async function upsertSchoolSetting(
     });
 }
 
-/** Replaced wholesale: the client sends the school's complete document list. */
+/** Replaced wholesale within one stage: the client sends that stage's complete list. */
 export async function replaceDocumentRequirements(
   db: Executor,
   cycleId: string,
   schoolId: string,
+  stage: DocumentStage,
   documents: readonly { type: DocumentType; required: boolean }[],
 ) {
   await db
@@ -214,6 +228,7 @@ export async function replaceDocumentRequirements(
       and(
         eq(schema.documentRequirements.admissionCycleId, cycleId),
         eq(schema.documentRequirements.schoolId, schoolId),
+        eq(schema.documentRequirements.stage, stage),
       ),
     );
 
@@ -222,6 +237,7 @@ export async function replaceDocumentRequirements(
       documents.map((document) => ({
         admissionCycleId: cycleId,
         schoolId,
+        stage,
         type: document.type,
         required: document.required,
       })),

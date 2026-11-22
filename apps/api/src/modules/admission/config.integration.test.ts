@@ -1,8 +1,9 @@
 import { createDatabase, schema } from "@mbs/db";
-import { asc, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ConflictError, ForbiddenError } from "../../errors.ts";
+import { resetTables } from "../../test/reset.ts";
 import type { StaffContext } from "../auth/authorization.ts";
 import {
   createAdmissionCycle,
@@ -37,9 +38,12 @@ const cycleInput = {
 };
 
 beforeEach(async () => {
-  await db.execute(
-    sql`truncate ${schema.auditLogs}, ${schema.documentRequirements}, ${schema.schoolAdmissionSettings}, ${schema.admissionCycles} cascade`,
-  );
+  await resetTables(db, [
+    schema.auditLogs,
+    schema.documentRequirements,
+    schema.schoolAdmissionSettings,
+    schema.admissionCycles,
+  ]);
   await db
     .insert(schema.schools)
     .values([{ key: "smp" }, { key: "smk" }, { key: "sma" }])
@@ -165,6 +169,35 @@ describe("school settings", () => {
     expect(rewritten.feeOverride).toBeNull();
     expect(rewritten.effectiveFee).toBe(250_000);
     expect(rewritten.documents).toEqual([{ type: "AKTA_KELAHIRAN", required: true }]);
+  });
+
+  it("leaves the registrasi ulang documents alone when it saves", async () => {
+    const cycle = await createAdmissionCycle(db, actor, cycleInput);
+    const [sma] = await db.select().from(schema.schools).where(eq(schema.schools.key, "sma"));
+    await db.insert(schema.documentRequirements).values({
+      admissionCycleId: cycle.id,
+      schoolId: sma!.id,
+      type: "IJAZAH",
+      required: true,
+      stage: "REREGISTRATION",
+    });
+
+    const saved = await upsertSchoolAdmissionSetting(db, actor, {
+      cycleId: cycle.id,
+      schoolKey: "sma",
+      isEnabled: true,
+      feeOverride: null,
+      acceptedInstructions: null,
+      rejectedInstructions: null,
+      documents: [{ type: "KARTU_KELUARGA", required: true }],
+    });
+
+    expect(saved.documents).toEqual([{ type: "KARTU_KELUARGA", required: true }]);
+    const kept = await db
+      .select({ type: schema.documentRequirements.type })
+      .from(schema.documentRequirements)
+      .where(eq(schema.documentRequirements.stage, "REREGISTRATION"));
+    expect(kept).toEqual([{ type: "IJAZAH" }]);
   });
 
   it("still accepts changes while the cycle is closed", async () => {

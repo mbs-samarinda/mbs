@@ -4,6 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { loadConfig } from "../../config/env.ts";
 import { ConflictError, ForbiddenError } from "../../errors.ts";
+import { resetTables } from "../../test/reset.ts";
 import { createAuth } from "../auth/auth.ts";
 import { resolveStaff, type StaffContext } from "../auth/authorization.ts";
 import { ensureBootstrapAdministrator } from "./bootstrap.ts";
@@ -53,9 +54,13 @@ async function seedAuthUser(id: string, email: string, emailVerified = true) {
 beforeEach(async () => {
   // Schools are seeded by migration 0003 and other suites truncate them, so
   // put them back rather than assuming.
-  await db.execute(
-    sql`truncate ${schema.auditLogs}, ${schema.staffSchoolAccess}, ${schema.staffLoginEmails}, ${schema.staffUsers}, ${schema.user} cascade`,
-  );
+  await resetTables(db, [
+    schema.auditLogs,
+    schema.staffSchoolAccess,
+    schema.staffLoginEmails,
+    schema.staffUsers,
+    schema.user,
+  ]);
   await db
     .insert(schema.schools)
     .values([{ key: "smp" }, { key: "smk" }, { key: "sma" }])
