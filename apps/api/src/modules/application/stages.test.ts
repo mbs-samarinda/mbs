@@ -2,11 +2,9 @@ import type { ActorType, ApplicationCommand, ApplicationStage } from "@mbs/api-c
 import { ACTOR_TYPES, APPLICATION_COMMANDS, APPLICATION_STAGES } from "@mbs/school-config";
 import { describe, expect, it } from "vitest";
 
-import { END_STAGES, transition } from "./stages.ts";
+import { END_STAGES, isEndStage, transition } from "./stages.ts";
 
-const OPEN_STAGES = APPLICATION_STAGES.filter(
-  (stage) => !(END_STAGES as readonly string[]).includes(stage),
-);
+const OPEN_STAGES = APPLICATION_STAGES.filter((stage) => !isEndStage(stage));
 
 /**
  * The stage table from knowledge/docs/admission.md, written out by hand rather
