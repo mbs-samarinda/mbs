@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { connect, createServer, type Socket } from "node:net";
 
 import { createDatabase, schema } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
@@ -9,11 +10,16 @@ import { resetTables } from "../../test/reset.ts";
 import { submitApplication } from "../application/service.ts";
 import { createFakeMailer, messageIdFor, type Mailer } from "./email.ts";
 import { claimDue, insertSignInCodeNotification } from "./outbox.ts";
-import { createNotificationWorker, MAX_ATTEMPTS, type NotificationWorker } from "./worker.ts";
+import {
+  createNotificationWorker,
+  MAX_ATTEMPTS,
+  WORKER_LOCK_KEY,
+  type NotificationWorker,
+} from "./worker.ts";
 
-const db = createDatabase(
-  process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
-);
+const databaseUrl =
+  process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core";
+const db = createDatabase(databaseUrl);
 afterAll(() => db.$client.end());
 
 const log = Fastify({ logger: false }).log;
@@ -86,7 +92,14 @@ function worker(
   mailer: Mailer,
   options: Partial<Parameters<typeof createNotificationWorker>[0]> = {},
 ) {
-  const created = createNotificationWorker({ db, mailer, log, codeMinutes: 5, ...options });
+  const created = createNotificationWorker({
+    db,
+    databaseUrl,
+    mailer,
+    log,
+    codeMinutes: 5,
+    ...options,
+  });
   workers.push(created);
   return created;
 }
@@ -120,6 +133,49 @@ async function attemptsOf(id: string) {
     .from(schema.notificationAttempts)
     .where(eq(schema.notificationAttempts.notificationId, id))
     .orderBy(asc(schema.notificationAttempts.attempt));
+}
+
+async function lockHolders() {
+  return db.execute<{ pid: number }>(sql`
+    select pid from pg_locks
+    where locktype = 'advisory' and granted and classid = 0
+      and objid = ${WORKER_LOCK_KEY}::oid and objsubid = 1
+  `);
+}
+
+async function stallingProxy() {
+  const target = new URL(databaseUrl);
+  const sockets = new Set<Socket>();
+  let stalled = false;
+  const server = createServer((client) => {
+    const upstream = connect(Number(target.port || 5432), target.hostname);
+    for (const [from, to] of [
+      [client, upstream],
+      [upstream, client],
+    ] as const) {
+      sockets.add(from);
+      from.on("data", (chunk) => {
+        if (!stalled) to.write(chunk);
+      });
+      from.on("close", () => to.destroy());
+      from.on("error", () => to.destroy());
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (typeof address !== "object" || !address) throw new Error("proxy has no port");
+  const url = new URL(databaseUrl);
+  url.host = `127.0.0.1:${address.port}`;
+  return {
+    url: url.toString(),
+    stall() {
+      stalled = true;
+    },
+    close() {
+      for (const socket of sockets) socket.destroy();
+      server.close();
+    },
+  };
 }
 
 async function makeDue(id: string) {
@@ -389,6 +445,28 @@ describe("notification worker", () => {
       Array.from({ length: rows.length - 1 }, () => ({ status: "PENDING", attemptCount: 0 })),
     );
   });
+  it("lets go of the lock when its check hangs, and still stops", async () => {
+    const proxy = await stallingProxy();
+    const proxied = createDatabase(proxy.url);
+    const running = worker(createFakeMailer(), {
+      db: proxied,
+      databaseUrl: proxy.url,
+      pollMs: 20,
+      timeoutMs: 200,
+    });
+    running.start();
+    await vi.waitFor(async () => expect(await lockHolders()).toHaveLength(1));
+
+    proxy.stall();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    const stopping = Date.now();
+    await running.stop();
+    expect(Date.now() - stopping).toBeLessThan(1_000);
+    await vi.waitFor(async () => expect(await lockHolders()).toEqual([]));
+    await proxied.$client.end({ timeout: 0 });
+    proxy.close();
+  });
+
   it("refuses to start again once stopped, and closes its mailer once", async () => {
     const closes = vi.fn();
     const running = worker({ ...createFakeMailer(), close: closes });

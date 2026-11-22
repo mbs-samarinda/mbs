@@ -23,6 +23,12 @@ export function createDatabase(url: string) {
 
 export type Database = ReturnType<typeof createDatabase>;
 
+export function createSessionConnection(url: string) {
+  return postgres(url, { max: 1, connect_timeout: 10 });
+}
+
+export type SessionConnection = ReturnType<typeof createSessionConnection>;
+
 /**
  * The handle inside `db.transaction(...)`. Drizzle names no type for it, and
  * spelling the lookup out at each call site put an unreadable incantation in

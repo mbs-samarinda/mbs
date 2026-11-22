@@ -51,6 +51,7 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
 
   const notifications = createNotificationWorker({
     db,
+    databaseUrl: config.databaseUrl,
     mailer:
       deps.mailer ??
       createSmtpMailer({

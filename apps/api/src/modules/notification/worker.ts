@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { Database } from "@mbs/db";
+import { createSessionConnection, type Database, type SessionConnection } from "@mbs/db";
 import { SIGN_IN_CODE_TEMPLATE } from "@mbs/school-config";
 import type { FastifyBaseLogger } from "fastify";
 
@@ -24,13 +24,17 @@ const LEASE_SECONDS = (6 * SMTP_TIMEOUT_MS) / 1000;
 
 export const WORKER_LOCK_KEY = 7_316_041;
 
+class LockTimeout extends Error {}
+
 type WorkerOptions = {
   db: Database;
+  databaseUrl: string;
   mailer: Mailer;
   log: FastifyBaseLogger;
   codeMinutes: number;
   leaseSeconds?: number;
   pollMs?: number;
+  timeoutMs?: number;
   batchSize?: number;
   now?: () => Date;
 };
@@ -41,6 +45,7 @@ export function createNotificationWorker(options: WorkerOptions) {
   const { db, mailer, log, codeMinutes } = options;
   const leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
   const pollMs = options.pollMs ?? 5_000;
+  const timeoutMs = options.timeoutMs ?? 2_000;
   const batchSize = options.batchSize ?? 20;
   const now = options.now ?? (() => new Date());
 
@@ -51,7 +56,7 @@ export function createNotificationWorker(options: WorkerOptions) {
   let codeTimer: NodeJS.Timeout | null = null;
   let sendingCodes: Promise<void> | null = null;
   let codesAgain = false;
-  let lock: Awaited<ReturnType<typeof db.$client.reserve>> | null = null;
+  let lock: SessionConnection | null = null;
   let waitingForLock = false;
   let running = false;
   let stopped: Promise<void> | null = null;
@@ -196,49 +201,52 @@ export function createNotificationWorker(options: WorkerOptions) {
       });
   }
 
+  function bounded<T>(work: Promise<T>) {
+    let timeout: NodeJS.Timeout | undefined;
+    const late = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => reject(new LockTimeout()), timeoutMs);
+    });
+    return Promise.race([work, late]).finally(() => clearTimeout(timeout));
+  }
+
   async function holdLock() {
     if (lock) {
-      const still = await lock<{ held: boolean }[]>`
+      const still = await bounded(lock<{ held: boolean }[]>`
         select exists (
           select from pg_locks
           where locktype = 'advisory' and pid = pg_backend_pid() and granted
             and classid = 0 and objid = ${WORKER_LOCK_KEY}::oid and objsubid = 1
         ) as held
-      `.then(
+      `).then(
         ([row]) => row?.held === true,
         () => false,
       );
       if (still) return true;
-      await releaseLock();
+      void dropLock();
     }
-    const reserved = await db.$client.reserve();
-    let held: boolean;
-    try {
-      const [row] = await reserved<{ held: boolean }[]>`
-        select pg_try_advisory_lock(${WORKER_LOCK_KEY}::bigint) as held
-      `;
-      held = row?.held === true;
-    } catch (error) {
-      reserved.release();
-      throw error;
-    }
+    const connection = createSessionConnection(options.databaseUrl);
+    const held = await bounded(connection<{ held: boolean }[]>`
+      select pg_try_advisory_lock(${WORKER_LOCK_KEY}::bigint) as held
+    `).then(
+      ([row]) => row?.held === true,
+      () => false,
+    );
     if (held) {
       if (waitingForLock) log.info("notification worker took over the outbox");
       waitingForLock = false;
-      lock = reserved;
+      lock = connection;
       return true;
     }
-    reserved.release();
+    void connection.end({ timeout: 0 });
     if (!waitingForLock) log.info("another process sends the outbox; this worker waits");
     waitingForLock = true;
     return false;
   }
 
-  async function releaseLock() {
-    if (!lock) return;
-    await lock`select pg_advisory_unlock(${WORKER_LOCK_KEY}::bigint)`.catch(() => undefined);
-    lock.release();
+  async function dropLock() {
+    const held = lock;
     lock = null;
+    await held?.end({ timeout: 0 });
   }
 
   async function tick() {
@@ -282,8 +290,8 @@ export function createNotificationWorker(options: WorkerOptions) {
         if (codeTimer) clearTimeout(codeTimer);
         timer = null;
         codeTimer = null;
-        await Promise.all([ticking, current?.catch(() => undefined), sendingCodes]);
-        await releaseLock();
+        await bounded(Promise.all([ticking, current, sendingCodes])).catch(() => undefined);
+        await bounded(dropLock()).catch(() => undefined);
         codes.clear();
         mailer.close();
       })();
