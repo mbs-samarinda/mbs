@@ -254,7 +254,6 @@ export async function recordEventOnApplication(
     .where(eq(schema.applications.id, applicationId));
 }
 
-/** The application and its school key, only if `userId` holds access to it. */
 export async function findApplicationForUser(
   db: Database | Transaction,
   applicationId: string,

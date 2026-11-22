@@ -17,7 +17,6 @@ import {
 } from "./outbox.ts";
 import { TEMPLATES, type RenderedEmail } from "./templates.ts";
 
-/** Minutes to wait after the first, second, ... failed try. Then it fails for good. */
 export const RETRY_MINUTES = [1, 5, 30, 120, 720] as const;
 export const MAX_ATTEMPTS = RETRY_MINUTES.length + 1;
 
@@ -25,27 +24,14 @@ type WorkerOptions = {
   db: Database;
   mailer: Mailer;
   log: FastifyBaseLogger;
-  /** How long a claimed row stays this worker's. Longer than the mailer's timeouts. */
   leaseSeconds?: number;
   pollMs?: number;
   batchSize?: number;
-  /** The clock retries are scheduled from. Tests move it. */
   now?: () => Date;
 };
 
 export type NotificationWorker = ReturnType<typeof createNotificationWorker>;
 
-/**
- * Sends the outbox from inside the API process. Every send runs with no
- * transaction open: a row is claimed in one statement, sent, then marked in a
- * second. Delivery is at least once (see `messageIdFor`).
- *
- * Sign-in codes are the exception to "the row holds the message". The code
- * lives only in this process's memory until it is sent. A restart loses it,
- * and its row then fails at once: a new code is one tap away, and a stored
- * code would be a live secret in the database. So only one process may run
- * the worker: another would claim a code it does not hold and fail it.
- */
 export function createNotificationWorker(options: WorkerOptions) {
   const { db, mailer, log } = options;
   const leaseSeconds = options.leaseSeconds ?? 120;
@@ -63,7 +49,6 @@ export function createNotificationWorker(options: WorkerOptions) {
   async function sendOne(row: ClaimedNotification) {
     if (row.reclaimed) {
       await recordLeaseExpired(db, row);
-      // A send that kills or stalls its worker every time must still stop.
       if (row.attemptCount > MAX_ATTEMPTS) {
         codes.delete(row.id);
         await recordFailure(db, row, {
@@ -125,7 +110,6 @@ export function createNotificationWorker(options: WorkerOptions) {
     return { subject: row.subject, text: row.bodyText, html: row.bodyHtml ?? "" };
   }
 
-  /** Null when this was the last try, or a code would expire before the next. */
   function retryTime(row: ClaimedNotification) {
     const minutes = RETRY_MINUTES[row.attemptCount - 1];
     if (minutes === undefined) return null;
@@ -135,14 +119,11 @@ export function createNotificationWorker(options: WorkerOptions) {
     return at;
   }
 
-  /** Claims and sends one batch. Returns how many rows it claimed. */
   async function sendBatch() {
     const rows = await claimDue(db, batchSize, leaseSeconds);
     for (const [index, row] of rows.entries()) {
-      // Shutdown waits for one send, not a whole batch against a dead server.
       if (stopping) {
         const untried = rows.slice(index);
-        // A reclaimed row's lost try is history even if this worker never tries it.
         // oxlint-disable-next-line eslint/no-await-in-loop
         await Promise.all(
           untried.filter((left) => left.reclaimed).map((left) => recordLeaseExpired(db, left)),
@@ -151,15 +132,12 @@ export function createNotificationWorker(options: WorkerOptions) {
         await releaseUntried(db, untried);
         break;
       }
-      // One at a time over one pooled connection: an SMTP server limits
-      // parallel sessions, and a batch is small.
       // oxlint-disable-next-line eslint/no-await-in-loop
       await sendOne(row);
     }
     return rows.length;
   }
 
-  /** Runs a batch now, or right after the one in flight. Never two at once. */
   function runOnce(): Promise<number> {
     if (current) {
       again = true;
@@ -188,7 +166,6 @@ export function createNotificationWorker(options: WorkerOptions) {
     timer = setTimeout(() => void tick(), busy ? 0 : pollMs);
   }
 
-  /** Sends now instead of at the next poll. */
   function wake() {
     if (!running) return;
     if (timer) {
@@ -209,7 +186,6 @@ export function createNotificationWorker(options: WorkerOptions) {
       timer = setTimeout(() => void tick(), 0);
     },
 
-    /** Stops polling and waits for the send in flight, so the pool can close after. */
     async stop() {
       running = false;
       stopping = true;
@@ -220,13 +196,7 @@ export function createNotificationWorker(options: WorkerOptions) {
       mailer.close();
     },
 
-    /**
-     * Queues a sign-in code email. The row is the record; the code stays in
-     * memory until it is sent or expires.
-     */
     async sendSignInCode(recipient: string, code: string, minutes: number) {
-      // The code is in memory before the row exists, so no claim can find a
-      // row without its code.
       const id = randomUUID();
       codes.set(id, {
         email: TEMPLATES[SIGN_IN_CODE_TEMPLATE].render({ code, minutes }),

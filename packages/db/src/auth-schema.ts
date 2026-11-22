@@ -68,10 +68,7 @@ export const account = pgTable(
   (table) => [index("account_user_id_idx").on(table.userId)],
 );
 
-/**
- * Better Auth's request counts per client and path, kept in the database so a
- * restart does not reset them. Better Auth deletes rows whose window has passed.
- */
+/** Better Auth deletes rows whose window has passed. */
 export const rateLimit = pgTable("rate_limit", {
   id: text("id").primaryKey(),
   key: text("key").notNull().unique(),

@@ -29,7 +29,6 @@ function startServer(port: number) {
       LOG_LEVEL: "info",
       PORT: String(port),
       DATABASE_URL: databaseUrl,
-      // On, so the shutdown below also stops the notification worker.
       NOTIFICATION_WORKER: "on",
       BOOTSTRAP_ADMIN_EMAIL: "",
     },

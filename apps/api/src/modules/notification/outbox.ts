@@ -8,19 +8,10 @@ import { TEMPLATES, type EventTemplateKey } from "./templates.ts";
 
 export type NotificationRow = typeof schema.notifications.$inferSelect;
 
-/** What the outbox needs from the app's configuration. */
 export type OutboxSettings = {
-  /** The parent app, linked from every application email. */
   familyAppUrl: string;
 };
 
-/**
- * Queues one email per account that holds access to the application, inside
- * the caller's transaction, so the email exists exactly when the event does.
- * Rendered now, with the template's current version, and stored whole: the
- * record shows what each family was told. The unique index on event and user
- * makes a second call for the same event a no-op.
- */
 export async function enqueueEventEmails(
   tx: Transaction,
   input: {
@@ -41,7 +32,6 @@ export async function enqueueEventEmails(
   if (recipients.length === 0) return;
 
   const profile = await findLatestProfileVersion(tx, input.applicationId);
-  // Only the name: a profile written by an older form still has one.
   const { childFullName } = ApplicantProfile.pick({ childFullName: true }).parse(profile?.data);
 
   const template = TEMPLATES[input.template];
@@ -72,10 +62,6 @@ export async function enqueueEventEmails(
     .onConflictDoNothing();
 }
 
-/**
- * The record of a sign-in code email: who, which template, and what happened
- * to it. Never the code, so never the subject or body either.
- */
 export async function insertSignInCodeNotification(db: Database, id: string, recipient: string) {
   const [account] = await db
     .select({ id: schema.user.id })
@@ -92,15 +78,9 @@ export async function insertSignInCodeNotification(db: Database, id: string, rec
 }
 
 export type ClaimedNotification = NotificationRow & {
-  /** The row was SENDING under a lease that ran out: its last try was lost. */
   reclaimed: boolean;
 };
 
-/**
- * Takes up to `limit` rows that are due, or whose worker's lease ran out, and
- * leases them in one statement. SKIP LOCKED lets two workers claim at once
- * without waiting on, or taking, each other's rows. The claim counts as a try.
- */
 export async function claimDue(db: Database, limit: number, leaseSeconds: number) {
   const n = schema.notifications;
   const rows = await db.execute<{ id: string; reclaimed: boolean }>(sql`
@@ -109,7 +89,6 @@ export async function claimDue(db: Database, limit: number, leaseSeconds: number
       from ${n}
       where (status = 'PENDING' and next_attempt_at <= now())
          or (status = 'SENDING' and lease_until <= now())
-      -- A sign-in code is good for minutes, so it never waits behind a burst.
       order by (template_key = ${SIGN_IN_CODE_TEMPLATE}) desc, next_attempt_at
       limit ${limit}
       for update skip locked
@@ -130,7 +109,6 @@ export async function claimDue(db: Database, limit: number, leaseSeconds: number
     .select()
     .from(n)
     .where(inArray(n.id, [...reclaimed.keys()]))
-    // The worker sends in this order, so codes go first here too.
     .orderBy(sql`${n.templateKey} = ${SIGN_IN_CODE_TEMPLATE} desc`, n.nextAttemptAt);
   return claimed.map((row): ClaimedNotification => ({
     ...row,
@@ -138,10 +116,6 @@ export async function claimDue(db: Database, limit: number, leaseSeconds: number
   }));
 }
 
-/**
- * Extends this worker's lease right before a send, so a long batch never
- * sends a row whose lease already ran out. False when another worker took it.
- */
 export async function renewLease(db: Database, row: ClaimedNotification, leaseSeconds: number) {
   const n = schema.notifications;
   const renewed = await db
@@ -159,10 +133,6 @@ export async function renewLease(db: Database, row: ClaimedNotification, leaseSe
   return renewed.length > 0;
 }
 
-/**
- * Hands a claimed row back untried, for a worker that stops mid-batch. The
- * claim did not become a try, so its count is taken back.
- */
 export async function releaseUntried(db: Database, rows: ClaimedNotification[]) {
   if (rows.length === 0) return;
   const n = schema.notifications;
@@ -178,7 +148,6 @@ export async function releaseUntried(db: Database, rows: ClaimedNotification[]) 
   );
 }
 
-/** Records the try a crashed or stalled worker never reported. */
 export async function recordLeaseExpired(db: Database, row: ClaimedNotification) {
   await db
     .insert(schema.notificationAttempts)
@@ -186,11 +155,6 @@ export async function recordLeaseExpired(db: Database, row: ClaimedNotification)
     .onConflictDoNothing();
 }
 
-/**
- * Marks the row SENT and appends the attempt, only while this worker still
- * holds the claim. Returns false when the lease ran out and another worker
- * took the row over: that worker records this try as LEASE_EXPIRED.
- */
 export async function recordSent(
   db: Database,
   row: ClaimedNotification,
@@ -209,10 +173,6 @@ export async function recordSent(
   });
 }
 
-/**
- * Appends the failed attempt, then either schedules the next try or, with
- * `retryAt` null, gives up on the row.
- */
 export async function recordFailure(
   db: Database,
   row: ClaimedNotification,

@@ -26,8 +26,6 @@ services:
       timeout: 3s
       retries: 10
 
-  # Catches every email the API sends locally. Nothing leaves the machine.
-  # Inbox at http://localhost:8025.
   mailpit:
     image: axllent/mailpit:v1.34.0
     container_name: mbs-mailpit

@@ -33,7 +33,6 @@ declare module "fastify" {
   }
 }
 
-/** What a test may swap. Everything else comes from config. */
 export type AppDeps = { mailer?: Mailer };
 
 export async function buildApp(config: Config, deps: AppDeps = {}): Promise<FastifyInstance> {
@@ -62,7 +61,6 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     log: app.log,
   });
   app.decorate("notifications", notifications);
-  // The worker stops first and finishes its send, then the pool closes under nothing.
   app.addHook("onClose", async () => {
     await notifications.stop();
     await db.$client.end({ timeout: 5 });
@@ -88,8 +86,6 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     STAFF: createStaffAuth(db, config, { logger }),
   });
 
-  // Each app's host picks its instance. Any other host, such as the profile
-  // server calling over the compose network, gets no auth routes and no session.
   const appUrls = { FAMILY: config.auth.familyAppUrl, STAFF: config.auth.adminAppUrl };
   const audiences = new Map<string, Audience>([
     [new URL(appUrls.FAMILY).host, "FAMILY"],
@@ -150,8 +146,6 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
   // comes from the session cookie itself: Better Auth sets SameSite=Lax, so a
   // cross-site POST never carries it and arrives unauthenticated.
   app.all("/api/rpc/*", async (request, reply) => {
-    // Resolved once per request, by this host's instance only, so every
-    // procedure sees the same session and no handler reaches for headers.
     const audience = audienceOf(request);
     const session = audience
       ? await app.auth[audience].api.getSession({ headers: authHeaders(request) })
@@ -173,7 +167,6 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
   return app;
 }
 
-/** The request's headers, plus its id so Better Auth's audit rows carry it. */
 function authHeaders(request: FastifyRequest) {
   const headers = fromNodeHeaders(request.headers);
   headers.set(REQUEST_ID_HEADER, request.id);

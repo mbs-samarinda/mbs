@@ -47,8 +47,6 @@ function auth(host: string, path: string, body?: unknown, cookie?: string) {
     headers: {
       host,
       origin: ORIGIN[host] ?? `http://${host}`,
-      // Its own address per test file run, so Better Auth's per-IP limits in
-      // the database do not carry from one test into the next.
       "x-forwarded-for": "203.0.113.7",
       ...(body === undefined ? {} : { "content-type": "application/json" }),
       ...(cookie ? { cookie } : {}),
@@ -68,13 +66,11 @@ function rpc(host: string, path: string, json: unknown, cookie?: string) {
 
 const Session = z.object({ user: z.object({ id: z.string() }) });
 
-/** The session the family host sees for this cookie, or null. */
 async function sessionOn(host: string, cookie: string) {
   const response = await auth(host, "/get-session", undefined, cookie);
   return response.statusCode === 200 ? Session.nullable().parse(response.json()) : null;
 }
 
-/** Requests a code and returns it as the family reads it in the email. */
 async function requestCode(email: string) {
   const response = await auth(FAMILY_HOST, "/email-otp/send-verification-otp", {
     email,
@@ -92,7 +88,6 @@ function signInWithCode(email: string, otp: string) {
   return auth(FAMILY_HOST, "/sign-in/email-otp", { email, otp });
 }
 
-/** The cookie pair from a Set-Cookie list, ready to send back. */
 function cookieFrom(response: { headers: Record<string, unknown> }, name: string) {
   const header = response.headers["set-cookie"];
   const lines = Array.isArray(header) ? header : [header];
@@ -142,7 +137,6 @@ describe("one auth instance per app host", () => {
   });
 
   it("refuses a family token renamed to the staff cookie", async () => {
-    // The person is approved staff, so only the key keeps the two apart.
     const user = await approvedStaff("guru@mbss.sch.id");
     const family = await sessionCookie(app.auth.FAMILY, user.id);
     const signed = decodeURIComponent(family.split("=")[1]!);
@@ -173,7 +167,6 @@ describe("one auth instance per app host", () => {
   });
 
   it("refuses a staff session to a family account that is not approved staff", async () => {
-    // A family who signed in with a code, then tries Google on the committee app.
     const { code } = await requestCode("ibu@example.com");
     await signInWithCode("ibu@example.com", code);
     const [user] = await db.select().from(schema.user);
@@ -215,7 +208,6 @@ describe("email codes", () => {
       bodyText: null,
       bodyHtml: null,
     });
-    // The code is stored hashed, never as typed.
     const stored = await db.select({ value: schema.verification.value }).from(schema.verification);
     expect(JSON.stringify(stored)).not.toContain(code);
   });
@@ -293,7 +285,6 @@ describe("sign-in audit", () => {
       { action: "auth.sign_in", metadata: { method: "EMAIL_CODE" } },
       { action: "auth.sign_out" },
     ]);
-    // The failed try came before the first sign-in, when no account existed.
     expect(family.map((row) => row.actorId)).toEqual([null, user!.id, user!.id]);
     for (const row of family) {
       expect(row.requestId).toMatch(/.+/);

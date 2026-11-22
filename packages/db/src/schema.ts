@@ -355,27 +355,16 @@ export const notificationAttemptOutcome = pgEnum(
   NOTIFICATION_ATTEMPT_OUTCOMES,
 );
 
-/**
- * The outbox: one row per message to one person. A command writes these in
- * the same transaction as its event, and the worker in `apps/api` sends them
- * after commit. The status moves, so this is a queue, not history, and carries
- * no guard. What was said is kept here: the rendered subject and body, with
- * the template version that wrote them, so the record survives a template
- * change.
- */
 export const notifications = pgTable(
   "notifications",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // Both null for a sign-in code, which belongs to no application.
     applicationId: uuid("application_id").references(() => applications.id),
     eventId: uuid("event_id").references(() => applicationEvents.id),
-    // Null for a code sent to an address with no account yet.
     userId: text("user_id").references(() => user.id),
     channel: notificationChannel("channel").notNull(),
     templateKey: text("template_key").notNull(),
     templateVersion: integer("template_version").notNull(),
-    // The address at the time of sending. An account's email can change later.
     recipient: text("recipient").notNull(),
     subject: text("subject"),
     bodyText: text("body_text"),
@@ -383,24 +372,18 @@ export const notifications = pgTable(
     status: notificationStatus("status").notNull().default("PENDING"),
     attemptCount: integer("attempt_count").notNull().default(0),
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
-    // While SENDING: when a worker that went quiet loses the row to another.
     leaseUntil: timestamp("lease_until", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    // One message per person per event, so enqueueing an event twice cannot
-    // send twice.
     uniqueIndex("notifications_event_user")
       .on(table.eventId, table.userId)
       .where(sql`event_id is not null`),
-    // What the worker scans: rows still to send, soonest first.
     index("notifications_due")
       .on(table.nextAttemptAt)
       .where(sql`status in ('PENDING', 'SENDING')`),
-    // A code is a secret, so its row keeps no content. Every other row keeps
-    // what the family was told.
     check(
       "notifications_content_kept",
       sql`case when template_key = ${sql.raw(`'${SIGN_IN_CODE_TEMPLATE}'`)}
@@ -410,10 +393,6 @@ export const notifications = pgTable(
   ],
 );
 
-/**
- * One row per send try: when, how it ended, and what the provider answered.
- * Never the message itself. Append-only.
- */
 export const notificationAttempts = pgTable(
   "notification_attempts",
   {
@@ -421,13 +400,9 @@ export const notificationAttempts = pgTable(
     notificationId: uuid("notification_id")
       .notNull()
       .references(() => notifications.id),
-    // Counts from 1 per notification.
     attempt: integer("attempt").notNull(),
     outcome: notificationAttemptOutcome("outcome").notNull(),
-    // The SMTP reply code, such as 250 or 421, when the server gave one.
     responseCode: text("response_code"),
-    // The kind of failure, such as ECONNREFUSED. Never the server's text,
-    // which can quote the recipient.
     errorClass: text("error_class"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

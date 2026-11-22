@@ -1,10 +1,8 @@
 import { loadConfig } from "../config/env.ts";
 
-/** The hosts the two apps serve in development, and so in tests. */
 export const FAMILY_HOST = "localhost:5173";
 export const STAFF_HOST = "localhost:5174";
 
-/** One environment every suite starts from, so a new variable is added once. */
 export const TEST_ENV = {
   NODE_ENV: "test",
   LOG_LEVEL: "error",
@@ -14,7 +12,6 @@ export const TEST_ENV = {
   GOOGLE_CLIENT_SECRET: "test-client-secret",
   FAMILY_APP_URL: `http://${FAMILY_HOST}`,
   ADMIN_APP_URL: `http://${STAFF_HOST}`,
-  // Nothing listens here. Suites that send mail pass a fake mailer.
   SMTP_URL: "smtp://127.0.0.1:9",
   MAIL_FROM: "PPDB MBSS <ppdb@mbss.test>",
   NOTIFICATION_WORKER: "off",

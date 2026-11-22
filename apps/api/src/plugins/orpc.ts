@@ -8,12 +8,6 @@ import { requireRole, resolveStaff, type SessionUser } from "../modules/auth/aut
 
 export type ApiContext = {
   db: Database;
-  /**
-   * The signed-in user of each app, resolved once per request by the auth
-   * instance of the host the request came to. At most one is set, and each
-   * procedure reads only its own, so a family session never authorizes staff
-   * work, even for a person who is both.
-   */
   familyUser: SessionUser | null;
   staffUser: SessionUser | null;
   /** This request's logger, so a log line carries the request id. */
@@ -53,10 +47,6 @@ export const staffProcedure = publicProcedure.use(async ({ context, next }) =>
   next({ context: { staff: await resolveStaff(context.db, context.staffUser) } }),
 );
 
-/**
- * Proves a family session. What the family may see is checked per
- * application by `loadFamilyApplication`, inside the handler.
- */
 export const familyProcedure = publicProcedure.use(async ({ context, next }) => {
   if (!context.familyUser) throw new UnauthorizedError("Not signed in.");
   return next({ context: { family: { userId: context.familyUser.id } } });

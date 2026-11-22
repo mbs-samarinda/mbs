@@ -29,8 +29,8 @@ export * from "./schemas.ts";
  * Anything under `applicant` needs a family session, which only the parent
  * app's host gives. Anything under `staff` needs an active staff session from
  * the committee app's host; anything under `admin` needs the ADMINISTRATOR
- * role on top. An application the family cannot see is NOT_FOUND. Failures arrive as oRPC codes:
- * UNAUTHORIZED, FORBIDDEN, NOT_FOUND and CONFLICT.
+ * role on top. An application the family cannot see is NOT_FOUND. Failures
+ * arrive as oRPC codes: UNAUTHORIZED, FORBIDDEN, NOT_FOUND and CONFLICT.
  */
 export const contract = {
   public: {

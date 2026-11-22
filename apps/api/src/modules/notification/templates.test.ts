@@ -33,7 +33,6 @@ describe("email templates", () => {
       expect(body).toContain("SMP-0042");
       expect(body).toContain("https://admission.mbss.sch.id");
     }
-    // Names and reasons are typed by people, so the HTML escapes them.
     expect(mail.html).not.toContain("<Putri>");
     expect(mail.html).toContain("Aisyah &lt;Putri&gt;");
     expect(mail.text).not.toMatch(/insya|alhamdulillah|assalamu/i);

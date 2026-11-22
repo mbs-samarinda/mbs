@@ -53,7 +53,6 @@ async function attemptsOf(id: string) {
     .orderBy(asc(schema.notificationAttempts.attempt));
 }
 
-/** Makes a waiting row due now, as if its retry time had come. */
 async function makeDue(id: string) {
   await db
     .update(schema.notifications)
@@ -70,11 +69,9 @@ describe("notification worker", () => {
     await worker(mailer).runOnce();
     const waiting = await rowOf(row!.id);
     expect(waiting).toMatchObject({ status: "PENDING", attemptCount: 1, sentAt: null });
-    // The first retry waits about a minute.
     const wait = waiting.nextAttemptAt.getTime() - Date.now();
     expect(wait).toBeGreaterThan(50_000);
     expect(wait).toBeLessThan(70_000);
-    // Not due yet, so a second run sends nothing.
     await worker(mailer).runOnce();
     expect(mailer.sent).toEqual([]);
 
@@ -109,11 +106,8 @@ describe("notification worker", () => {
     const mailer = createFakeMailer();
     const [row] = await queue();
 
-    // A worker claims the row and the server accepts the message, then the
-    // process dies before it writes SENT.
     const [claimed] = await claimDue(db, 10, 60);
     await mailer.send({ id: claimed!.id, to: claimed!.recipient, subject: "", text: "", html: "" });
-    // Still leased, so nobody else takes it yet.
     await worker(mailer).runOnce();
     expect(mailer.sent).toHaveLength(1);
 
@@ -128,7 +122,6 @@ describe("notification worker", () => {
       { attempt: 1, outcome: "LEASE_EXPIRED" },
       { attempt: 2, outcome: "SENT" },
     ]);
-    // The copy is a duplicate a mail client can recognise.
     const ids = mailer.sent.map((message) => messageIdFor(message.id, "mbss.test"));
     expect(new Set(ids).size).toBe(1);
   });
@@ -165,7 +158,6 @@ describe("notification worker", () => {
     expect(mailer.sent[0]?.text).toContain("482913");
 
     await first.sendSignInCode("ibu@example.test", "771204", 5);
-    // A new process starts with no codes in memory.
     await worker(mailer).runOnce();
 
     const rows = await db
@@ -185,7 +177,6 @@ describe("notification worker", () => {
   it("fails a row whose sends keep killing their worker, after the fixed number of tries", async () => {
     const mailer = createFakeMailer();
     const [row] = await queue();
-    // Every earlier try died with its worker; the lease of the last one ran out.
     await db
       .update(schema.notifications)
       .set({

@@ -5,14 +5,11 @@ import type { NotificationKey } from "../application/stages.ts";
 export type EventTemplateKey = NotificationKey;
 export type TemplateKey = EventTemplateKey | typeof SIGN_IN_CODE_TEMPLATE;
 
-/** What every application email is written from. */
 export type EventMailInput = {
   childName: string;
   schoolKey: SchoolKey;
   registrationNumber: string;
-  /** The reason staff gave, on rejections, fixes, stops and withdrawals. */
   reason: string | null;
-  /** The parent app, where every next step happens. */
   appUrl: string;
 };
 
@@ -24,13 +21,8 @@ type TemplateInput<K extends TemplateKey> = K extends typeof SIGN_IN_CODE_TEMPLA
 
 export type RenderedEmail = { subject: string; text: string; html: string };
 
-/**
- * `version` is stored on every notification row. Bump it whenever the copy
- * changes, so the record says which wording a family received.
- */
 type Template<I> = { version: number; render: (input: I) => RenderedEmail };
 
-/** What one application email says: the news, then the one next step. */
 type EventCopy = { subject: string; happened: string; next: string };
 
 function eventTemplate(version: number, copy: (input: EventMailInput) => EventCopy) {
@@ -55,12 +47,6 @@ function eventTemplate(version: number, copy: (input: EventMailInput) => EventCo
   } satisfies Template<EventMailInput>;
 }
 
-/**
- * Every email PPDB sends. Copy follows `bahasa-indonesia-plain`: the reader is
- * "kamu", the role is "orang tua/wali", and each email says what happened and
- * what to do next. Keyed by template, so a notification key added to
- * TRANSITIONS without a template here fails to compile.
- */
 export const TEMPLATES: { [K in TemplateKey]: Template<TemplateInput<K>> } = {
   "application-submitted": eventTemplate(1, ({ childName, schoolKey }) => ({
     subject: `Pendaftaran ${childName} sudah kami terima`,
@@ -176,11 +162,7 @@ function schoolName(key: SchoolKey) {
 const PRIMARY = "#126e84";
 const MUTED = "#525252";
 
-/**
- * Plain text and a small HTML version of the same words. Inline styles only,
- * because mail clients drop style sheets. Everything interpolated is escaped:
- * names and reasons are typed by people.
- */
+/** Inline styles only, because mail clients drop style sheets. */
 function layout(mail: {
   subject: string;
   greeting: string;

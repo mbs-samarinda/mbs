@@ -18,7 +18,6 @@ import type { StaffContext } from "../auth/authorization.ts";
 import * as service from "./service.ts";
 import type { Actor } from "./service.ts";
 
-// The outbox settings are the same for every call here.
 const OUTBOX = { familyAppUrl: "http://localhost:5173" };
 const submitApplication = (
   target: Database,

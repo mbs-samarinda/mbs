@@ -229,7 +229,6 @@ describe("family procedures", () => {
   });
 
   it("refuses a family session on a staff procedure, even for approved staff", async () => {
-    // Approved staff who is also a parent: the family session is still only a family's.
     const staffCookie = await signIn("STAFF");
     const [user] = await db.select().from(schema.user);
     const familyCookie = await sessionCookie(app.auth.FAMILY, user!.id);

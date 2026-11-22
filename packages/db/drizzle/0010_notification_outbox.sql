@@ -50,8 +50,6 @@ ALTER TABLE "notifications" ADD CONSTRAINT "notifications_event_id_application_e
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "notifications_event_user" ON "notifications" USING btree ("event_id","user_id") WHERE event_id is not null;--> statement-breakpoint
 CREATE INDEX "notifications_due" ON "notifications" USING btree ("next_attempt_at") WHERE status in ('PENDING', 'SENDING');--> statement-breakpoint
--- Each send try is history: the record of what happened to a message. The
--- notifications row is a queue whose status moves, so it has no guard.
 CREATE TRIGGER notification_attempts_forbid_change BEFORE UPDATE OR DELETE ON notification_attempts
   FOR EACH ROW EXECUTE FUNCTION forbid_history_change();
 --> statement-breakpoint

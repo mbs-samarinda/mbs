@@ -48,11 +48,6 @@ import {
 } from "./repository.ts";
 import { requiredCommand, transition, type NotificationKey } from "./stages.ts";
 
-/**
- * The application, if this family holds access to it. Any other id is
- * NOT_FOUND, exactly as for an id that does not exist, so a family learns
- * nothing about other families' applications.
- */
 export async function loadFamilyApplication(
   db: Database,
   family: { userId: string },
@@ -180,11 +175,6 @@ export async function submitApplication(
   });
 }
 
-/**
- * Queues the stage table's email for this event, in the event's own
- * transaction, when the family may see it. A replayed command returns before
- * this, so it queues nothing new.
- */
 async function notifyFamily(
   tx: Transaction,
   result: { familyVisible: boolean; notification: NotificationKey | null },
@@ -198,7 +188,6 @@ async function notifyFamily(
     eventId: written.event.id,
     schoolKey: written.schoolKey,
     registrationNumber: written.application.registrationNumber,
-    // The email quotes a reason as the committee's note, so only staff's.
     payload: written.event.actorType === "STAFF" ? written.event.payload : null,
     template: result.notification,
     settings: outbox,

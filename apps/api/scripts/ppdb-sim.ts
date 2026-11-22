@@ -377,11 +377,6 @@ async function applyOne(
   );
 }
 
-/**
- * An approved administrator with access to every school, and a session on the
- * committee app's auth instance, made and signed by Better Auth itself.
- * Reuses the profile and the account on a second run.
- */
 async function staffSession(db: Database, rawEmail: string) {
   const email = z.email().parse(rawEmail.trim().toLowerCase());
   const config = loadConfig();

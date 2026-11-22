@@ -193,7 +193,6 @@ export const TRANSITIONS = {
   },
 } as const satisfies Record<ApplicationCommand, Transition>;
 
-/** Every email the table names. `notification/templates.ts` must render each one. */
 export type NotificationKey = NonNullable<(typeof TRANSITIONS)[ApplicationCommand]["notification"]>;
 
 export type TransitionResult =

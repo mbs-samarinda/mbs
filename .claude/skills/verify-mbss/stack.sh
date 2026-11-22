@@ -149,9 +149,7 @@ cms_ready() {
   curl -fsS -H "authorization: Bearer ${CMS_READ_TOKEN:-}" "http://127.0.0.1:$CMS_PORT/api/site-list" \
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).data.length===4?0:1))'
 }
-# /readyz answers an empty 200 once Mailpit accepts mail.
 mail_ready() { curl -fsS -o /dev/null "http://127.0.0.1:$MAIL_WEB_PORT/readyz"; }
-# No volume: a restarted Mailpit starts empty, which is what an outage test wants.
 start_mail() {
   docker run --rm -d --name "$MAIL_CONTAINER" \
     -p "127.0.0.1:$MAIL_SMTP_PORT:1025" -p "127.0.0.1:$MAIL_WEB_PORT:8025" "$MAILPIT_IMAGE" >/dev/null
@@ -322,8 +320,6 @@ cmd_mail_on() {
   start_mail
 }
 
-# With the API's own environment, so --staff-session signs with the run's key
-# and every step writes to the run's database.
 cmd_sim() {
   local run=
   [[ ${1:-} != -- ]] && { run=$1; shift; }

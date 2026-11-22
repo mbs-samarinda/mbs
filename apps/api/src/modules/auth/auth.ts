@@ -12,27 +12,12 @@ import type { Config } from "../../config/env.ts";
 import { appendAuditLog } from "../audit.ts";
 import { isApprovedLoginEmail } from "../staff/repository.ts";
 
-/**
- * Better Auth owns identity: the user, account, session and verification
- * tables, the Google handshake, email codes and the session cookie. It owns no
- * authorization: what a signed-in person may do is resolved from the staff
- * tables in `../staff` and from `application_access`.
- *
- * There are two instances over the same tables, one per app host (see
- * knowledge/docs/admission.md, "Sign-in"). Each has its own base URL, so its
- * Google callback and its host-only cookie land on its own host, and its own
- * cookie prefix, because in development both apps are `localhost` and a
- * browser shares cookies across ports.
- */
 export type Audience = "FAMILY" | "STAFF";
 
-/** How long an email code works. The sign-in email says so. */
 export const SIGN_IN_CODE_MINUTES = 5;
 
 type AuthDeps = {
-  /** Optional so tests can build an instance without one. */
   logger?: BetterAuthOptions["logger"];
-  /** Queues the email that carries a sign-in code. */
   sendSignInCode: (email: string, code: string) => Promise<void>;
 };
 
@@ -43,25 +28,18 @@ export function createFamilyAuth(db: Database, config: Config, deps: AuthDeps) {
     plugins: [
       emailOTP({
         expiresIn: SIGN_IN_CODE_MINUTES * 60,
-        // A code is a secret: the table keeps only its hash.
         storeOTP: "hashed",
         // The plugin's own limit of 3 wrong tries per code stays. Its per-IP
         // limit of 3 requests a minute does not: families on mobile data share
         // carrier IPs, so 3 would turn away parents nobody is attacking.
         rateLimit: { window: 60, max: 10 },
-        // Only queues: the request waits for one insert, never for SMTP, and
-        // the outbox owns retries.
         sendVerificationOTP: async ({ email, otp, type }) => {
-          // Unreachable: the before hook below lets only sign-in codes through.
           if (type !== "sign-in") throw signInOnly();
           await deps.sendSignInCode(email, otp);
         },
       }),
     ],
     hooks: {
-      // Families never set a password, and signing in verifies their email,
-      // so the plugin's other code flows stay shut. Refused before the plugin
-      // looks up the address, so the answer never says whether an account exists.
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === "/sign-in/email-otp") return;
         if (ctx.path === "/email-otp/send-verification-otp" && ctx.body?.type === "sign-in") return;
@@ -108,8 +86,6 @@ export function createStaffAuth(
       ...base.databaseHooks,
       user: {
         create: {
-          // An unapproved address never becomes an identity at all. Only this
-          // instance refuses, so families still create accounts on theirs.
           before: async (user) => refuseUnapproved(user.email),
         },
       },
@@ -117,9 +93,6 @@ export function createStaffAuth(
         ...base.databaseHooks.session,
         create: {
           ...base.databaseHooks.session.create,
-          // The tables are shared, so a family who signed in with an email
-          // code already has a user. Their Google sign-in here creates no user
-          // and skips the hook above; this stops it at the session instead.
           before: async (session) => {
             const [row] = await db
               .select({ email: schema.user.email })
@@ -143,11 +116,6 @@ function signInOnly() {
 export type FamilyAuth = ReturnType<typeof createFamilyAuth>;
 export type StaffAuth = ReturnType<typeof createStaffAuth>;
 
-/**
- * A new session for `userId` on one instance, as the Cookie header that
- * instance accepts. Signed by Better Auth's own helper with the instance's
- * key, so it is the cookie a browser would hold. For the simulator and tests.
- */
 export async function sessionCookie(auth: FamilyAuth | StaffAuth, userId: string) {
   const context = await auth.$context;
   const { token } = await context.internalAdapter.createSession(userId);
@@ -165,12 +133,8 @@ function baseOptions(
   return {
     logger: deps.logger,
     database: drizzleAdapter(db, { provider: "pg" }),
-    // Each instance signs its cookies with its own key. The session table is
-    // shared, so with one key a family's token, renamed to the staff cookie,
-    // would be a valid staff session.
     secret: instanceSecret(config.auth.secret, audience),
     baseURL: appUrl,
-    // The app's own origin is the only one allowed to drive these endpoints.
     trustedOrigins: [appUrl],
     socialProviders: {
       google: {
@@ -184,10 +148,10 @@ function baseOptions(
       // `?error=<code>`, which is the flag the app can read.
       errorURL: `${appUrl}/`,
     },
-    // In the database, not memory, so a restart does not hand out fresh tries.
     // On in every environment, so tests run the limit production runs.
     rateLimit: { enabled: true, storage: "database" },
     advanced: {
+      // Browsers share cookies across ports, and in development both apps are localhost.
       cookiePrefix: audience === "FAMILY" ? "mbs_family" : "mbs_staff",
       // Deliberately no crossSubDomainCookies. Cookies stay host-only so
       // admin.mbss.sch.id never hands a staff session to a school profile site
@@ -224,10 +188,6 @@ function baseOptions(
   } satisfies BetterAuthOptions;
 }
 
-/**
- * One key per instance from the one configured secret. HKDF with a label per
- * audience, so neither key reveals the other or the root.
- */
 function instanceSecret(secret: string, audience: Audience) {
   return Buffer.from(hkdfSync("sha256", secret, "", `mbs-auth:${audience}`, 32)).toString("hex");
 }
@@ -237,10 +197,6 @@ type SessionCreateHooks = NonNullable<
 >;
 type EndpointContext = Parameters<NonNullable<SessionCreateHooks["after"]>>[1];
 
-/**
- * Who, how, and from where. Never the email address or the code: the user id
- * is enough to find the person, and the row outlives any reason to hold more.
- */
 async function auditSignIn(
   db: Database,
   audience: Audience,
@@ -255,20 +211,17 @@ async function auditSignIn(
     entityType: "user",
     entityId: entry.userId ?? "unknown",
     metadata: entry.metadata,
-    // The same address Better Auth rate-limits and stores on the session.
     ipAddress: headers && ctx ? getIP(headers, ctx.context.options) : null,
     requestId: headers?.get(REQUEST_ID_HEADER) ?? null,
     userAgent: headers?.get("user-agent") ?? null,
   });
 }
 
-/** Set by the API on every request it hands Better Auth, so audit rows carry it. */
 export const REQUEST_ID_HEADER = "x-request-id";
 
 function methodOf(path: string | undefined) {
   if (path === "/sign-in/email-otp") return "EMAIL_CODE";
   if (path?.startsWith("/callback/")) return "GOOGLE";
-  // A session made outside any request, such as the simulator's.
   return path ?? "INTERNAL";
 }
 
