@@ -16,6 +16,26 @@
 -- A correction's own row is never changed or removed, not even by a correction,
 -- so audit_logs refuses TRUNCATE outright. Never drop or disable the trigger
 -- instead.
+--
+-- Only correct_history writes a HISTORY_CORRECTION row: it runs as the NOLOGIN
+-- role mbs_history_admin, and a second trigger refuses that action from any
+-- other role. A superuser or the tables' owner can still disable triggers or
+-- take that role, and today the API connects as the owning superuser `mbs`.
+-- The guard is at full strength once the API connects as a role that owns
+-- nothing and is not a member of mbs_history_admin.
+DO $$
+BEGIN
+  CREATE ROLE mbs_history_admin NOLOGIN;
+EXCEPTION
+  -- Roles belong to the cluster, so a second database on it already has one.
+  WHEN duplicate_object THEN NULL;
+END;
+$$;
+--> statement-breakpoint
+GRANT USAGE ON SCHEMA public TO mbs_history_admin;
+--> statement-breakpoint
+GRANT INSERT ON audit_logs TO mbs_history_admin;
+--> statement-breakpoint
 CREATE FUNCTION forbid_history_change() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -54,31 +74,54 @@ END;
 $$;
 --> statement-breakpoint
 CREATE FUNCTION correct_history(reason text) RETURNS void
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
 DECLARE
-  correction uuid;
+  -- Made here rather than returned by the insert: RETURNING would need SELECT
+  -- on audit_logs, which this role does not have.
+  correction uuid := gen_random_uuid();
 BEGIN
   IF reason IS NULL OR btrim(reason) = '' THEN
     RAISE EXCEPTION 'correct_history needs a reason';
   END IF;
 
-  INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, metadata)
+  INSERT INTO public.audit_logs (id, actor_type, actor_id, action, entity_type, entity_id, metadata)
   VALUES (
+    correction,
     'DATABASE',
     session_user,
     'HISTORY_CORRECTION',
     'database',
     current_database(),
     jsonb_build_object('reason', reason)
-  )
-  RETURNING id INTO correction;
+  );
 
   -- `true` makes the setting local: it ends with this transaction.
   PERFORM set_config('mbs.history_correction', correction::text, true);
 END;
 $$;
 --> statement-breakpoint
+ALTER FUNCTION correct_history(text) OWNER TO mbs_history_admin;
+--> statement-breakpoint
 REVOKE EXECUTE ON FUNCTION correct_history(text) FROM PUBLIC;
+--> statement-breakpoint
+CREATE FUNCTION forbid_forged_correction() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  -- Inside correct_history, a SECURITY DEFINER function, current_user is its owner.
+  IF current_user <> 'mbs_history_admin' THEN
+    RAISE EXCEPTION 'only correct_history() writes a HISTORY_CORRECTION row to audit_logs'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
+CREATE TRIGGER audit_logs_forbid_forged_correction BEFORE INSERT OR UPDATE ON audit_logs
+  FOR EACH ROW WHEN (NEW.action = 'HISTORY_CORRECTION')
+  EXECUTE FUNCTION forbid_forged_correction();
 --> statement-breakpoint
 CREATE TRIGGER audit_logs_forbid_change BEFORE UPDATE OR DELETE ON audit_logs
   FOR EACH ROW EXECUTE FUNCTION forbid_history_change();

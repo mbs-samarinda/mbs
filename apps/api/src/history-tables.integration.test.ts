@@ -1,5 +1,5 @@
 import { createDatabase, schema } from "@mbs/db";
-import { getTableName, ne, sql } from "drizzle-orm";
+import { getTableName, ne, sql, TransactionRollbackError } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { resetTables } from "./test/reset.ts";
@@ -209,6 +209,108 @@ describe("forbid_history_change", () => {
     ).rejects.toMatchObject({
       cause: { message: expect.stringMatching(/correction rows are kept forever/) },
     });
+  });
+
+  const FORGED = /only correct_history\(\) writes a HISTORY_CORRECTION row/;
+
+  it("refuses a correction row written by hand, so it cannot open the guard", async () => {
+    await seedAuditRow();
+
+    await expect(
+      db.transaction(async (tx) => {
+        const [forged] = await tx
+          .insert(schema.auditLogs)
+          .values({
+            actorType: "DATABASE",
+            action: "HISTORY_CORRECTION",
+            entityType: "database",
+            entityId: "mbs_core",
+            metadata: { reason: "forged" },
+          })
+          .returning();
+        await tx.execute(sql`select set_config('mbs.history_correction', ${forged!.id}, true)`);
+        await tx.execute(sql`delete from audit_logs where action = 'cycle.create'`);
+      }),
+    ).rejects.toMatchObject({ cause: { message: expect.stringMatching(FORGED) } });
+    expect(await ordinaryRows()).toHaveLength(1);
+  });
+
+  it("refuses to turn an ordinary row into a correction, even inside one", async () => {
+    await seedAuditRow();
+
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.execute(sql`select correct_history('relabel a row')`);
+        await tx.execute(
+          sql`update audit_logs set action = 'HISTORY_CORRECTION' where action = 'cycle.create'`,
+        );
+      }),
+    ).rejects.toMatchObject({ cause: { message: expect.stringMatching(FORGED) } });
+  });
+
+  // The API connects as the owning superuser today, which can bypass any
+  // trigger. This is the role the guard is built for: one that may read and
+  // write audit_logs but owns nothing.
+  it("gives a role that owns nothing no way past the guard", async () => {
+    await seedAuditRow();
+    const reason = `a real fix ${crypto.randomUUID()}`;
+    await db.transaction((tx) => tx.execute(sql`select correct_history(${reason})`));
+    const [real] = await correctionsFor(reason);
+    const role = `history_test_${crypto.randomUUID().replaceAll("-", "")}`;
+
+    const outcomes: Record<string, string> = {};
+    // Roles are cluster-wide. Rolling the whole transaction back removes it.
+    await db
+      .transaction(async (tx) => {
+        await tx.execute(sql.raw(`create role ${role} nologin`));
+        await tx.execute(sql.raw(`grant usage on schema public to ${role}`));
+        await tx.execute(sql.raw(`grant select, insert, update, delete on audit_logs to ${role}`));
+        // LOCAL: a session-wide role would stay on the pooled connection.
+        await tx.execute(sql.raw(`set local role ${role}`));
+
+        const attempts = {
+          forge: async (inner: typeof tx) => {
+            const [forged] = await inner
+              .insert(schema.auditLogs)
+              .values({
+                actorType: "DATABASE",
+                action: "HISTORY_CORRECTION",
+                entityType: "database",
+                entityId: "mbs_core",
+              })
+              .returning();
+            await inner.execute(
+              sql`select set_config('mbs.history_correction', ${forged!.id}, true)`,
+            );
+            await inner.execute(sql`delete from audit_logs where action = 'cycle.create'`);
+          },
+          call: async (inner: typeof tx) => {
+            await inner.execute(sql`select correct_history('let me in')`);
+          },
+          reuse: async (inner: typeof tx) => {
+            await inner.execute(
+              sql`select set_config('mbs.history_correction', ${real!.id}, true)`,
+            );
+            await inner.execute(sql`delete from audit_logs where action = 'cycle.create'`);
+          },
+        };
+        for (const [name, attempt] of Object.entries(attempts)) {
+          // oxlint-disable-next-line eslint/no-await-in-loop
+          outcomes[name] = await tx.transaction(attempt).then(
+            () => "allowed",
+            (error: Error) => (error.cause instanceof Error ? error.cause : error).message,
+          );
+        }
+        tx.rollback();
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof TransactionRollbackError)) throw error;
+      });
+
+    expect(outcomes.forge).toMatch(FORGED);
+    expect(outcomes.call).toMatch(/permission denied for function correct_history/);
+    expect(outcomes.reuse).toMatch(APPEND_ONLY);
+    expect(await ordinaryRows()).toHaveLength(1);
   });
 
   it("refuses a correction with no reason", async () => {
