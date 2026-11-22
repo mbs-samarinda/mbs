@@ -5,7 +5,7 @@ description: Launch an isolated MBSS stack (throwaway Postgres, API, Strapi CMS,
 
 # Verify MBSS
 
-MBSS has one main thing a user touches: the **profile site** (`apps/profile`). It is a single Next.js app that serves four sites by hostname: the umbrella at the apex and the SMP, SMK and SMA schools on subdomains. Its content comes from **Strapi** (`apps/cms`), where editors write and publish. Admission dates come from the **API** (`apps/api`). The two admission apps (`apps/admission`, `apps/admission-admin`) are one-route stubs being rebuilt. Nothing there is worth verifying yet.
+MBSS has one main thing a user touches: the **profile site** (`apps/profile`). It is a single Next.js app that serves four sites by hostname: the umbrella at the apex and the SMP, SMK and SMA schools on subdomains. Its content comes from **Strapi** (`apps/cms`), where editors write and publish. Admission dates come from the **API** (`apps/api`). The parent and committee admission apps are not built yet, so there is nothing of theirs to verify.
 
 Two helpers live next to this file. Run both from the repo root:
 

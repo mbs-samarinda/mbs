@@ -27,7 +27,7 @@ Preconditions:
 
 ## Gotchas
 
-- Creating a cycle needs a staff session, which needs Google sign-in, and the committee app (`apps/admission-admin`) is a stub being rebuilt. No user path makes a cycle yet. If you insert one with SQL into `mbs_core` (`docker exec $CONTAINER psql -U mbs -d mbs_core ...`) to see the open or closed rendering, label it as fixture setup. It is not proof that cycle creation works.
+- Creating a cycle needs a staff session, which needs Google sign-in, and the committee app is not built yet. No user path makes a cycle yet. If you insert one with SQL into `mbs_core` (`docker exec $CONTAINER psql -U mbs -d mbs_core ...`) to see the open or closed rendering, label it as fixture setup. It is not proof that cycle creation works.
 - At commit `82b1dda`, an API that **hangs** (accepts the connection but never answers) makes `/pendaftaran` hang too. The oRPC call in `apps/profile/src/admission.ts` has no timeout, so the page never finishes loading. `kill -STOP` on the API reproduces it: `goto` times out after 120 s. This is a finding. Only an API that refuses connections (`api-off`) reaches the unavailable state.
 - The page reads the cycle on every request (`connection()`), so no cache needs clearing between states.
 - The apex has no `/pendaftaran` page. It redirects to the admission app; see [Owner sites](./owner-sites.md).
