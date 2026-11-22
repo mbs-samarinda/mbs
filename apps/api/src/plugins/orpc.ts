@@ -7,7 +7,6 @@ import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from 
 import type { Audience } from "../modules/auth/auth.ts";
 import { requireRole, resolveStaff, type SessionUser } from "../modules/auth/authorization.ts";
 
-/** Who is signed in, and on which auth instance. */
 export type Session = { audience: Audience; user: SessionUser } | { audience: null };
 
 export type ApiContext = {
