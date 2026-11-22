@@ -124,8 +124,6 @@ export function ownerUrl(owner: Owner): string {
  * parents to the production admission app, and nothing in the page would show it.
  */
 export function admissionUrl(): string {
-  // 5173 is reserved for the admission app, which is not built yet. Written
-  // here for the same reason 3002 is above: nothing puts it in the environment.
   return APEX.endsWith("localhost") ? "http://localhost:5173/" : `https://admission.${APEX}/`;
 }
 

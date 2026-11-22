@@ -55,8 +55,7 @@ export function createAuth(db: Database, config: Config, logger?: BetterAuthOpti
           // app.
           //
           // Better Auth lowercases the email before this hook runs. It
-          // redirects to errorURL only when the error carries a code, so the
-          // committee app can read this one.
+          // redirects to errorURL only when the error carries a code.
           before: async (user) => {
             if (!(await isApprovedLoginEmail(db, user.email))) {
               throw new APIError("FORBIDDEN", {

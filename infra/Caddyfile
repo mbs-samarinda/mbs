@@ -29,8 +29,6 @@
 	# Everything else, including the rest of /api. Nothing else under /api is
 	# reachable from a browser on these hosts: `admission.ts` reads the API from
 	# the server, over the compose network, so the API needs no public route here.
-	# The admission and committee apps, once built, get their own hosts and
-	# their own site blocks.
 	#
 	# The profile resolves the owner from the Host header, so the original host
 	# has to survive the hop. Caddy passes it through unchanged by default; the

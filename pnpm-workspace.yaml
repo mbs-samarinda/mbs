@@ -21,9 +21,9 @@ overrides:
   "better-auth>next": "catalog:"
 
 # Next's own type files ask for `react/experimental`, but Next does not list
-# @types/react, so the lookup fell back to whichever copy pnpm hoisted. Deleting
-# the admission apps tipped that to Strapi's React 18 types and broke the
-# profile's typecheck. Declaring the peers links each app's own copy to Next.
+# @types/react, so the lookup falls back to whichever copy pnpm hoisted, which
+# can be Strapi's React 18 types. Declaring the peers links each app's own copy
+# to Next.
 # Optional because the API pulls Next in through better-auth with no React types.
 packageExtensions:
   next:
