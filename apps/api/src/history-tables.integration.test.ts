@@ -127,6 +127,7 @@ describe("forbid_history_change", () => {
 
   it.each([
     ["a made-up value", () => "on"],
+    ["a value shaped like an id but not one", () => "gggggggg-0000-4000-8000-000000000000"],
     ["an id that is not a correction", (ownRow: string) => ownRow],
   ])("refuses a flag set by hand to %s", async (_name, flag) => {
     await expect(

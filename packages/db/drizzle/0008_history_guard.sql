@@ -33,22 +33,27 @@ BEGIN
     END IF;
   END IF;
 
-  -- The stored 64-bit transaction id never wraps around. xmin is checked as
-  -- well because only xmin differs inside a savepoint: there the correction is
-  -- refused.
-  IF flag ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND EXISTS (
-    SELECT 1 FROM audit_logs
-    WHERE id = flag::uuid
-      AND action = 'HISTORY_CORRECTION'
-      AND metadata->>'xact' = pg_current_xact_id()::text
-      AND xmin = pg_current_xact_id()::xid
-  ) THEN
-    -- A row-level BEFORE trigger that returns NULL silently skips the row, so
-    -- the permitted change has to hand the row back.
-    IF TG_OP = 'DELETE' THEN
-      RETURN OLD;
+  -- Postgres does not promise to evaluate AND from left to right (see
+  -- "Expression Evaluation Rules" in its manual), so the cast to uuid waits
+  -- for its own IF.
+  IF flag ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+    -- The stored 64-bit transaction id never wraps around. xmin is checked as
+    -- well because only xmin differs inside a savepoint: there the correction
+    -- is refused.
+    IF EXISTS (
+      SELECT 1 FROM audit_logs
+      WHERE id = flag::uuid
+        AND action = 'HISTORY_CORRECTION'
+        AND metadata->>'xact' = pg_current_xact_id()::text
+        AND xmin = pg_current_xact_id()::xid
+    ) THEN
+      -- A row-level BEFORE trigger that returns NULL silently skips the row,
+      -- so the permitted change has to hand the row back.
+      IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+      END IF;
+      RETURN NEW;
     END IF;
-    RETURN NEW;
   END IF;
 
   RAISE EXCEPTION '% on %: history rows are append-only', TG_OP, TG_TABLE_NAME
