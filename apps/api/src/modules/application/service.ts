@@ -23,11 +23,11 @@ import {
 import type { StaffContext } from "../auth/authorization.ts";
 import {
   findApplicationById,
-  findCycleForSubmission,
   findEventByIdempotencyKey,
   findLatestProfileVersion,
   findNewestEventOf,
   findProfileVersion,
+  findSubmissionTerms,
   grantAccess,
   hasAccess,
   insertApplication,
@@ -35,6 +35,7 @@ import {
   insertProfileVersion,
   isNikTaken,
   lockApplication,
+  lockCycleForSubmission,
   lockRegistrationCounter,
   nextRegistrationSeq,
   recordEventOnApplication,
@@ -86,17 +87,20 @@ export async function submitApplication(
     profile: ApplicantProfileInput;
     idempotencyKey: string | null;
     meta?: RequestMeta;
-    now?: Date;
   },
 ): Promise<{ application: ApplicationRow; event: ApplicationEventRow; replayed: boolean }> {
   const profile = ApplicantProfile.parse(input.profile);
-  const now = input.now ?? new Date();
 
   return db.transaction(async (tx) => {
-    const cycle = await findCycleForSubmission(tx, input.cycleId, input.schoolKey);
+    // Locks first, always in this order: the cycle row, then the school's
+    // counter. The terms are read after both, so a settings save or a close
+    // that this waited for is what it decides on.
+    if (!(await lockCycleForSubmission(tx, input.cycleId))) {
+      throw new NotFoundError("No such cycle.");
+    }
+    await lockRegistrationCounter(tx, input.cycleId, input.schoolKey);
+    const cycle = await findSubmissionTerms(tx, input.cycleId, input.schoolKey);
     if (!cycle) throw new NotFoundError("No such cycle.");
-
-    await lockRegistrationCounter(tx, input.cycleId, cycle.schoolId);
 
     // Before the window check, so a retry of a submission that landed just
     // before closing still gets its application back. Under the lock, so a
@@ -124,12 +128,7 @@ export async function submitApplication(
       }
     }
 
-    if (
-      cycle.status !== "OPEN" ||
-      !cycle.isEnabled ||
-      now < cycle.registrationOpenAt ||
-      now >= cycle.registrationCloseAt
-    ) {
+    if (cycle.status !== "OPEN" || !cycle.isEnabled || !cycle.inWindow) {
       throw new RegistrationClosedError("Registration is not open at this school.");
     }
 

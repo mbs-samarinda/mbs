@@ -12,17 +12,37 @@ export type ApplicationRow = typeof schema.applications.$inferSelect;
 export type ApplicationEventRow = typeof schema.applicationEvents.$inferSelect;
 
 /**
- * The cycle and the school's settings for it, with the cycle row share-locked
- * so it cannot close while a submission is being written. A school with no
- * settings row takes part at the cycle's defaults.
+ * Share-locks the cycle row until the transaction ends. Saving a school's
+ * settings and changing the cycle both lock it for update, so they wait for
+ * submissions in flight, and a submission waits for them to commit.
  */
-export async function findCycleForSubmission(tx: Transaction, cycleId: string, schoolKey: string) {
+export async function lockCycleForSubmission(tx: Transaction, cycleId: string) {
+  const rows = await tx
+    .select({ id: schema.admissionCycles.id })
+    .from(schema.admissionCycles)
+    .where(eq(schema.admissionCycles.id, cycleId))
+    .for("share");
+  return rows.length > 0;
+}
+
+/**
+ * Everything a submission is decided on: the cycle, the school's settings for
+ * it, and whether the database clock is inside the registration window. A
+ * school with no settings row takes part at the cycle's defaults.
+ *
+ * Read only after the locks are held, in its own statement. A query that
+ * waits on a row lock re-reads the locked row but keeps its older view of the
+ * rows joined to it, so a settings save it waited for would go unseen.
+ */
+export async function findSubmissionTerms(tx: Transaction, cycleId: string, schoolKey: string) {
+  const { registrationOpenAt, registrationCloseAt } = schema.admissionCycles;
   const rows = await tx
     .select({
       status: schema.admissionCycles.status,
-      registrationOpenAt: schema.admissionCycles.registrationOpenAt,
-      registrationCloseAt: schema.admissionCycles.registrationCloseAt,
       defaultFee: schema.admissionCycles.defaultFee,
+      // clock_timestamp(), not now(): now() is when the transaction began,
+      // before any wait for the locks.
+      inWindow: sql<boolean>`clock_timestamp() >= ${registrationOpenAt} and clock_timestamp() < ${registrationCloseAt}`,
       schoolId: schema.schools.id,
       feeOverride: schema.schoolAdmissionSettings.feeOverride,
       isEnabled: schema.schoolAdmissionSettings.isEnabled,
@@ -36,8 +56,7 @@ export async function findCycleForSubmission(tx: Transaction, cycleId: string, s
         eq(schema.schoolAdmissionSettings.schoolId, schema.schools.id),
       ),
     )
-    .where(eq(schema.admissionCycles.id, cycleId))
-    .for("share", { of: schema.admissionCycles });
+    .where(eq(schema.admissionCycles.id, cycleId));
 
   const row = rows[0];
   if (!row) return null;
@@ -48,9 +67,9 @@ export async function findCycleForSubmission(tx: Transaction, cycleId: string, s
  * Serializes submissions to one school in one cycle until the transaction
  * ends, so two families cannot be handed the same registration number.
  */
-export async function lockRegistrationCounter(tx: Transaction, cycleId: string, schoolId: string) {
+export async function lockRegistrationCounter(tx: Transaction, cycleId: string, schoolKey: string) {
   await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtext('applications.registration_seq'), hashtext(${cycleId} || ':' || ${schoolId}))`,
+    sql`select pg_advisory_xact_lock(hashtext('applications.registration_seq'), hashtext(${cycleId} || ':' || ${schoolKey}))`,
   );
 }
 

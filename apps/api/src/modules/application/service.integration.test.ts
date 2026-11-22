@@ -1,5 +1,5 @@
 import type { ApplicantProfileInput, CommandInput, SchoolKey } from "@mbs/api-contract";
-import { createDatabase, schema } from "@mbs/db";
+import { createDatabase, schema, type Transaction } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -261,16 +261,15 @@ describe("submitApplication", () => {
   });
 
   it("refuses when the cycle is not open, the window has passed, or the school sits out", async () => {
-    await expect(
-      submitApplication(db, {
-        cycleId,
-        schoolKey: "smp",
-        userId: "family-1",
-        profile: profile(),
-        idempotencyKey: null,
-        now: new Date(Date.now() + 31 * DAY),
-      }),
-    ).rejects.toBeInstanceOf(RegistrationClosedError);
+    await db.update(schema.admissionCycles).set({
+      registrationOpenAt: new Date(Date.now() - 2 * DAY),
+      registrationCloseAt: new Date(Date.now() - DAY),
+    });
+    await expect(submit()).rejects.toBeInstanceOf(RegistrationClosedError);
+    await db.update(schema.admissionCycles).set({
+      registrationOpenAt: new Date(Date.now() - DAY),
+      registrationCloseAt: new Date(Date.now() + 30 * DAY),
+    });
 
     const [smk] = await db.select().from(schema.schools).where(eq(schema.schools.key, "smk"));
     await db
@@ -281,6 +280,77 @@ describe("submitApplication", () => {
     await db.update(schema.admissionCycles).set({ status: "CLOSED" });
     await expect(submit()).rejects.toBeInstanceOf(RegistrationClosedError);
     expect(await db.$count(schema.applications)).toBe(0);
+  });
+});
+
+describe("submitApplication racing a change to the cycle", () => {
+  /** Until some query in this database waits for a row lock. */
+  async function untilSomeoneWaits() {
+    for (;;) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const [row] = await db.execute<{ waiting: number }>(sql`
+        select count(*)::int as waiting from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'
+      `);
+      if (row!.waiting > 0) return;
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  /**
+   * Holds the cycle row the way upsertSchoolAdmissionSetting and
+   * setAdmissionCycleStatus do, runs `during` inside that transaction, and
+   * starts a submission that has to wait for it to commit.
+   */
+  async function submitWhileHeld(during: (tx: Transaction) => Promise<unknown>) {
+    let submission!: ReturnType<typeof submit>;
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`select 1 from admission_cycles where id = ${cycleId} for update`);
+      submission = submit();
+      // Settled below; this stops an early rejection counting as unhandled.
+      submission.catch(() => {});
+      await untilSomeoneWaits();
+      await during(tx);
+    });
+    return submission;
+  }
+
+  it("sees a school disabled while it waited", async () => {
+    const [smp] = await db.select().from(schema.schools).where(eq(schema.schools.key, "smp"));
+
+    const submission = submitWhileHeld((tx) =>
+      tx
+        .insert(schema.schoolAdmissionSettings)
+        .values({ admissionCycleId: cycleId, schoolId: smp!.id, isEnabled: false }),
+    );
+
+    await expect(submission).rejects.toBeInstanceOf(RegistrationClosedError);
+    expect(await db.$count(schema.applications)).toBe(0);
+  });
+
+  it("charges a fee changed while it waited", async () => {
+    const [smp] = await db.select().from(schema.schools).where(eq(schema.schools.key, "smp"));
+
+    const { application } = await submitWhileHeld((tx) =>
+      tx
+        .insert(schema.schoolAdmissionSettings)
+        .values({ admissionCycleId: cycleId, schoolId: smp!.id, feeOverride: 300_000 }),
+    );
+
+    expect(application.registrationFee).toBe(300_000);
+  });
+
+  it("refuses when registration closed while it waited", async () => {
+    await db.execute(
+      sql`update admission_cycles set registration_close_at = clock_timestamp() + interval '300 milliseconds'`,
+    );
+
+    const submission = submitWhileHeld((tx) =>
+      tx.execute(sql`select pg_sleep_until(registration_close_at) from admission_cycles`),
+    );
+
+    await expect(submission).rejects.toBeInstanceOf(RegistrationClosedError);
   });
 });
 
