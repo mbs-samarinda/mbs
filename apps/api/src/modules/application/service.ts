@@ -2,10 +2,10 @@ import { isDeepStrictEqual } from "node:util";
 
 import {
   ApplicantProfile,
+  AppliedCommand,
   COMMAND_PAYLOADS,
   type ApplicantProfileInput,
   type ApplicationCommand,
-  type CommandInput,
   type SchoolKey,
 } from "@mbs/api-contract";
 import type { Database, Transaction } from "@mbs/db";
@@ -175,16 +175,14 @@ type CommandContext = {
 
 export async function applyCommand(
   db: Database,
-  input: CommandInput & CommandContext,
+  input: CommandContext & { command: ApplicationCommand; payload: unknown },
 ): Promise<{ event: ApplicationEventRow; replayed: boolean }> {
-  if ((input.command as ApplicationCommand) === "EDIT_PROFILE") {
-    throw new IllegalTransitionError("A profile edit goes through saveProfile.");
-  }
-  const payload = COMMAND_PAYLOADS[input.command].parse(input.payload);
+  const command = AppliedCommand.parse(input.command);
+  const payload = COMMAND_PAYLOADS[command].parse(input.payload);
 
-  return runCommand(db, input, input.command, {
+  return runCommand(db, input, command, {
     isRetry: async (earlier) =>
-      earlier.command === input.command && sameAsStored(earlier.payload, payload),
+      earlier.command === command && sameAsStored(earlier.payload, payload),
     write: async () => payload,
   });
 }

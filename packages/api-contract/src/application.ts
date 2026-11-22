@@ -69,11 +69,6 @@ export const COMMAND_PAYLOADS = {
 
 export type CommandPayload<C extends ApplicationCommand> = z.infer<(typeof COMMAND_PAYLOADS)[C]>;
 
-/**
- * One command and its payload, with the pairing checked by the compiler.
- * EDIT_PROFILE is left out: its payload is written by `saveProfile`, which
- * takes the profile itself.
- */
-export type CommandInput = {
-  [C in Exclude<ApplicationCommand, "EDIT_PROFILE">]: { command: C; payload: CommandPayload<C> };
-}[Exclude<ApplicationCommand, "EDIT_PROFILE">];
+/** EDIT_PROFILE is left out: `saveProfile` writes its payload from the profile itself. */
+export const AppliedCommand = ApplicationCommand.exclude(["EDIT_PROFILE"]);
+export type AppliedCommand = z.infer<typeof AppliedCommand>;

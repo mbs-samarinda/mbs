@@ -3,16 +3,16 @@ import { performance } from "node:perf_hooks";
 import { parseArgs } from "node:util";
 
 import {
-  ApplicationCommand,
   ApplicationStage,
+  AppliedCommand,
   SchoolKey,
   type ActorType,
   type ApplicantProfileInput,
-  type CommandInput,
+  type ApplicationCommand,
   type CommandPayload,
 } from "@mbs/api-contract";
 import { createDatabase, schema, type Database } from "@mbs/db";
-import { APPLICATION_COMMANDS, APPLICATION_STAGES, SCHOOL_KEYS } from "@mbs/school-config";
+import { APPLICATION_STAGES, SCHOOL_KEYS } from "@mbs/school-config";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -37,7 +37,7 @@ const SIM_STAFF: StaffContext = {
   authUserId: "ppdb-sim",
 };
 
-const SAMPLE_PAYLOADS: { [C in ApplicationCommand]: CommandPayload<C> } = {
+const SAMPLE_PAYLOADS: { [C in AppliedCommand]: CommandPayload<C> } = {
   SUBMIT: { payloadVersion: 1 },
   UPLOAD_PAYMENT_PROOF: { payloadVersion: 1 },
   APPROVE_PAYMENT: { payloadVersion: 1 },
@@ -63,7 +63,6 @@ const SAMPLE_PAYLOADS: { [C in ApplicationCommand]: CommandPayload<C> } = {
   WITHDRAW: { payloadVersion: 1 },
   ADD_NOTE: { payloadVersion: 1, note: "Catatan dari simulator." },
   CHANGE_INTERVIEW_MODE: { payloadVersion: 1, mode: "ONLINE" },
-  EDIT_PROFILE: { payloadVersion: 1, version: 2 },
 };
 
 const FIRST_NAMES = ["Aisyah", "Fatimah", "Rizki", "Hasan", "Nadia", "Umar", "Zahra", "Bilal"];
@@ -112,8 +111,8 @@ function profileFor(seed: string, index: number, nik: string, edit = 0): Applica
   };
 }
 
-function pathTo(target: ApplicationStage): ApplicationCommand[] | null {
-  const moves = APPLICATION_COMMANDS.flatMap((command) => {
+function pathTo(target: ApplicationStage): AppliedCommand[] | null {
+  const moves = AppliedCommand.options.flatMap((command) => {
     const row = TRANSITIONS[command];
     if (row.from === "NONE" || row.to === "SAME") return [];
     const from =
@@ -125,7 +124,7 @@ function pathTo(target: ApplicationStage): ApplicationCommand[] | null {
 
   const previous = new Map<
     ApplicationStage,
-    { stage: ApplicationStage; command: ApplicationCommand }
+    { stage: ApplicationStage; command: AppliedCommand }
   >();
   const queue: ApplicationStage[] = ["PAYMENT_DUE"];
   const seen = new Set<ApplicationStage>(queue);
@@ -140,7 +139,7 @@ function pathTo(target: ApplicationStage): ApplicationCommand[] | null {
   }
   if (!seen.has(target)) return null;
 
-  const path: ApplicationCommand[] = [];
+  const path: AppliedCommand[] = [];
   for (let stage = target; stage !== "PAYMENT_DUE";) {
     const step = previous.get(stage)!;
     path.unshift(step.command);
@@ -154,10 +153,6 @@ function actorFor(command: ApplicationCommand, familyUserId: string, as?: ActorT
   if (type === "FAMILY") return { type, userId: familyUserId };
   if (type === "STAFF") return { type, staff: SIM_STAFF };
   return { type: "SYSTEM", job: "ppdb-sim" };
-}
-
-function commandInput(command: ApplicationCommand, payload: unknown): CommandInput {
-  return { command, payload } as CommandInput;
 }
 
 async function cycleFor(db: Database, seed: string) {
@@ -298,7 +293,8 @@ async function walk(db: Database, args: Args) {
         // oxlint-disable-next-line eslint/no-await-in-loop
         const result = await timed(command, () =>
           applyCommand(db, {
-            ...commandInput(command, payload),
+            command,
+            payload,
             applicationId: submitted.application.id,
             actor: actorFor(command, userId),
             expectedSeq: seq,
@@ -329,7 +325,7 @@ async function applyOne(
   db: Database,
   args: Args,
   registrationNumber: string,
-  command: ApplicationCommand,
+  command: AppliedCommand,
 ) {
   const [row] = await db
     .select({ application: schema.applications })
@@ -350,7 +346,8 @@ async function applyOne(
   const payload = { ...SAMPLE_PAYLOADS[command], ...args.payload };
   const result = await timed(command, () =>
     applyCommand(db, {
-      ...commandInput(command, payload),
+      command,
+      payload,
       applicationId: application.id,
       actor: actorFor(command, application.createdByUserId),
       expectedSeq: args.expectedSeq ?? application.lastEventSeq,
@@ -432,7 +429,7 @@ try {
     const [, registrationNumber, command] = positionals;
     if (!registrationNumber)
       throw new Error("Usage: ppdb-sim apply <REGISTRATION-NUMBER> <COMMAND>");
-    await applyOne(db, args, registrationNumber, ApplicationCommand.parse(command));
+    await applyOne(db, args, registrationNumber, AppliedCommand.parse(command));
   } else {
     await walk(db, args);
   }

@@ -1,7 +1,8 @@
-import type { ApplicantProfileInput, CommandInput, SchoolKey } from "@mbs/api-contract";
+import type { ApplicantProfileInput, AppliedCommand, SchoolKey } from "@mbs/api-contract";
 import { createDatabase, schema, type Transaction } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { ZodError } from "zod";
 
 import {
   ConflictError,
@@ -606,11 +607,12 @@ describe("applyCommand", () => {
 });
 
 describe("publishing the result", () => {
+  type Step = [Actor, { command: AppliedCommand; payload: unknown }];
   const PUBLISHER: Actor = { type: "SYSTEM", job: "result-publisher" };
 
   async function decided(...decisions: ("ACCEPTED" | "NOT_ACCEPTED")[]) {
     const { application } = await submit();
-    const steps: [Actor, CommandInput][] = [
+    const steps: Step[] = [
       [FAMILY, { command: "UPLOAD_PAYMENT_PROOF", payload: { payloadVersion: 1 } }],
       [STAFF, { command: "APPROVE_PAYMENT", payload: { payloadVersion: 1 } }],
       [FAMILY, { command: "SUBMIT_DOCUMENTS", payload: { payloadVersion: 1 } }],
@@ -618,7 +620,7 @@ describe("publishing the result", () => {
       [STAFF, { command: "ADVANCE_TO_INTERVIEW", payload: { payloadVersion: 1 } }],
       [STAFF, { command: "SCHEDULE_INTERVIEW", payload: { payloadVersion: 1 } }],
       [STAFF, { command: "RECORD_ATTENDED", payload: { payloadVersion: 1 } }],
-      ...decisions.map((decision): [Actor, CommandInput] => [
+      ...decisions.map((decision): Step => [
         STAFF,
         { command: "DECIDE", payload: { payloadVersion: 1, decision } },
       ]),
@@ -810,14 +812,12 @@ describe("saveProfile", () => {
       applyCommand(db, {
         applicationId: application.id,
         actor: FAMILY,
-        ...({
-          command: "EDIT_PROFILE",
-          payload: { payloadVersion: 1, version: 2 },
-        } as unknown as CommandInput),
+        command: "EDIT_PROFILE",
+        payload: { payloadVersion: 1, version: 2 },
         expectedSeq: 1,
         idempotencyKey: null,
       }),
-    ).rejects.toBeInstanceOf(IllegalTransitionError);
+    ).rejects.toBeInstanceOf(ZodError);
     expect(await eventsOf(application.id)).toHaveLength(1);
   });
 
