@@ -73,7 +73,8 @@ function actorId(actor: Actor) {
  * starts with is written in one transaction: the application, the documents it
  * was promised, profile version 1, the family's access and the SUBMIT event.
  *
- * Retrying with the same idempotency key returns the first result.
+ * Retrying with the same idempotency key and the same form returns the first
+ * result.
  */
 export async function submitApplication(
   db: Database,
@@ -108,10 +109,13 @@ export async function submitApplication(
       );
       if (earlier) {
         const application = await findApplicationById(tx, earlier.applicationId);
+        // Matched on the form it sent, as saveProfile matches its retries.
+        const firstForm = await findProfileVersion(tx, earlier.applicationId, 1);
         if (
           earlier.command !== "SUBMIT" ||
           application?.admissionCycleId !== input.cycleId ||
-          application.schoolId !== cycle.schoolId
+          application.schoolId !== cycle.schoolId ||
+          !sameAsStored(firstForm?.data, profile)
         ) {
           throw reusedKey();
         }

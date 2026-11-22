@@ -252,6 +252,14 @@ describe("submitApplication", () => {
     expect(await db.$count(schema.applications)).toBe(1);
   });
 
+  it("refuses a submission key reused with a different form", async () => {
+    await submit({ key: "one-key" });
+
+    await expect(
+      submit({ key: "one-key", profile: profile({ childFullName: "Aisyah Lain" }) }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
   it("refuses when the cycle is not open, the window has passed, or the school sits out", async () => {
     await expect(
       submitApplication(db, {
