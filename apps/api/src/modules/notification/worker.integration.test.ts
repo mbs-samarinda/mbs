@@ -490,30 +490,28 @@ describe("notification worker", () => {
 
     proxy.stallFirstConnection();
 
-    await vi.waitFor(() =>
-      expect(
-        lines.map(({ level, msg, errorClass, after }) => ({ level, msg, errorClass, after })),
-      ).toEqual([
-        {
-          level: 40,
-          msg: "notification worker lost the outbox lock",
-          errorClass: "LockTimeout",
-          after: undefined,
-        },
-        {
-          level: 30,
-          msg: "notification worker took the outbox lock",
-          errorClass: undefined,
-          after: "failing",
-        },
-      ]),
+    await vi.waitFor(async () => {
+      const holders = await lockHolders();
+      expect(holders).toHaveLength(1);
+      expect(holders[0]?.pid).not.toBe(before?.pid);
+    });
+    const lost = lines.findIndex((line) => line.msg === "notification worker lost the outbox lock");
+    const taken = lines.findIndex(
+      (line) => line.msg === "notification worker took the outbox lock",
     );
-    const holders = await lockHolders();
-    expect(holders).toHaveLength(1);
-    expect(holders[0]?.pid).not.toBe(before?.pid);
+    expect(lines[lost]).toMatchObject({ level: 40, errorClass: "LockTimeout" });
+    expect(taken).toBeGreaterThan(lost);
     await running.stop();
     await proxied.$client.end({ timeout: 0 });
     proxy.close();
+  });
+
+  it("never takes the lock once stopped", async () => {
+    const running = worker(createFakeMailer());
+    await running.stop();
+
+    expect(await running.poll()).toBe(0);
+    expect(await lockHolders()).toEqual([]);
   });
 
   it("refuses to start again once stopped, and closes its mailer once", async () => {

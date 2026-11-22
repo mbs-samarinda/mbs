@@ -210,6 +210,7 @@ export function createNotificationWorker(options: WorkerOptions) {
   }
 
   async function holdLock() {
+    if (stopped) return false;
     if (lock) {
       const lost = await bounded(lock<{ held: boolean }[]>`
         select exists (
@@ -222,6 +223,7 @@ export function createNotificationWorker(options: WorkerOptions) {
       log.warn({ errorClass: lost }, "notification worker lost the outbox lock");
       lockState = "failing";
       void dropLock();
+      return false;
     }
     const connection = createSessionConnection(options.databaseUrl);
     let failure: string | null = null;
@@ -234,6 +236,10 @@ export function createNotificationWorker(options: WorkerOptions) {
         return false;
       },
     );
+    if (held && stopped) {
+      void connection.end({ timeout: 0 });
+      return false;
+    }
     if (held) {
       if (lockState) log.info({ after: lockState }, "notification worker took the outbox lock");
       lockState = "held";

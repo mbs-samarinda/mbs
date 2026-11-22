@@ -24,7 +24,7 @@ export function createDatabase(url: string) {
 export type Database = ReturnType<typeof createDatabase>;
 
 export function createSessionConnection(url: string) {
-  return postgres(url, { max: 1, connect_timeout: 10 });
+  return postgres(url, { max: 1, connect_timeout: 10, fetch_types: false });
 }
 
 export type SessionConnection = ReturnType<typeof createSessionConnection>;
