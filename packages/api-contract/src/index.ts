@@ -18,6 +18,7 @@ import {
   UpsertSchoolSettingInput,
 } from "./schemas.ts";
 
+export * from "./application.ts";
 export * from "./schemas.ts";
 
 /**
