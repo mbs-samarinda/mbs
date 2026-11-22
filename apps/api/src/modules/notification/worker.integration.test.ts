@@ -506,6 +506,34 @@ describe("notification worker", () => {
     proxy.close();
   });
 
+  it("takes the lock back on a fresh connection after its session is killed", async () => {
+    const mailer = createFakeMailer();
+    const running = worker(mailer, { pollMs: 20 });
+    running.start();
+    await vi.waitFor(async () => expect(await lockHolders()).toHaveLength(1));
+    const [killed] = await lockHolders();
+
+    await db.execute(sql`select pg_terminate_backend(${killed!.pid})`);
+
+    await vi.waitFor(async () => {
+      const holders = await lockHolders();
+      expect(holders).toHaveLength(1);
+      expect(holders[0]?.pid).not.toBe(killed!.pid);
+    });
+    const [holder] = await lockHolders();
+    const pooled = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        db.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`),
+      ),
+    );
+    expect(pooled.map(([row]) => row?.pid)).not.toContain(holder!.pid);
+    const [row] = await queue();
+    await vi.waitFor(() => expect(mailer.sent.map((message) => message.id)).toEqual([row!.id]));
+
+    await running.stop();
+    expect(await lockHolders()).toEqual([]);
+  });
+
   it("never takes the lock once stopped", async () => {
     const running = worker(createFakeMailer());
     await running.stop();
