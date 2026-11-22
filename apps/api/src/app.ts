@@ -150,14 +150,12 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     const session = audience
       ? await app.auth[audience].api.getSession({ headers: authHeaders(request) })
       : null;
-    const user = session?.user ?? null;
 
     const { matched } = await handler.handle(request, reply, {
       prefix: "/api/rpc",
       context: {
         db: app.db,
-        familyUser: audience === "FAMILY" ? user : null,
-        staffUser: audience === "STAFF" ? user : null,
+        session: audience && session ? { audience, user: session.user } : { audience: null },
         log: request.log,
       },
     });
