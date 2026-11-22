@@ -1,6 +1,12 @@
+import type { ApplicantProfile, ApplicationCommand, CommandPayload } from "@mbs/api-contract";
 import {
+  ACTOR_TYPES,
+  APPLICATION_COMMANDS,
+  APPLICATION_STAGES,
   CYCLE_STATUSES,
+  DOCUMENT_STAGES,
   DOCUMENT_TYPES,
+  INTERVIEW_MODES,
   STAFF_LOGIN_EMAIL_KINDS,
   STAFF_ROLES,
 } from "@mbs/school-config";
@@ -94,6 +100,7 @@ export const schoolAdmissionSettings = pgTable(
 // what was required, and a typo in a configured type would silently create a
 // requirement nothing can ever satisfy. A new document costs one migration.
 export const documentType = pgEnum("document_type", DOCUMENT_TYPES);
+export const documentStage = pgEnum("document_stage", DOCUMENT_STAGES);
 
 /**
  * What one school asks for in one cycle. Three states, two columns: no row
@@ -115,13 +122,15 @@ export const documentRequirements = pgTable(
       .references(() => schools.id),
     type: documentType("document_type").notNull(),
     required: boolean("required").notNull(),
+    stage: documentStage("stage").notNull().default("REGISTRATION"),
   },
-  // Named explicitly: the generated name is 71 characters and Postgres
-  // truncates identifiers at 63, so the snapshot would not match the database.
+  // Named explicitly: the generated name is longer than the 63 characters
+  // Postgres keeps, so the snapshot would not match the database.
   (table) => [
-    unique("document_requirements_cycle_school_type_unique").on(
+    unique("document_requirements_cycle_school_stage_type_unique").on(
       table.admissionCycleId,
       table.schoolId,
+      table.stage,
       table.type,
     ),
   ],
@@ -190,8 +199,8 @@ export const staffSchoolAccess = pgTable(
 );
 
 /**
- * Append-only business history. Application code inserts and never updates or
- * deletes. This is not the server log: it answers who changed what, and when.
+ * Append-only business history. This is not the server log: it answers who
+ * changed what, and when.
  */
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -203,5 +212,133 @@ export const auditLogs = pgTable("audit_logs", {
   // Sanitized. Never NIK, document contents, cookies or tokens.
   metadata: jsonb("metadata"),
   ipAddress: text("ip_address"),
+  requestId: text("request_id"),
+  userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const applicationStage = pgEnum("application_stage", APPLICATION_STAGES);
+export const applicationCommand = pgEnum("application_command", APPLICATION_COMMANDS);
+export const actorType = pgEnum("actor_type", ACTOR_TYPES);
+export const interviewMode = pgEnum("interview_mode", INTERVIEW_MODES);
+
+export const applications = pgTable(
+  "applications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    admissionCycleId: uuid("admission_cycle_id")
+      .notNull()
+      .references(() => admissionCycles.id),
+    schoolId: uuid("school_id")
+      .notNull()
+      .references(() => schools.id),
+    registrationSeq: integer("registration_seq").notNull(),
+    registrationNumber: text("registration_number").notNull(),
+    stage: applicationStage("stage").notNull(),
+    interviewMode: interviewMode("interview_mode"),
+    nik: text("nik").notNull(),
+    registrationFee: integer("registration_fee").notNull(),
+    lastEventSeq: integer("last_event_seq").notNull(),
+    stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("applications_cycle_school_seq_unique").on(
+      table.admissionCycleId,
+      table.schoolId,
+      table.registrationSeq,
+    ),
+    unique("applications_cycle_number_unique").on(table.admissionCycleId, table.registrationNumber),
+    unique("applications_cycle_school_nik_unique").on(
+      table.admissionCycleId,
+      table.schoolId,
+      table.nik,
+    ),
+    check("applications_nik_digits", sql`nik ~ '^[0-9]{16}$'`),
+  ],
+);
+
+export const applicationDocumentRequirements = pgTable(
+  "application_document_requirements",
+  {
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    stage: documentStage("stage").notNull(),
+    type: documentType("document_type").notNull(),
+    required: boolean("required").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.applicationId, table.stage, table.type] })],
+);
+
+export const applicationAccess = pgTable(
+  "application_access",
+  {
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.applicationId, table.userId] })],
+);
+
+export const applicantProfileVersions = pgTable(
+  "applicant_profile_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    version: integer("version").notNull(),
+    data: jsonb("data").$type<ApplicantProfile>().notNull(),
+    authorUserId: text("author_user_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.applicationId, table.version)],
+);
+
+export const applicationEvents = pgTable(
+  "application_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    seq: integer("seq").notNull(),
+    command: applicationCommand("command").notNull(),
+    fromStage: applicationStage("from_stage"),
+    toStage: applicationStage("to_stage").notNull(),
+    actorType: actorType("actor_type").notNull(),
+    // Never null, so a system job's idempotency keys are unique like anyone
+    // else's.
+    actorId: text("actor_id").notNull(),
+    familyVisible: boolean("family_visible").notNull(),
+    payload: jsonb("payload").$type<CommandPayload<ApplicationCommand>>().notNull(),
+    payloadVersion: integer("payload_version").notNull(),
+    idempotencyKey: text("idempotency_key"),
+    requestId: text("request_id"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique().on(table.applicationId, table.seq),
+    check(
+      "application_events_only_submit_lacks_from_stage",
+      sql`(from_stage is null) = (command = 'SUBMIT')`,
+    ),
+    uniqueIndex("application_events_actor_idempotency_key")
+      .on(table.actorType, table.actorId, table.idempotencyKey)
+      .where(sql`idempotency_key is not null`),
+  ],
+);

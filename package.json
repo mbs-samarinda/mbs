@@ -12,6 +12,7 @@
     "dev": "turbo run dev",
     "db:generate": "pnpm --filter @mbs/db generate",
     "db:migrate": "pnpm --filter @mbs/db migrate",
+    "ppdb-sim": "node --env-file-if-exists=apps/api/.env apps/api/scripts/ppdb-sim.ts",
     "gate": "pnpm format:check && pnpm lint && turbo run typecheck test build"
   },
   "devDependencies": {

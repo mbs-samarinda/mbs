@@ -1,8 +1,10 @@
-import type { CycleStatus, DocumentType } from "@mbs/api-contract";
+import type { CycleStatus, DocumentStage, DocumentType } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 type Executor = Database | Transaction;
+
+export const takesPart = sql<boolean>`coalesce(${schema.schoolAdmissionSettings.isEnabled}, true)`;
 
 /**
  * Reads the cycle a school is currently showing to the public.
@@ -28,7 +30,7 @@ export async function findCurrentCycleForSchool(db: Database, schoolKey: string)
       resultPublishAt: schema.admissionCycles.resultPublishAt,
       defaultFee: schema.admissionCycles.defaultFee,
       feeOverride: schema.schoolAdmissionSettings.feeOverride,
-      isEnabled: schema.schoolAdmissionSettings.isEnabled,
+      isEnabled: takesPart,
     })
     .from(schema.admissionCycles)
     // No condition: this pairs the cycle with the school rather than filtering
@@ -49,10 +51,7 @@ export async function findCurrentCycleForSchool(db: Database, schoolKey: string)
     .orderBy(desc(schema.admissionCycles.registrationOpenAt), desc(schema.admissionCycles.id))
     .limit(1);
 
-  const row = rows[0];
-  if (!row) return null;
-
-  return { ...row, isEnabled: row.isEnabled ?? true };
+  return rows[0] ?? null;
 }
 
 export async function listCycles(db: Executor) {
@@ -146,6 +145,21 @@ export async function findSchoolIdByKey(db: Executor, schoolKey: string) {
  * school missing from the result takes part at the cycle's defaults; it is not
  * a school left out.
  */
+export async function listSchoolKeysTakingPart(db: Executor, cycleId: string) {
+  const rows = await db
+    .select({ key: schema.schools.key })
+    .from(schema.schools)
+    .leftJoin(
+      schema.schoolAdmissionSettings,
+      and(
+        eq(schema.schoolAdmissionSettings.admissionCycleId, cycleId),
+        eq(schema.schoolAdmissionSettings.schoolId, schema.schools.id),
+      ),
+    )
+    .where(takesPart);
+  return rows.map((row) => row.key);
+}
+
 export async function listSchoolSettings(db: Executor, cycleId: string) {
   return db
     .select({
@@ -160,7 +174,11 @@ export async function listSchoolSettings(db: Executor, cycleId: string) {
     .where(eq(schema.schoolAdmissionSettings.admissionCycleId, cycleId));
 }
 
-export async function listDocumentRequirements(db: Executor, cycleId: string) {
+export async function listDocumentRequirements(
+  db: Executor,
+  cycleId: string,
+  stage: DocumentStage,
+) {
   return db
     .select({
       schoolKey: schema.schools.key,
@@ -169,7 +187,12 @@ export async function listDocumentRequirements(db: Executor, cycleId: string) {
     })
     .from(schema.documentRequirements)
     .innerJoin(schema.schools, eq(schema.schools.id, schema.documentRequirements.schoolId))
-    .where(eq(schema.documentRequirements.admissionCycleId, cycleId))
+    .where(
+      and(
+        eq(schema.documentRequirements.admissionCycleId, cycleId),
+        eq(schema.documentRequirements.stage, stage),
+      ),
+    )
     .orderBy(asc(schema.documentRequirements.type));
 }
 
@@ -201,11 +224,11 @@ export async function upsertSchoolSetting(
     });
 }
 
-/** Replaced wholesale: the client sends the school's complete document list. */
 export async function replaceDocumentRequirements(
   db: Executor,
   cycleId: string,
   schoolId: string,
+  stage: DocumentStage,
   documents: readonly { type: DocumentType; required: boolean }[],
 ) {
   await db
@@ -214,6 +237,7 @@ export async function replaceDocumentRequirements(
       and(
         eq(schema.documentRequirements.admissionCycleId, cycleId),
         eq(schema.documentRequirements.schoolId, schoolId),
+        eq(schema.documentRequirements.stage, stage),
       ),
     );
 
@@ -222,6 +246,7 @@ export async function replaceDocumentRequirements(
       documents.map((document) => ({
         admissionCycleId: cycleId,
         schoolId,
+        stage,
         type: document.type,
         required: document.required,
       })),

@@ -1,9 +1,10 @@
 import { createDatabase, schema } from "@mbs/db";
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { loadConfig } from "../../config/env.ts";
 import { ConflictError, ForbiddenError } from "../../errors.ts";
+import { resetTables } from "../../test/reset.ts";
 import { createAuth } from "../auth/auth.ts";
 import { resolveStaff, type StaffContext } from "../auth/authorization.ts";
 import { ensureBootstrapAdministrator } from "./bootstrap.ts";
@@ -53,9 +54,13 @@ async function seedAuthUser(id: string, email: string, emailVerified = true) {
 beforeEach(async () => {
   // Schools are seeded by migration 0003 and other suites truncate them, so
   // put them back rather than assuming.
-  await db.execute(
-    sql`truncate ${schema.auditLogs}, ${schema.staffSchoolAccess}, ${schema.staffLoginEmails}, ${schema.staffUsers}, ${schema.user} cascade`,
-  );
+  await resetTables(db, [
+    schema.auditLogs,
+    schema.staffSchoolAccess,
+    schema.staffLoginEmails,
+    schema.staffUsers,
+    schema.user,
+  ]);
   await db
     .insert(schema.schools)
     .values([{ key: "smp" }, { key: "smk" }, { key: "sma" }])
@@ -515,7 +520,8 @@ describe("staff management", () => {
     const entries = await db
       .select({ action: schema.auditLogs.action })
       .from(schema.auditLogs)
-      .where(eq(schema.auditLogs.entityId, created.id));
+      .where(eq(schema.auditLogs.entityId, created.id))
+      .orderBy(asc(schema.auditLogs.createdAt));
 
     expect(entries.map((entry) => entry.action)).toEqual(["staff.create", "staff.deactivate"]);
   });

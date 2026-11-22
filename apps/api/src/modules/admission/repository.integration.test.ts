@@ -1,8 +1,8 @@
 import type { CycleStatus } from "@mbs/api-contract";
 import { createDatabase, schema } from "@mbs/db";
-import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
+import { resetTables } from "../../test/reset.ts";
 import { findCurrentCycleForSchool } from "./repository.ts";
 import { getCurrentCycle } from "./service.ts";
 
@@ -37,9 +37,11 @@ beforeEach(async () => {
   // Not `schools`: its three rows are seeded by a migration and referenced by
   // staff access, so wiping them would break the next suite and the API's own
   // startup.
-  await db.execute(
-    sql`truncate ${schema.schoolAdmissionSettings}, ${schema.documentRequirements}, ${schema.admissionCycles} cascade`,
-  );
+  await resetTables(db, [
+    schema.schoolAdmissionSettings,
+    schema.documentRequirements,
+    schema.admissionCycles,
+  ]);
 });
 
 afterAll(() => db.$client.end());
@@ -142,5 +144,27 @@ describe("getCurrentCycle", () => {
       { type: "KARTU_KELUARGA", required: true },
       { type: "IJAZAH", required: false },
     ]);
+  });
+
+  it("lists only the documents asked for at registration", async () => {
+    await joinSchoolToCycle("2027/2028", "OPEN", dates.registrationOpenAt);
+
+    const [cycle] = await db.select().from(schema.admissionCycles);
+    const schools = await db.select().from(schema.schools);
+    const sma = schools.find((school) => school.key === "sma");
+
+    await db.insert(schema.documentRequirements).values([
+      { admissionCycleId: cycle!.id, schoolId: sma!.id, type: "KARTU_KELUARGA", required: true },
+      {
+        admissionCycleId: cycle!.id,
+        schoolId: sma!.id,
+        type: "IJAZAH",
+        required: true,
+        stage: "REREGISTRATION",
+      },
+    ]);
+
+    const published = await getCurrentCycle(db, "sma");
+    expect(published?.documents).toEqual([{ type: "KARTU_KELUARGA", required: true }]);
   });
 });

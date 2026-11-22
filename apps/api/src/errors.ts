@@ -20,6 +20,14 @@ export class ConflictError extends Error {
   readonly code = "CONFLICT";
 }
 
+export class IllegalTransitionError extends ConflictError {}
+
+export class StaleSequenceError extends ConflictError {}
+
+export class DuplicateApplicationError extends ConflictError {}
+
+export class RegistrationClosedError extends ConflictError {}
+
 /** Postgres 23505. Drizzle wraps the driver error, so the code may sit on `cause`. */
 export function isUniqueViolation(error: unknown) {
   for (let current = error; current instanceof Error; current = current.cause) {

@@ -18,6 +18,7 @@
     "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
   },
   "dependencies": {
+    "@mbs/api-contract": "workspace:*",
     "@mbs/school-config": "workspace:*",
     "drizzle-kit": "0.31.10",
     "drizzle-orm": "0.45.2",

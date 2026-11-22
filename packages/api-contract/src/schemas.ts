@@ -1,5 +1,6 @@
 import {
   CYCLE_STATUSES,
+  DOCUMENT_STAGES,
   DOCUMENT_TYPES,
   SCHOOL_KEYS,
   STAFF_LOGIN_EMAIL_KINDS,
@@ -16,6 +17,9 @@ export type CycleStatus = z.infer<typeof CycleStatus>;
 
 export const DocumentType = z.enum(DOCUMENT_TYPES);
 export type DocumentType = z.infer<typeof DocumentType>;
+
+export const DocumentStage = z.enum(DOCUMENT_STAGES);
+export type DocumentStage = z.infer<typeof DocumentStage>;
 
 /** An absent type is one the school does not collect; `required` false is optional. */
 export const DocumentRequirement = z.object({ type: DocumentType, required: z.boolean() });

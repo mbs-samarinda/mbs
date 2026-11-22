@@ -1,0 +1,1 @@
+ALTER TYPE "public"."application_command" ADD VALUE 'EDIT_PROFILE';
