@@ -24,7 +24,9 @@ export function createDatabase(url: string) {
 export type Database = ReturnType<typeof createDatabase>;
 
 export function createSessionConnection(url: string) {
-  return postgres(url, { max: 1, connect_timeout: 10, fetch_types: false });
+  // max_lifetime off: postgres.js recycles a connection after 30 to 60 minutes,
+  // and recycling this one would drop the advisory lock it holds.
+  return postgres(url, { max: 1, connect_timeout: 10, fetch_types: false, max_lifetime: null });
 }
 
 export type SessionConnection = ReturnType<typeof createSessionConnection>;

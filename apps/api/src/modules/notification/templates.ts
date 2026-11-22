@@ -103,6 +103,11 @@ export const TEMPLATES: { [K in TemplateKey]: Template<TemplateInput<K>> } = {
     happened: `Jadwal wawancara ${childName} berubah.`,
     next: "Kamu bisa melihat jadwal barunya di halaman pendaftaran.",
   })),
+  "interview-attended": eventTemplate(1, ({ childName }) => ({
+    subject: "Wawancara sudah selesai",
+    happened: `Wawancara ${childName} sudah selesai.`,
+    next: "Panitia sedang menyusun hasilnya. Kamu tidak perlu melakukan apa-apa dulu. Kami kabari hasilnya lewat email.",
+  })),
   "interview-missed": eventTemplate(1, ({ childName }) => ({
     subject: "Wawancara akan dijadwalkan ulang",
     happened: `${childName} tercatat tidak hadir di wawancara.`,

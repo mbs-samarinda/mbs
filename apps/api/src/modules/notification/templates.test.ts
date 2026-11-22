@@ -61,6 +61,7 @@ const PINNED: { [K in TemplateKey]: { version: number; hash: string } } = {
   "stopped-at-screening": { version: 1, hash: "e90078fa6a092421" },
   "interview-scheduled": { version: 1, hash: "2ad503cf653cf032" },
   "interview-rescheduled": { version: 1, hash: "93c82cc6ad88fca5" },
+  "interview-attended": { version: 1, hash: "29056541baa0f17e" },
   "interview-missed": { version: 1, hash: "a102b1aade18141c" },
   "result-accepted": { version: 1, hash: "6824d37b63b4b9cc" },
   "result-not-accepted": { version: 1, hash: "1cc461b1c3a2af6a" },

@@ -156,19 +156,15 @@ export async function failAbandonedCodes(db: Database, olderThanSeconds: number)
   `);
 }
 
+// A lease that ran out while earlier rows in the batch were sending is still
+// ours unless another claim raised the attempt count, so expiry alone does not
+// lose the row.
 export async function renewLease(db: Database, row: ClaimedNotification, leaseSeconds: number) {
   const n = schema.notifications;
   const renewed = await db
     .update(n)
     .set({ leaseUntil: sql`now() + make_interval(secs => ${leaseSeconds})` })
-    .where(
-      and(
-        eq(n.id, row.id),
-        eq(n.status, "SENDING"),
-        eq(n.attemptCount, row.attemptCount),
-        sql`${n.leaseUntil} > now()`,
-      ),
-    )
+    .where(and(eq(n.id, row.id), eq(n.status, "SENDING"), eq(n.attemptCount, row.attemptCount)))
     .returning({ id: n.id });
   return renewed.length > 0;
 }

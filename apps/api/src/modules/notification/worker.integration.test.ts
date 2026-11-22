@@ -265,6 +265,35 @@ describe("notification worker", () => {
     expect(new Set(ids).size).toBe(1);
   });
 
+  it("still sends every row of a batch that outlasts its lease", async () => {
+    const fake = createFakeMailer();
+    const rows = await queue(3);
+    let first = true;
+    const slow: Mailer = {
+      ...fake,
+      async send(message) {
+        if (first) {
+          first = false;
+          await db
+            .update(schema.notifications)
+            .set({ leaseUntil: sql`now() - interval '1 second'` })
+            .where(eq(schema.notifications.status, "SENDING"));
+        }
+        return fake.send(message);
+      },
+    };
+
+    await worker(slow).poll();
+
+    expect(fake.sent).toHaveLength(3);
+    for (const row of rows) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      expect(await rowOf(row.id)).toMatchObject({ status: "SENT", attemptCount: 1 });
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      expect(await attemptsOf(row.id)).toMatchObject([{ attempt: 1, outcome: "SENT" }]);
+    }
+  });
+
   it("claims nothing in a worker that does not hold the lock", async () => {
     const aMailer = createFakeMailer();
     const bMailer = createFakeMailer();
