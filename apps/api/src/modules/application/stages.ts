@@ -12,13 +12,17 @@ export const END_STAGES = [
   "WITHDRAWN",
 ] as const satisfies readonly ApplicationStage[];
 
-type Transition = {
-  from: readonly ApplicationStage[] | "NONE" | "ANY_OPEN";
-  to: ApplicationStage | "SAME";
+type Transition = Effects &
+  (
+    | { from: "NONE"; to: ApplicationStage }
+    | { from: readonly ApplicationStage[] | "ANY_OPEN"; to: ApplicationStage | "SAME" }
+  );
+
+type Effects = {
   actors: readonly ActorType[];
   familyVisible: boolean;
   notification: string | null;
-  requires?: Requirement;
+  requiresNewest?: Requirement;
 };
 
 type Requirement = {
@@ -134,7 +138,7 @@ export const TRANSITIONS = {
     actors: SYSTEM,
     familyVisible: true,
     notification: "result-accepted",
-    requires: { command: "DECIDE", payload: { decision: "ACCEPTED" } },
+    requiresNewest: { command: "DECIDE", payload: { decision: "ACCEPTED" } },
   },
   PUBLISH_NOT_ACCEPTED: {
     from: ["DECIDED"],
@@ -142,7 +146,7 @@ export const TRANSITIONS = {
     actors: SYSTEM,
     familyVisible: true,
     notification: "result-not-accepted",
-    requires: { command: "DECIDE", payload: { decision: "NOT_ACCEPTED" } },
+    requiresNewest: { command: "DECIDE", payload: { decision: "NOT_ACCEPTED" } },
   },
   SUBMIT_REREGISTRATION: {
     from: ["REREGISTRATION"],
@@ -205,32 +209,33 @@ export function isEndStage(stage: ApplicationStage) {
 
 export function requiredCommand(command: ApplicationCommand) {
   const row: Transition = TRANSITIONS[command];
-  return row.requires?.command ?? null;
+  return row.requiresNewest?.command ?? null;
 }
 
 export function transition(
   stage: ApplicationStage | null,
   command: ApplicationCommand,
   actorType: ActorType,
-  newest?: unknown,
+  newestRequiredPayload?: unknown,
 ): TransitionResult {
   const row: Transition = TRANSITIONS[command];
 
-  if (!fromAllows(row.from, stage)) return { ok: false, refusal: "ILLEGAL_STAGE" };
+  const to = destination(row, stage);
+  if (to === null) return { ok: false, refusal: "ILLEGAL_STAGE" };
   if (!row.actors.includes(actorType)) return { ok: false, refusal: "ACTOR_NOT_ALLOWED" };
-  if (row.requires && !carries(newest, row.requires.payload)) {
+  if (row.requiresNewest && !carries(newestRequiredPayload, row.requiresNewest.payload)) {
     return { ok: false, refusal: "REQUIREMENT_UNMET" };
   }
 
-  const to = row.to === "SAME" ? stage! : row.to;
   return { ok: true, to, familyVisible: row.familyVisible, notification: row.notification };
 }
 
-function fromAllows(from: Transition["from"], stage: ApplicationStage | null) {
-  if (stage === null) return from === "NONE";
-  if (from === "NONE") return false;
-  if (from === "ANY_OPEN") return !isEndStage(stage);
-  return from.includes(stage);
+function destination(row: Transition, stage: ApplicationStage | null) {
+  if (row.from === "NONE") return stage === null ? row.to : null;
+  if (stage === null) return null;
+  const allowed = row.from === "ANY_OPEN" ? !isEndStage(stage) : row.from.includes(stage);
+  if (!allowed) return null;
+  return row.to === "SAME" ? stage : row.to;
 }
 
 function carries(payload: unknown, fields: object) {
