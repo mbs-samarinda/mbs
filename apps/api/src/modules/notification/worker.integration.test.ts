@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetTables } from "../../test/reset.ts";
+import { submitApplication } from "../application/service.ts";
 import { createFakeMailer, messageIdFor, type FakeMailer } from "./email.ts";
 import { claimDue } from "./outbox.ts";
 import { createNotificationWorker, MAX_ATTEMPTS } from "./worker.ts";
@@ -15,8 +16,63 @@ afterAll(() => db.$client.end());
 
 const log = Fastify({ logger: false }).log;
 
+let source: { applicationId: string; eventId: string };
+
 beforeEach(async () => {
-  await resetTables(db, [schema.notificationAttempts, schema.notifications]);
+  await resetTables(db, [
+    schema.notificationAttempts,
+    schema.notifications,
+    schema.auditLogs,
+    schema.applicationEvents,
+    schema.applicantProfileVersions,
+    schema.applicationDocumentRequirements,
+    schema.applicationAccess,
+    schema.applications,
+    schema.schoolAdmissionSettings,
+    schema.admissionCycles,
+    schema.user,
+  ]);
+  await db.insert(schema.schools).values({ key: "smp" }).onConflictDoNothing();
+  await db.insert(schema.user).values({
+    id: "family-1",
+    name: "family-1",
+    email: "family-1@example.test",
+    emailVerified: true,
+    updatedAt: new Date(),
+  });
+  const [cycle] = await db
+    .insert(schema.admissionCycles)
+    .values({
+      name: "2027/2028",
+      registrationOpenAt: new Date(Date.now() - 86_400_000),
+      registrationCloseAt: new Date(Date.now() + 86_400_000),
+      resultPublishAt: new Date(Date.now() + 2 * 86_400_000),
+      defaultFee: 250_000,
+      status: "OPEN",
+    })
+    .returning();
+  const { application, event } = await submitApplication(
+    db,
+    {
+      cycleId: cycle!.id,
+      schoolKey: "smp",
+      userId: "family-1",
+      profile: {
+        childFullName: "Aisyah Putri",
+        nik: "6472 0101 0101 0001",
+        birthDate: "2014-05-01",
+        sex: "FEMALE",
+        schoolOfOrigin: "SD Negeri 1 Samarinda",
+        guardianName: "Budi",
+        guardianRelation: "Ayah",
+        guardianPhone: "081234567890",
+      },
+      idempotencyKey: null,
+    },
+    { familyAppUrl: "http://localhost:5173" },
+  );
+  source = { applicationId: application.id, eventId: event.id };
+  await db.delete(schema.notifications);
 });
 
 function worker(mailer: FakeMailer, options: { batchSize?: number } = {}) {
@@ -28,6 +84,7 @@ async function queue(count = 1) {
     .insert(schema.notifications)
     .values(
       Array.from({ length: count }, (_, index) => ({
+        ...source,
         channel: "EMAIL" as const,
         templateKey: "payment-approved",
         templateVersion: 1,
@@ -282,5 +339,30 @@ describe("notification worker", () => {
     expect(left.filter((row) => row.status === "PENDING")).toEqual(
       Array.from({ length: rows.length - 1 }, () => ({ status: "PENDING", attemptCount: 0 })),
     );
+  });
+});
+
+describe("the outbox table", () => {
+  const email = {
+    channel: "EMAIL" as const,
+    templateKey: "payment-approved",
+    templateVersion: 1,
+    recipient: "wali@example.test",
+    subject: "Pembayaran sudah dikonfirmasi",
+    bodyText: "Halo.",
+  };
+  const code = { ...email, templateKey: "sign-in-code", subject: null, bodyText: null };
+
+  it.each([
+    ["an application email without its event", () => email],
+    [
+      "an application email with only its application",
+      () => ({ ...email, applicationId: source.applicationId }),
+    ],
+    ["a sign-in code tied to an application", () => ({ ...code, ...source })],
+  ])("refuses %s", async (_, values) => {
+    await expect(db.insert(schema.notifications).values(values())).rejects.toMatchObject({
+      cause: { code: "23514", constraint_name: "notifications_event_kept" },
+    });
   });
 });

@@ -385,6 +385,12 @@ export const notifications = pgTable(
       .on(table.nextAttemptAt)
       .where(sql`status in ('PENDING', 'SENDING')`),
     check(
+      "notifications_event_kept",
+      sql`case when template_key = ${sql.raw(`'${SIGN_IN_CODE_TEMPLATE}'`)}
+        then application_id is null and event_id is null
+        else application_id is not null and event_id is not null end`,
+    ),
+    check(
       "notifications_content_kept",
       sql`case when template_key = ${sql.raw(`'${SIGN_IN_CODE_TEMPLATE}'`)}
         then subject is null and body_text is null and body_html is null

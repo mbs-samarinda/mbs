@@ -1030,6 +1030,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "notifications_event_kept": {
+          "name": "notifications_event_kept",
+          "value": "case when template_key = 'sign-in-code'\n        then application_id is null and event_id is null\n        else application_id is not null and event_id is not null end"
+        },
         "notifications_content_kept": {
           "name": "notifications_content_kept",
           "value": "case when template_key = 'sign-in-code'\n        then subject is null and body_text is null and body_html is null\n        else subject is not null and body_text is not null end"

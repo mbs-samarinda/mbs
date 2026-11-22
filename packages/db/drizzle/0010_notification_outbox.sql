@@ -31,6 +31,9 @@ CREATE TABLE "notifications" (
 	"sent_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "notifications_event_kept" CHECK (case when template_key = 'sign-in-code'
+        then application_id is null and event_id is null
+        else application_id is not null and event_id is not null end),
 	CONSTRAINT "notifications_content_kept" CHECK (case when template_key = 'sign-in-code'
         then subject is null and body_text is null and body_html is null
         else subject is not null and body_text is not null end)
