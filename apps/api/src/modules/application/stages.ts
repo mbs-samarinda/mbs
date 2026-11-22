@@ -1,4 +1,9 @@
-import type { ActorType, ApplicationCommand, ApplicationStage } from "@mbs/api-contract";
+import type {
+  ActorType,
+  ApplicationCommand,
+  ApplicationStage,
+  CommandPayload,
+} from "@mbs/api-contract";
 
 /** Nothing moves an application out of these. */
 export const END_STAGES = [
@@ -17,7 +22,13 @@ type Transition = {
   familyVisible: boolean;
   /** The email template P2's outbox sends, or null for none. */
   notification: string | null;
+  /** Fields the application's newest event of another command must carry. */
+  requires?: Requirement;
 };
+
+type Requirement = {
+  [C in ApplicationCommand]: { command: C; payload: Partial<CommandPayload<C>> };
+}[ApplicationCommand];
 
 const FAMILY = ["FAMILY"] as const;
 const STAFF = ["STAFF"] as const;
@@ -132,12 +143,14 @@ export const TRANSITIONS = {
     familyVisible: false,
     notification: null,
   },
+  // Publishing announces the decision, so it must agree with the newest one.
   PUBLISH_ACCEPTED: {
     from: ["DECIDED"],
     to: "REREGISTRATION",
     actors: SYSTEM,
     familyVisible: true,
     notification: "result-accepted",
+    requires: { command: "DECIDE", payload: { decision: "ACCEPTED" } },
   },
   PUBLISH_NOT_ACCEPTED: {
     from: ["DECIDED"],
@@ -145,6 +158,7 @@ export const TRANSITIONS = {
     actors: SYSTEM,
     familyVisible: true,
     notification: "result-not-accepted",
+    requires: { command: "DECIDE", payload: { decision: "NOT_ACCEPTED" } },
   },
   SUBMIT_REREGISTRATION: {
     from: ["REREGISTRATION"],
@@ -204,25 +218,37 @@ export const TRANSITIONS = {
 
 export type TransitionResult =
   | { ok: true; to: ApplicationStage; familyVisible: boolean; notification: string | null }
-  | { ok: false; refusal: "ILLEGAL_STAGE" | "ACTOR_NOT_ALLOWED" };
+  | { ok: false; refusal: "ILLEGAL_STAGE" | "ACTOR_NOT_ALLOWED" | "REQUIREMENT_UNMET" };
 
 export function isEndStage(stage: ApplicationStage) {
   return (END_STAGES as readonly ApplicationStage[]).includes(stage);
 }
 
+/** The command whose newest payload `transition` needs for `command`, if any. */
+export function requiredCommand(command: ApplicationCommand) {
+  const row: Transition = TRANSITIONS[command];
+  return row.requires?.command ?? null;
+}
+
 /**
  * Whether `actorType` may run `command` on an application in `stage` (null
- * before it exists), and where it lands. Pure: it reads only the table.
+ * before it exists), and where it lands. Pure: it reads only the table and
+ * `newest`, the payload of the application's newest `requiredCommand` event
+ * (null when there is none). The caller reads it under the application lock.
  */
 export function transition(
   stage: ApplicationStage | null,
   command: ApplicationCommand,
   actorType: ActorType,
+  newest?: unknown,
 ): TransitionResult {
   const row: Transition = TRANSITIONS[command];
 
   if (!fromAllows(row.from, stage)) return { ok: false, refusal: "ILLEGAL_STAGE" };
   if (!row.actors.includes(actorType)) return { ok: false, refusal: "ACTOR_NOT_ALLOWED" };
+  if (row.requires && !carries(newest, row.requires.payload)) {
+    return { ok: false, refusal: "REQUIREMENT_UNMET" };
+  }
 
   // `fromAllows` only lets a null stage through for NONE rows, whose `to` is a
   // real stage, so SAME always has a stage to stay in.
@@ -235,4 +261,10 @@ function fromAllows(from: Transition["from"], stage: ApplicationStage | null) {
   if (from === "NONE") return false;
   if (from === "ANY_OPEN") return !isEndStage(stage);
   return from.includes(stage);
+}
+
+function carries(payload: unknown, fields: object) {
+  if (typeof payload !== "object" || payload === null) return false;
+  const actual = new Map(Object.entries(payload));
+  return Object.entries(fields).every(([key, value]) => actual.get(key) === value);
 }

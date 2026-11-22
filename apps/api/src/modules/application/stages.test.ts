@@ -62,11 +62,42 @@ function designRow(stage: ApplicationStage | null, command: ApplicationCommand) 
 
 const EVERY_STAGE = [null, ...APPLICATION_STAGES];
 
+/** Publishing announces a decision, so it needs the newest DECIDE to agree. */
+const PUBLISHES = new Map<ApplicationCommand, "ACCEPTED" | "NOT_ACCEPTED">([
+  ["PUBLISH_ACCEPTED", "ACCEPTED"],
+  ["PUBLISH_NOT_ACCEPTED", "NOT_ACCEPTED"],
+]);
+
+function newestDecision(command: ApplicationCommand) {
+  const decision = PUBLISHES.get(command);
+  return decision && { payloadVersion: 1, decision };
+}
+
 describe("transition", () => {
   it.each(DESIGN)("%s + %s goes to %s for %j", (from, command, to, actors) => {
     for (const actor of actors) {
-      expect(transition(from, command, actor)).toMatchObject({ ok: true, to });
+      expect(transition(from, command, actor, newestDecision(command))).toMatchObject({
+        ok: true,
+        to,
+      });
     }
+  });
+
+  it.each([
+    ["PUBLISH_ACCEPTED", "NOT_ACCEPTED"],
+    ["PUBLISH_NOT_ACCEPTED", "ACCEPTED"],
+  ] as const)("refuses %s when the newest decision is %s", (command, decision) => {
+    expect(transition("DECIDED", command, "SYSTEM", { payloadVersion: 1, decision })).toEqual({
+      ok: false,
+      refusal: "REQUIREMENT_UNMET",
+    });
+  });
+
+  it("refuses to publish before anything was decided", () => {
+    expect(transition("DECIDED", "PUBLISH_ACCEPTED", "SYSTEM", null)).toEqual({
+      ok: false,
+      refusal: "REQUIREMENT_UNMET",
+    });
   });
 
   it("refuses an actor the design does not name", () => {
@@ -111,7 +142,9 @@ describe("transition", () => {
       familyVisible: false,
       notification: null,
     });
-    expect(transition("DECIDED", "PUBLISH_ACCEPTED", "SYSTEM")).toMatchObject({
+    expect(
+      transition("DECIDED", "PUBLISH_ACCEPTED", "SYSTEM", newestDecision("PUBLISH_ACCEPTED")),
+    ).toMatchObject({
       familyVisible: true,
     });
   });

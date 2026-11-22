@@ -26,6 +26,7 @@ import {
   findCycleForSubmission,
   findEventByIdempotencyKey,
   findLatestProfileVersion,
+  findNewestEventOf,
   findProfileVersion,
   grantAccess,
   hasAccess,
@@ -42,7 +43,7 @@ import {
   type ApplicationEventRow,
   type ApplicationRow,
 } from "./repository.ts";
-import { transition } from "./stages.ts";
+import { requiredCommand, transition } from "./stages.ts";
 
 /**
  * Who is acting. A family acts as its Better Auth user, staff as their staff
@@ -314,9 +315,19 @@ async function runCommand(
       throw new StaleSequenceError("This application changed since it was loaded.");
     }
 
-    const result = transition(application.stage, command, input.actor.type);
+    const required = requiredCommand(command);
+    const newest = required ? await findNewestEventOf(tx, application.id, required) : null;
+    const result = transition(
+      application.stage,
+      command,
+      input.actor.type,
+      newest?.payload ?? null,
+    );
     if (!result.ok) {
       if (result.refusal === "ACTOR_NOT_ALLOWED") throw new ForbiddenError("Not allowed.");
+      if (result.refusal === "REQUIREMENT_UNMET") {
+        throw new IllegalTransitionError(`${command} does not match the newest ${required}.`);
+      }
       throw new IllegalTransitionError(`${command} is not allowed at ${application.stage}.`);
     }
 

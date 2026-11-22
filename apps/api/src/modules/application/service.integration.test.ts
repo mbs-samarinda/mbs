@@ -544,6 +544,75 @@ describe("applyCommand", () => {
   });
 });
 
+describe("publishing the result", () => {
+  const PUBLISHER: Actor = { type: "SYSTEM", job: "result-publisher" };
+
+  async function decided(...decisions: ("ACCEPTED" | "NOT_ACCEPTED")[]) {
+    const { application } = await submit();
+    const steps: [Actor, CommandInput][] = [
+      [FAMILY, { command: "UPLOAD_PAYMENT_PROOF", payload: { payloadVersion: 1 } }],
+      [STAFF, { command: "APPROVE_PAYMENT", payload: { payloadVersion: 1 } }],
+      [FAMILY, { command: "SUBMIT_DOCUMENTS", payload: { payloadVersion: 1 } }],
+      [STAFF, { command: "VERIFY_DOCUMENTS", payload: { payloadVersion: 1 } }],
+      [STAFF, { command: "ADVANCE_TO_INTERVIEW", payload: { payloadVersion: 1 } }],
+      [STAFF, { command: "SCHEDULE_INTERVIEW", payload: { payloadVersion: 1 } }],
+      [STAFF, { command: "RECORD_ATTENDED", payload: { payloadVersion: 1 } }],
+      ...decisions.map((decision): [Actor, CommandInput] => [
+        STAFF,
+        { command: "DECIDE", payload: { payloadVersion: 1, decision } },
+      ]),
+    ];
+    for (const [index, [actor, step]] of steps.entries()) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await applyCommand(db, {
+        ...step,
+        applicationId: application.id,
+        actor,
+        expectedSeq: index + 1,
+        idempotencyKey: null,
+      });
+    }
+    return { applicationId: application.id, seq: steps.length + 1 };
+  }
+
+  function publish(
+    applicationId: string,
+    seq: number,
+    command: "PUBLISH_ACCEPTED" | "PUBLISH_NOT_ACCEPTED",
+  ) {
+    return applyCommand(db, {
+      applicationId,
+      actor: PUBLISHER,
+      command,
+      payload: { payloadVersion: 1 },
+      expectedSeq: seq,
+      idempotencyKey: null,
+    });
+  }
+
+  it.each([
+    ["ACCEPTED", "PUBLISH_NOT_ACCEPTED"],
+    ["NOT_ACCEPTED", "PUBLISH_ACCEPTED"],
+  ] as const)("refuses to publish the opposite of %s", async (decision, command) => {
+    const { applicationId, seq } = await decided(decision);
+
+    await expect(publish(applicationId, seq, command)).rejects.toBeInstanceOf(
+      IllegalTransitionError,
+    );
+    expect(await eventsOf(applicationId)).toHaveLength(seq);
+  });
+
+  it("publishes the newest decision, not the first", async () => {
+    const { applicationId, seq } = await decided("ACCEPTED", "NOT_ACCEPTED");
+
+    await expect(publish(applicationId, seq, "PUBLISH_ACCEPTED")).rejects.toBeInstanceOf(
+      IllegalTransitionError,
+    );
+    const { event } = await publish(applicationId, seq, "PUBLISH_NOT_ACCEPTED");
+    expect(event).toMatchObject({ toStage: "NOT_ACCEPTED", familyVisible: true });
+  });
+});
+
 describe("saveProfile", () => {
   function edit(
     applicationId: string,

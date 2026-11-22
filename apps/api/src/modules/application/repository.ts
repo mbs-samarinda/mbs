@@ -1,6 +1,7 @@
 import type {
   ActorType,
   ApplicantProfile,
+  ApplicationCommand,
   ApplicationStage,
   InterviewMode,
 } from "@mbs/api-contract";
@@ -188,6 +189,25 @@ export async function findEventByIdempotencyKey(
         eq(schema.applicationEvents.idempotencyKey, idempotencyKey),
       ),
     )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function findNewestEventOf(
+  tx: Transaction,
+  applicationId: string,
+  command: ApplicationCommand,
+) {
+  const rows = await tx
+    .select()
+    .from(schema.applicationEvents)
+    .where(
+      and(
+        eq(schema.applicationEvents.applicationId, applicationId),
+        eq(schema.applicationEvents.command, command),
+      ),
+    )
+    .orderBy(desc(schema.applicationEvents.seq))
     .limit(1);
   return rows[0] ?? null;
 }
