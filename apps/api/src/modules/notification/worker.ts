@@ -4,7 +4,7 @@ import type { Database } from "@mbs/db";
 import { SIGN_IN_CODE_TEMPLATE } from "@mbs/school-config";
 import type { FastifyBaseLogger } from "fastify";
 
-import { SendError, type Mailer, type OutgoingEmail } from "./email.ts";
+import { SendError, SMTP_TIMEOUT_MS, type Mailer, type OutgoingEmail } from "./email.ts";
 import {
   claimDue,
   insertSignInCodeNotification,
@@ -19,6 +19,7 @@ import { TEMPLATES, type RenderedEmail } from "./templates.ts";
 
 export const RETRY_MINUTES = [1, 5, 30, 120, 720] as const;
 export const MAX_ATTEMPTS = RETRY_MINUTES.length + 1;
+const LEASE_SECONDS = (6 * SMTP_TIMEOUT_MS) / 1000;
 
 export const WORKER_LOCK_KEY = 7_316_041;
 
@@ -36,7 +37,7 @@ export type NotificationWorker = ReturnType<typeof createNotificationWorker>;
 
 export function createNotificationWorker(options: WorkerOptions) {
   const { db, mailer, log } = options;
-  const leaseSeconds = options.leaseSeconds ?? 120;
+  const leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
   const pollMs = options.pollMs ?? 5_000;
   const batchSize = options.batchSize ?? 20;
   const now = options.now ?? (() => new Date());

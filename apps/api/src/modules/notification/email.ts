@@ -30,13 +30,19 @@ export function messageIdFor(id: string, domain: string) {
   return `<${id}@${domain}>`;
 }
 
+/**
+ * Nodemailer's socketTimeout limits each silence, not the whole send, so one
+ * send can wait this long several times.
+ */
+export const SMTP_TIMEOUT_MS = 20_000;
+
 export function createSmtpMailer(options: { url: string; from: string; domain: string }): Mailer {
   const transport = createTransport({
     url: options.url,
     pool: true,
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 20_000,
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
   });
 
   return {
