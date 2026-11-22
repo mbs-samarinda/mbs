@@ -3,6 +3,7 @@
  * went through the stage table, the locks and the idempotency checks.
  *
  *   pnpm ppdb-sim --count 20 --to ENROLLED [--seed demo] [--school smp,sma]
+ *                 (default: every school taking part in the open cycle)
  *                 [--nik 6472010101010001] [--profile-edits 3] [--timings]
  *   pnpm ppdb-sim apply SMP-0001 APPROVE_PAYMENT [--expected-seq 2] [--key k]
  *                 [--payload '{"reason":"..."}']
@@ -29,6 +30,7 @@ import { APPLICATION_COMMANDS, APPLICATION_STAGES, SCHOOL_KEYS } from "@mbs/scho
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { listSchoolSettings } from "../src/modules/admission/repository.ts";
 import { createAdmissionCycle, setAdmissionCycleStatus } from "../src/modules/admission/service.ts";
 import {
   applyCommand,
@@ -211,6 +213,14 @@ async function openCycle(db: Database) {
   return cycle.id;
 }
 
+/** A school with no settings row takes part at the cycle's defaults. */
+async function takingPart(db: Database, cycleId: string) {
+  const settings = await listSchoolSettings(db, cycleId);
+  return SCHOOL_KEYS.filter(
+    (key) => settings.find((setting) => setting.schoolKey === key)?.isEnabled ?? true,
+  );
+}
+
 async function ensureFamilyUser(db: Database, id: string) {
   await db
     .insert(schema.user)
@@ -229,13 +239,15 @@ async function walk(db: Database, args: Args) {
   if (!path) throw new Error(`No route from PAYMENT_DUE to ${target}.`);
 
   const cycleId = await openCycle(db);
+  const schools = args.schools ?? (await takingPart(db, cycleId));
+  if (schools.length === 0) throw new Error("No school takes part in the open cycle.");
   let written = 0;
   let replayed = 0;
   let failed = 0;
   const started = performance.now();
 
   for (let index = 0; index < args.count; index += 1) {
-    const schoolKey = args.schools[index % args.schools.length]!;
+    const schoolKey = schools[index % schools.length]!;
     const userId = `ppdb-sim-${args.seed}-${index}`;
     const nik = args.nik ?? nikFor(args.seed, index);
     const key = (step: string | number) => `ppdb-sim:${args.seed}:${index}:${step}`;
@@ -359,7 +371,8 @@ type Args = {
   count: number;
   to: ApplicationStage;
   seed: string;
-  schools: SchoolKey[];
+  // Null means every school taking part in the open cycle.
+  schools: SchoolKey[] | null;
   nik: string | null;
   profileEdits: number;
   timings: boolean;
@@ -390,7 +403,7 @@ function parse(argv: string[]) {
     count: z.coerce.number().int().min(1).parse(values.count),
     to: ApplicationStage.parse(values.to),
     seed: values.seed ?? randomUUID().slice(0, 8),
-    schools: z.array(SchoolKey).parse((values.school ?? SCHOOL_KEYS.join(",")).split(",")),
+    schools: values.school ? z.array(SchoolKey).parse(values.school.split(",")) : null,
     nik: values.nik ?? null,
     profileEdits: z.coerce.number().int().min(0).parse(values["profile-edits"]),
     timings: values.timings,
