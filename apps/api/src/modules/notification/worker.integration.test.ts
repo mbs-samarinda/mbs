@@ -2,14 +2,14 @@ import { randomUUID } from "node:crypto";
 import { connect, createServer, type Socket } from "node:net";
 
 import { createDatabase, schema } from "@mbs/db";
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import Fastify from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetTables } from "../../test/reset.ts";
 import { submitApplication } from "../application/service.ts";
 import { createFakeMailer, messageIdFor, type Mailer } from "./email.ts";
-import { claimDue, insertSignInCodeNotification } from "./outbox.ts";
+import { insertSignInCodeNotification } from "./outbox.ts";
 import {
   createNotificationWorker,
   MAX_ATTEMPTS,
@@ -240,11 +240,13 @@ describe("notification worker", () => {
   it("takes over a row whose worker died after sending, with the same Message-ID", async () => {
     const mailer = createFakeMailer();
     const [row] = await queue();
-
+    await mailer.send({ id: row!.id, to: row!.recipient, subject: "", text: "", html: "" });
+    await db
+      .update(schema.notifications)
+      .set({ status: "SENDING", attemptCount: 1, leaseUntil: sql`now() + interval '1 minute'` })
+      .where(eq(schema.notifications.id, row!.id));
     const running = worker(mailer);
 
-    const [claimed] = await claimDue(db, 10, 60, "queue");
-    await mailer.send({ id: claimed!.id, to: claimed!.recipient, subject: "", text: "", html: "" });
     await running.poll();
     expect(mailer.sent).toHaveLength(1);
 
@@ -374,13 +376,18 @@ describe("notification worker", () => {
   it("fails a sign-in code whose process lost it, once the code would have run out", async () => {
     const mailer = createFakeMailer();
     const running = worker(mailer);
-    const [fresh, lost] = [randomUUID(), randomUUID()];
+    const [fresh, lost, mid] = [randomUUID(), randomUUID(), randomUUID()];
     await insertSignInCodeNotification(db, fresh, "ibu@example.test");
     await insertSignInCodeNotification(db, lost, "ayah@example.test");
+    await insertSignInCodeNotification(db, mid, "wali@example.test");
     await db
       .update(schema.notifications)
       .set({ createdAt: sql`now() - interval '1 hour'` })
-      .where(eq(schema.notifications.id, lost));
+      .where(inArray(schema.notifications.id, [lost, mid]));
+    await db
+      .update(schema.notifications)
+      .set({ status: "SENDING", attemptCount: 1, leaseUntil: sql`now() - interval '1 second'` })
+      .where(eq(schema.notifications.id, mid));
 
     await running.poll();
     await running.poll();
@@ -390,6 +397,11 @@ describe("notification worker", () => {
     expect(await rowOf(lost)).toMatchObject({ status: "FAILED", attemptCount: 1 });
     expect(await attemptsOf(lost)).toMatchObject([
       { attempt: 1, outcome: "FAILED", errorClass: "CodeUnavailable" },
+    ]);
+    expect(await rowOf(mid)).toMatchObject({ status: "FAILED", attemptCount: 2 });
+    expect(await attemptsOf(mid)).toMatchObject([
+      { attempt: 1, outcome: "DELIVERY_UNKNOWN" },
+      { attempt: 2, outcome: "FAILED", errorClass: "CodeUnavailable" },
     ]);
   });
 
