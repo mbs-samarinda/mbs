@@ -81,6 +81,8 @@ export type ClaimedNotification = NotificationRow & {
   reclaimed: boolean;
 };
 
+const signInCodesFirst = sql`(${schema.notifications.templateKey} = ${SIGN_IN_CODE_TEMPLATE}) desc, ${schema.notifications.nextAttemptAt}`;
+
 export async function claimDue(db: Database, limit: number, leaseSeconds: number) {
   const n = schema.notifications;
   const rows = await db.execute<{ id: string; reclaimed: boolean }>(sql`
@@ -89,7 +91,7 @@ export async function claimDue(db: Database, limit: number, leaseSeconds: number
       from ${n}
       where (status = 'PENDING' and next_attempt_at <= now())
          or (status = 'SENDING' and lease_until <= now())
-      order by (template_key = ${SIGN_IN_CODE_TEMPLATE}) desc, next_attempt_at
+      order by ${signInCodesFirst}
       limit ${limit}
       for update skip locked
     )
@@ -109,7 +111,7 @@ export async function claimDue(db: Database, limit: number, leaseSeconds: number
     .select()
     .from(n)
     .where(inArray(n.id, [...reclaimed.keys()]))
-    .orderBy(sql`${n.templateKey} = ${SIGN_IN_CODE_TEMPLATE} desc`, n.nextAttemptAt);
+    .orderBy(signInCodesFirst);
   return claimed.map((row): ClaimedNotification => ({
     ...row,
     reclaimed: reclaimed.get(row.id) ?? false,
