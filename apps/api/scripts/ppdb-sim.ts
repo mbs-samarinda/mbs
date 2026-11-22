@@ -312,17 +312,23 @@ async function applyOne(
   registrationNumber: string,
   command: ApplicationCommand,
 ) {
-  const cycleId = await openCycle(db);
-  const [application] = await db
-    .select()
+  // Looks the number up in the open cycle without creating one: running one
+  // command should never open a cycle as a side effect.
+  const [row] = await db
+    .select({ application: schema.applications })
     .from(schema.applications)
+    .innerJoin(
+      schema.admissionCycles,
+      eq(schema.admissionCycles.id, schema.applications.admissionCycleId),
+    )
     .where(
       and(
-        eq(schema.applications.admissionCycleId, cycleId),
+        eq(schema.admissionCycles.status, "OPEN"),
         eq(schema.applications.registrationNumber, registrationNumber),
       ),
     );
-  if (!application) throw new Error(`No application ${registrationNumber} in the open cycle.`);
+  if (!row) throw new Error(`No application ${registrationNumber} in the open cycle.`);
+  const { application } = row;
 
   const payload = { ...SAMPLE_PAYLOADS[command], ...args.payload };
   const result = await timed(command, () =>

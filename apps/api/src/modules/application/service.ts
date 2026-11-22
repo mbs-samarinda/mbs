@@ -41,7 +41,7 @@ import {
   type ApplicationEventRow,
   type ApplicationRow,
 } from "./repository.ts";
-import { transition } from "./stages.ts";
+import { isEndStage, transition } from "./stages.ts";
 
 /**
  * Who is acting. A family acts as its Better Auth user, staff as their staff
@@ -92,19 +92,12 @@ export async function submitApplication(
   return db.transaction(async (tx) => {
     const cycle = await findCycleForSubmission(tx, input.cycleId, input.schoolKey);
     if (!cycle) throw new NotFoundError("No such cycle.");
-    if (
-      cycle.status !== "OPEN" ||
-      !cycle.isEnabled ||
-      now < cycle.registrationOpenAt ||
-      now >= cycle.registrationCloseAt
-    ) {
-      throw new RegistrationClosedError("Registration is not open at this school.");
-    }
 
     await lockRegistrationCounter(tx, input.cycleId, cycle.schoolId);
 
-    // Checked under the lock, so a retry that raced its own first attempt
-    // still finds it.
+    // Before the window check, so a retry of a submission that landed just
+    // before closing still gets its application back. Under the lock, so a
+    // retry that raced its own first attempt still finds it.
     if (input.idempotencyKey) {
       const earlier = await findEventByIdempotencyKey(
         tx,
@@ -113,10 +106,25 @@ export async function submitApplication(
         input.idempotencyKey,
       );
       if (earlier) {
-        if (earlier.command !== "SUBMIT") throw reusedKey();
         const application = await findApplicationById(tx, earlier.applicationId);
-        return { application: application!, event: earlier, replayed: true };
+        if (
+          earlier.command !== "SUBMIT" ||
+          application?.admissionCycleId !== input.cycleId ||
+          application.schoolId !== cycle.schoolId
+        ) {
+          throw reusedKey();
+        }
+        return { application, event: earlier, replayed: true };
       }
+    }
+
+    if (
+      cycle.status !== "OPEN" ||
+      !cycle.isEnabled ||
+      now < cycle.registrationOpenAt ||
+      now >= cycle.registrationCloseAt
+    ) {
+      throw new RegistrationClosedError("Registration is not open at this school.");
     }
 
     // Names nothing about the other application: the family asking may not
@@ -139,6 +147,11 @@ export async function submitApplication(
       registrationFee: cycle.feeOverride ?? cycle.defaultFee,
       lastEventSeq: 1,
       createdByUserId: input.userId,
+    }).catch((error: unknown) => {
+      // The lock orders submissions, but a profile save can move another
+      // application onto this NIK in between.
+      if (isUniqueViolation(error)) throw new DuplicateApplicationError(DUPLICATE_MESSAGE);
+      throw error;
     });
 
     await snapshotDocumentRequirements(tx, application.id, input.cycleId, cycle.schoolId);
@@ -162,6 +175,10 @@ export async function submitApplication(
       payloadVersion: 1,
       idempotencyKey: input.idempotencyKey,
       ...input.meta,
+    }).catch((error: unknown) => {
+      // The same key sent to another school at the same moment.
+      if (isUniqueViolation(error)) throw reusedKey();
+      throw error;
     });
 
     return { application, event, replayed: false };
@@ -192,6 +209,10 @@ export async function applyCommand(
     const { application, schoolKey } = locked;
     await authorize(tx, input.actor, application.id, schoolKey);
 
+    // The row is history the moment it commits, so it is checked before it is
+    // written rather than when someone first tries to read it.
+    const payload = COMMAND_PAYLOADS[input.command].parse(input.payload);
+
     if (input.idempotencyKey) {
       const earlier = await findEventByIdempotencyKey(
         tx,
@@ -200,7 +221,13 @@ export async function applyCommand(
         input.idempotencyKey,
       );
       if (earlier) {
-        if (earlier.applicationId !== application.id || earlier.command !== input.command) {
+        // A retry repeats its request exactly. Anything else under the same key
+        // is a different request, and returning the old event would hide it.
+        if (
+          earlier.applicationId !== application.id ||
+          earlier.command !== input.command ||
+          !isDeepStrictEqual(earlier.payload, payload)
+        ) {
           throw reusedKey();
         }
         return { event: earlier, replayed: true };
@@ -217,9 +244,6 @@ export async function applyCommand(
       throw new IllegalTransitionError(`${input.command} is not allowed at ${application.stage}.`);
     }
 
-    // The row is history the moment it commits, so it is checked before it is
-    // written rather than when someone first tries to read it.
-    const payload = COMMAND_PAYLOADS[input.command].parse(input.payload);
     const seq = application.lastEventSeq + 1;
 
     const event = await insertEvent(tx, {
@@ -245,7 +269,10 @@ export async function applyCommand(
       stage: result.to,
       lastEventSeq: seq,
       stageChanged: result.to !== application.stage,
-      interviewMode: input.command === "CHANGE_INTERVIEW_MODE" ? input.payload.mode : undefined,
+      interviewMode:
+        input.command === "CHANGE_INTERVIEW_MODE"
+          ? COMMAND_PAYLOADS.CHANGE_INTERVIEW_MODE.parse(payload).mode
+          : undefined,
     });
 
     return { event, replayed: false };
@@ -286,6 +313,12 @@ export async function saveProfile(
         return { version: landed.version, replayed: true };
       }
       throw new StaleSequenceError("This form changed since it was loaded.");
+    }
+
+    // A finished application is a closed record. Which open stages still let
+    // the family edit is the registration screen's call.
+    if (isEndStage(application.stage)) {
+      throw new IllegalTransitionError(`The form cannot change at ${application.stage}.`);
     }
 
     const version = latestVersion + 1;

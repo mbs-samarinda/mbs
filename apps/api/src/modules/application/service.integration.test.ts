@@ -234,6 +234,24 @@ describe("submitApplication", () => {
     expect(await db.$count(schema.applicationEvents)).toBe(1);
   });
 
+  it("returns the application to a retry that arrives after registration closed", async () => {
+    const first = await submit({ key: "late-key" });
+    await db.update(schema.admissionCycles).set({ status: "CLOSED" });
+
+    const retry = await submit({ key: "late-key" });
+
+    expect(retry).toMatchObject({ replayed: true, application: { id: first.application.id } });
+  });
+
+  it("refuses a submission key reused for another school", async () => {
+    await submit({ key: "one-key", schoolKey: "smp" });
+
+    await expect(submit({ key: "one-key", schoolKey: "sma" })).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+    expect(await db.$count(schema.applications)).toBe(1);
+  });
+
   it("refuses when the cycle is not open, the window has passed, or the school sits out", async () => {
     await expect(
       submitApplication(db, {
@@ -328,6 +346,24 @@ describe("applyCommand", () => {
         idempotencyKey: "staff-key",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("refuses a key reused with a different payload instead of hiding the change", async () => {
+    const applicationId = await atPaymentReview();
+    const note = (text: string, expectedSeq: number) =>
+      applyCommand(db, {
+        applicationId,
+        actor: STAFF,
+        command: "ADD_NOTE",
+        payload: { payloadVersion: 1, note: text },
+        expectedSeq,
+        idempotencyKey: "note-key",
+      });
+
+    await note("Lunas.", 2);
+
+    await expect(note("Belum lunas.", 3)).rejects.toBeInstanceOf(ConflictError);
+    expect(await eventsOf(applicationId)).toHaveLength(3);
   });
 
   it("returns a conflict for a command made against an older view", async () => {
@@ -534,6 +570,27 @@ describe("saveProfile", () => {
       saveProfile(db, { ...edit, profile: profile({ childFullName: "Lain" }) }),
     ).rejects.toBeInstanceOf(StaleSequenceError);
     expect(await db.$count(schema.applicantProfileVersions)).toBe(2);
+  });
+
+  it("refuses to change the form of a finished application", async () => {
+    const { application } = await submit();
+    await applyCommand(db, {
+      applicationId: application.id,
+      actor: FAMILY,
+      command: "WITHDRAW",
+      payload: { payloadVersion: 1 },
+      expectedSeq: 1,
+      idempotencyKey: null,
+    });
+
+    await expect(
+      saveProfile(db, {
+        applicationId: application.id,
+        userId: "family-1",
+        profile: profile({ childFullName: "Lain" }),
+        expectedVersion: 1,
+      }),
+    ).rejects.toBeInstanceOf(IllegalTransitionError);
   });
 
   it("refuses a NIK that already applied to the same school", async () => {
