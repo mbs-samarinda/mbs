@@ -90,9 +90,10 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
 
   // Each app's host picks its instance. Any other host, such as the profile
   // server calling over the compose network, gets no auth routes and no session.
+  const appUrls = { FAMILY: config.auth.familyAppUrl, STAFF: config.auth.adminAppUrl };
   const audiences = new Map<string, Audience>([
-    [new URL(config.auth.familyAppUrl).host, "FAMILY"],
-    [new URL(config.auth.adminAppUrl).host, "STAFF"],
+    [new URL(appUrls.FAMILY).host, "FAMILY"],
+    [new URL(appUrls.STAFF).host, "STAFF"],
   ]);
   const audienceOf = (request: FastifyRequest) =>
     audiences.get(request.headers.host?.toLowerCase() ?? "") ?? null;
@@ -121,10 +122,7 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
       if (!audience) return reply.status(404).send({ error: "Not found" });
       const auth = app.auth[audience];
 
-      const url = new URL(
-        request.url,
-        audience === "FAMILY" ? config.auth.familyAppUrl : config.auth.adminAppUrl,
-      );
+      const url = new URL(request.url, appUrls[audience]);
       const response = await auth.handler(
         new Request(url, {
           method: request.method,
@@ -174,6 +172,7 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
 
   return app;
 }
+
 /** The request's headers, plus its id so Better Auth's audit rows carry it. */
 function authHeaders(request: FastifyRequest) {
   const headers = fromNodeHeaders(request.headers);
