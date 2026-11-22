@@ -1,8 +1,13 @@
 import type { ActorType, ApplicationCommand, ApplicationStage } from "@mbs/api-contract";
-import { ACTOR_TYPES, APPLICATION_COMMANDS, APPLICATION_STAGES } from "@mbs/school-config";
+import {
+  ACTOR_TYPES,
+  APPLICATION_COMMANDS,
+  APPLICATION_STAGES,
+  END_STAGES,
+} from "@mbs/school-config";
 import { describe, expect, it } from "vitest";
 
-import { END_STAGES, isEndStage, transition } from "./stages.ts";
+import { isEndStage, transition } from "./stages.ts";
 
 const OPEN_STAGES = APPLICATION_STAGES.filter((stage) => !isEndStage(stage));
 

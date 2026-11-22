@@ -4,6 +4,9 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 type Executor = Database | Transaction;
 
+/** A school with no settings row for a cycle takes part in it. */
+export const takesPart = sql<boolean>`coalesce(${schema.schoolAdmissionSettings.isEnabled}, true)`;
+
 /**
  * Reads the cycle a school is currently showing to the public.
  *
@@ -28,7 +31,7 @@ export async function findCurrentCycleForSchool(db: Database, schoolKey: string)
       resultPublishAt: schema.admissionCycles.resultPublishAt,
       defaultFee: schema.admissionCycles.defaultFee,
       feeOverride: schema.schoolAdmissionSettings.feeOverride,
-      isEnabled: schema.schoolAdmissionSettings.isEnabled,
+      isEnabled: takesPart,
     })
     .from(schema.admissionCycles)
     // No condition: this pairs the cycle with the school rather than filtering
@@ -49,10 +52,7 @@ export async function findCurrentCycleForSchool(db: Database, schoolKey: string)
     .orderBy(desc(schema.admissionCycles.registrationOpenAt), desc(schema.admissionCycles.id))
     .limit(1);
 
-  const row = rows[0];
-  if (!row) return null;
-
-  return { ...row, isEnabled: row.isEnabled ?? true };
+  return rows[0] ?? null;
 }
 
 export async function listCycles(db: Executor) {
@@ -146,6 +146,21 @@ export async function findSchoolIdByKey(db: Executor, schoolKey: string) {
  * school missing from the result takes part at the cycle's defaults; it is not
  * a school left out.
  */
+export async function listSchoolKeysTakingPart(db: Executor, cycleId: string) {
+  const rows = await db
+    .select({ key: schema.schools.key })
+    .from(schema.schools)
+    .leftJoin(
+      schema.schoolAdmissionSettings,
+      and(
+        eq(schema.schoolAdmissionSettings.admissionCycleId, cycleId),
+        eq(schema.schoolAdmissionSettings.schoolId, schema.schools.id),
+      ),
+    )
+    .where(takesPart);
+  return rows.map((row) => row.key);
+}
+
 export async function listSchoolSettings(db: Executor, cycleId: string) {
   return db
     .select({

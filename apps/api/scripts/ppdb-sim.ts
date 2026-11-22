@@ -16,7 +16,7 @@ import { APPLICATION_STAGES, SCHOOL_KEYS } from "@mbs/school-config";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { listSchoolSettings } from "../src/modules/admission/repository.ts";
+import { listSchoolKeysTakingPart } from "../src/modules/admission/repository.ts";
 import { createAdmissionCycle, setAdmissionCycleStatus } from "../src/modules/admission/service.ts";
 import {
   applyCommand,
@@ -209,10 +209,8 @@ async function openCycle(db: Database) {
 }
 
 async function takingPart(db: Database, cycleId: string) {
-  const settings = await listSchoolSettings(db, cycleId);
-  return SCHOOL_KEYS.filter(
-    (key) => settings.find((setting) => setting.schoolKey === key)?.isEnabled ?? true,
-  );
+  const keys = await listSchoolKeysTakingPart(db, cycleId);
+  return SCHOOL_KEYS.filter((key) => keys.includes(key));
 }
 
 async function ensureFamilyUser(db: Database, id: string) {

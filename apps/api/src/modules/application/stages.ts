@@ -4,13 +4,7 @@ import type {
   ApplicationStage,
   CommandPayload,
 } from "@mbs/api-contract";
-
-export const END_STAGES = [
-  "ENROLLED",
-  "NOT_ADVANCED",
-  "NOT_ACCEPTED",
-  "WITHDRAWN",
-] as const satisfies readonly ApplicationStage[];
+import { END_STAGES } from "@mbs/school-config";
 
 type Transition = Effects &
   (

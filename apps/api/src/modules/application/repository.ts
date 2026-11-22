@@ -9,6 +9,8 @@ import type {
 import { schema, type Transaction } from "@mbs/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 
+import { takesPart } from "../admission/repository.ts";
+
 export type ApplicationRow = typeof schema.applications.$inferSelect;
 export type ApplicationEventRow = typeof schema.applicationEvents.$inferSelect;
 
@@ -41,7 +43,7 @@ export async function lockForSubmission(tx: Transaction, cycleId: string, school
       inWindow: sql<boolean>`clock_timestamp() >= ${registrationOpenAt} and clock_timestamp() < ${registrationCloseAt}`,
       schoolId: schema.schools.id,
       feeOverride: schema.schoolAdmissionSettings.feeOverride,
-      isEnabled: schema.schoolAdmissionSettings.isEnabled,
+      isEnabled: takesPart,
     })
     .from(schema.admissionCycles)
     .innerJoin(schema.schools, eq(schema.schools.key, schoolKey))
@@ -54,9 +56,7 @@ export async function lockForSubmission(tx: Transaction, cycleId: string, school
     )
     .where(eq(schema.admissionCycles.id, cycleId));
 
-  const row = rows[0];
-  if (!row) return null;
-  return { ...row, isEnabled: row.isEnabled ?? true };
+  return rows[0] ?? null;
 }
 
 export async function nextRegistrationSeq(tx: Transaction, cycleId: string, schoolId: string) {

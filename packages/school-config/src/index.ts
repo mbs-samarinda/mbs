@@ -64,6 +64,13 @@ export const APPLICATION_STAGES = [
   "WITHDRAWN",
 ] as const;
 
+export const END_STAGES = [
+  "ENROLLED",
+  "NOT_ADVANCED",
+  "NOT_ACCEPTED",
+  "WITHDRAWN",
+] as const satisfies readonly (typeof APPLICATION_STAGES)[number][];
+
 export const APPLICATION_COMMANDS = [
   "SUBMIT",
   "UPLOAD_PAYMENT_PROOF",
