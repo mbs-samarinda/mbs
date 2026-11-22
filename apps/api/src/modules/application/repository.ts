@@ -91,7 +91,12 @@ export async function insertApplication(
   return row!;
 }
 
-/** The promise made at creation: later edits to the cycle's list change nothing here. */
+/**
+ * The registration documents promised at creation: later edits to the cycle's
+ * list change nothing here. Registrasi ulang documents are copied when the
+ * result is published (PUBLISH_ACCEPTED, built in P10), because the school
+ * usually sets them after registration opens.
+ */
 export async function snapshotDocumentRequirements(
   tx: Transaction,
   applicationId: string,
@@ -102,7 +107,7 @@ export async function snapshotDocumentRequirements(
     insert into ${schema.applicationDocumentRequirements} (application_id, stage, document_type, required)
     select ${applicationId}, stage, document_type, required
     from ${schema.documentRequirements}
-    where admission_cycle_id = ${cycleId} and school_id = ${schoolId}
+    where admission_cycle_id = ${cycleId} and school_id = ${schoolId} and stage = 'APPLICATION'
   `);
 }
 

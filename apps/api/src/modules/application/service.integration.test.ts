@@ -154,9 +154,9 @@ describe("submitApplication", () => {
     expect(access).toMatchObject([{ applicationId: application.id, userId: "family-1" }]);
 
     const promised = await db.select().from(schema.applicationDocumentRequirements);
-    expect(promised.map(({ stage, type }) => `${stage}:${type}`).toSorted()).toEqual([
+    // Registrasi ulang documents wait for the result to be published.
+    expect(promised.map(({ stage, type }) => `${stage}:${type}`)).toEqual([
       "APPLICATION:KARTU_KELUARGA",
-      "REREGISTRATION:IJAZAH",
     ]);
   });
 
