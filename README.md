@@ -161,3 +161,16 @@ pnpm db:migrate    # applies it
 
 Strapi owns its own database and its own schema lifecycle. The core migrations
 never touch it.
+
+History tables (`audit_logs`, `application_events`, `applicant_profile_versions`,
+`application_document_requirements`) refuse `UPDATE`, `DELETE` and `TRUNCATE`.
+A real correction is done by hand in `psql`, inside a transaction that first
+runs `select correct_history('why')`. That call leaves its own audit row.
+
+To fill a local database with applications, run the simulator. It calls the
+real domain functions, and the same `--seed` writes nothing the second time:
+
+```bash
+pnpm ppdb-sim --count 20 --to ENROLLED --seed demo --timings
+pnpm ppdb-sim apply SMP-0001 APPROVE_PAYMENT   # one command on one application
+```
