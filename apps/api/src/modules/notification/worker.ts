@@ -7,6 +7,7 @@ import type { FastifyBaseLogger } from "fastify";
 import { SendError, SMTP_TIMEOUT_MS, type Mailer, type OutgoingEmail } from "./email.ts";
 import {
   claimDue,
+  failAbandonedCodes,
   insertSignInCodeNotification,
   recordFailure,
   recordDeliveryUnknown,
@@ -27,6 +28,7 @@ type WorkerOptions = {
   db: Database;
   mailer: Mailer;
   log: FastifyBaseLogger;
+  codeMinutes: number;
   leaseSeconds?: number;
   pollMs?: number;
   batchSize?: number;
@@ -36,7 +38,7 @@ type WorkerOptions = {
 export type NotificationWorker = ReturnType<typeof createNotificationWorker>;
 
 export function createNotificationWorker(options: WorkerOptions) {
-  const { db, mailer, log } = options;
+  const { db, mailer, log, codeMinutes } = options;
   const leaseSeconds = options.leaseSeconds ?? LEASE_SECONDS;
   const pollMs = options.pollMs ?? 5_000;
   const batchSize = options.batchSize ?? 20;
@@ -46,9 +48,11 @@ export function createNotificationWorker(options: WorkerOptions) {
   let timer: NodeJS.Timeout | null = null;
   let ticking: Promise<void> | null = null;
   let current: Promise<number> | null = null;
+  let codeTimer: NodeJS.Timeout | null = null;
+  let sendingCodes: Promise<void> | null = null;
+  let codesAgain = false;
   let lock: Awaited<ReturnType<typeof db.$client.reserve>> | null = null;
   let waitingForLock = false;
-  let again = false;
   let running = false;
   let stopped: Promise<void> | null = null;
 
@@ -125,8 +129,7 @@ export function createNotificationWorker(options: WorkerOptions) {
     return at;
   }
 
-  async function sendBatch() {
-    const rows = await claimDue(db, batchSize, leaseSeconds);
+  async function sendRows(rows: ClaimedNotification[]) {
     for (const [index, row] of rows.entries()) {
       if (stopped) {
         const untried = rows.slice(index);
@@ -136,23 +139,61 @@ export function createNotificationWorker(options: WorkerOptions) {
         );
         // oxlint-disable-next-line eslint/no-await-in-loop
         await releaseUntried(db, untried);
-        break;
+        return;
       }
       // oxlint-disable-next-line eslint/no-await-in-loop
       await sendOne(row);
     }
+  }
+
+  async function sendBatch() {
+    await failAbandonedCodes(db, codeMinutes * 60 + leaseSeconds);
+    const rows = await claimDue(db, batchSize, leaseSeconds, "queue");
+    await sendRows(rows);
     return rows.length;
   }
 
   function runBatch(): Promise<number> {
-    if (current) {
-      again = true;
-      return current;
-    }
-    current = sendBatch().finally(() => {
+    current ??= sendBatch().finally(() => {
       current = null;
     });
     return current;
+  }
+
+  async function sendCodes() {
+    if (codes.size > 0) {
+      const rows = await claimDue(db, batchSize, leaseSeconds, { codes: [...codes.keys()] });
+      if (rows.length >= batchSize) codesAgain = true;
+      await sendRows(rows);
+    }
+    const at = now().getTime();
+    for (const [id, held] of codes) if (held.expiresAt <= at) codes.delete(id);
+  }
+
+  function wake() {
+    if (stopped) return;
+    if (sendingCodes) {
+      codesAgain = true;
+      return;
+    }
+    if (codeTimer) clearTimeout(codeTimer);
+    codeTimer = null;
+    sendingCodes = sendCodes()
+      .catch((error: unknown) => {
+        log.error(
+          { errorClass: classOf(error) },
+          "notification worker failed to send sign-in codes",
+        );
+      })
+      .finally(() => {
+        sendingCodes = null;
+        if (codesAgain) {
+          codesAgain = false;
+          wake();
+        } else if (codes.size > 0 && !stopped) {
+          codeTimer = setTimeout(wake, pollMs);
+        }
+      });
   }
 
   async function holdLock() {
@@ -208,15 +249,10 @@ export function createNotificationWorker(options: WorkerOptions) {
       held = await holdLock();
       if (held) claimed = await runBatch();
     } catch (error) {
-      log.error(
-        { errorClass: error instanceof Error ? error.constructor.name : typeof error },
-        "notification worker failed a batch",
-      );
+      log.error({ errorClass: classOf(error) }, "notification worker failed a batch");
     }
     if (!running) return;
-    const busy = held && (claimed >= batchSize || again);
-    again = false;
-    schedule(busy ? 0 : pollMs);
+    schedule(held && claimed >= batchSize ? 0 : pollMs);
   }
 
   function schedule(ms: number) {
@@ -227,21 +263,10 @@ export function createNotificationWorker(options: WorkerOptions) {
     }, ms);
   }
 
-  function wake() {
-    if (!running) return;
-    if (timer) {
-      clearTimeout(timer);
-      schedule(0);
-    } else {
-      again = true;
-    }
-  }
-
   return {
     async poll() {
       return (await holdLock()) ? runBatch() : 0;
     },
-    wake,
 
     start() {
       if (stopped) throw new Error("A stopped notification worker cannot start again");
@@ -254,9 +279,10 @@ export function createNotificationWorker(options: WorkerOptions) {
       stopped ??= (async () => {
         running = false;
         if (timer) clearTimeout(timer);
+        if (codeTimer) clearTimeout(codeTimer);
         timer = null;
-        await ticking;
-        await current?.catch(() => undefined);
+        codeTimer = null;
+        await Promise.all([ticking, current?.catch(() => undefined), sendingCodes]);
         await releaseLock();
         codes.clear();
         mailer.close();
@@ -264,12 +290,12 @@ export function createNotificationWorker(options: WorkerOptions) {
       return stopped;
     },
 
-    async sendSignInCode(recipient: string, code: string, minutes: number) {
+    async sendSignInCode(recipient: string, code: string) {
       if (stopped) throw new Error("A stopped notification worker cannot send");
       const id = randomUUID();
       codes.set(id, {
-        email: TEMPLATES[SIGN_IN_CODE_TEMPLATE].render({ code, minutes }),
-        expiresAt: now().getTime() + minutes * 60_000,
+        email: TEMPLATES[SIGN_IN_CODE_TEMPLATE].render({ code, minutes: codeMinutes }),
+        expiresAt: now().getTime() + codeMinutes * 60_000,
       });
       try {
         await insertSignInCodeNotification(db, id, recipient);
@@ -281,4 +307,8 @@ export function createNotificationWorker(options: WorkerOptions) {
       return id;
     },
   };
+}
+
+function classOf(error: unknown) {
+  return error instanceof Error ? error.constructor.name : typeof error;
 }

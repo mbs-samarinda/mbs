@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { createDatabase, schema } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
 import Fastify from "fastify";
@@ -6,7 +8,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { resetTables } from "../../test/reset.ts";
 import { submitApplication } from "../application/service.ts";
 import { createFakeMailer, messageIdFor, type Mailer } from "./email.ts";
-import { claimDue } from "./outbox.ts";
+import { claimDue, insertSignInCodeNotification } from "./outbox.ts";
 import { createNotificationWorker, MAX_ATTEMPTS, type NotificationWorker } from "./worker.ts";
 
 const db = createDatabase(
@@ -84,7 +86,7 @@ function worker(
   mailer: Mailer,
   options: Partial<Parameters<typeof createNotificationWorker>[0]> = {},
 ) {
-  const created = createNotificationWorker({ db, mailer, log, ...options });
+  const created = createNotificationWorker({ db, mailer, log, codeMinutes: 5, ...options });
   workers.push(created);
   return created;
 }
@@ -177,7 +179,7 @@ describe("notification worker", () => {
 
     const running = worker(mailer);
 
-    const [claimed] = await claimDue(db, 10, 60);
+    const [claimed] = await claimDue(db, 10, 60, "queue");
     await mailer.send({ id: claimed!.id, to: claimed!.recipient, subject: "", text: "", html: "" });
     await running.poll();
     expect(mailer.sent).toHaveLength(1);
@@ -258,30 +260,76 @@ describe("notification worker", () => {
     expect(secondMailer.sent).toHaveLength(2);
   });
 
-  it("sends a sign-in code it holds, and fails one it lost in a restart", async () => {
+  it("sends a sign-in code from the process that made it, while another holds the lock", async () => {
+    const aMailer = createFakeMailer();
+    const bMailer = createFakeMailer();
+    const a = worker(aMailer, { pollMs: 20 });
+    const b = worker(bMailer, { pollMs: 20 });
+    await a.poll();
+    a.start();
+    b.start();
+
+    const code = await b.sendSignInCode("ibu@example.test", "482913");
+
+    await vi.waitFor(() => expect(bMailer.sent).toMatchObject([{ id: code }]));
+    expect(bMailer.sent[0]?.text).toContain("482913");
+    expect(aMailer.sent).toEqual([]);
+    expect(await rowOf(code)).toMatchObject({ status: "SENT", subject: null, bodyText: null });
+  });
+
+  it("sends a sign-in code with the polling worker off, past a backlog it leaves alone", async () => {
     const mailer = createFakeMailer();
-    const first = worker(mailer);
-    const held = await first.sendSignInCode("ibu@example.test", "482913", 5);
-    await first.poll();
-    expect(mailer.sent).toMatchObject([{ id: held, to: "ibu@example.test" }]);
-    expect(mailer.sent[0]?.text).toContain("482913");
+    await queue(30);
+    const idle = worker(mailer, { batchSize: 5 });
 
-    await first.sendSignInCode("ibu@example.test", "771204", 5);
-    await first.stop();
-    await worker(mailer).poll();
+    const code = await idle.sendSignInCode("ayah@example.test", "135790");
 
-    const rows = await db
-      .select()
+    await vi.waitFor(() => expect(mailer.sent.map((message) => message.id)).toEqual([code]));
+    const waiting = await db
+      .select({ id: schema.notifications.id })
       .from(schema.notifications)
-      .orderBy(asc(schema.notifications.createdAt));
-    expect(rows.map((row) => [row.status, row.subject, row.bodyText])).toEqual([
-      ["SENT", null, null],
-      ["FAILED", null, null],
+      .where(eq(schema.notifications.status, "PENDING"));
+    expect(waiting).toHaveLength(30);
+  });
+
+  it("retries a sign-in code that failed to send", async () => {
+    const mailer = createFakeMailer();
+    mailer.failNext();
+    const idle = worker(mailer, { pollMs: 20 });
+
+    const code = await idle.sendSignInCode("ibu@example.test", "482913");
+    await vi.waitFor(async () =>
+      expect(await rowOf(code)).toMatchObject({ status: "PENDING", attemptCount: 1 }),
+    );
+    await makeDue(code);
+
+    await vi.waitFor(() => expect(mailer.sent).toMatchObject([{ id: code }]));
+    expect(await attemptsOf(code)).toMatchObject([
+      { attempt: 1, outcome: "FAILED", errorClass: "ECONNECTION" },
+      { attempt: 2, outcome: "SENT" },
     ]);
-    expect(await attemptsOf(rows[1]!.id)).toMatchObject([
-      { outcome: "FAILED", errorClass: "CodeUnavailable" },
+  });
+
+  it("fails a sign-in code whose process lost it, once the code would have run out", async () => {
+    const mailer = createFakeMailer();
+    const running = worker(mailer);
+    const [fresh, lost] = [randomUUID(), randomUUID()];
+    await insertSignInCodeNotification(db, fresh, "ibu@example.test");
+    await insertSignInCodeNotification(db, lost, "ayah@example.test");
+    await db
+      .update(schema.notifications)
+      .set({ createdAt: sql`now() - interval '1 hour'` })
+      .where(eq(schema.notifications.id, lost));
+
+    await running.poll();
+    await running.poll();
+
+    expect(mailer.sent).toEqual([]);
+    expect(await rowOf(fresh)).toMatchObject({ status: "PENDING", attemptCount: 0 });
+    expect(await rowOf(lost)).toMatchObject({ status: "FAILED", attemptCount: 1 });
+    expect(await attemptsOf(lost)).toMatchObject([
+      { attempt: 1, outcome: "FAILED", errorClass: "CodeUnavailable" },
     ]);
-    expect(mailer.sent).toHaveLength(1);
   });
 
   it("fails a row whose sends keep killing their worker, after the fixed number of tries", async () => {
@@ -307,17 +355,6 @@ describe("notification worker", () => {
       { attempt: MAX_ATTEMPTS, outcome: "DELIVERY_UNKNOWN" },
       { attempt: MAX_ATTEMPTS + 1, outcome: "FAILED", errorClass: "TooManyAttempts" },
     ]);
-  });
-
-  it("sends a sign-in code ahead of a backlog", async () => {
-    const mailer = createFakeMailer();
-    await queue(30);
-    const running = worker(mailer, { batchSize: 5 });
-    const code = await running.sendSignInCode("ayah@example.test", "135790", 5);
-
-    await running.poll();
-
-    expect(mailer.sent[0]?.id).toBe(code);
   });
 
   it("hands back the rest of a batch when it stops mid-send", async () => {
@@ -359,7 +396,7 @@ describe("notification worker", () => {
     await Promise.all([running.stop(), running.stop()]);
 
     expect(() => running.start()).toThrow();
-    await expect(running.sendSignInCode("ibu@example.test", "482913", 5)).rejects.toThrow();
+    await expect(running.sendSignInCode("ibu@example.test", "482913")).rejects.toThrow();
     await running.stop();
     expect(closes).toHaveBeenCalledTimes(1);
   });

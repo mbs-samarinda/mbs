@@ -1,7 +1,7 @@
 import { schema } from "@mbs/db";
 import { makeSignature } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { buildApp } from "./app.ts";
@@ -72,12 +72,13 @@ async function sessionOn(host: string, cookie: string) {
 }
 
 async function requestCode(email: string) {
+  const sentBefore = mailer.sent.length;
   const response = await auth(FAMILY_HOST, "/email-otp/send-verification-otp", {
     email,
     type: "sign-in",
   });
   expect(response.statusCode).toBe(200);
-  await app.notifications.poll();
+  await vi.waitFor(() => expect(mailer.sent).toHaveLength(sentBefore + 1));
   const message = mailer.sent.at(-1);
   const code = /\b(\d{6})\b/.exec(message?.text ?? "")?.[1];
   if (!code) throw new Error("no code in the email");

@@ -59,6 +59,7 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
         domain: config.mail.domain,
       }),
     log: app.log,
+    codeMinutes: SIGN_IN_CODE_MINUTES,
   });
   app.decorate("notifications", notifications);
   app.addHook("onClose", async () => {
@@ -80,7 +81,7 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     FAMILY: createFamilyAuth(db, config, {
       logger,
       sendSignInCode: async (email, code) => {
-        await notifications.sendSignInCode(email, code, SIGN_IN_CODE_MINUTES);
+        await notifications.sendSignInCode(email, code);
       },
     }),
     STAFF: createStaffAuth(db, config, { logger }),

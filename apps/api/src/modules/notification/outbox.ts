@@ -81,17 +81,25 @@ export type ClaimedNotification = NotificationRow & {
   reclaimed: boolean;
 };
 
-const signInCodesFirst = sql`(${schema.notifications.templateKey} = ${SIGN_IN_CODE_TEMPLATE}) desc, ${schema.notifications.nextAttemptAt}`;
-
-export async function claimDue(db: Database, limit: number, leaseSeconds: number) {
+export async function claimDue(
+  db: Database,
+  limit: number,
+  leaseSeconds: number,
+  from: "queue" | { codes: string[] },
+) {
   const n = schema.notifications;
+  const scope =
+    from === "queue"
+      ? sql`template_key <> ${SIGN_IN_CODE_TEMPLATE}`
+      : sql`template_key = ${SIGN_IN_CODE_TEMPLATE} and ${inArray(n.id, from.codes)}`;
   const rows = await db.execute<{ id: string; reclaimed: boolean }>(sql`
     with due as (
       select id, status = 'SENDING' as reclaimed
       from ${n}
-      where (status = 'PENDING' and next_attempt_at <= now())
-         or (status = 'SENDING' and lease_until <= now())
-      order by ${signInCodesFirst}
+      where ((status = 'PENDING' and next_attempt_at <= now())
+          or (status = 'SENDING' and lease_until <= now()))
+        and ${scope}
+      order by next_attempt_at
       limit ${limit}
       for update skip locked
     )
@@ -111,11 +119,41 @@ export async function claimDue(db: Database, limit: number, leaseSeconds: number
     .select()
     .from(n)
     .where(inArray(n.id, [...reclaimed.keys()]))
-    .orderBy(signInCodesFirst);
+    .orderBy(n.nextAttemptAt);
   return claimed.map((row): ClaimedNotification => ({
     ...row,
     reclaimed: reclaimed.get(row.id) ?? false,
   }));
+}
+
+export async function failAbandonedCodes(db: Database, olderThanSeconds: number) {
+  const n = schema.notifications;
+  const a = schema.notificationAttempts;
+  await db.execute(sql`
+    with gone as (
+      select id, status = 'SENDING' as reclaimed
+      from ${n}
+      where template_key = ${SIGN_IN_CODE_TEMPLATE}
+        and created_at <= now() - make_interval(secs => ${olderThanSeconds})
+        and (status = 'PENDING' or (status = 'SENDING' and lease_until <= now()))
+      for update skip locked
+    ), failed as (
+      update ${n}
+      set status = 'FAILED',
+          attempt_count = ${n.attemptCount} + 1,
+          lease_until = null,
+          updated_at = now()
+      from gone
+      where ${n.id} = gone.id
+      returning ${n.id} as id, ${n.attemptCount} as attempt, gone.reclaimed as reclaimed
+    ), unknown as (
+      insert into ${a} (notification_id, attempt, outcome)
+      select id, attempt - 1, 'DELIVERY_UNKNOWN' from failed where reclaimed
+      on conflict do nothing
+    )
+    insert into ${a} (notification_id, attempt, outcome, error_class)
+    select id, attempt, 'FAILED', 'CodeUnavailable' from failed
+  `);
 }
 
 export async function renewLease(db: Database, row: ClaimedNotification, leaseSeconds: number) {
