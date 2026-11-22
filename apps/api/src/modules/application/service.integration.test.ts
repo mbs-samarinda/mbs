@@ -366,6 +366,25 @@ describe("applyCommand", () => {
     expect(await eventsOf(applicationId)).toHaveLength(3);
   });
 
+  it("replays a retry that leaves an optional field undefined", async () => {
+    const { application } = await submit();
+    const withdraw = () =>
+      applyCommand(db, {
+        applicationId: application.id,
+        actor: FAMILY,
+        command: "WITHDRAW",
+        // The stored payload drops the key; the retry still sends it.
+        payload: { payloadVersion: 1, reason: undefined },
+        expectedSeq: 1,
+        idempotencyKey: "withdraw-1",
+      });
+
+    const first = await withdraw();
+    const retry = await withdraw();
+
+    expect(retry).toMatchObject({ replayed: true, event: { id: first.event.id } });
+  });
+
   it("returns a conflict for a command made against an older view", async () => {
     const applicationId = await atPaymentReview();
 

@@ -219,7 +219,7 @@ export async function applyCommand(
     // A retry repeats its request exactly. Anything else under the same key is
     // a different request, and returning the old event would hide it.
     isRetry: async (earlier) =>
-      earlier.command === input.command && isDeepStrictEqual(earlier.payload, payload),
+      earlier.command === input.command && sameAsStored(earlier.payload, payload),
     write: async () => payload,
   });
 }
@@ -243,7 +243,7 @@ export async function saveProfile(
       if (earlier.command !== "EDIT_PROFILE") return false;
       const { version } = COMMAND_PAYLOADS.EDIT_PROFILE.parse(earlier.payload);
       const saved = await findProfileVersion(tx, earlier.applicationId, version);
-      return saved?.authorUserId === author && isDeepStrictEqual(saved.data, profile);
+      return saved?.authorUserId === author && sameAsStored(saved.data, profile);
     },
     write: async (tx, application) => {
       const latest = await findLatestProfileVersion(tx, application.id);
@@ -375,6 +375,15 @@ async function authorize(tx: Transaction, actor: Actor, applicationId: string, s
     }
     if (actor.staff.role === "PRINCIPAL") throw new ForbiddenError("Not allowed.");
   }
+}
+
+/**
+ * Whether a value matches what jsonb stored for it. The round trip drops
+ * `undefined` fields the way storing did, so a retry that sends
+ * `{ reason: undefined }` matches the row written without the key.
+ */
+function sameAsStored(stored: unknown, value: unknown) {
+  return isDeepStrictEqual(stored, JSON.parse(JSON.stringify(value)));
 }
 
 function reusedKey() {
