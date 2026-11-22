@@ -7,9 +7,9 @@
 -- The one way past it is correct_history(reason), run by hand as the database
 -- owner, for a real correction, a legal erasure, or a migration that fills a
 -- new column on old rows. It writes a HISTORY_CORRECTION row to audit_logs and
--- points mbs.history_correction at it. The trigger trusts the flag only while
--- that row was written by the current transaction, so setting the flag by hand,
--- or reusing an old correction's id, opens nothing. Run it at the top level of
+-- points mbs.history_correction at it. The row records its transaction, and
+-- the trigger trusts the flag only during that transaction, so setting the flag
+-- by hand, or reusing an old correction's id, opens nothing. Run it at the top level of
 -- the transaction: inside a savepoint the row gets the savepoint's own
 -- transaction id and the check refuses, which is the safe way to fail.
 --
@@ -38,6 +38,8 @@ GRANT INSERT ON audit_logs TO mbs_history_admin;
 --> statement-breakpoint
 CREATE FUNCTION forbid_history_change() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+  flag text := current_setting('mbs.history_correction', true);
 BEGIN
   IF TG_TABLE_NAME = 'audit_logs' THEN
     IF TG_OP = 'TRUNCATE' THEN
@@ -50,13 +52,15 @@ BEGIN
     END IF;
   END IF;
 
-  -- Compared as text: the setting may hold anything, and a cast would fail
-  -- with a type error instead of the message below. xmin is a 32-bit xid, so
-  -- the 64-bit pg_current_xact_id() is narrowed to match it.
-  IF EXISTS (
+  -- The flag may hold anything, so it is checked before the cast, which would
+  -- otherwise fail with a type error instead of the message below. The stored
+  -- 64-bit transaction id never wraps around. xmin is checked as well because
+  -- only xmin differs inside a savepoint: there the correction is refused.
+  IF flag ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' AND EXISTS (
     SELECT 1 FROM audit_logs
-    WHERE id::text = current_setting('mbs.history_correction', true)
+    WHERE id = flag::uuid
       AND action = 'HISTORY_CORRECTION'
+      AND metadata->>'xact' = pg_current_xact_id()::text
       AND xmin = pg_current_xact_id()::xid
   ) THEN
     -- A row-level BEFORE trigger that returns NULL silently skips the row, so
@@ -95,7 +99,7 @@ BEGIN
     'HISTORY_CORRECTION',
     'database',
     current_database(),
-    jsonb_build_object('reason', reason)
+    jsonb_build_object('reason', reason, 'xact', pg_current_xact_id()::text)
   );
 
   -- `true` makes the setting local: it ends with this transaction.

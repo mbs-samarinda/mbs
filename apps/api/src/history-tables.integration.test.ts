@@ -248,6 +248,23 @@ describe("forbid_history_change", () => {
     ).rejects.toMatchObject({ cause: { message: expect.stringMatching(FORGED) } });
   });
 
+  it("records the transaction a correction belongs to", async () => {
+    const reason = `which transaction ${crypto.randomUUID()}`;
+    const xact = await db.transaction(async (tx) => {
+      await tx.execute(sql`select correct_history(${reason})`);
+      const [row] = await tx.execute<{ xact: string }>(
+        sql`select pg_current_xact_id()::text as xact`,
+      );
+      return row!.xact;
+    });
+
+    const [row] = await db
+      .select()
+      .from(schema.auditLogs)
+      .where(sql`${schema.auditLogs.metadata}->>'reason' = ${reason}`);
+    expect(row!.metadata).toEqual({ reason, xact });
+  });
+
   // The API connects as the owning superuser today, which can bypass any
   // trigger. This is the role the guard is built for: one that may read and
   // write audit_logs but owns nothing.
