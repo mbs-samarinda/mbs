@@ -1,5 +1,5 @@
 import { createDatabase, schema } from "@mbs/db";
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { loadConfig } from "../../config/env.ts";
@@ -520,7 +520,8 @@ describe("staff management", () => {
     const entries = await db
       .select({ action: schema.auditLogs.action })
       .from(schema.auditLogs)
-      .where(eq(schema.auditLogs.entityId, created.id));
+      .where(eq(schema.auditLogs.entityId, created.id))
+      .orderBy(asc(schema.auditLogs.createdAt));
 
     expect(entries.map((entry) => entry.action)).toEqual(["staff.create", "staff.deactivate"]);
   });
