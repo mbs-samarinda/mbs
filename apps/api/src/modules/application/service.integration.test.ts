@@ -156,7 +156,7 @@ describe("submitApplication", () => {
 
     const promised = await db.select().from(schema.applicationDocumentRequirements);
     expect(promised.map(({ stage, type }) => `${stage}:${type}`)).toEqual([
-      "APPLICATION:KARTU_KELUARGA",
+      "REGISTRATION:KARTU_KELUARGA",
     ]);
   });
 

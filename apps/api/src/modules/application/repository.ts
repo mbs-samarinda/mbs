@@ -3,6 +3,7 @@ import type {
   ApplicantProfile,
   ApplicationCommand,
   ApplicationStage,
+  DocumentStage,
   InterviewMode,
 } from "@mbs/api-contract";
 import { schema, type Transaction } from "@mbs/db";
@@ -102,11 +103,12 @@ export async function snapshotDocumentRequirements(
   cycleId: string,
   schoolId: string,
 ) {
+  const registration: DocumentStage = "REGISTRATION";
   await tx.execute(sql`
     insert into ${schema.applicationDocumentRequirements} (application_id, stage, document_type, required)
     select ${applicationId}, stage, document_type, required
     from ${schema.documentRequirements}
-    where admission_cycle_id = ${cycleId} and school_id = ${schoolId} and stage = 'APPLICATION'
+    where admission_cycle_id = ${cycleId} and school_id = ${schoolId} and stage = ${registration}
   `);
 }
 

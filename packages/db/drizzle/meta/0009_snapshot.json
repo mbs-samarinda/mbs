@@ -726,7 +726,7 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'APPLICATION'"
+          "default": "'REGISTRATION'"
         }
       },
       "indexes": {},
@@ -1494,7 +1494,7 @@
     "public.document_stage": {
       "name": "document_stage",
       "schema": "public",
-      "values": ["APPLICATION", "REREGISTRATION"]
+      "values": ["REGISTRATION", "REREGISTRATION"]
     },
     "public.document_type": {
       "name": "document_type",

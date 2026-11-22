@@ -43,7 +43,7 @@ export const DOCUMENT_TYPES = [
 export const STAFF_ROLES = ["ADMINISTRATOR", "STAFF", "PRINCIPAL"] as const;
 export const STAFF_LOGIN_EMAIL_KINDS = ["INSTITUTIONAL", "PERSONAL"] as const;
 
-export const DOCUMENT_STAGES = ["APPLICATION", "REREGISTRATION"] as const;
+export const DOCUMENT_STAGES = ["REGISTRATION", "REREGISTRATION"] as const;
 export const INTERVIEW_MODES = ["OFFLINE", "ONLINE"] as const;
 
 export const APPLICATION_STAGES = [

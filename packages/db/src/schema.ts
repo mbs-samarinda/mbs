@@ -122,7 +122,7 @@ export const documentRequirements = pgTable(
       .references(() => schools.id),
     type: documentType("document_type").notNull(),
     required: boolean("required").notNull(),
-    stage: documentStage("stage").notNull().default("APPLICATION"),
+    stage: documentStage("stage").notNull().default("REGISTRATION"),
   },
   // Named explicitly: the generated name is longer than the 63 characters
   // Postgres keeps, so the snapshot would not match the database.

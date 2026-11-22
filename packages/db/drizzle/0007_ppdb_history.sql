@@ -1,7 +1,7 @@
 CREATE TYPE "public"."actor_type" AS ENUM('FAMILY', 'STAFF', 'SYSTEM');--> statement-breakpoint
 CREATE TYPE "public"."application_command" AS ENUM('SUBMIT', 'UPLOAD_PAYMENT_PROOF', 'APPROVE_PAYMENT', 'REJECT_PAYMENT', 'SUBMIT_DOCUMENTS', 'REQUEST_DOCUMENT_FIX', 'VERIFY_DOCUMENTS', 'ADVANCE_TO_INTERVIEW', 'STOP_AT_SCREENING', 'SCHEDULE_INTERVIEW', 'RESCHEDULE_INTERVIEW', 'RECORD_ATTENDED', 'RECORD_NO_SHOW', 'DECIDE', 'PUBLISH_ACCEPTED', 'PUBLISH_NOT_ACCEPTED', 'SUBMIT_REREGISTRATION', 'REQUEST_REREGISTRATION_FIX', 'CONFIRM_ENROLLMENT', 'WITHDRAW', 'ADD_NOTE', 'CHANGE_INTERVIEW_MODE');--> statement-breakpoint
 CREATE TYPE "public"."application_stage" AS ENUM('PAYMENT_DUE', 'PAYMENT_REVIEW', 'DOCUMENTS_DUE', 'DOCUMENTS_REVIEW', 'SCREENING', 'INTERVIEW_PENDING', 'INTERVIEW_SCHEDULED', 'INTERVIEWED', 'DECIDED', 'REREGISTRATION', 'REREGISTRATION_REVIEW', 'ENROLLED', 'NOT_ADVANCED', 'NOT_ACCEPTED', 'WITHDRAWN');--> statement-breakpoint
-CREATE TYPE "public"."document_stage" AS ENUM('APPLICATION', 'REREGISTRATION');--> statement-breakpoint
+CREATE TYPE "public"."document_stage" AS ENUM('REGISTRATION', 'REREGISTRATION');--> statement-breakpoint
 CREATE TYPE "public"."interview_mode" AS ENUM('OFFLINE', 'ONLINE');--> statement-breakpoint
 CREATE TABLE "applicant_profile_versions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -74,7 +74,7 @@ CREATE TABLE "applications" (
 ALTER TABLE "document_requirements" DROP CONSTRAINT "document_requirements_cycle_school_type_unique";--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD COLUMN "request_id" text;--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD COLUMN "user_agent" text;--> statement-breakpoint
-ALTER TABLE "document_requirements" ADD COLUMN "stage" "document_stage" DEFAULT 'APPLICATION' NOT NULL;--> statement-breakpoint
+ALTER TABLE "document_requirements" ADD COLUMN "stage" "document_stage" DEFAULT 'REGISTRATION' NOT NULL;--> statement-breakpoint
 ALTER TABLE "applicant_profile_versions" ADD CONSTRAINT "applicant_profile_versions_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "applicant_profile_versions" ADD CONSTRAINT "applicant_profile_versions_author_user_id_user_id_fk" FOREIGN KEY ("author_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "application_access" ADD CONSTRAINT "application_access_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
