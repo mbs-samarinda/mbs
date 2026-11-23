@@ -1,7 +1,7 @@
 import type { ApplicantProfileInput, AppliedCommand, SchoolKey } from "@mbs/api-contract";
 import { createDatabase, schema, type Database, type Transaction } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ZodError } from "zod";
 
 import {
@@ -420,13 +420,23 @@ describe("applyCommand", () => {
         expectedSeq: 1,
         idempotencyKey: null,
       });
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await vi.waitFor(async () => {
+        const blocked = await db.execute(
+          sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
+        );
+        expect(blocked).toHaveLength(1);
+      });
       const [now] = await tx.execute<{ at: string }>(sql`select clock_timestamp()::text as at`);
       released = new Date(now!.at).getTime();
     });
 
     const later = await waiting!;
     expect(later.event.createdAt.getTime()).toBeGreaterThanOrEqual(released);
+    const [row] = await db
+      .select()
+      .from(schema.applications)
+      .where(eq(schema.applications.id, application.id));
+    expect(row!.updatedAt).toEqual(later.event.createdAt);
   });
 
   it("applies a replayed idempotency key once and returns the first result", async () => {

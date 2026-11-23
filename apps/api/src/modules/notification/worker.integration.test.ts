@@ -342,26 +342,27 @@ describe("notification worker", () => {
       sql`alter table notification_attempts add constraint no_sent check (outcome <> 'SENT') not valid`,
     );
     try {
-      await running.poll();
+      await expect(running.poll()).rejects.toThrow();
     } finally {
       await db.execute(sql`alter table notification_attempts drop constraint no_sent`);
     }
 
     expect(await rowOf(row!.id)).toMatchObject({ status: "SENDING", attemptCount: 1 });
     expect(await attemptsOf(row!.id)).toEqual([]);
-    await db
-      .update(schema.notifications)
-      .set({ leaseUntil: sql`now() - interval '1 second'` })
-      .where(eq(schema.notifications.id, row!.id));
-    await running.poll();
-
     expect(fake.sent).toHaveLength(1);
-    expect(await rowOf(row!.id)).toMatchObject({ status: "SENT" });
   });
 
-  it("sends nothing it claimed while it was stopping", async () => {
+  it.each([
+    { status: "PENDING", attemptCount: 0 },
+    { status: "SENDING", attemptCount: MAX_ATTEMPTS },
+  ] as const)("undoes the claim of a $status row when it stops", async (before) => {
     const fake = createFakeMailer();
     const [row] = await queue();
+    const leaseUntil = before.status === "SENDING" ? sql`now() - interval '1 second'` : null;
+    await db
+      .update(schema.notifications)
+      .set({ ...before, leaseUntil })
+      .where(eq(schema.notifications.id, row!.id));
     let statements = 0;
     const stopsDuringClaim = new Proxy(db, {
       get(target, key, receiver) {
@@ -379,7 +380,8 @@ describe("notification worker", () => {
     await stoppable.poll();
 
     expect(statements).toBe(2);
-    expect(await rowOf(row!.id)).toMatchObject({ status: "PENDING", attemptCount: 0 });
+    expect(await rowOf(row!.id)).toMatchObject(before);
+    expect(await attemptsOf(row!.id)).toEqual([]);
     expect(fake.sent).toEqual([]);
   });
 

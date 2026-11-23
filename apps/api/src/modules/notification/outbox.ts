@@ -147,11 +147,16 @@ export async function failAbandonedCodes(db: Database, olderThanSeconds: number)
   `);
 }
 
-export async function releaseUntried(db: Database, row: ClaimedNotification) {
+export async function undoClaim(db: Database, row: ClaimedNotification) {
   const n = schema.notifications;
   await db
     .update(n)
-    .set({ status: "PENDING", leaseUntil: null, attemptCount: row.attemptCount - 1 })
+    .set({
+      status: row.reclaimed ? "SENDING" : "PENDING",
+      leaseUntil: row.reclaimed ? sql`now()` : null,
+      attemptCount: row.attemptCount - 1,
+      updatedAt: sql`now()`,
+    })
     .where(and(eq(n.id, row.id), eq(n.status, "SENDING"), eq(n.attemptCount, row.attemptCount)));
 }
 

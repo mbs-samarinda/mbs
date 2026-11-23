@@ -92,7 +92,10 @@ export async function insertApplication(
   tx: Transaction,
   values: typeof schema.applications.$inferInsert,
 ) {
-  const [row] = await tx.insert(schema.applications).values(values).returning();
+  const [row] = await tx
+    .insert(schema.applications)
+    .values({ ...values, createdAt: sql`clock_timestamp()` })
+    .returning();
   return row!;
 }
 

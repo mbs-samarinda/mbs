@@ -12,7 +12,7 @@ import {
   recordFailure,
   recordDeliveryUnknown,
   recordSent,
-  releaseUntried,
+  undoClaim,
   type ClaimedNotification,
 } from "./outbox.ts";
 import { TEMPLATES, type RenderedEmail } from "./templates.ts";
@@ -49,9 +49,6 @@ export function createNotificationWorker(options: WorkerOptions) {
   const now = options.now ?? (() => new Date());
 
   const codes = new Map<string, { email: RenderedEmail; expiresAt: number }>();
-  // Emails the server took whose SENT write failed. Reclaiming one writes SENT
-  // again instead of sending a second copy.
-  const accepted = new Map<string, string | null>();
   let timer: NodeJS.Timeout | null = null;
   let ticking: Promise<void> | null = null;
   let current: Promise<number> | null = null;
@@ -63,29 +60,7 @@ export function createNotificationWorker(options: WorkerOptions) {
   let running = false;
   let stopped: Promise<void> | null = null;
 
-  async function markSent(row: ClaimedNotification, responseCode: string | null) {
-    accepted.set(row.id, responseCode);
-    try {
-      if (!(await recordSent(db, row, responseCode))) {
-        log.warn({ notificationId: row.id }, "notification sent after its lease ran out");
-      }
-    } catch (error) {
-      log.error(
-        { notificationId: row.id, errorClass: classOf(error) },
-        "notification was sent but could not be recorded as sent",
-      );
-      return;
-    }
-    accepted.delete(row.id);
-    codes.delete(row.id);
-  }
-
   async function sendOne(row: ClaimedNotification) {
-    const taken = accepted.get(row.id);
-    if (taken !== undefined) {
-      await markSent(row, taken);
-      return;
-    }
     if (row.reclaimed) {
       await recordDeliveryUnknown(db, row);
       if (row.attemptCount > MAX_ATTEMPTS) {
@@ -134,7 +109,17 @@ export function createNotificationWorker(options: WorkerOptions) {
       );
       return;
     }
-    await markSent(row, responseCode);
+    codes.delete(row.id);
+    let recorded: boolean;
+    try {
+      recorded = await recordSent(db, row, responseCode);
+    } catch (error) {
+      log.error({ notificationId: row.id }, "notification was sent but not recorded as sent");
+      throw error;
+    }
+    if (!recorded) {
+      log.warn({ notificationId: row.id }, "notification sent after its lease ran out");
+    }
   }
 
   function messageOf(row: ClaimedNotification): Omit<OutgoingEmail, "id" | "to"> | null {
@@ -169,9 +154,7 @@ export function createNotificationWorker(options: WorkerOptions) {
       if (!row) break;
       if (stopped) {
         // oxlint-disable-next-line eslint/no-await-in-loop
-        if (row.reclaimed) await recordDeliveryUnknown(db, row);
-        // oxlint-disable-next-line eslint/no-await-in-loop
-        await releaseUntried(db, row);
+        await undoClaim(db, row);
         break;
       }
       // oxlint-disable-next-line eslint/no-await-in-loop

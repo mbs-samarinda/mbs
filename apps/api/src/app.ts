@@ -40,9 +40,13 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     // Handed to the client on every response, so it has to stay unique across
     // restarts. Fastify's default is a counter that starts again at req-1.
     genReqId: () => randomUUID(),
-    frameworkErrors: (_error, _request, reply) => {
+    frameworkErrors: (error, request, reply) => {
+      const status = error.statusCode ?? 400;
+      request.log.info({ statusCode: status, code: error.code }, "request refused");
       reply.hijack();
-      reply.raw.writeHead(400).end();
+      reply.raw
+        .writeHead(status, { "content-type": "application/json", "x-request-id": request.id })
+        .end(JSON.stringify({ error: STATUS_CODES[status] }));
     },
     logger: {
       level: config.logLevel,
