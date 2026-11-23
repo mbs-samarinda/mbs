@@ -8,6 +8,50 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <!-- The first thing the app asks. Fetched beside the script, not after it. -->
     <link rel="preload" as="fetch" href="/api/auth/get-session" crossorigin="anonymous" />
+    <!-- The sign-in photos. The script alone would ask for them only once it runs, which
+         is after it has downloaded. -->
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/smp-band.avif"
+      media="(width < 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/smk-band.avif"
+      media="(width < 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/sma-band.avif"
+      media="(width < 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/smp-arch.avif"
+      media="(width >= 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/smk-arch.avif"
+      media="(width >= 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/sma-arch.avif"
+      media="(width >= 64rem)"
+    />
   </head>
   <body>
     <div id="root"></div>
