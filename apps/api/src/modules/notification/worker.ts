@@ -87,12 +87,6 @@ export function createNotificationWorker(options: WorkerOptions) {
     } catch (error) {
       const failure = error instanceof SendError ? error : new SendError("Unknown", null);
       const retryAt = retryTime(row);
-      await recordFailure(db, row, {
-        errorClass: failure.errorClass,
-        responseCode: failure.responseCode,
-        retryAt,
-      });
-      if (!retryAt) codes.delete(row.id);
       log.warn(
         {
           notificationId: row.id,
@@ -103,6 +97,12 @@ export function createNotificationWorker(options: WorkerOptions) {
         },
         "notification send failed",
       );
+      await recordFailure(db, row, {
+        errorClass: failure.errorClass,
+        responseCode: failure.responseCode,
+        retryAt,
+      });
+      if (!retryAt) codes.delete(row.id);
       return;
     }
     codes.delete(row.id);
@@ -119,7 +119,7 @@ export function createNotificationWorker(options: WorkerOptions) {
       throw error;
     }
     if (!recorded) {
-      log.warn({ notificationId: row.id }, "notification sent after its lease ran out");
+      log.warn({ notificationId: row.id }, "notification sent, but its claim was no longer held");
     }
   }
 

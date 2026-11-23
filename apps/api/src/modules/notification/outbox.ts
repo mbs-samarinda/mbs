@@ -144,8 +144,9 @@ export async function failAbandonedCodes(db: Database, olderThanSeconds: number)
     insert into ${a} (notification_id, attempt, outcome, error_class)
     select id, attempt,
            (case when reclaimed then 'DELIVERY_UNKNOWN' else 'FAILED' end)::notification_attempt_outcome,
-           case when reclaimed then null else 'CodeUnavailable' end
+           'CodeUnavailable'
     from failed
+    on conflict do nothing
   `);
 }
 

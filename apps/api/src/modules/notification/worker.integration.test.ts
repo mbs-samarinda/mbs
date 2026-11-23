@@ -186,10 +186,13 @@ async function stallingProxy() {
   };
 }
 
-async function refusingSentAttempts(run: () => Promise<void>) {
+async function refusingSentAttempts(run: () => Promise<void>, id?: string) {
   await db.execute(sql`alter table notification_attempts drop constraint if exists no_sent`);
+  const others = id ? `notification_id <> '${id}'` : "false";
   await db.execute(
-    sql`alter table notification_attempts add constraint no_sent check (outcome <> 'SENT') not valid`,
+    sql.raw(
+      `alter table notification_attempts add constraint no_sent check (outcome <> 'SENT' or ${others}) not valid`,
+    ),
   );
   try {
     await run();
@@ -361,35 +364,46 @@ describe("notification worker", () => {
     ]);
   });
 
-  it("sends the other codes when one cannot be recorded, and sends none again", async () => {
+  it("sends the other codes when one cannot be recorded, and does not send that one again", async () => {
     const fake = createFakeMailer();
     const { lines, log: captured } = capturedLog();
     const idle = worker(fake, { log: captured, pollMs: 60_000 });
-    let codes: string[] = [];
+    fake.failNext(2);
+    const lost = await idle.sendSignInCode("ibu@example.test", "482913");
+    const second = await idle.sendSignInCode("ayah@example.test", "135790");
+    await vi.waitFor(() =>
+      expect(lines.filter((line) => line.msg === "notification send failed")).toHaveLength(2),
+    );
+    await vi.waitFor(async () => {
+      expect(await rowOf(lost)).toMatchObject({ status: "PENDING", attemptCount: 1 });
+      expect(await rowOf(second)).toMatchObject({ status: "PENDING", attemptCount: 1 });
+    });
+    await makeDue(lost);
+    await makeDue(second);
+    let third = "";
     await refusingSentAttempts(async () => {
-      codes = await Promise.all([
-        idle.sendSignInCode("ibu@example.test", "482913"),
-        idle.sendSignInCode("ayah@example.test", "135790"),
-      ]);
-      await vi.waitFor(() =>
-        expect(lines.filter((line) => line.msg.includes("failed to record"))).toHaveLength(2),
-      );
-    });
-    expect(fake.sent.map((message) => message.id).toSorted()).toEqual(codes.toSorted());
-    await db.update(schema.notifications).set({
-      createdAt: sql`now() - interval '1 hour'`,
-      leaseUntil: sql`now() - interval '1 second'`,
-    });
+      third = await idle.sendSignInCode("wali@example.test", "246802");
+      await vi.waitFor(async () => {
+        expect(await rowOf(second)).toMatchObject({ status: "SENT" });
+        expect(await rowOf(third)).toMatchObject({ status: "SENT" });
+      });
+    }, lost);
+    expect(fake.sent.map((message) => message.id)).toEqual([lost, second, third]);
+    await db
+      .update(schema.notifications)
+      .set({
+        createdAt: sql`now() - interval '1 hour'`,
+        leaseUntil: sql`now() - interval '1 second'`,
+      })
+      .where(eq(schema.notifications.id, lost));
 
     await idle.poll();
 
-    expect(fake.sent).toHaveLength(2);
-    for (const code of codes) {
-      // oxlint-disable-next-line eslint/no-await-in-loop
-      expect(await attemptsOf(code)).toMatchObject([
-        { attempt: 1, outcome: "DELIVERY_UNKNOWN", errorClass: null },
-      ]);
-    }
+    expect(fake.sent).toHaveLength(3);
+    expect(await attemptsOf(lost)).toMatchObject([
+      { attempt: 1, outcome: "FAILED", errorClass: "ECONNECTION" },
+      { attempt: 2, outcome: "DELIVERY_UNKNOWN", errorClass: "CodeUnavailable" },
+    ]);
   });
 
   it("records a send on the second try when the first write fails", async () => {
@@ -410,6 +424,8 @@ describe("notification worker", () => {
 
     await worker(fake, { db: failsOnce }).poll();
 
+    // The last transaction is the claim that finds the queue empty.
+    expect(transactions).toBe(4);
     expect(await rowOf(row!.id)).toMatchObject({ status: "SENT", attemptCount: 1 });
     expect(fake.sent).toHaveLength(1);
   });
@@ -546,7 +562,9 @@ describe("notification worker", () => {
     await vi.waitFor(() => expect(bMailer.sent).toMatchObject([{ id: code }]));
     expect(bMailer.sent[0]?.text).toContain("482913");
     expect(aMailer.sent).toEqual([]);
-    expect(await rowOf(code)).toMatchObject({ status: "SENT", subject: null, bodyText: null });
+    await vi.waitFor(async () =>
+      expect(await rowOf(code)).toMatchObject({ status: "SENT", subject: null, bodyText: null }),
+    );
   });
 
   it("sends a sign-in code with the polling worker off, past a backlog it leaves alone", async () => {
@@ -575,7 +593,8 @@ describe("notification worker", () => {
     );
     await makeDue(code);
 
-    await vi.waitFor(() => expect(mailer.sent).toMatchObject([{ id: code }]));
+    await vi.waitFor(async () => expect(await rowOf(code)).toMatchObject({ status: "SENT" }));
+    expect(mailer.sent).toMatchObject([{ id: code }]);
     expect(await attemptsOf(code)).toMatchObject([
       { attempt: 1, outcome: "FAILED", errorClass: "ECONNECTION" },
       { attempt: 2, outcome: "SENT" },
@@ -609,7 +628,7 @@ describe("notification worker", () => {
     ]);
     expect(await rowOf(mid)).toMatchObject({ status: "FAILED", attemptCount: 1 });
     expect(await attemptsOf(mid)).toMatchObject([
-      { attempt: 1, outcome: "DELIVERY_UNKNOWN", errorClass: null },
+      { attempt: 1, outcome: "DELIVERY_UNKNOWN", errorClass: "CodeUnavailable" },
     ]);
   });
 
