@@ -44,9 +44,8 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
   --font-sans: "Plus Jakarta Sans Variable", sans-serif;
-  /* Depth comes from shadow, not from a border pretending to be one. Two
-     steps only: resting controls, and surfaces that float above the page. */
-  --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.05), 0 1px 3px oklch(0 0 0 / 0.08);
+  /* Depth comes from shadow, not from a border pretending to be one. One step
+     only, for surfaces that float above the page. Resting controls are flat. */
   --shadow-overlay: 0 4px 8px -3px oklch(0 0 0 / 0.06), 0 14px 28px -10px oklch(0 0 0 / 0.2);
   /* Stronger than Tailwind's default cubic-bezier(0, 0, 0.2, 1). Entrances
      start fast, so the frame the user is watching is the one that moves. */
