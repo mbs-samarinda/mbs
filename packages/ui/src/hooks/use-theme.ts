@@ -74,8 +74,8 @@ function readTheme(): Theme {
  * drifts. Two open tabs disagree until the next navigation, which is a smaller
  * problem than that.
  *
- * `cookieSuffix` is everything after `theme=<value>`. The caller owns it because
- * only the caller knows which hosts share the choice.
+ * `cookieSuffix` holds the cookie's path, age and domain. The caller owns it
+ * because only the caller knows which hosts share the choice.
  */
 export function useTheme(cookieSuffix: string) {
   const theme = useSyncExternalStore(subscribe, readTheme, () => SERVER_THEME);

@@ -87,7 +87,10 @@ const CODE_CAP = { codes: 5, minutes: 15 };
 export async function reachedCodeCap(db: Database, recipient: string) {
   const n = schema.notifications;
   const codes = await db
-    .select({ age: sql<number>`extract(epoch from now() - ${n.createdAt})::float` })
+    .select({
+      age: sql<number>`extract(epoch from now() - ${n.createdAt})::float`,
+      status: n.status,
+    })
     .from(n)
     .where(
       and(
@@ -103,7 +106,7 @@ export async function reachedCodeCap(db: Database, recipient: string) {
   const oldest = codes[CODE_CAP.codes - 1];
   if (!newest || !oldest) return null;
   return {
-    newestAgeSeconds: newest.age,
+    newestFailed: newest.status === "FAILED",
     retryAfterSeconds: Math.max(1, Math.ceil(CODE_CAP.minutes * 60 - oldest.age)),
   };
 }

@@ -1,4 +1,4 @@
-import { AuthError, googleSignInUrl } from "@mbs/api-client/auth";
+import { AuthError, goToGoogle } from "@mbs/api-client/auth";
 import { UnreachableError } from "@mbs/api-client/http";
 import { safeReturnTarget } from "@mbs/api-client/return-target";
 import { Alert } from "@mbs/ui/components/alert";
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/masuk")({
 function SignIn() {
   const { lanjut = "/", error } = Route.useSearch();
   const router = useRouter();
-  const visitor = useQuery(visitorQuery);
+  const visitor = useQuery({ ...visitorQuery, refetchOnWindowFocus: "always" });
   const signedIn = visitor.data !== undefined && visitor.data.kind !== "signed-out";
 
   useEffect(() => {
@@ -39,25 +39,13 @@ function SignIn() {
 
   const google = useMutation({
     mutationFn: () =>
-      googleSignInUrl({
+      goToGoogle({
         returnTo: lanjut,
         errorTo: lanjut === "/" ? "/masuk" : `/masuk?lanjut=${encodeURIComponent(lanjut)}`,
         chooseAccount: error !== undefined,
       }),
-    onSuccess: (url) => location.assign(url),
   });
-  const { reset } = google;
-
-  // The button waits until the browser leaves. Coming back restores this page as
-  // it was left, with the button still waiting.
-  useEffect(() => {
-    const onReturn = (event: PageTransitionEvent) => event.persisted && reset();
-    addEventListener("pageshow", onReturn);
-    return () => removeEventListener("pageshow", onReturn);
-  }, [reset]);
-
   const refused = error === "account_not_approved";
-  const busy = google.isPending || google.isSuccess;
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
       <Arches />
@@ -98,11 +86,15 @@ function SignIn() {
           <GoogleButton
             size="lg"
             className="h-auto min-h-9 py-1.5 whitespace-normal"
-            disabled={busy}
+            disabled={google.isPending}
             focusableWhenDisabled
             onClick={() => google.mutate()}
           >
-            {busy ? "Membuka Google…" : refused ? "Pilih akun Google lain" : "Masuk dengan Google"}
+            {google.isPending
+              ? "Membuka Google…"
+              : refused
+                ? "Pilih akun Google lain"
+                : "Masuk dengan Google"}
           </GoogleButton>
         </main>
         <footer>
@@ -133,15 +125,33 @@ const TONES = [
   "bg-[color-mix(in_oklch,var(--foreground)_12%,var(--background))]",
 ] as const;
 
-// Harbor Teal, in both modes.
-const ACCENT = "bg-[oklch(0.499_0.086_219.2)]";
+const HARBOR_TEAL = "bg-[oklch(0.499_0.086_219.2)]";
 
-/** Per direction: the round end, where the inner arch sits, and the straight part of each. */
 const FACES = {
-  up: ["rounded-t-full", "inset-x-1/4 top-1/4 bottom-0", "after:top-1/2", "after:top-1/3"],
-  right: ["rounded-r-full", "inset-y-1/4 right-1/4 left-0", "after:right-1/2", "after:right-1/3"],
-  down: ["rounded-b-full", "inset-x-1/4 top-0 bottom-1/4", "after:bottom-1/2", "after:bottom-1/3"],
-  left: ["rounded-l-full", "inset-y-1/4 right-0 left-1/4", "after:left-1/2", "after:left-1/3"],
+  up: {
+    round: "rounded-t-full",
+    inset: "inset-x-1/4 top-1/4 bottom-0",
+    outerBody: "after:top-1/2",
+    innerBody: "after:top-1/3",
+  },
+  right: {
+    round: "rounded-r-full",
+    inset: "inset-y-1/4 right-1/4 left-0",
+    outerBody: "after:right-1/2",
+    innerBody: "after:right-1/3",
+  },
+  down: {
+    round: "rounded-b-full",
+    inset: "inset-x-1/4 top-0 bottom-1/4",
+    outerBody: "after:bottom-1/2",
+    innerBody: "after:bottom-1/3",
+  },
+  left: {
+    round: "rounded-l-full",
+    inset: "inset-y-1/4 right-0 left-1/4",
+    outerBody: "after:left-1/2",
+    innerBody: "after:left-1/3",
+  },
 } as const;
 
 const ARCH = "absolute after:absolute after:inset-0 after:bg-inherit";
@@ -156,7 +166,7 @@ const CELLS: Cell[] = [
   ["up", e, d, a],
   ["left", a, b, d],
   ["down", b, a, d],
-  ["up", d, a, ACCENT],
+  ["up", d, a, HARBOR_TEAL],
   ["right", e, c, b],
   ["up", a, d, e],
   ["left", d, c, e],
@@ -177,7 +187,7 @@ function Arches() {
     >
       <div className="grid aspect-3/4 w-[max(100cqw,75cqh)] grid-cols-3 grid-rows-4">
         {CELLS.map(([face, ground, outer, inner], index) => {
-          const [round, inset, outerBody, innerBody] = FACES[face];
+          const { round, inset, outerBody, innerBody } = FACES[face];
           return (
             // oxlint-disable-next-line react/no-array-index-key
             <div key={index} className={cn("relative -mr-px -mb-px overflow-hidden", ground)}>

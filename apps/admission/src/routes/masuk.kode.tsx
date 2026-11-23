@@ -49,7 +49,7 @@ function CodeStep() {
     // The boxes keep the digits to compare with the email. Selecting them lets
     // the next digit start over.
     onError: (error) => {
-      if (!explain(error).canRetry) input.current?.setSelectionRange(0, CODE_LENGTH);
+      if (explain(error).next !== "RETRY") input.current?.setSelectionRange(0, CODE_LENGTH);
     },
   });
   const resend = useMutation({
@@ -104,13 +104,13 @@ function CodeStep() {
           value={code}
           // Not `onComplete`, which stays silent when six digits replace six.
           onChange={(value) => {
-            if (value === code) return;
+            if (busy || value === code) return;
             setCode(value);
             signIn.reset();
             submit(value);
           }}
           readOnly={busy}
-          aria-invalid={refusal && !refusal.canRetry ? true : undefined}
+          aria-invalid={refusal && refusal.next !== "RETRY" ? true : undefined}
           aria-describedby="code-sent code-status"
         >
           <InputOTPGroup>
@@ -133,7 +133,7 @@ function CodeStep() {
             {busy ? "Memeriksa kode…" : resend.isSuccess ? "Kode baru sudah dikirim." : null}
           </output>
         </div>
-        {refusal?.canRetry && !resend.error && (
+        {refusal?.next === "RETRY" && !resend.error && (
           <Button type="submit" size="touch">
             Coba lagi
           </Button>

@@ -95,9 +95,11 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     log: (level: "info" | "warn" | "error" | "debug", message: string, ...args: unknown[]) =>
       app.log[level]({ args: args.map(redactArg) }, `better-auth: ${redactMessage(message)}`),
   };
+  const codeQueue = createCodeQueue();
   app.decorate("auth", {
     FAMILY: createFamilyAuth(db, config, {
       logger,
+      codeQueue,
       sendSignInCode: async (email, code) => {
         await notifications.sendSignInCode(email, code);
       },
@@ -105,7 +107,6 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     STAFF: createStaffAuth(db, config, { logger }),
   });
 
-  const inTurn = createCodeQueue();
   const appUrls = { FAMILY: config.auth.familyAppUrl, STAFF: config.auth.adminAppUrl };
   const audiences = new Map<string, Audience>([
     [new URL(appUrls.FAMILY).host, "FAMILY"],
@@ -143,17 +144,15 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
       const auth = app.auth[audience];
 
       const url = new URL(request.url, appUrls[audience]);
-      const handle = () =>
-        auth.handler(
+      const response = await auth
+        .handler(
           new Request(url, {
             method: request.method,
             headers: authHeaders(request),
             ...(request.body ? { body: JSON.stringify(request.body) } : {}),
           }),
-        );
-      const address =
-        url.pathname === "/api/auth/email-otp/send-verification-otp" ? emailIn(request.body) : null;
-      const response = address === null ? await handle() : await inTurn(address, handle);
+        )
+        .finally(() => codeQueue.leave(request.id));
 
       reply.status(response.status);
       response.headers.forEach((value, key) => reply.header(key, value));
@@ -191,11 +190,6 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
   });
 
   return app;
-}
-
-function emailIn(body: unknown) {
-  if (typeof body !== "object" || body === null || !("email" in body)) return null;
-  return typeof body.email === "string" ? body.email.toLowerCase() : null;
 }
 
 function authHeaders(request: FastifyRequest) {

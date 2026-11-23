@@ -1,4 +1,4 @@
-import { googleSignInUrl } from "@mbs/api-client/auth";
+import { goToGoogle } from "@mbs/api-client/auth";
 import { UnreachableError } from "@mbs/api-client/http";
 import { Alert } from "@mbs/ui/components/alert";
 import { Button, buttonVariants } from "@mbs/ui/components/button";
@@ -9,7 +9,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { cn } from "cn";
 import { CircleAlertIcon } from "lucide-react";
-import { useEffect, useRef, type FormEvent } from "react";
+import { useRef, type FormEvent } from "react";
 
 import { accountQuery } from "../account.ts";
 import { explain, pendingEmail, requestCode, setPendingEmail } from "../email-code.ts";
@@ -39,24 +39,12 @@ function Google() {
   const account = useQuery(accountQuery);
   const google = useMutation({
     mutationFn: () =>
-      googleSignInUrl({
+      goToGoogle({
         returnTo: lanjut ?? "/",
         errorTo: lanjut ? `/masuk?lanjut=${encodeURIComponent(lanjut)}` : "/masuk",
         chooseAccount: error !== undefined,
       }),
-    onSuccess: (url) => location.assign(url),
   });
-  const { reset } = google;
-
-  // The button waits until the browser leaves. Coming back restores this page as
-  // it was left, with the button still waiting.
-  useEffect(() => {
-    const onReturn = (event: PageTransitionEvent) => event.persisted && reset();
-    addEventListener("pageshow", onReturn);
-    return () => removeEventListener("pageshow", onReturn);
-  }, [reset]);
-
-  const busy = google.isPending || google.isSuccess;
   const unreachable = account.error instanceof UnreachableError;
   return (
     <div className="grid grid-cols-1 gap-4">
@@ -79,11 +67,11 @@ function Google() {
       ) : null}
       <GoogleButton
         size="touch"
-        disabled={busy}
+        disabled={google.isPending}
         focusableWhenDisabled
         onClick={() => google.mutate()}
       >
-        {busy ? "Membuka Google…" : "Lanjutkan dengan Google"}
+        {google.isPending ? "Membuka Google…" : "Lanjutkan dengan Google"}
       </GoogleButton>
     </div>
   );
@@ -125,7 +113,7 @@ function EmailForm() {
           spellCheck={false}
           defaultValue={pendingEmail() ?? ""}
           placeholder="cth. nama@email.com"
-          aria-invalid={failure && !failure.canRetry ? true : undefined}
+          aria-invalid={failure && failure.next !== "RETRY" ? true : undefined}
           aria-describedby="email-error"
           className="h-11 rounded-xl px-3.5"
         />
@@ -137,7 +125,7 @@ function EmailForm() {
             </p>
           )}
         </div>
-        {failure?.hasUsableCode && (
+        {failure?.next === "LAST_CODE" && (
           <Link
             to="/masuk/kode"
             search={{ lanjut }}

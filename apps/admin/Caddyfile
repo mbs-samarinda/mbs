@@ -20,7 +20,7 @@
 		Cross-Origin-Opener-Policy same-origin
 		# Search should land on the school sites, which explain admission.
 		X-Robots-Tag noindex
-		# The file names below carry no hash, so a release must show at once.
+		# index.html and the icon carry no hash, so a release must show at once.
 		Cache-Control no-cache
 	}
 

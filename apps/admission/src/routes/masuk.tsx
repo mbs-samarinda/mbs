@@ -30,7 +30,7 @@ export const Route = createFileRoute("/masuk")({
 function SignInLayout() {
   const { lanjut = "/" } = Route.useSearch();
   const router = useRouter();
-  const account = useQuery(accountQuery);
+  const account = useQuery({ ...accountQuery, refetchOnWindowFocus: "always" });
   const signedIn = Boolean(account.data);
 
   // The one way out of these screens, for a code, for a visit that was already

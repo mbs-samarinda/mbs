@@ -8,25 +8,24 @@ export class AuthError extends Error {
   readonly status: number;
   readonly code: string | null;
   readonly retryAfterSeconds: number | null;
-  /** The whole answer, for a code that says more than its name. */
-  readonly details: unknown;
+  readonly body: unknown;
 
   constructor(
     status: number,
     code: string | null,
     retryAfterSeconds: number | null,
-    details: unknown = null,
+    body: unknown = null,
   ) {
     super(`Sign-in request refused: ${code ?? status}`);
     this.status = status;
     this.code = code;
     this.retryAfterSeconds = retryAfterSeconds;
-    this.details = details;
+    this.body = body;
   }
 }
 
 /** Plain fetch, not Better Auth's client library, to keep the first load small. */
-export async function authRequest(path: string, body?: object): Promise<unknown> {
+async function request(path: string, body?: object): Promise<Response> {
   const response = await apiFetch(
     `/api/auth${path}`,
     body && {
@@ -35,12 +34,7 @@ export async function authRequest(path: string, body?: object): Promise<unknown>
       body: JSON.stringify(body),
     },
   );
-  if (response.ok) {
-    // Never null: a body cut off on the way would then read as "no account".
-    return response.json().catch((cause: unknown) => {
-      throw new UnreachableError("The answer was cut off.", { cause });
-    });
-  }
+  if (response.ok) return response;
   const data: unknown = await response.json().catch(() => null);
   const retryAfter = Number(response.headers.get("x-retry-after"));
   throw new AuthError(
@@ -51,38 +45,60 @@ export async function authRequest(path: string, body?: object): Promise<unknown>
   );
 }
 
+/**
+ * The status alone decides. A code is used up by then, so a body cut off on the
+ * way must not turn a sign-in that worked into one to try again.
+ */
+export async function authPost(path: string, body: object) {
+  await request(path, body);
+}
+
+async function answerOf(response: Response): Promise<unknown> {
+  return response.json().catch((cause: unknown) => {
+    throw new UnreachableError("The answer was cut off.", { cause });
+  });
+}
+
 /** The signed-in account, or null. */
 export async function fetchAccount(): Promise<Account | null> {
-  const data = await authRequest("/get-session");
+  const data = await answerOf(await request("/get-session"));
   const user = typeof data === "object" && data !== null && "user" in data ? data.user : null;
   const email = stringIn(user, "email");
   return email === null ? null : { email };
 }
 
 export async function signOut() {
-  await authRequest("/sign-out", {});
+  await authPost("/sign-out", {});
 }
 
+const LEAVING_MS = 5_000;
+
 /**
- * Asks for the Google page to send the browser to. Both paths must already be
- * safe return targets; Better Auth checks them against the app's origin too.
- * `chooseAccount` makes Google ask, where it would reuse its only account in
- * silence and refuse the visitor a second time.
+ * Sends the browser to Google. Both paths must already be safe return targets;
+ * Better Auth checks them against the app's origin too. `chooseAccount` makes
+ * Google ask, where it would reuse its only account in silence and refuse the
+ * visitor a second time.
+ *
+ * Resolves a while after the browser starts to leave, so a button can wait for
+ * the new page and still come back when it never loads.
  */
-export async function googleSignInUrl(options: {
+export async function goToGoogle(options: {
   returnTo: string;
   errorTo: string;
   chooseAccount: boolean;
 }) {
-  const data = await authRequest("/sign-in/social", {
-    provider: "google",
-    callbackURL: new URL(options.returnTo, location.origin).href,
-    errorCallbackURL: new URL(options.errorTo, location.origin).href,
-    ...(options.chooseAccount ? { additionalParams: { prompt: "select_account" } } : {}),
-  });
+  const data = await answerOf(
+    await request("/sign-in/social", {
+      provider: "google",
+      callbackURL: new URL(options.returnTo, location.origin).href,
+      errorCallbackURL: new URL(options.errorTo, location.origin).href,
+      ...(options.chooseAccount ? { additionalParams: { prompt: "select_account" } } : {}),
+    }),
+  );
   const url = stringIn(data, "url");
   if (url === null) throw new Error("Google sign-in gave no URL.");
-  return url;
+  location.assign(url);
+  await new Promise((resolve) => setTimeout(resolve, LEAVING_MS));
 }
 
 function stringIn(data: unknown, key: string): string | null {

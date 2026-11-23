@@ -37,12 +37,12 @@ readonly apps
 
 # shellcheck source=lib.sh
 source /opt/mbs/lib.sh
-# A copy of images.env, taken only once a deploy has passed every check below.
+# The pins of images.env, taken only once a deploy has passed every check below.
 # images.env itself is rewritten before anything is proven, so after a failure
 # this is the only record of what last worked.
 readonly LAST_GOOD_FILE=$ROOT/images.last-good.env
-# One line of images for every deploy that passed, oldest first. Lines from before
-# the two PPDB apps hold three images, newer ones five.
+# One line of images for every deploy that passed, oldest first. A line holds three
+# images when that deploy left the two PPDB apps alone or came before them.
 readonly HISTORY_FILE=$ROOT/images.history
 readonly KEEP_RELEASES=4
 readonly PROJECT=mbs-prod
@@ -100,7 +100,7 @@ on_exit() {
   ((status != 0)) && $pinned || return "$status"
   if [[ -f $LAST_GOOD_FILE ]]; then
     local tags
-    # A last good release from before the two apps names none, so they stay.
+    # A last good file that names no apps leaves them as they are.
     # shellcheck disable=SC1090
     tags=$(
       ADMISSION_IMAGE=- ADMIN_IMAGE=-
@@ -552,11 +552,14 @@ log "Deployed $deployed"
 
 # After every check, so it only ever names images that passed. Written to a
 # temporary name and renamed, so a crash mid-write cannot leave half a file.
-# App images this run left alone were not checked, so they are not named.
+# App images this run left alone were not checked, so the ones that last passed stay.
 if ((${#apps[@]} > 0)); then
   cp "$IMAGES_FILE" "$LAST_GOOD_FILE.tmp"
 else
-  grep -vE '^(ADMISSION|ADMIN)_IMAGE=' "$IMAGES_FILE" > "$LAST_GOOD_FILE.tmp"
+  {
+    grep -vE '^(ADMISSION|ADMIN)_IMAGE=' "$IMAGES_FILE"
+    grep -E '^(ADMISSION|ADMIN)_IMAGE=' "$LAST_GOOD_FILE" 2> /dev/null || true
+  } > "$LAST_GOOD_FILE.tmp"
 fi
 mv "$LAST_GOOD_FILE.tmp" "$LAST_GOOD_FILE"
 log "Recorded $LAST_GOOD_FILE"

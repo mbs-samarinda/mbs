@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -99,6 +99,33 @@ describe("the code step", () => {
       email: "wali@example.test",
       otp: "482918",
     });
+  });
+
+  it("keeps the running code on screen when another is pasted over it", async () => {
+    const { promise: answered, resolve: answer } = Promise.withResolvers<Response>();
+    let calls = 0;
+    vi.stubGlobal("fetch", (input: string) => {
+      if (input.endsWith("/get-session")) {
+        return Promise.resolve(Response.json(null, { headers: { "x-request-id": "1" } }));
+      }
+      calls += 1;
+      return answered;
+    });
+    const { code } = await openCodeStep();
+    const user = userEvent.setup();
+    await user.type(code, "111111");
+    expect(await screen.findByText("Memeriksa kode…")).toBeVisible();
+    // Not `user.paste`, which leaves a read-only field alone. The browser's own
+    // event still reaches the code field's library.
+    if (code instanceof HTMLInputElement) code.setSelectionRange(0, 6);
+    fireEvent.paste(code, { clipboardData: { getData: () => "482918" } });
+    expect(code).toHaveValue("111111");
+
+    answer(
+      Response.json({ code: "INVALID_OTP" }, { status: 400, headers: { "x-request-id": "1" } }),
+    );
+    expect(await screen.findByText(/Kode belum cocok/)).toBeVisible();
+    expect(calls).toBe(1);
   });
 
   it("never sends a refused code again when asking for a new one fails", async () => {
@@ -208,7 +235,7 @@ describe("the email step", () => {
       "/email-otp/send-verification-otp": [
         {
           status: 429,
-          body: { code: "TOO_MANY_CODES", lastCodeInTime: true },
+          body: { code: "TOO_MANY_CODES", lastCodeWorks: true },
           headers: { "x-retry-after": "640" },
         },
       ],
@@ -228,7 +255,7 @@ describe("the email step", () => {
       "/email-otp/send-verification-otp": [
         {
           status: 429,
-          body: { code: "TOO_MANY_CODES", lastCodeInTime: false },
+          body: { code: "TOO_MANY_CODES", lastCodeWorks: false },
           headers: { "x-retry-after": "300" },
         },
       ],

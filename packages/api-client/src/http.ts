@@ -1,4 +1,4 @@
-/** The API never answered: no network, a timeout, or a proxy with nothing behind it. */
+/** No whole answer came from the API: no network, a timeout, a cut-off body, or a proxy alone. */
 export class UnreachableError extends Error {
   override name = "UnreachableError";
 }
@@ -6,8 +6,8 @@ export class UnreachableError extends Error {
 const TIMEOUT_MS = 20_000;
 
 /**
- * `fetch` to this app's own API. The API puts `x-request-id` on every answer, so
- * an answer without one came from a proxy that could not reach it.
+ * `fetch` to this app's own API. The API's routes all answer with `x-request-id`,
+ * so an answer without one came from a proxy that could not reach it.
  */
 export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const timeout = AbortSignal.timeout(TIMEOUT_MS);

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AuthError, authRequest, fetchAccount } from "./auth.ts";
+import { AuthError, authPost, fetchAccount, goToGoogle } from "./auth.ts";
 import { UnreachableError } from "./http.ts";
 import { createApiClient } from "./rpc.ts";
 
@@ -27,7 +27,7 @@ describe("calls to the API", () => {
 
   it("carries the code and the wait of a refusal", async () => {
     fetchMock.mockResolvedValueOnce(fromApi({ code: "INVALID_OTP" }, 400));
-    await expect(authRequest("/sign-in/email-otp", {})).rejects.toMatchObject({
+    await expect(authPost("/sign-in/email-otp", {})).rejects.toMatchObject({
       status: 400,
       code: "INVALID_OTP",
       retryAfterSeconds: null,
@@ -36,7 +36,7 @@ describe("calls to the API", () => {
     fetchMock.mockResolvedValueOnce(
       fromApi({ message: "Too many requests." }, 429, { "x-retry-after": "42" }),
     );
-    const error = await authRequest("/sign-in/social", {}).catch((thrown: unknown) => thrown);
+    const error = await authPost("/sign-in/social", {}).catch((thrown: unknown) => thrown);
     expect(error).toBeInstanceOf(AuthError);
     expect(error).toMatchObject({ status: 429, code: null, retryAfterSeconds: 42 });
   });
@@ -46,6 +46,28 @@ describe("calls to the API", () => {
       new Response('{"user":{"em', { headers: { "x-request-id": "1" } }),
     );
     await expect(fetchAccount()).rejects.toBeInstanceOf(UnreachableError);
+  });
+
+  it("takes a sign-in whose answer is cut off as done", async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{"us', { headers: { "x-request-id": "1" } }));
+    await expect(authPost("/sign-in/email-otp", {})).resolves.toBeUndefined();
+  });
+
+  it("goes to Google, and gives the button back when the page never leaves", async () => {
+    vi.useFakeTimers();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { origin: "http://localhost:5173", assign });
+    fetchMock.mockResolvedValueOnce(fromApi({ url: "https://accounts.google.test/" }));
+    let settled = false;
+    const going = goToGoogle({ returnTo: "/", errorTo: "/masuk", chooseAccount: false }).then(
+      () => (settled = true),
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(assign).toHaveBeenCalledExactlyOnceWith("https://accounts.google.test/");
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await going;
+    vi.useRealTimers();
   });
 
   it("reads the account, and no account", async () => {

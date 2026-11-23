@@ -1,37 +1,35 @@
-import { AuthError, authRequest } from "@mbs/api-client/auth";
+import { AuthError, authPost } from "@mbs/api-client/auth";
 import { UnreachableError } from "@mbs/api-client/http";
 
 export const CODE_LENGTH = 6;
 
 export async function requestCode(email: string) {
-  await authRequest("/email-otp/send-verification-otp", { email, type: "sign-in" });
+  await authPost("/email-otp/send-verification-otp", { email, type: "sign-in" });
 }
 
 export async function signInWithCode(email: string, otp: string) {
-  await authRequest("/sign-in/email-otp", { email, otp });
+  await authPost("/sign-in/email-otp", { email, otp });
 }
 
 /**
  * The address the last code went to. It has to survive a refresh of the code
  * step, and it is personal data, so it stays out of the URL.
  */
-const KEY = "mbs:code-email";
+const PENDING_EMAIL_KEY = "mbs:code-email";
 
 export function pendingEmail(): string | null {
-  return sessionStorage.getItem(KEY);
+  return sessionStorage.getItem(PENDING_EMAIL_KEY);
 }
 
 export function setPendingEmail(email: string | null) {
-  if (email === null) sessionStorage.removeItem(KEY);
-  else sessionStorage.setItem(KEY, email);
+  if (email === null) sessionStorage.removeItem(PENDING_EMAIL_KEY);
+  else sessionStorage.setItem(PENDING_EMAIL_KEY, email);
 }
 
 export type Failure = {
   message: string;
-  /** Sending the same thing again can work. */
-  canRetry: boolean;
-  /** No more codes for now, but the last one may still work. */
-  hasUsableCode: boolean;
+  /** What can still work: the same thing again, the last code sent, or neither. */
+  next: "RETRY" | "LAST_CODE" | null;
 };
 
 const REFUSALS: Record<string, string> = {
@@ -48,7 +46,7 @@ export function explain(error: Error): Failure {
   if (error instanceof AuthError) {
     if (error.code === "TOO_MANY_CODES") return tooManyCodes(error);
     const refusal = error.code === null ? undefined : REFUSALS[error.code];
-    if (refusal) return { message: refusal, canRetry: false, hasUsableCode: false };
+    if (refusal) return { message: refusal, next: null };
     if (error.status === 429) {
       return retryable(`Terlalu banyak percobaan. Tunggu ${waitOf(error)}, lalu coba lagi.`);
     }
@@ -57,23 +55,21 @@ export function explain(error: Error): Failure {
 }
 
 function retryable(message: string): Failure {
-  return { message, canRetry: true, hasUsableCode: false };
+  return { message, next: "RETRY" };
 }
 
-/** The cap outlasts a code, so the last one is worth trying only for a while. */
 function tooManyCodes(error: AuthError): Failure {
-  const { details } = error;
-  const hasUsableCode =
-    typeof details === "object" &&
-    details !== null &&
-    "lastCodeInTime" in details &&
-    details.lastCodeInTime === true;
+  const { body } = error;
+  const lastCodeWorks =
+    typeof body === "object" &&
+    body !== null &&
+    "lastCodeWorks" in body &&
+    body.lastCodeWorks === true;
   return {
-    message: hasUsableCode
+    message: lastCodeWorks
       ? `Kami sudah mengirim 5 kode ke email ini. Pakai kode yang terakhir, atau minta kode baru ${waitOf(error)} lagi.`
       : `Kami sudah mengirim 5 kode ke email ini. Minta kode baru ${waitOf(error)} lagi.`,
-    canRetry: false,
-    hasUsableCode,
+    next: lastCodeWorks ? "LAST_CODE" : null,
   };
 }
 

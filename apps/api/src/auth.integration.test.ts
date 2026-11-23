@@ -291,7 +291,7 @@ describe("code emails per address", () => {
 
     const refused = await ask("wAli@example.com");
     expect(refused.statusCode).toBe(429);
-    expect(refused.json()).toMatchObject({ code: "TOO_MANY_CODES", lastCodeInTime: true });
+    expect(refused.json()).toMatchObject({ code: "TOO_MANY_CODES", lastCodeWorks: true });
     const wait = Number(refused.headers["x-retry-after"]);
     expect(wait).toBeGreaterThan(14 * 60);
     expect(wait).toBeLessThanOrEqual(15 * 60);
@@ -326,13 +326,66 @@ describe("code emails per address", () => {
       await requestCode("sabar@example.com");
     }
     await db.update(schema.notifications).set({ createdAt: sql`now() - interval '6 minutes'` });
+    await db.update(schema.verification).set({ expiresAt: new Date(Date.now() - 60_000) });
     const refused = await ask("sabar@example.com");
     expect(refused.statusCode).toBe(429);
-    expect(refused.json()).toMatchObject({ lastCodeInTime: false });
+    expect(refused.json()).toMatchObject({ lastCodeWorks: false });
     expect(Number(refused.headers["x-retry-after"])).toBeLessThanOrEqual(9 * 60);
     await db.update(schema.notifications).set({ createdAt: sql`now() - interval '16 minutes'` });
     expect((await ask("sabar@example.com")).statusCode).toBe(200);
   });
+
+  it("counts an address that is valid only once lowercased", async () => {
+    for (let i = 0; i < 5; i++) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await requestCode("kakek@example.com");
+    }
+    const refused = await ask("\u212Aakek@example.com");
+    expect(refused.statusCode).toBe(429);
+    expect(mailer.sent).toHaveLength(5);
+  });
+
+  it.each([
+    [
+      "three wrong tries",
+      async () => {
+        for (let i = 0; i < 3; i++) {
+          // oxlint-disable-next-line eslint/no-await-in-loop
+          await signInWithCode("salah@example.com", "000000");
+        }
+      },
+    ],
+    [
+      "a send that failed for good",
+      () => db.update(schema.notifications).set({ status: "FAILED" }),
+    ],
+  ])("says the last code is no use after %s", async (_, spoil) => {
+    for (let i = 0; i < 5; i++) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await requestCode("salah@example.com");
+    }
+    await spoil();
+    const refused = await ask("salah@example.com");
+    expect(refused.json()).toMatchObject({ code: "TOO_MANY_CODES", lastCodeWorks: false });
+  });
+
+  it("answers a request the limit refuses without waiting in the address's line", async () => {
+    const busy = "198.51.100.9";
+    for (let i = 0; i < 10; i++) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await ask(`lain-${i}@example.com`, busy);
+    }
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`lock table notifications in access exclusive mode`);
+      // `then` starts it: an injected request waits to be awaited.
+      const waiting = ask("wali@example.com", "198.51.100.10").then((answer) => answer.statusCode);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const refused = await ask("wali@example.com", busy);
+      expect(refused.statusCode).toBe(429);
+      await tx.execute(sql`commit`);
+      expect(await waiting).toBe(200);
+    });
+  }, 4_000);
 
   it("holds when many requests arrive at once from many addresses", async () => {
     await Promise.all(
