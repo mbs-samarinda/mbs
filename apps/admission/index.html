@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Pendaftaran Madina Boarding School</title>
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <!-- The first thing the app asks. Fetched beside the script, not after it. -->
+    <link rel="preload" as="fetch" href="/api/auth/get-session" crossorigin="anonymous" />
+    <!-- The sign-in photos, which the script would ask for only once it has downloaded and
+         runs. A signed-in page fetches them too and does not draw them; they are cached by then. -->
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/smp-band.avif"
+      media="(width < 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/smk-band.avif"
+      media="(width < 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/sma-band.avif"
+      media="(width < 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/smp-arch.avif"
+      media="(width >= 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/smk-arch.avif"
+      media="(width >= 64rem)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/avif"
+      href="/src/assets/sma-arch.avif"
+      media="(width >= 64rem)"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+@import "@mbs/ui/globals.css";
+
+@theme inline {
+  --color-surface-brand: var(--surface-brand);
+}
+
+/* The umbrella's approved tint, the same value the profile sites use. */
+:root {
+  --surface-brand: oklch(0.949 0.01 219.6); /* #e7f0f3 */
+}
+.dark {
+  --surface-brand: oklch(0.259 0.047 218.5); /* #002933 */
+}

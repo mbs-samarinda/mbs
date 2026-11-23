@@ -1,7 +1,7 @@
 # Production stack. Runs on the VPS; nothing here builds.
 #
 # Images are pinned by digest rather than tag, so a re-pull can never bring a
-# different Postgres or Caddy than the one that was tested. The three
+# different Postgres or Caddy than the one that was tested. The five
 # application images are pinned by the release workflow instead, which passes
 # their tags in through the env file.
 #
@@ -132,10 +132,13 @@ services:
       # right one. Enforced where the secrets are made, in slice 7.
       DATABASE_URL: postgres://mbs:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/mbs_core
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
-      FAMILY_APP_URL: ${FAMILY_APP_URL:?set FAMILY_APP_URL}
+      # Built from PROFILE_APEX, like the Caddyfile's two hosts and the profile's
+      # links. The API picks the sign-in by exact host, so a value of its own
+      # could drift and turn every sign-in into a 404.
+      FAMILY_APP_URL: https://admission.${PROFILE_APEX:?set PROFILE_APEX}
+      ADMIN_APP_URL: https://admin.${PROFILE_APEX:?set PROFILE_APEX}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET}
-      ADMIN_APP_URL: ${ADMIN_APP_URL:?set ADMIN_APP_URL}
       SMTP_URL: ${SMTP_URL:?set SMTP_URL}
       MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
@@ -209,6 +212,26 @@ services:
       - content-cache:/app/.cache/content
     oom_score_adj: 200
 
+  # The default only lets compose parse this file before the first deploy that
+  # writes these two pins. Every command reads the whole file, so without it a
+  # deploy that stops early would stop the nightly backup too. No such tag exists,
+  # so nothing can run on it.
+  admission:
+    image: ${ADMISSION_IMAGE:-ghcr.io/mbs-samarinda/mbs-admission:not-deployed-yet}
+    restart: unless-stopped
+    healthcheck: &app-health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    oom_score_adj: 200
+
+  admin:
+    image: ${ADMIN_IMAGE:-ghcr.io/mbs-samarinda/mbs-admin:not-deployed-yet}
+    restart: unless-stopped
+    healthcheck: *app-health
+    oom_score_adj: 200
+
   caddy:
     image: caddy@sha256:ad27e531c8b286ff153c0e6e16587a1583e4111bb58c4d83bd73d6d3ef0a0ce1
     restart: unless-stopped
@@ -216,6 +239,8 @@ services:
       - profile
       - api
       - cms
+      - admission
+      - admin
     ports:
       - "80:80"
       - "443:443"

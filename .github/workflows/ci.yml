@@ -49,6 +49,8 @@ jobs:
           PROFILE_APEX: mbss.sch.id
           CMS_HOST: cms.mbss.sch.id
           CADDY_EMAIL: ci@example.com
+      # The same pinned Caddy, running, with a stub behind every route.
+      - run: infra/test-caddyfile.sh
 
   typecheck:
     runs-on: ubuntu-latest

@@ -9,6 +9,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 
 import type { Config } from "./config/env.ts";
 import {
+  createCodeQueue,
   createFamilyAuth,
   createStaffAuth,
   REQUEST_ID_HEADER,
@@ -94,9 +95,11 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     log: (level: "info" | "warn" | "error" | "debug", message: string, ...args: unknown[]) =>
       app.log[level]({ args: args.map(redactArg) }, `better-auth: ${redactMessage(message)}`),
   };
+  const codeQueue = createCodeQueue();
   app.decorate("auth", {
     FAMILY: createFamilyAuth(db, config, {
       logger,
+      codeQueue,
       sendSignInCode: async (email, code) => {
         await notifications.sendSignInCode(email, code);
       },
@@ -141,13 +144,15 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
       const auth = app.auth[audience];
 
       const url = new URL(request.url, appUrls[audience]);
-      const response = await auth.handler(
-        new Request(url, {
-          method: request.method,
-          headers: authHeaders(request),
-          ...(request.body ? { body: JSON.stringify(request.body) } : {}),
-        }),
-      );
+      const response = await auth
+        .handler(
+          new Request(url, {
+            method: request.method,
+            headers: authHeaders(request),
+            ...(request.body ? { body: JSON.stringify(request.body) } : {}),
+          }),
+        )
+        .finally(() => codeQueue.leave(request.id));
 
       reply.status(response.status);
       response.headers.forEach((value, key) => reply.header(key, value));

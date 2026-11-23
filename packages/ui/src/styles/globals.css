@@ -4,7 +4,6 @@
 @import "@fontsource-variable/plus-jakarta-sans";
 
 @custom-variant dark (&:is(.dark *));
-@source "../../../../apps/*/src/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
 @theme inline {
@@ -182,6 +181,13 @@
       transition-property: opacity, color, background-color, border-color, fill, stroke !important;
       scroll-behavior: auto !important;
     }
+  }
+
+  .theme-changing,
+  .theme-changing *,
+  .theme-changing *::before,
+  .theme-changing *::after {
+    transition: none !important;
   }
 
   * {

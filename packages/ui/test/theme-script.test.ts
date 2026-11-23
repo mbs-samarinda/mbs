@@ -2,7 +2,7 @@ import vm from "node:vm";
 
 import { describe, expect, it } from "vitest";
 
-import { THEME_SCRIPT } from "./theme-script-content.ts";
+import { THEME_SCRIPT } from "../src/theme-script.ts";
 
 describe("theme script", () => {
   it("follows system theme changes unless the visitor chose a theme", () => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Starts, checks and stops one isolated MBSS stack for verification:
 # a throwaway Postgres container, a Mailpit container that catches every email,
-# the API, Strapi and the profile site, each on
+# the API, Strapi, the profile site, the parent app and the committee app, each on
 # its own port and fed only the environment written here. The apps' own .env
 # files fill in anything not set, so every key they read is set explicitly.
 #
@@ -26,6 +26,10 @@ PG_PORT=${PG_PORT:-55432}
 API_PORT=${API_PORT:-3101}
 CMS_PORT=${CMS_PORT:-1437}
 PROFILE_PORT=${PROFILE_PORT:-3102}
+# 5173 is the dev port, unlike the others: the profile's "Mulai Pendaftaran" link
+# is fixed to it on localhost. 5174 goes with it.
+ADMISSION_PORT=${ADMISSION_PORT:-5173}
+ADMIN_PORT=${ADMIN_PORT:-5174}
 MAIL_SMTP_PORT=${MAIL_SMTP_PORT:-51125}
 MAIL_WEB_PORT=${MAIL_WEB_PORT:-58125}
 MAILPIT_IMAGE=axllent/mailpit:v1.34.0
@@ -107,7 +111,7 @@ build_envs() {
     NODE_ENV=development LOG_LEVEL=info PORT="$API_PORT"
     BETTER_AUTH_SECRET="$AUTH_SECRET"
     GOOGLE_CLIENT_ID=verify-placeholder GOOGLE_CLIENT_SECRET=verify-placeholder
-    FAMILY_APP_URL=http://localhost:5173 ADMIN_APP_URL=http://localhost:5174
+    FAMILY_APP_URL="http://localhost:$ADMISSION_PORT" ADMIN_APP_URL="http://localhost:$ADMIN_PORT"
     SMTP_URL="smtp://127.0.0.1:$MAIL_SMTP_PORT" MAIL_FROM="PPDB MBSS <ppdb@mbss.test>"
     NOTIFICATION_WORKER=on BOOTSTRAP_ADMIN_EMAIL=)
   CMS_ENV=(HOST=127.0.0.1 PORT="$CMS_PORT" PUBLIC_URL="http://localhost:$CMS_PORT"
@@ -124,6 +128,7 @@ build_envs() {
     API_BASE_URL="http://localhost:$API_PORT" REVALIDATE_SECRET="$REVALIDATE_SECRET" CMS_READ_TOKEN="${CMS_READ_TOKEN:-}"
     PREVIEW_SECRET="${PREVIEW_SECRET:-}" CMS_HOST="localhost:$CMS_PORT"
     PROFILE_CACHE_DIR="$SCRATCH/profile-cache" MEDIA_BASE_URL=)
+  VITE_ENV=(API_ORIGIN="http://127.0.0.1:$API_PORT")
 }
 
 load_run() {
@@ -160,12 +165,19 @@ profile_ready() {
     "http://127.0.0.1:$PROFILE_PORT/") == *"SMP Islam Terpadu Madina"* ]]
 }
 
+# The session call goes through Vite's proxy to the API, which answers 404 for a
+# host it does not know. So a 200 also proves the app's own host reached it.
+app_ready() {
+  [[ $(curl -fsS "http://localhost:$1/") == *'id="root"'* ]] \
+    && curl -fsS -o /dev/null "http://localhost:$1/api/auth/get-session"
+}
+
 # --- commands ----------------------------------------------------------------
 
 cmd_up() {
   command -v docker >/dev/null || die "docker is not installed"
-  for p in "$PG_PORT" "$API_PORT" "$CMS_PORT" "$PROFILE_PORT" "$MAIL_SMTP_PORT" "$MAIL_WEB_PORT"; do
-    port_busy "$p" && die "port $p is already in use; set PG_PORT/API_PORT/CMS_PORT/PROFILE_PORT/MAIL_SMTP_PORT/MAIL_WEB_PORT or stop the other stack"
+  for p in "$PG_PORT" "$API_PORT" "$CMS_PORT" "$PROFILE_PORT" "$ADMISSION_PORT" "$ADMIN_PORT" "$MAIL_SMTP_PORT" "$MAIL_WEB_PORT"; do
+    port_busy "$p" && die "port $p is already in use; set PG_PORT/API_PORT/CMS_PORT/PROFILE_PORT/ADMISSION_PORT/ADMIN_PORT/MAIL_SMTP_PORT/MAIL_WEB_PORT or stop the other stack"
   done
   local held
   held=$(procs_in "$REPO/apps/profile" "next" ; procs_in "$REPO/apps/cms" "strapi")
@@ -199,6 +211,8 @@ PG_PORT=$PG_PORT
 API_PORT=$API_PORT
 CMS_PORT=$CMS_PORT
 PROFILE_PORT=$PROFILE_PORT
+ADMISSION_PORT=$ADMISSION_PORT
+ADMIN_PORT=$ADMIN_PORT
 AUTH_SECRET=$AUTH_SECRET
 REVALIDATE_SECRET=$REVALIDATE_SECRET
 CMS_READ_TOKEN=$CMS_READ_TOKEN
@@ -230,6 +244,10 @@ EOF
   start_group api "$REPO/apps/api" "${API_ENV[@]}" node src/server.ts
   start_group cms "$REPO/apps/cms" "${CMS_ENV[@]}" pnpm exec strapi develop
   wait_for 60 api api_ready || die "api not ready; see $LOGS/api.log"
+  start_group admission "$REPO/apps/admission" "${VITE_ENV[@]}" pnpm exec vite --port "$ADMISSION_PORT" --strictPort
+  start_group admin "$REPO/apps/admin" "${VITE_ENV[@]}" pnpm exec vite --port "$ADMIN_PORT" --strictPort
+  wait_for 60 "parent app" app_ready "$ADMISSION_PORT" || die "parent app not ready; see $LOGS/admission.log"
+  wait_for 60 "committee app" app_ready "$ADMIN_PORT" || die "committee app not ready; see $LOGS/admin.log"
   # First boot runs every Strapi migration and seed, then builds the admin.
   wait_for 300 cms cms_ready || die "cms not ready; see $LOGS/cms.log"
 
@@ -250,6 +268,9 @@ EOF
 
   UP_RUN=
   log "ready. drive with: RUN=$RUN"
+  log "parent app    http://localhost:$ADMISSION_PORT"
+  log "committee app http://localhost:$ADMIN_PORT"
+  log "profile       http://localhost:$PROFILE_PORT"
   echo "$RUN"
 }
 
@@ -258,7 +279,7 @@ cmd_doctor() {
   local ok=1 name pgid
   check() { if "${@:2}" >/dev/null 2>&1; then echo "ok    $1"; else echo "FAIL  $1"; ok=0; fi; }
   echo "run $RUN  commit $GIT_REV (checkout now at $(git -C "$REPO" rev-parse --short HEAD))"
-  for name in api cms profile; do
+  for name in api cms profile admission admin; do
     # A missing id must FAIL: `kill -0 -- -0` would signal our own group and pass.
     pgid=$(cat "$SCRATCH/$name.pgid" 2>/dev/null || true)
     group_alive() { [[ -n $1 ]] && kill -0 -- "-$1"; }
@@ -272,6 +293,8 @@ cmd_doctor() {
   check "port $API_PORT owned by this run's api" port_owner "$API_PORT" api
   check "port $CMS_PORT owned by this run's cms" port_owner "$CMS_PORT" cms
   check "port $PROFILE_PORT owned by this run's profile" port_owner "$PROFILE_PORT" profile
+  check "port $ADMISSION_PORT owned by this run's parent app" port_owner "$ADMISSION_PORT" admission
+  check "port $ADMIN_PORT owned by this run's committee app" port_owner "$ADMIN_PORT" admin
   check "postgres container $CONTAINER answers" pg_ready
   check "mailpit $MAIL_CONTAINER answers on $MAIL_WEB_PORT" mail_ready
   cms_tables() {
@@ -282,6 +305,8 @@ cmd_doctor() {
   check "api /health" api_ready
   check "cms serves 4 published sites" cms_ready
   check "profile serves smp.localhost:$PROFILE_PORT" profile_ready
+  check "parent app serves localhost:$ADMISSION_PORT and reaches its API host" app_ready "$ADMISSION_PORT"
+  check "committee app serves localhost:$ADMIN_PORT and reaches its API host" app_ready "$ADMIN_PORT"
   ((ok)) || exit 1
 }
 
@@ -339,8 +364,10 @@ CMS_URL=http://localhost:$CMS_PORT
 PROFILE_PORT=$PROFILE_PORT
 MAIL_URL=http://localhost:$MAIL_WEB_PORT
 MAIL_SMTP=smtp://127.0.0.1:$MAIL_SMTP_PORT
-FAMILY_HOST=localhost:5173
-STAFF_HOST=localhost:5174
+ADMISSION_URL=http://localhost:$ADMISSION_PORT
+ADMIN_URL=http://localhost:$ADMIN_PORT
+FAMILY_HOST=localhost:$ADMISSION_PORT
+STAFF_HOST=localhost:$ADMIN_PORT
 APEX_URL=http://localhost:$PROFILE_PORT
 SMP_URL=http://smp.localhost:$PROFILE_PORT
 SMK_URL=http://smk.localhost:$PROFILE_PORT
@@ -354,7 +381,7 @@ EOF
 cmd_down() {
   load_run "${1:-}"
   local name
-  for name in profile cms api; do stop_group "$name"; done
+  for name in admission admin profile cms api; do stop_group "$name"; done
   docker stop "$CONTAINER" >/dev/null 2>&1 && log "stopped $CONTAINER" || true
   docker stop "${MAIL_CONTAINER:-}" >/dev/null 2>&1 && log "stopped $MAIL_CONTAINER" || true
 

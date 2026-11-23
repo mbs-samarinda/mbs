@@ -39,14 +39,14 @@ turbo_hash=$(pnpm exec turbo run build --filter="@mbs/$app" --dry=json \
 #   tag, skip the build, and leave the old version running.
 # - package.json, pnpm-workspace.yaml, .npmrc: the api and cms Dockerfiles COPY
 #   them next to the lockfile for that same install, and turbo does not move
-#   either tag when they change (measured). The profile image is standalone
-#   build output, but CI's install for that build still reads
-#   pnpm-workspace.yaml and .npmrc, so those two move its tag too. Root
-#   package.json is left out for the profile: it is mostly scripts, and a
+#   either tag when they change (measured). The profile, admission and admin
+#   images are build output, but CI's install for that build still reads
+#   pnpm-workspace.yaml and .npmrc, so those two move their tags too. Root
+#   package.json is left out for those three: it is mostly scripts, and a
 #   script edit should not redeploy the site. Keep this list in step with the
 #   root files each Dockerfile COPYs.
 files=("apps/$app/Dockerfile" .dockerignore pnpm-lock.yaml pnpm-workspace.yaml .npmrc)
-[[ $app == profile ]] || files+=(package.json)
+case $app in api | cms) files+=(package.json) ;; esac
 # An assignment, not inline in printf, so a missing file fails the script
 # instead of producing a tag from partial input.
 files_hash=$(sha256sum "${files[@]}" | cut -d' ' -f1)

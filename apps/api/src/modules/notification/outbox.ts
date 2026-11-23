@@ -1,7 +1,7 @@
 import { ApplicantProfile } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
 import { SIGN_IN_CODE_TEMPLATE, type SchoolKey } from "@mbs/school-config";
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql, type SQL } from "drizzle-orm";
 
 import { findLatestProfileVersion } from "../application/repository.ts";
 import { TEMPLATES, type EventTemplateKey } from "./templates.ts";
@@ -75,6 +75,40 @@ export async function insertSignInCodeNotification(db: Database, id: string, rec
     templateVersion: TEMPLATES[SIGN_IN_CODE_TEMPLATE].version,
     recipient,
   });
+}
+
+const CODE_CAP = { codes: 5, minutes: 15 };
+
+/**
+ * Null while an address may be sent another code. Stops one inbox from being
+ * flooded, which the per-IP limit cannot. Every code counts, sent or not, whether
+ * or not the address has an account.
+ */
+export async function reachedCodeCap(db: Database, recipient: string) {
+  const n = schema.notifications;
+  const codes = await db
+    .select({
+      age: sql<number>`extract(epoch from now() - ${n.createdAt})::float`,
+      status: n.status,
+    })
+    .from(n)
+    .where(
+      and(
+        eq(n.recipient, recipient),
+        // Written out, not a parameter, so the partial index can serve it.
+        eq(n.templateKey, sql.raw(`'${SIGN_IN_CODE_TEMPLATE}'`)),
+        gt(n.createdAt, sql`now() - make_interval(mins => ${CODE_CAP.minutes})`),
+      ),
+    )
+    .orderBy(desc(n.createdAt))
+    .limit(CODE_CAP.codes);
+  const newest = codes[0];
+  const oldest = codes[CODE_CAP.codes - 1];
+  if (!newest || !oldest) return null;
+  return {
+    newestFailed: newest.status === "FAILED",
+    retryAfterSeconds: Math.max(1, Math.ceil(CODE_CAP.minutes * 60 - oldest.age)),
+  };
 }
 
 export async function claimNext(

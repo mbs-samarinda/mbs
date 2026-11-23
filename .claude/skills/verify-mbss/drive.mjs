@@ -15,8 +15,10 @@
 //   see:<role>:<name>             wait until such an element is visible
 //   text:<text>                   wait until this text is visible anywhere
 //   shot:<label>                  save <label>.png, <label>.aria.txt, <label>.url
-//   errors                        ask next dev (/_next/mcp get_errors) for the
-//                                 open page's errors; fails if there are any
+//   errors                        fail on the open page's errors: what next dev
+//                                 reports (/_next/mcp get_errors), or, on a Vite
+//                                 app, its overlay and what the page itself threw
+//                                 or printed since the last goto
 //
 // --state loads and saves cookies, so a CMS login survives between runs.
 // Everything printed to the console or failing over the network goes to
@@ -73,8 +75,18 @@ const context = await browser.newContext({
   storageState: state && existsSync(state) ? state : undefined,
 });
 const page = await context.newPage();
-page.on("console", (m) => m.type() === "error" && log(`  console.error ${m.text()}`));
-page.on("pageerror", (e) => log(`  pageerror ${e.message}`));
+// The page's own errors since the last goto. Chromium also prints one for every
+// 4xx and dropped request; those are logged below and are often the point.
+let pageErrors = [];
+page.on("console", (m) => {
+  if (m.type() !== "error") return;
+  log(`  console.error ${m.text()}`);
+  if (!m.text().startsWith("Failed to load resource")) pageErrors.push(`console ${m.text()}`);
+});
+page.on("pageerror", (e) => {
+  log(`  pageerror ${e.message}`);
+  pageErrors.push(`pageerror ${e.stack ?? e.message}`);
+});
 page.on("response", (r) => r.status() >= 400 && log(`  http ${r.status()} ${r.url()}`));
 page.on("requestfailed", (r) => log(`  failed ${r.failure()?.errorText} ${r.url()}`));
 
@@ -123,6 +135,20 @@ const nextErrors = async () => {
   log("  next dev reports no errors");
 };
 
+// Vite has no report to ask. Its overlay holds a build error; the rest is what the
+// page did. There is no Next there to ask, so which of the two this is comes first.
+const viteErrors = async () => {
+  const overlay = await page
+    .locator("vite-error-overlay .message")
+    .allTextContents()
+    .catch(() => []);
+  const lines = [...overlay.map((text) => `vite ${text.trim()}`), ...pageErrors];
+  for (const line of lines) log(`  page-error ${line}`);
+  if (lines.length > 0) throw new Error(`the page has ${lines.length} error(s)`);
+  log("  no Vite overlay and no page errors");
+};
+const servedByVite = () => page.locator('script[src="/@vite/client"]').count();
+
 const byRole = (spec) => {
   const [role, name] = split(spec, ":");
   return page.getByRole(role, { name, exact: true }).first();
@@ -134,6 +160,7 @@ for (const [n, step] of args.entries()) {
   log(`step ${n + 1}: ${step}`);
   try {
     if (cmd === "goto") {
+      pageErrors = [];
       const response = await page.goto(rest, { waitUntil: "load", timeout: 120_000 });
       log(`  status ${response?.status()} ${page.url()}`);
       // 4xx can be the point of a step (a 404 page); 5xx never is.
@@ -160,7 +187,7 @@ for (const [n, step] of args.entries()) {
       writeFileSync(join(out, `${rest}.aria.txt`), await page.locator("body").ariaSnapshot());
       writeFileSync(join(out, `${rest}.url`), `${page.url()}\n`);
       log(`  saved ${rest}.png ${rest}.aria.txt`);
-    } else if (cmd === "errors") await nextErrors();
+    } else if (cmd === "errors") await ((await servedByVite()) ? viteErrors() : nextErrors());
     else throw new Error(`unknown step "${cmd}"`);
   } catch (error) {
     log(`  FAILED ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);

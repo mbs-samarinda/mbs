@@ -48,11 +48,11 @@ jobs:
       packages: write
 
     strategy:
-      # Independent images. One failing should not stop the other two from
+      # Independent images. One failing should not stop the others from
       # publishing, since the deploy in the next slice pins each by its own tag.
       fail-fast: false
       matrix:
-        app: [profile, cms, api]
+        app: [profile, cms, api, admission, admin]
 
     steps:
       - uses: actions/checkout@v5
@@ -146,6 +146,8 @@ jobs:
           echo "profile=$(infra/image-tag.sh profile)" >> "$GITHUB_OUTPUT"
           echo "cms=$(infra/image-tag.sh cms)" >> "$GITHUB_OUTPUT"
           echo "api=$(infra/image-tag.sh api)" >> "$GITHUB_OUTPUT"
+          echo "admission=$(infra/image-tag.sh admission)" >> "$GITHUB_OUTPUT"
+          echo "admin=$(infra/image-tag.sh admin)" >> "$GITHUB_OUTPUT"
 
       - name: Open an SSH connection
         run: |
@@ -206,7 +208,8 @@ jobs:
           set -euo pipefail
           ssh -o BatchMode=yes "$VPS_USER@${{ secrets.VPS_HOST }}" \
             "/opt/mbs/deploy.sh '${{ steps.tags.outputs.profile }}' \
-              '${{ steps.tags.outputs.cms }}' '${{ steps.tags.outputs.api }}'"
+              '${{ steps.tags.outputs.cms }}' '${{ steps.tags.outputs.api }}' \
+              '${{ steps.tags.outputs.admission }}' '${{ steps.tags.outputs.admin }}'"
 
       - name: Remove the registry credential
         # always(), so a failed deploy does not leave the token in

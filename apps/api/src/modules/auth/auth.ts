@@ -7,18 +7,23 @@ import { APIError, createAuthMiddleware, getIP, isAPIError } from "better-auth/a
 import { makeSignature } from "better-auth/crypto";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 
 import type { Config } from "../../config/env.ts";
 import { appendAuditLog } from "../audit.ts";
+import { reachedCodeCap } from "../notification/outbox.ts";
 import { isApprovedLoginEmail } from "../staff/repository.ts";
+import { createRateLimitStorage } from "./rate-limit.ts";
 
 export type Audience = "FAMILY" | "STAFF";
 
 export const SIGN_IN_CODE_MINUTES = 5;
+const CODE_TRIES = 3;
 
 type AuthDeps = {
   logger?: BetterAuthOptions["logger"];
   sendSignInCode: (email: string, code: string) => Promise<void>;
+  codeQueue: CodeQueue;
 };
 
 export function createFamilyAuth(db: Database, config: Config, deps: AuthDeps) {
@@ -29,9 +34,9 @@ export function createFamilyAuth(db: Database, config: Config, deps: AuthDeps) {
       emailOTP({
         expiresIn: SIGN_IN_CODE_MINUTES * 60,
         storeOTP: "hashed",
-        // The plugin's own limit of 3 wrong tries per code stays. Its per-IP
-        // limit of 3 requests a minute does not: families on mobile data share
-        // carrier IPs, so 3 would turn away parents nobody is attacking.
+        allowedAttempts: CODE_TRIES,
+        // The plugin allows 3 requests a minute per IP. Families on mobile data
+        // share carrier IPs, so 3 would turn away parents nobody is attacking.
         rateLimit: { window: 60, max: 10 },
         sendVerificationOTP: async ({ email, otp, type }) => {
           if (type !== "sign-in") throw signInOnly();
@@ -42,7 +47,34 @@ export function createFamilyAuth(db: Database, config: Config, deps: AuthDeps) {
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === "/sign-in/email-otp") return;
-        if (ctx.path === "/email-otp/send-verification-otp" && ctx.body?.type === "sign-in") return;
+        if (ctx.path === "/email-otp/send-verification-otp" && ctx.body?.type === "sign-in") {
+          // Lowercased first, as the plugin does. Some letters are valid in an
+          // address only once lowercased, and would skip the cap.
+          const email = z.string().toLowerCase().pipe(z.email()).safeParse(ctx.body.email);
+          if (!email.success) return;
+          // After the request limits, so a flood they refuse never waits in line.
+          await deps.codeQueue.enter(email.data, ctx.headers?.get(REQUEST_ID_HEADER));
+          // Before the plugin makes a new code, so the last one sent still works.
+          const cap = await reachedCodeCap(db, email.data);
+          if (cap) {
+            throw new APIError(
+              "TOO_MANY_REQUESTS",
+              {
+                code: "TOO_MANY_CODES",
+                message: "Too many codes were sent to this address.",
+                lastCodeWorks:
+                  !cap.newestFailed &&
+                  isUsableCode(
+                    await ctx.context.internalAdapter.findVerificationValue(
+                      `sign-in-otp-${email.data}`,
+                    ),
+                  ),
+              },
+              { "X-Retry-After": String(cap.retryAfterSeconds) },
+            );
+          }
+          return;
+        }
         if (ctx.path?.startsWith("/email-otp/") || ctx.path?.startsWith("/forget-password/")) {
           throw signInOnly();
         }
@@ -63,11 +95,7 @@ export function createFamilyAuth(db: Database, config: Config, deps: AuthDeps) {
   });
 }
 
-export function createStaffAuth(
-  db: Database,
-  config: Config,
-  deps: Omit<AuthDeps, "sendSignInCode">,
-) {
+export function createStaffAuth(db: Database, config: Config, deps: Pick<AuthDeps, "logger">) {
   const base = baseOptions(db, config, "STAFF", config.auth.adminAppUrl, deps);
 
   // Better Auth redirects to errorURL only when the error carries a code.
@@ -104,6 +132,42 @@ export function createStaffAuth(
       },
     },
   });
+}
+
+/**
+ * Runs one code request at a time for an address. Two at once would both pass the
+ * cap, and the code stored last might not be the one emailed last. In this process
+ * only, which is the only one that sends codes.
+ */
+export function createCodeQueue() {
+  const last = new Map<string, Promise<void>>();
+  const leaving = new Map<string, () => void>();
+  return {
+    /** Resolves when it is this request's turn. The caller must `leave` after. */
+    async enter(address: string, requestId: string | null | undefined) {
+      if (!requestId) return;
+      const before = last.get(address);
+      const { promise: done, resolve } = Promise.withResolvers<void>();
+      last.set(address, done);
+      leaving.set(requestId, () => {
+        resolve();
+        if (last.get(address) === done) last.delete(address);
+      });
+      await before;
+    },
+    leave(requestId: string) {
+      leaving.get(requestId)?.();
+      leaving.delete(requestId);
+    },
+  };
+}
+
+export type CodeQueue = ReturnType<typeof createCodeQueue>;
+
+/** Better Auth stores a code as `<hash>:<wrong tries>`. */
+function isUsableCode(stored: { value: string; expiresAt: Date } | null) {
+  if (!stored || stored.expiresAt <= new Date()) return false;
+  return Number(stored.value.split(":").at(-1)) < CODE_TRIES;
 }
 
 function signInOnly() {
@@ -149,7 +213,7 @@ function baseOptions(
       errorURL: `${appUrl}/`,
     },
     // On in every environment, so tests run the limit production runs.
-    rateLimit: { enabled: true, storage: "database" },
+    rateLimit: { enabled: true, customStorage: createRateLimitStorage(db, audience) },
     advanced: {
       // Browsers share cookies across ports, and in development both apps are localhost.
       cookiePrefix: audience === "FAMILY" ? "mbs_family" : "mbs_staff",

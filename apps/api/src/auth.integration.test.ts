@@ -1,11 +1,12 @@
 import { schema } from "@mbs/db";
 import { makeSignature } from "better-auth/crypto";
-import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { eq, inArray, sql } from "drizzle-orm";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { buildApp } from "./app.ts";
 import { sessionCookie } from "./modules/auth/auth.ts";
+import { createRateLimitStorage } from "./modules/auth/rate-limit.ts";
 import { createFakeMailer } from "./modules/notification/email.ts";
 import { FAMILY_HOST, STAFF_HOST, testConfig } from "./test/config.ts";
 import { resetTables } from "./test/reset.ts";
@@ -17,6 +18,16 @@ const db = app.db;
 
 beforeAll(() => app.ready());
 afterAll(() => app.close());
+// Codes are sent after the response. A send still running would deadlock the reset.
+afterEach(() =>
+  vi.waitFor(async () => {
+    const unsent = await db
+      .select({ id: schema.notifications.id })
+      .from(schema.notifications)
+      .where(inArray(schema.notifications.status, ["PENDING", "SENDING"]));
+    expect(unsent).toEqual([]);
+  }, 5_000),
+);
 
 beforeEach(async () => {
   mailer.sent.length = 0;
@@ -40,14 +51,14 @@ const ORIGIN: Record<string, string> = {
   [STAFF_HOST]: config.auth.adminAppUrl,
 };
 
-function auth(host: string, path: string, body?: unknown, cookie?: string) {
+function auth(host: string, path: string, body?: unknown, cookie?: string, ip = "203.0.113.7") {
   return app.inject({
     method: body === undefined ? "GET" : "POST",
     url: `/api/auth${path}`,
     headers: {
       host,
       origin: ORIGIN[host] ?? `http://${host}`,
-      "x-forwarded-for": "203.0.113.7",
+      "x-forwarded-for": ip,
       ...(body === undefined ? {} : { "content-type": "application/json" }),
       ...(cookie ? { cookie } : {}),
     },
@@ -256,6 +267,189 @@ describe("email codes", () => {
     expect(refused.statusCode).toBe(403);
     expect(refused.json()).toMatchObject({ code: "TOO_MANY_ATTEMPTS" });
     expect(await db.select().from(schema.session)).toEqual([]);
+  });
+});
+
+describe("code emails per address", () => {
+  const ask = (email: string, ip?: string) =>
+    auth(
+      FAMILY_HOST,
+      "/email-otp/send-verification-otp",
+      { email, type: "sign-in" },
+      undefined,
+      ip,
+    );
+
+  it("stops at five in 15 minutes, in any case, and the fifth code still works", async () => {
+    let last = "";
+    for (const email of ["Wali@example.com", "wali@example.com", "WALI@EXAMPLE.COM"]) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      last = (await requestCode(email)).code;
+    }
+    last = (await requestCode("wali@example.com")).code;
+    last = (await requestCode("wali@example.com")).code;
+
+    const refused = await ask("wAli@example.com");
+    expect(refused.statusCode).toBe(429);
+    expect(refused.json()).toMatchObject({ code: "TOO_MANY_CODES", lastCodeWorks: true });
+    const wait = Number(refused.headers["x-retry-after"]);
+    expect(wait).toBeGreaterThan(14 * 60);
+    expect(wait).toBeLessThanOrEqual(15 * 60);
+    expect(mailer.sent).toHaveLength(5);
+
+    expect((await ask("lain@example.com")).statusCode).toBe(200);
+    expect((await signInWithCode("wali@example.com", last)).statusCode).toBe(200);
+  });
+
+  it("answers the same whether or not the address has an account", async () => {
+    const { code } = await requestCode("punya@example.com");
+    await signInWithCode("punya@example.com", code);
+
+    const answers = [];
+    for (const email of ["punya@example.com", "belum@example.com"]) {
+      const sent = email === "punya@example.com" ? 1 : 0;
+      for (let i = sent; i < 5; i++) {
+        // oxlint-disable-next-line eslint/no-await-in-loop
+        expect((await ask(email, `203.0.113.${i + 20}`)).statusCode).toBe(200);
+      }
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const refused = await ask(email, "203.0.113.30");
+      answers.push([refused.statusCode, refused.json()]);
+    }
+    expect(answers[0]).toEqual(answers[1]);
+    expect(answers[0]?.[0]).toBe(429);
+  });
+
+  it("sends again once the 15 minutes have passed", async () => {
+    for (let i = 0; i < 5; i++) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await requestCode("sabar@example.com");
+    }
+    await db.update(schema.notifications).set({ createdAt: sql`now() - interval '6 minutes'` });
+    await db.update(schema.verification).set({ expiresAt: new Date(Date.now() - 60_000) });
+    const refused = await ask("sabar@example.com");
+    expect(refused.statusCode).toBe(429);
+    expect(refused.json()).toMatchObject({ lastCodeWorks: false });
+    expect(Number(refused.headers["x-retry-after"])).toBeLessThanOrEqual(9 * 60);
+    await db.update(schema.notifications).set({ createdAt: sql`now() - interval '16 minutes'` });
+    expect((await ask("sabar@example.com")).statusCode).toBe(200);
+  });
+
+  it("counts an address that is valid only once lowercased", async () => {
+    for (let i = 0; i < 5; i++) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await requestCode("kakek@example.com");
+    }
+    const refused = await ask("\u212Aakek@example.com");
+    expect(refused.statusCode).toBe(429);
+    expect(mailer.sent).toHaveLength(5);
+  });
+
+  it.each([
+    [
+      "three wrong tries",
+      async () => {
+        for (let i = 0; i < 3; i++) {
+          // oxlint-disable-next-line eslint/no-await-in-loop
+          await signInWithCode("salah@example.com", "000000");
+        }
+      },
+    ],
+    [
+      "a send that failed for good",
+      () => db.update(schema.notifications).set({ status: "FAILED" }),
+    ],
+  ])("says the last code is no use after %s", async (_, spoil) => {
+    for (let i = 0; i < 5; i++) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await requestCode("salah@example.com");
+    }
+    await spoil();
+    const refused = await ask("salah@example.com");
+    expect(refused.json()).toMatchObject({ code: "TOO_MANY_CODES", lastCodeWorks: false });
+  });
+
+  it("answers a request the limit refuses without waiting in the address's line", async () => {
+    const busy = "198.51.100.9";
+    for (let i = 0; i < 10; i++) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await ask(`lain-${i}@example.com`, busy);
+    }
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`lock table notifications in access exclusive mode`);
+      // `then` starts it: an injected request waits to be awaited.
+      const waiting = ask("wali@example.com", "198.51.100.10").then((answer) => answer.statusCode);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const refused = await ask("wali@example.com", busy);
+      expect(refused.statusCode).toBe(429);
+      await tx.execute(sql`commit`);
+      expect(await waiting).toBe(200);
+    });
+  }, 4_000);
+
+  it("holds when many requests arrive at once from many addresses", async () => {
+    await Promise.all(
+      Array.from({ length: 12 }, (_, i) => ask("banjir@example.com", `198.51.100.${i + 1}`)),
+    );
+    expect(await db.select().from(schema.notifications)).toHaveLength(5);
+    await vi.waitFor(() => expect(mailer.sent).toHaveLength(5));
+
+    const code = /\b(\d{6})\b/.exec(mailer.sent.at(-1)?.text ?? "")?.[1];
+    expect((await signInWithCode("banjir@example.com", code!)).statusCode).toBe(200);
+  });
+
+  it("refuses text that is no address before it reaches the database", async () => {
+    const refused = await ask("a\u0000@example.com");
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toMatchObject({ code: "INVALID_EMAIL" });
+  });
+
+  it.each([[{ toString: 1, valueOf: 1 }], [["wali@example.com"]], [7]])(
+    "refuses %j, which is not text",
+    async (email) => {
+      const refused = await auth(FAMILY_HOST, "/email-otp/send-verification-otp", {
+        email,
+        type: "sign-in",
+      });
+      expect(refused.statusCode).toBe(400);
+    },
+  );
+});
+
+describe("request limits", () => {
+  const google = (host: string) =>
+    auth(host, "/sign-in/social", { provider: "google", callbackURL: "/" });
+
+  it("counts each app on its own, on a path both have", async () => {
+    for (const _ of [1, 2, 3]) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      expect((await google(STAFF_HOST)).statusCode).toBe(200);
+    }
+    const refused = await google(STAFF_HOST);
+    expect(refused.statusCode).toBe(429);
+    expect(Number(refused.headers["x-retry-after"])).toBeGreaterThan(0);
+    expect((await google(FAMILY_HOST)).statusCode).toBe(200);
+  });
+
+  it("lets exactly the limit through when requests arrive at once", async () => {
+    const answers = await Promise.all(Array.from({ length: 8 }, () => google(FAMILY_HOST)));
+    expect(answers.filter((answer) => answer.statusCode === 200)).toHaveLength(3);
+  });
+
+  it("opens again when the window ends, even for an address that never paused", async () => {
+    let at = 1_000_000_000_000;
+    const storage = createRateLimitStorage(db, "TEST", () => at);
+    const rule = { window: 10, max: 3 };
+    const allowed = [];
+    for (let second = 0; second < 20; second += 4) {
+      at = 1_000_000_000_000 + second * 1000;
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      allowed.push((await storage.consume("ip|/path", rule)).allowed);
+    }
+    expect(allowed).toEqual([true, true, true, true, true]);
+
+    await storage.consume("ip|/path", rule);
+    expect(await storage.consume("ip|/path", rule)).toEqual({ allowed: false, retryAfter: 6 });
   });
 });
 

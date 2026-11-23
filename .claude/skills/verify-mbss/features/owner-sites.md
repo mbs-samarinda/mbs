@@ -36,5 +36,5 @@ Preconditions:
 
 - Cross-owner links are hard-coded to port **3002**, the dev port (`ownerUrl` in `apps/profile/src/owners.ts`). That includes the switcher, other owners' article cards and the apex's school links. Clicking one leaves the verify stack and may land on the user's own dev server. Check the link's `/url` in the snapshot, then `goto` the same path on `$PROFILE_PORT`.
 - The `www.` redirect always goes to `https://` with no port, which nothing serves locally. Assert the `Location` header and do not follow it.
-- The `/pendaftaran` redirect lands on `localhost:5173`, which this stack does not start. Assert the 307 and do not follow it.
+- The `/pendaftaran` redirect lands on `localhost:5173`, the parent app. Follow it only when the stack runs that app on its default port.
 - Next renders a page on its first request. The first visit to each route can take 5–20 s.

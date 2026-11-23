@@ -1,3 +1,9 @@
+/**
+ * Applies the visitor's theme before the page paints, so it has to be inline and
+ * synchronous in the page's <head>. `use-theme.ts` is the same pair of changes
+ * for when the visitor picks one. The app images allow this exact text by its
+ * hash in their CSP, so an edit here moves the hash in their Caddyfiles too.
+ */
 export const THEME_SCRIPT = `
 (function () {
   try {

@@ -1,0 +1,42 @@
+# Serves this app's built files inside its own container. The Caddy in front of
+# it, infra/Caddyfile, owns TLS, HSTS, compression and /api.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	root /srv
+
+	header {
+		# The hash is the inline theme script from packages/ui/src/theme-script.ts.
+		# test/csp.test.ts fails when the two drift, because the browser would
+		# refuse the script and every dark-mode visitor would see a white flash.
+		# The style hash is the one of empty text: the code field's library adds an
+		# empty <style> and fills it from script, which the CSP does not cover.
+		Content-Security-Policy "default-src 'none'; script-src 'self' 'sha256-XIIddaemddRTQTS8WNMslESkURwRkUp6Ez9aYPAF2qw='; style-src 'self' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		Cross-Origin-Opener-Policy same-origin
+		# Search should land on the school sites, which explain admission.
+		X-Robots-Tag noindex
+		# index.html and the icon carry no hash, so a release must show at once.
+		Cache-Control no-cache
+	}
+
+	handle /assets/* {
+		# A hashed file that is gone is a 404, never index.html with a script's
+		# name, and that 404 must not be kept for a year.
+		@here file
+		header @here Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# Every other path is a page of the app, which does its own routing.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}
