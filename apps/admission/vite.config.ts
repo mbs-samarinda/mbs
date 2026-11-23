@@ -2,7 +2,7 @@ import { THEME_SCRIPT } from "@mbs/ui/theme-script";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vite";
 
 const apiOrigin = process.env.API_ORIGIN ?? "http://localhost:3001";
 
@@ -38,5 +38,4 @@ export default defineConfig({
     // instance from it.
     proxy: { "/api": { target: apiOrigin, changeOrigin: false } },
   },
-  test: { environment: "jsdom", setupFiles: "./test/setup.ts" },
 });

@@ -88,16 +88,12 @@ describe("the committee app", () => {
     stubApi({});
     open("/");
     expect(
-      await screen.findByRole(
-        "heading",
-        { name: "Server tidak bisa dihubungi" },
-        { timeout: 5000 },
-      ),
+      await screen.findByRole("heading", { name: "Server tidak bisa dihubungi" }),
     ).toBeVisible();
     stubApi({ [ACCOUNT]: SIGNED_IN, [ME]: STAFF });
     await userEvent.setup().click(screen.getByRole("button", { name: "Coba lagi" }));
     expect(await screen.findByRole("heading", { name: "Dasbor" })).toBeVisible();
-  }, 10_000);
+  });
 
   it("answers an unknown page with a way back", async () => {
     stubApi({ [ACCOUNT]: SIGNED_OUT });

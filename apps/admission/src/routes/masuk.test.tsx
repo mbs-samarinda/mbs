@@ -221,16 +221,12 @@ describe("the guard", () => {
     stubApi({});
     open("/");
     expect(
-      await screen.findByRole(
-        "heading",
-        { name: "Server tidak bisa dihubungi" },
-        { timeout: 5000 },
-      ),
+      await screen.findByRole("heading", { name: "Server tidak bisa dihubungi" }),
     ).toBeVisible();
     stubApi({ "/get-session": [{ body: { user: { email: "wali@example.test" } } }] });
     await userEvent.setup().click(screen.getByRole("button", { name: "Coba lagi" }));
     expect(await screen.findByText("Belum ada pendaftaran")).toBeVisible();
-  }, 10_000);
+  });
 
   it("signs out to the sign-in screen", async () => {
     stubApi({

@@ -1,4 +1,4 @@
 {
   "extends": "@mbs/typescript-config/node.json",
-  "include": ["vite.config.ts", "test/csp.test.ts"]
+  "include": ["vite.config.ts", "vitest.config.ts", "test/csp.test.ts"]
 }
