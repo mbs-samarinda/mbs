@@ -1,7 +1,7 @@
 import { ApplicantProfile } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
 import { SIGN_IN_CODE_TEMPLATE, type SchoolKey } from "@mbs/school-config";
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, count, eq, gt, inArray, sql, type SQL } from "drizzle-orm";
 
 import { findLatestProfileVersion } from "../application/repository.ts";
 import { TEMPLATES, type EventTemplateKey } from "./templates.ts";
@@ -62,18 +62,52 @@ export async function enqueueEventEmails(
     .onConflictDoNothing();
 }
 
+const CODE_CAP = { codes: 5, minutes: 15 };
+const CODE_CAP_LOCK = 7_316_042;
+
+/**
+ * Stops one inbox from being flooded, which the per-IP limit cannot. Every code
+ * counts, sent or not, and the answer never depends on whether the address has
+ * an account.
+ */
+export async function isCodeCapReached(db: Database | Transaction, recipient: string) {
+  const n = schema.notifications;
+  const [row] = await db
+    .select({ codes: count() })
+    .from(n)
+    .where(
+      and(
+        eq(n.recipient, recipient),
+        // Written out, not a parameter, so the partial index can serve it.
+        eq(n.templateKey, sql.raw(`'${SIGN_IN_CODE_TEMPLATE}'`)),
+        gt(n.createdAt, sql`now() - make_interval(mins => ${CODE_CAP.minutes})`),
+      ),
+    );
+  return (row?.codes ?? 0) >= CODE_CAP.codes;
+}
+
+/**
+ * Checks the cap again, one request at a time per address, because requests sent
+ * together all pass the check made before a code. Those few still see a success.
+ */
 export async function insertSignInCodeNotification(db: Database, id: string, recipient: string) {
-  const [account] = await db
-    .select({ id: schema.user.id })
-    .from(schema.user)
-    .where(eq(schema.user.email, recipient));
-  await db.insert(schema.notifications).values({
-    id,
-    userId: account?.id ?? null,
-    channel: "EMAIL",
-    templateKey: SIGN_IN_CODE_TEMPLATE,
-    templateVersion: TEMPLATES[SIGN_IN_CODE_TEMPLATE].version,
-    recipient,
+  await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(${CODE_CAP_LOCK}::int, hashtext(${recipient}))`,
+    );
+    if (await isCodeCapReached(tx, recipient)) throw new Error("The address reached its code cap.");
+    const [account] = await tx
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(eq(schema.user.email, recipient));
+    await tx.insert(schema.notifications).values({
+      id,
+      userId: account?.id ?? null,
+      channel: "EMAIL",
+      templateKey: SIGN_IN_CODE_TEMPLATE,
+      templateVersion: TEMPLATES[SIGN_IN_CODE_TEMPLATE].version,
+      recipient,
+    });
   });
 }
 

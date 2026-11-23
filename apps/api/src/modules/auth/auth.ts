@@ -10,7 +10,9 @@ import { eq } from "drizzle-orm";
 
 import type { Config } from "../../config/env.ts";
 import { appendAuditLog } from "../audit.ts";
+import { isCodeCapReached } from "../notification/outbox.ts";
 import { isApprovedLoginEmail } from "../staff/repository.ts";
+import { createRateLimitStorage } from "./rate-limit.ts";
 
 export type Audience = "FAMILY" | "STAFF";
 
@@ -42,7 +44,17 @@ export function createFamilyAuth(db: Database, config: Config, deps: AuthDeps) {
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === "/sign-in/email-otp") return;
-        if (ctx.path === "/email-otp/send-verification-otp" && ctx.body?.type === "sign-in") return;
+        if (ctx.path === "/email-otp/send-verification-otp" && ctx.body?.type === "sign-in") {
+          // Before the plugin makes a new code, so the last one sent still works.
+          const email: unknown = ctx.body.email;
+          if (typeof email === "string" && (await isCodeCapReached(db, email.toLowerCase()))) {
+            throw new APIError("TOO_MANY_REQUESTS", {
+              code: "TOO_MANY_CODES",
+              message: "Too many codes were sent to this address.",
+            });
+          }
+          return;
+        }
         if (ctx.path?.startsWith("/email-otp/") || ctx.path?.startsWith("/forget-password/")) {
           throw signInOnly();
         }
@@ -149,7 +161,7 @@ function baseOptions(
       errorURL: `${appUrl}/`,
     },
     // On in every environment, so tests run the limit production runs.
-    rateLimit: { enabled: true, storage: "database" },
+    rateLimit: { enabled: true, customStorage: createRateLimitStorage(db, audience) },
     advanced: {
       // Browsers share cookies across ports, and in development both apps are localhost.
       cookiePrefix: audience === "FAMILY" ? "mbs_family" : "mbs_staff",

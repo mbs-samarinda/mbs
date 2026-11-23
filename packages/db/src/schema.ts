@@ -384,6 +384,9 @@ export const notifications = pgTable(
     index("notifications_due")
       .on(table.nextAttemptAt)
       .where(sql`status in ('PENDING', 'SENDING')`),
+    index("notifications_codes")
+      .on(table.recipient, table.createdAt)
+      .where(sql`template_key = ${sql.raw(`'${SIGN_IN_CODE_TEMPLATE}'`)}`),
     check(
       "notifications_event_kept",
       sql`case when template_key = ${sql.raw(`'${SIGN_IN_CODE_TEMPLATE}'`)}

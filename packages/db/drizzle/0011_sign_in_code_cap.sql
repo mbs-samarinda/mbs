@@ -1,0 +1,1 @@
+CREATE INDEX "notifications_codes" ON "notifications" USING btree ("recipient","created_at") WHERE template_key = 'sign-in-code';
