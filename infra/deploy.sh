@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Deploys one release onto the VPS. Run on the box, by the release workflow over
-# SSH, with the three image tags as arguments.
+# SSH, with the five image tags as arguments.
 #
-#   ./deploy.sh <profile-tag> <cms-tag> <api-tag>
+#   ./deploy.sh <profile-tag> <cms-tag> <api-tag> <admission-tag> <admin-tag>
 #
 # The tags are computed on the runner and passed in rather than worked out here.
 # They are a hash of turbo's task hash plus the Dockerfile, .dockerignore and
@@ -11,15 +11,18 @@
 #
 # Old images go first, to make room. After that the order is the one the
 # knowledge repo's docs/deployment.md fixes: pull,
-# back up, migrate exactly once, start cms and api in place and wait for both
-# to be healthy, then prove the new profile works before any visitor sees it.
+# back up, migrate exactly once, start cms, api and the two PPDB apps in place and
+# wait for all four to be healthy, then prove the new profile works before any visitor sees it.
 # After the swap it checks the public site through Caddy and TLS, and only then
 # records the pins as last good.
 set -euo pipefail
 
-readonly PROFILE_TAG=${1:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
-readonly CMS_TAG=${2:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
-readonly API_TAG=${3:?usage: deploy.sh <profile-tag> <cms-tag> <api-tag>}
+readonly USAGE="usage: deploy.sh <profile-tag> <cms-tag> <api-tag> <admission-tag> <admin-tag>"
+readonly PROFILE_TAG=${1:?$USAGE}
+readonly CMS_TAG=${2:?$USAGE}
+readonly API_TAG=${3:?$USAGE}
+readonly ADMISSION_TAG=${4:?$USAGE}
+readonly ADMIN_TAG=${5:?$USAGE}
 
 # shellcheck source=lib.sh
 source /opt/mbs/lib.sh
@@ -27,14 +30,15 @@ source /opt/mbs/lib.sh
 # images.env itself is rewritten before anything is proven, so after a failure
 # this is the only record of what last worked.
 readonly LAST_GOOD_FILE=$ROOT/images.last-good.env
-# One line of three images for every deploy that passed, oldest first.
+# One line of images for every deploy that passed, oldest first. Lines from before
+# the two PPDB apps hold three images, newer ones five.
 readonly HISTORY_FILE=$ROOT/images.history
 readonly KEEP_RELEASES=4
 readonly PROJECT=mbs-prod
 readonly NETWORK=${PROJECT}_default
 readonly CANDIDATE=mbs-deploy-candidate
 readonly REGISTRY=ghcr.io/mbs-samarinda
-readonly RELEASE="$REGISTRY/mbs-profile:$PROFILE_TAG $REGISTRY/mbs-cms:$CMS_TAG $REGISTRY/mbs-api:$API_TAG"
+readonly RELEASE="$REGISTRY/mbs-profile:$PROFILE_TAG $REGISTRY/mbs-cms:$CMS_TAG $REGISTRY/mbs-api:$API_TAG $REGISTRY/mbs-admission:$ADMISSION_TAG $REGISTRY/mbs-admin:$ADMIN_TAG"
 
 # Every host the site answers on, and one page of each other kind on one school.
 # The layout reads different CMS rows than these pages do, so a `/`-only check
@@ -83,8 +87,14 @@ on_exit() {
   ((status != 0)) && $pinned || return "$status"
   if [[ -f $LAST_GOOD_FILE ]]; then
     local tags
+    # The two apps start from this run's tags, because a last good release from
+    # before they existed names none. Then they stay as they are.
     # shellcheck disable=SC1090
-    tags=$(source "$LAST_GOOD_FILE" && echo "${PROFILE_IMAGE##*:} ${CMS_IMAGE##*:} ${API_IMAGE##*:}")
+    tags=$(
+      ADMISSION_IMAGE=$ADMISSION_TAG ADMIN_IMAGE=$ADMIN_TAG
+      source "$LAST_GOOD_FILE" \
+        && echo "${PROFILE_IMAGE##*:} ${CMS_IMAGE##*:} ${API_IMAGE##*:} ${ADMISSION_IMAGE##*:} ${ADMIN_IMAGE##*:}"
+    )
     # A redeploy rather than a copy of the file: by now cms, api or profile may
     # already run the new images, and pins that disagree with them would let the
     # next `compose up` swap images with no checks at all.
@@ -120,7 +130,7 @@ log "Checking $ENV_FILE"
 # PROFILE_APEX is not an error — it is a 404 on every host, which reads as a
 # failed smoke check rather than as a misconfigured box. So they are asserted
 # here, once, before anything starts.
-for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET CMS_READ_TOKEN PREVIEW_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD CMS_HOST CADDY_EMAIL FAMILY_APP_URL SMTP_URL MAIL_FROM; do
+for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET CMS_READ_TOKEN PREVIEW_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD CMS_HOST CADDY_EMAIL SMTP_URL MAIL_FROM; do
   if [[ -z ${!required:-} ]]; then
     echo "$ENV_FILE is missing $required" >&2
     exit 1
@@ -177,10 +187,10 @@ remove_old_images() {
   images=
   if [[ -f $LAST_GOOD_FILE ]]; then
     # shellcheck disable=SC1090
-    images=$(source "$LAST_GOOD_FILE" && echo "$PROFILE_IMAGE $CMS_IMAGE $API_IMAGE") || return 1
+    images=$(source "$LAST_GOOD_FILE" && echo "$PROFILE_IMAGE $CMS_IMAGE $API_IMAGE ${ADMISSION_IMAGE:-} ${ADMIN_IMAGE:-}") || return 1
   fi
   for image in $RELEASE $images; do keep[$image]=1; done
-  for app in profile cms api; do
+  for app in profile cms api admission admin; do
     if ! images=$(timeout 60 docker image ls "$REGISTRY/mbs-$app" \
       --format '{{if eq .Tag "<none>"}}{{.ID}}{{else}}{{.Repository}}:{{.Tag}}{{end}}'); then
       echo "  could not list mbs-$app images" >&2
@@ -211,6 +221,8 @@ cat > "$IMAGES_FILE" <<PINS
 PROFILE_IMAGE=$REGISTRY/mbs-profile:$PROFILE_TAG
 CMS_IMAGE=$REGISTRY/mbs-cms:$CMS_TAG
 API_IMAGE=$REGISTRY/mbs-api:$API_TAG
+ADMISSION_IMAGE=$REGISTRY/mbs-admission:$ADMISSION_TAG
+ADMIN_IMAGE=$REGISTRY/mbs-admin:$ADMIN_TAG
 PINS
 pinned=true
 
@@ -218,6 +230,8 @@ log "Pulling images"
 docker pull -q "$REGISTRY/mbs-profile:$PROFILE_TAG"
 docker pull -q "$REGISTRY/mbs-cms:$CMS_TAG"
 docker pull -q "$REGISTRY/mbs-api:$API_TAG"
+docker pull -q "$REGISTRY/mbs-admission:$ADMISSION_TAG"
+docker pull -q "$REGISTRY/mbs-admin:$ADMIN_TAG"
 
 log "Starting Postgres"
 # Before the backup, not after. On a first deploy nothing is running at all, so
@@ -274,18 +288,53 @@ docker run --rm --network "$NETWORK" \
   -e "DATABASE_URL=postgres://mbs:$POSTGRES_PASSWORD@postgres:5432/mbs_core" \
   "$REGISTRY/mbs-api:$API_TAG" node_modules/.bin/drizzle-kit migrate
 
-log "Starting cms and api"
+log "Starting cms, api and the two PPDB apps"
 # Postgres is already up from the backup step above.
 # --wait: the candidate below is a plain `docker run` that skips depends_on, so
 # without it a new cms image is still booting when the smoke check runs. The
 # 7-minute cap covers the cms healthcheck's full budget (90s start + 30 × 10s),
 # so a cms stuck in a restart loop fails the deploy instead of hanging it. The
-# api's healthcheck gives up far sooner, within 140s (20s start + 12 × 10s).
-if ! timeout 7m "${COMPOSE[@]}" up -d --wait cms api; then
-  echo "The new cms or api did not become healthy. Both now run (or restart) on the new images," >&2
-  echo "and the old profile keeps serving against them." >&2
+# other healthchecks give up far sooner, the api's within 140s (20s start + 12 × 10s).
+if ! timeout 7m "${COMPOSE[@]}" up -d --wait cms api admission admin; then
+  echo "The new cms, api, admission or admin did not become healthy. All four now run (or restart)" >&2
+  echo "on the new images, and the old profile keeps serving against them." >&2
   exit 1
 fi
+
+# wget from the POSTGRES container, not caddy. Caddy is started after the smoke
+# check passes, so on a first deploy `compose exec caddy` fails with `service
+# "caddy" is not running` — and because the old version sent stderr to
+# /dev/null, that was reported as "did not return 200". A misleading message on
+# the one mechanism the deploy safety story rests on.
+#
+# postgres:18-alpine carries busybox wget and is the first container up, so it
+# is available for every probe by construction. The node-based images have
+# neither curl nor wget.
+readonly PROBE_SVC=postgres
+
+log "Smoke-checking the two PPDB apps"
+# Inside the compose network only. Neither host has a DNS record before launch, so
+# Caddy has no certificate for them and no public probe can work.
+#
+# The last call proves the API answers for the host Caddy will pass on. It picks the
+# sign-in by exact host and answers 404 for any other.
+app_smoke() {
+  local app=$1 body script
+  local -a get=("${COMPOSE[@]}" exec -T "$PROBE_SVC" wget -q -O -)
+  body=$("${get[@]}" "http://$app:8080/masuk" < /dev/null) || return 1
+  [[ $body == *'<div id="root">'* ]] || return 1
+  script=$(grep -o '/assets/[^"]*\.js' <<< "$body" | head -1)
+  [[ -n $script ]] || return 1
+  "${get[@]}" "http://$app:8080$script" < /dev/null > /dev/null || return 1
+  "${get[@]}" --header "Host: $app.$PROFILE_APEX" http://api:3001/api/auth/ok < /dev/null > /dev/null || return 1
+  echo "  ok   $app.$PROFILE_APEX"
+}
+for app in admission admin; do
+  if ! app_smoke "$app"; then
+    echo "The new $app app failed its smoke check. The running profile was not touched." >&2
+    exit 1
+  fi
+done
 
 # ---------------------------------------------------------------------------
 # The gate that used to live in `next build`.
@@ -314,17 +363,6 @@ docker run -d --name "$CANDIDATE" --network "$NETWORK" \
   "$REGISTRY/mbs-profile:$PROFILE_TAG" >/dev/null
 # 500, higher than every compose service. If the box runs out of memory while
 # two profiles are alive, the one nobody is using yet is what the kernel takes.
-
-# wget from the POSTGRES container, not caddy. Caddy is started after the smoke
-# check passes, so on a first deploy `compose exec caddy` fails with `service
-# "caddy" is not running` — and because the old version sent stderr to
-# /dev/null, that was reported as "did not return 200". A misleading message on
-# the one mechanism the deploy safety story rests on.
-#
-# postgres:18-alpine carries busybox wget and is the first container up, so it
-# is available for every probe by construction. The node-based images have
-# neither curl nor wget.
-readonly PROBE_SVC=postgres
 
 # Waits for a target to answer at all before judging what it answers.
 #

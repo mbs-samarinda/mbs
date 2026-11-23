@@ -4,7 +4,7 @@
 
 readonly ROOT=/opt/mbs
 readonly ENV_FILE=$ROOT/.env
-# The three image pins, in their own file rather than passed inline.
+# The image pins, in their own file rather than passed inline.
 #
 # compose interpolates the WHOLE file on every command, not just `up` — so with
 # these exported for one command only, a plain `compose exec postgres pg_dump`

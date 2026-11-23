@@ -1,4 +1,4 @@
-# Caddy terminates TLS for every host and proxies to the three services.
+# Caddy terminates TLS for every host and proxies to the services behind it.
 #
 # Cloudflare is DNS-only (grey cloud) on this zone, so requests arrive here
 # directly and Caddy's own HTTP-01 challenge works with no extra configuration.
@@ -56,4 +56,38 @@
 	reverse_proxy cms:1337 {
 		header_up Host {host}
 	}
+}
+
+# One PPDB app and the API, on one host. The API has no host of its own, so each
+# app's session cookie stays on that app's host.
+(ppdb_app) {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+
+	handle /api/* {
+		reverse_proxy api:3001 {
+			# The API picks the family or the staff sign-in from this.
+			header_up Host {host}
+			# The address the connection came from, and nothing the visitor sent.
+			# The API's sign-in limits count by it, so a visitor who could choose
+			# it could never be limited. If a proxy is ever put in front of this
+			# Caddy, change this line and trusted_proxies together.
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	handle {
+		reverse_proxy {args[0]}:8080
+	}
+}
+
+# No DNS record exists for these two until launch, so no certificate does either.
+# Caddy keeps retrying in the background, slower each time, and the other hosts
+# are not affected.
+admission.{$PROFILE_APEX} {
+	import ppdb_app admission
+}
+
+admin.{$PROFILE_APEX} {
+	import ppdb_app admin
 }
