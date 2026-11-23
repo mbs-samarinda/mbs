@@ -34,11 +34,19 @@ for (const { path, from, link, heading, heldBack } of cases) {
   test(`${from} to ${path} is instant`, async ({ page }) => {
     await page.goto(from);
 
+    const target = page
+      .getByRole("navigation", { name: link.name })
+      .getByRole("link", { name: link.text, exact: true });
+    // Until React attaches, a click is a plain page load, which the hold does
+    // not cover. React's props key is the only sign of it in the DOM.
+    await expect
+      .poll(() =>
+        target.evaluate((el) => Object.keys(el).some((key) => key.startsWith("__reactProps"))),
+      )
+      .toBe(true);
+
     await instant(page, async () => {
-      await page
-        .getByRole("navigation", { name: link.name })
-        .getByRole("link", { name: link.text, exact: true })
-        .click();
+      await target.click();
       // A page that waits on the server never commits while held, so this is
       // the check that fails. Bounded, or it eats the whole test timeout and
       // the report blames the cookie cleanup instead.
