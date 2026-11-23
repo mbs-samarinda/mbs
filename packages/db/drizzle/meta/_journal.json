@@ -71,6 +71,13 @@
       "when": 1795322313733,
       "tag": "0009_wet_wong",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795324864378,
+      "tag": "0010_notification_outbox",
+      "breakpoints": true
     }
   ]
 }

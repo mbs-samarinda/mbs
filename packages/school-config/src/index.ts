@@ -99,6 +99,11 @@ export const APPLICATION_COMMANDS = [
 
 export const ACTOR_TYPES = ["FAMILY", "STAFF", "SYSTEM"] as const;
 
+export const NOTIFICATION_CHANNELS = ["EMAIL"] as const;
+export const NOTIFICATION_STATUSES = ["PENDING", "SENDING", "SENT", "FAILED"] as const;
+export const NOTIFICATION_ATTEMPT_OUTCOMES = ["SENT", "FAILED", "DELIVERY_UNKNOWN"] as const;
+export const SIGN_IN_CODE_TEMPLATE = "sign-in-code";
+
 /**
  * Narrows a string read from the database to a school key. The schools table
  * holds the same fixed list, but its column is text, so this is where that

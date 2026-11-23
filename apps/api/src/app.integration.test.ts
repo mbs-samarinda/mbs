@@ -1,24 +1,14 @@
-import { createHmac } from "node:crypto";
-
+import { makeSignature } from "better-auth/crypto";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { buildApp } from "./app.ts";
-import { loadConfig } from "./config/env.ts";
+import { STAFF_HOST, testConfig } from "./test/config.ts";
 
 // Runs against the real database from docker-compose, per the testing strategy:
 // no mocked Drizzle, no second imaginary database.
-const config = loadConfig({
-  NODE_ENV: "test",
-  LOG_LEVEL: "error",
-  DATABASE_URL: process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
-  BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-to-pass",
-  BETTER_AUTH_URL: "http://localhost:3001",
-  GOOGLE_CLIENT_ID: "test-client-id",
-  GOOGLE_CLIENT_SECRET: "test-client-secret",
-  ADMIN_APP_URL: "http://localhost:5174",
-});
+const config = testConfig();
 
 const app = await buildApp(config);
 
@@ -50,6 +40,32 @@ describe("api boundary", () => {
       payload: { json: { schoolKey: "not-a-school" } },
     });
     expect(response.statusCode).toBe(400);
+  });
+});
+
+describe("request log", () => {
+  it.each([
+    ["GET", "/api/auth/callback/google"],
+    ["PUT", "/api/auth/callback/google"],
+    ["GET", "/no-such-route"],
+    ["GET", "/%"],
+  ] as const)("keeps the query string of %s %s out of the log", async (method, path) => {
+    const lines: string[] = [];
+    const watched = await buildApp(
+      { ...config, logLevel: "debug" },
+      { logStream: { write: (line) => void lines.push(line) } },
+    );
+
+    const response = await watched.inject({
+      method,
+      url: `${path}?code=one-time-code&state=s1`,
+      headers: { host: STAFF_HOST },
+    });
+    await watched.close();
+
+    expect(lines.join("")).not.toContain("one-time-code");
+    expect(response.body).not.toContain("one-time-code");
+    if (path !== "/%") expect(lines.join("")).toContain(`"url":"${path}"`);
   });
 });
 
@@ -123,15 +139,17 @@ describe("unexpected errors", () => {
       (...args: unknown[]) => void printed.push(args),
     );
     const token = "session-token-that-must-not-be-logged";
-    const signature = createHmac("sha256", config.auth.secret).update(token).digest("base64");
+    const auth = await watched.auth.STAFF.$context;
+    const signature = await makeSignature(token, auth.secret);
     await watched.db.execute(sql`alter table session rename to session_away`);
     try {
       const response = await watched.inject({
         method,
         url,
         headers: {
+          host: STAFF_HOST,
           "content-type": "application/json",
-          cookie: `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`,
+          cookie: `${auth.authCookies.sessionToken.name}=${encodeURIComponent(`${token}.${signature}`)}`,
         },
         ...(method === "POST" ? { payload: { json: { schoolKey: "sma" } } } : {}),
       });
@@ -205,7 +223,7 @@ describe("sign-in gate", () => {
   // Better Auth turns this code into `?error=` on the committee app, which
   // shows its no-access line for this code only.
   it("refuses an unapproved address with the code the committee app expects", async () => {
-    const auth = await app.auth.$context;
+    const auth = await app.auth.STAFF.$context;
     await expect(
       auth.internalAdapter.createOAuthUser(
         { email: "stranger@gmail.com", name: "Stranger", emailVerified: true },

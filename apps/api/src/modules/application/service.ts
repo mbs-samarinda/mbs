@@ -10,6 +10,7 @@ import {
   type SchoolKey,
 } from "@mbs/api-contract";
 import type { Database, Transaction } from "@mbs/db";
+import { isSchoolKey } from "@mbs/school-config";
 
 import {
   ConflictError,
@@ -22,8 +23,10 @@ import {
   StaleSequenceError,
 } from "../../errors.ts";
 import type { StaffContext } from "../auth/authorization.ts";
+import { enqueueEventEmails, type OutboxSettings } from "../notification/outbox.ts";
 import {
   findApplicationById,
+  findApplicationForUser,
   findEventByIdempotencyKey,
   findLatestProfileVersion,
   findNewestEventOf,
@@ -43,7 +46,17 @@ import {
   type ApplicationEventRow,
   type ApplicationRow,
 } from "./repository.ts";
-import { requiredCommand, transition } from "./stages.ts";
+import { requiredCommand, transition, type NotificationKey } from "./stages.ts";
+
+export async function loadFamilyApplication(
+  db: Database,
+  family: { userId: string },
+  applicationId: string,
+) {
+  const found = await findApplicationForUser(db, applicationId, family.userId);
+  if (!found || !isSchoolKey(found.schoolKey)) throw new NotFoundError("No such application.");
+  return { ...found.application, schoolKey: found.schoolKey };
+}
 
 export type Actor =
   | { type: "FAMILY"; userId: string }
@@ -74,6 +87,7 @@ export async function submitApplication(
     idempotencyKey: string | null;
     meta?: RequestMeta;
   },
+  outbox: OutboxSettings,
 ): Promise<{ application: ApplicationRow; event: ApplicationEventRow; replayed: boolean }> {
   const profile = ApplicantProfile.parse(input.profile);
 
@@ -115,7 +129,7 @@ export async function submitApplication(
     if (!result.ok) throw new IllegalTransitionError("SUBMIT is not allowed.");
 
     const seq = await nextRegistrationSeq(tx, input.cycleId, cycle.schoolId);
-    const application = await insertApplication(tx, {
+    const inserted = await insertApplication(tx, {
       admissionCycleId: input.cycleId,
       schoolId: cycle.schoolId,
       registrationSeq: seq,
@@ -130,16 +144,16 @@ export async function submitApplication(
       throw error;
     });
 
-    await snapshotDocumentRequirements(tx, application.id, input.cycleId, cycle.schoolId);
+    await snapshotDocumentRequirements(tx, inserted.id, input.cycleId, cycle.schoolId);
     await insertProfileVersion(tx, {
-      applicationId: application.id,
+      applicationId: inserted.id,
       version: 1,
       data: profile,
       authorUserId: input.userId,
     });
-    await grantAccess(tx, application.id, input.userId);
+    await grantAccess(tx, inserted.id, input.userId);
     const event = await insertEvent(tx, {
-      applicationId: application.id,
+      applicationId: inserted.id,
       seq: 1,
       command: "SUBMIT",
       fromStage: null,
@@ -155,8 +169,45 @@ export async function submitApplication(
       if (isUniqueViolation(error)) throw reusedKey();
       throw error;
     });
+    const application = await recordEventOnApplication(tx, inserted.id, {
+      eventId: event.id,
+      stage: result.to,
+      lastEventSeq: 1,
+      stageChanged: true,
+      interviewMode: undefined,
+    });
+    await notifyFamily(
+      tx,
+      result,
+      { application, event, schoolKey: input.schoolKey, staffReason: null },
+      outbox,
+    );
 
     return { application, event, replayed: false };
+  });
+}
+
+async function notifyFamily(
+  tx: Transaction,
+  result: { familyVisible: boolean; notification: NotificationKey | null },
+  written: {
+    application: ApplicationRow;
+    event: ApplicationEventRow;
+    schoolKey: string;
+    staffReason: string | null;
+  },
+  outbox: OutboxSettings,
+) {
+  if (!result.familyVisible || !result.notification) return;
+  if (!isSchoolKey(written.schoolKey)) throw new Error(`Unknown school ${written.schoolKey}.`);
+  await enqueueEventEmails(tx, {
+    applicationId: written.application.id,
+    eventId: written.event.id,
+    schoolKey: written.schoolKey,
+    registrationNumber: written.application.registrationNumber,
+    staffReason: written.staffReason,
+    template: result.notification,
+    settings: outbox,
   });
 }
 
@@ -171,11 +222,12 @@ type CommandContext = {
 export async function applyCommand(
   db: Database,
   input: CommandContext & { command: ApplicationCommand; payload: unknown },
+  outbox: OutboxSettings,
 ): Promise<{ event: ApplicationEventRow; replayed: boolean }> {
   const command = AppliedCommand.parse(input.command);
   const payload = COMMAND_PAYLOADS[command].parse(input.payload);
 
-  return runCommand(db, input, command, {
+  return runCommand(db, input, command, outbox, {
     isRetry: async (earlier) =>
       earlier.command === command && sameAsStored(earlier.payload, payload),
     write: async () => payload,
@@ -185,11 +237,12 @@ export async function applyCommand(
 export async function saveProfile(
   db: Database,
   input: CommandContext & { profile: ApplicantProfileInput },
+  outbox: OutboxSettings,
 ): Promise<{ version: number; event: ApplicationEventRow; replayed: boolean }> {
   const profile = ApplicantProfile.parse(input.profile);
   const author = authorUserId(input.actor);
 
-  const result = await runCommand(db, input, "EDIT_PROFILE", {
+  const result = await runCommand(db, input, "EDIT_PROFILE", outbox, {
     isRetry: async (earlier, tx) => {
       if (earlier.command !== "EDIT_PROFILE") return false;
       const { version } = COMMAND_PAYLOADS.EDIT_PROFILE.parse(earlier.payload);
@@ -223,6 +276,7 @@ async function runCommand(
   db: Database,
   input: CommandContext,
   command: ApplicationCommand,
+  outbox: OutboxSettings,
   steps: {
     isRetry: (earlier: ApplicationEventRow, tx: Transaction) => Promise<boolean>;
     write: (
@@ -296,6 +350,7 @@ async function runCommand(
     });
 
     await recordEventOnApplication(tx, application.id, {
+      eventId: event.id,
       stage: result.to,
       lastEventSeq: seq,
       stageChanged: result.to !== application.stage,
@@ -304,6 +359,9 @@ async function runCommand(
           ? COMMAND_PAYLOADS.CHANGE_INTERVIEW_MODE.parse(payload).mode
           : undefined,
     });
+    const staffReason =
+      input.actor.type === "STAFF" && "reason" in payload ? (payload.reason ?? null) : null;
+    await notifyFamily(tx, result, { application, event, schoolKey, staffReason }, outbox);
 
     return { event, replayed: false };
   });

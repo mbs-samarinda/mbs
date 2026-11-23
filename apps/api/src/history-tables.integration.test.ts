@@ -9,6 +9,7 @@ const HISTORY_TABLES = [
   schema.applicationEvents,
   schema.applicantProfileVersions,
   schema.applicationDocumentRequirements,
+  schema.notificationAttempts,
 ].map((table) => getTableName(table));
 
 const db = createDatabase(

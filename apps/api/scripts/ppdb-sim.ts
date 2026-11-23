@@ -16,6 +16,7 @@ import { APPLICATION_STAGES, SCHOOL_KEYS } from "@mbs/school-config";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { loadConfig } from "../src/config/env.ts";
 import { listSchoolKeysTakingPart } from "../src/modules/admission/repository.ts";
 import { createAdmissionCycle, setAdmissionCycleStatus } from "../src/modules/admission/service.ts";
 import {
@@ -25,7 +26,9 @@ import {
   type Actor,
 } from "../src/modules/application/service.ts";
 import { TRANSITIONS, isEndStage } from "../src/modules/application/stages.ts";
+import { createStaffAuth, sessionCookie } from "../src/modules/auth/auth.ts";
 import type { StaffContext } from "../src/modules/auth/authorization.ts";
+import { ensureBootstrapAdministrator } from "../src/modules/staff/bootstrap.ts";
 
 const DAY = 86_400_000;
 
@@ -249,13 +252,17 @@ async function walk(db: Database, args: Args) {
       await ensureFamilyUser(db, userId);
       // oxlint-disable-next-line eslint/no-await-in-loop
       const submitted = await timed("SUBMIT", () =>
-        submitApplication(db, {
-          cycleId,
-          schoolKey,
-          userId,
-          profile: profileFor(args.seed, index, nik),
-          idempotencyKey: key(1),
-        }),
+        submitApplication(
+          db,
+          {
+            cycleId,
+            schoolKey,
+            userId,
+            profile: profileFor(args.seed, index, nik),
+            idempotencyKey: key(1),
+          },
+          outbox,
+        ),
       );
       let newRows = submitted.replayed ? 0 : 1;
       let replayedRows = submitted.replayed ? 1 : 0;
@@ -272,13 +279,17 @@ async function walk(db: Database, args: Args) {
       for (let edit = 1; edit <= args.profileEdits; edit += 1) {
         // oxlint-disable-next-line eslint/no-await-in-loop
         const saved = await timed("EDIT_PROFILE", () =>
-          saveProfile(db, {
-            applicationId: submitted.application.id,
-            actor: { type: "FAMILY", userId },
-            profile: profileFor(args.seed, index, nik, edit),
-            expectedSeq: seq,
-            idempotencyKey: key(`edit-${edit}`),
-          }),
+          saveProfile(
+            db,
+            {
+              applicationId: submitted.application.id,
+              actor: { type: "FAMILY", userId },
+              profile: profileFor(args.seed, index, nik, edit),
+              expectedSeq: seq,
+              idempotencyKey: key(`edit-${edit}`),
+            },
+            outbox,
+          ),
         );
         record(saved);
       }
@@ -290,14 +301,18 @@ async function walk(db: Database, args: Args) {
             : SAMPLE_PAYLOADS[command];
         // oxlint-disable-next-line eslint/no-await-in-loop
         const result = await timed(command, () =>
-          applyCommand(db, {
-            command,
-            payload,
-            applicationId: submitted.application.id,
-            actor: actorFor(command, userId),
-            expectedSeq: seq,
-            idempotencyKey: key(step + 2),
-          }),
+          applyCommand(
+            db,
+            {
+              command,
+              payload,
+              applicationId: submitted.application.id,
+              actor: actorFor(command, userId),
+              expectedSeq: seq,
+              idempotencyKey: key(step + 2),
+            },
+            outbox,
+          ),
         );
         record(result);
       }
@@ -343,19 +358,43 @@ async function applyOne(
 
   const payload = { ...SAMPLE_PAYLOADS[command], ...args.payload };
   const result = await timed(command, () =>
-    applyCommand(db, {
-      command,
-      payload,
-      applicationId: application.id,
-      actor: actorFor(command, application.createdByUserId),
-      expectedSeq: args.expectedSeq ?? application.lastEventSeq,
-      idempotencyKey: args.key,
-    }),
+    applyCommand(
+      db,
+      {
+        command,
+        payload,
+        applicationId: application.id,
+        actor: actorFor(command, application.createdByUserId),
+        expectedSeq: args.expectedSeq ?? application.lastEventSeq,
+        idempotencyKey: args.key,
+      },
+      outbox,
+    ),
   );
   const { event } = result;
   print(
     `${registrationNumber}  ${event.command}  seq ${event.seq}  ${event.fromStage} -> ${event.toStage}${result.replayed ? "  (replayed)" : ""}`,
   );
+}
+
+async function staffSession(db: Database, rawEmail: string) {
+  const email = z.email().parse(rawEmail.trim().toLowerCase());
+  const config = loadConfig();
+  await ensureBootstrapAdministrator(db, email);
+
+  const auth = createStaffAuth(db, config, {});
+  const context = await auth.$context;
+  const user =
+    (await context.internalAdapter.findUserByEmail(email))?.user ??
+    (
+      await context.internalAdapter.createOAuthUser(
+        { email, name: email, emailVerified: true },
+        { providerId: "google", accountId: `ppdb-sim-${email}` },
+      )
+    ).user;
+
+  print(`host: ${new URL(config.auth.adminAppUrl).host}`);
+  print(`cookie: ${await sessionCookie(auth, user.id)}`);
 }
 
 function printTimings() {
@@ -378,6 +417,7 @@ type Args = {
   expectedSeq: number | null;
   key: string | null;
   payload: Record<string, unknown>;
+  staffSession: string | null;
 };
 
 function parse(argv: string[]) {
@@ -395,6 +435,7 @@ function parse(argv: string[]) {
       "expected-seq": { type: "string" },
       key: { type: "string" },
       payload: { type: "string" },
+      "staff-session": { type: "string" },
     },
   });
 
@@ -413,23 +454,37 @@ function parse(argv: string[]) {
     payload: values.payload
       ? z.record(z.string(), z.unknown()).parse(JSON.parse(values.payload))
       : {},
+    staffSession: values["staff-session"] ?? null,
   };
   return { args, positionals };
+}
+
+// The password check covers what the host cannot: a tunnel makes production
+// look like localhost, but production's password is not one of these.
+function assertLocalDatabase(url: string) {
+  const { hostname, password } = new URL(url);
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
+  const isDevPassword = password === "mbs_local_dev" || password === "mbs_verify";
+  if (process.env.NODE_ENV === "production" || !isLocal || !isDevPassword) {
+    throw new Error(
+      "ppdb-sim runs only against a local database with a development password, never production.",
+    );
+  }
 }
 
 const { args, positionals } = parse(process.argv.slice(2));
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is not set.");
-// The sim writes fake families into append-only tables and can run any command
-// as an administrator, so it refuses every database that is not on this machine.
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
-if (process.env.NODE_ENV === "production" || !LOCAL_HOSTS.has(new URL(databaseUrl).hostname)) {
-  throw new Error("ppdb-sim runs only against a local database, never production.");
-}
+assertLocalDatabase(databaseUrl);
 const db = createDatabase(databaseUrl);
+const outbox = { familyAppUrl: process.env.FAMILY_APP_URL ?? "" };
 
 try {
-  if (positionals[0] === "apply") {
+  if (args.staffSession) {
+    await staffSession(db, args.staffSession);
+  } else if (!outbox.familyAppUrl) {
+    throw new Error("FAMILY_APP_URL is not set. Every step queues an email that links to it.");
+  } else if (positionals[0] === "apply") {
     const [, registrationNumber, command] = positionals;
     if (!registrationNumber)
       throw new Error("Usage: ppdb-sim apply <REGISTRATION-NUMBER> <COMMAND>");

@@ -5,10 +5,12 @@ import { loadConfig } from "./env.ts";
 const valid = {
   DATABASE_URL: "postgres://user:pass@localhost:5432/mbs_core",
   BETTER_AUTH_SECRET: "0123456789abcdef0123456789abcdef",
-  BETTER_AUTH_URL: "http://localhost:3001",
   GOOGLE_CLIENT_ID: "client-id",
   GOOGLE_CLIENT_SECRET: "client-secret",
+  FAMILY_APP_URL: "http://localhost:5173",
   ADMIN_APP_URL: "http://localhost:5174",
+  SMTP_URL: "smtp://localhost:1025",
+  MAIL_FROM: "PPDB MBSS <ppdb@mbss.sch.id>",
 };
 
 describe("loadConfig", () => {
@@ -21,6 +23,12 @@ describe("loadConfig", () => {
 
   it("knows when it is running in production", () => {
     expect(loadConfig({ ...valid, NODE_ENV: "production" }).isProduction).toBe(true);
+  });
+
+  it("refuses two apps on one host, since the host picks the sign-in", () => {
+    expect(() => loadConfig({ ...valid, FAMILY_APP_URL: "http://localhost:5174/parent" })).toThrow(
+      /different host/,
+    );
   });
 
   it("refuses to start without a database url", () => {

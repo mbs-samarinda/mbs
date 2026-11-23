@@ -2,10 +2,10 @@ import { createDatabase, schema } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-import { loadConfig } from "../../config/env.ts";
 import { ConflictError, ForbiddenError } from "../../errors.ts";
+import { testConfig } from "../../test/config.ts";
 import { resetTables } from "../../test/reset.ts";
-import { createAuth } from "../auth/auth.ts";
+import { createStaffAuth } from "../auth/auth.ts";
 import { resolveStaff, type StaffContext } from "../auth/authorization.ts";
 import { ensureBootstrapAdministrator } from "./bootstrap.ts";
 import {
@@ -22,14 +22,7 @@ const db = createDatabase(
   process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
 );
 
-const config = loadConfig({
-  DATABASE_URL: "postgres://unused",
-  BETTER_AUTH_SECRET: "test-secret-that-is-long-enough-to-pass",
-  BETTER_AUTH_URL: "http://localhost:3001",
-  GOOGLE_CLIENT_ID: "test-client-id",
-  GOOGLE_CLIENT_SECRET: "test-client-secret",
-  ADMIN_APP_URL: "http://localhost:5174",
-});
+const config = testConfig();
 
 const BOOTSTRAP_EMAIL = "kepala@mbss.sch.id";
 
@@ -231,7 +224,7 @@ describe("resolveStaff", () => {
   // Pins Better Auth's lowercasing; our code no longer lowercases.
   it("matches a pre-approved address whatever case the provider sends", async () => {
     await ensureBootstrapAdministrator(db, BOOTSTRAP_EMAIL);
-    const auth = await createAuth(db, config).$context;
+    const auth = await createStaffAuth(db, config, {}).$context;
     const { user } = await auth.internalAdapter.createOAuthUser(
       { email: "Kepala@MBSS.sch.id", name: "Kepala", emailVerified: true },
       { providerId: "google", accountId: "google-kepala" },

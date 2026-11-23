@@ -7,6 +7,10 @@ import {
   DOCUMENT_STAGES,
   DOCUMENT_TYPES,
   INTERVIEW_MODES,
+  NOTIFICATION_ATTEMPT_OUTCOMES,
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_STATUSES,
+  SIGN_IN_CODE_TEMPLATE,
   STAFF_LOGIN_EMAIL_KINDS,
   STAFF_ROLES,
 } from "@mbs/school-config";
@@ -14,6 +18,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -341,4 +346,71 @@ export const applicationEvents = pgTable(
       .on(table.actorType, table.actorId, table.idempotencyKey)
       .where(sql`idempotency_key is not null`),
   ],
+);
+
+export const notificationChannel = pgEnum("notification_channel", NOTIFICATION_CHANNELS);
+export const notificationStatus = pgEnum("notification_status", NOTIFICATION_STATUSES);
+export const notificationAttemptOutcome = pgEnum(
+  "notification_attempt_outcome",
+  NOTIFICATION_ATTEMPT_OUTCOMES,
+);
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    applicationId: uuid("application_id").references(() => applications.id),
+    eventId: uuid("event_id").references(() => applicationEvents.id),
+    userId: text("user_id").references(() => user.id),
+    channel: notificationChannel("channel").notNull(),
+    templateKey: text("template_key").notNull(),
+    templateVersion: integer("template_version").notNull(),
+    recipient: text("recipient").notNull(),
+    subject: text("subject"),
+    bodyText: text("body_text"),
+    bodyHtml: text("body_html"),
+    status: notificationStatus("status").notNull().default("PENDING"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    leaseUntil: timestamp("lease_until", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("notifications_event_user")
+      .on(table.eventId, table.userId)
+      .where(sql`event_id is not null`),
+    index("notifications_due")
+      .on(table.nextAttemptAt)
+      .where(sql`status in ('PENDING', 'SENDING')`),
+    check(
+      "notifications_event_kept",
+      sql`case when template_key = ${sql.raw(`'${SIGN_IN_CODE_TEMPLATE}'`)}
+        then application_id is null and event_id is null
+        else application_id is not null and event_id is not null end`,
+    ),
+    check(
+      "notifications_content_kept",
+      sql`case when template_key = ${sql.raw(`'${SIGN_IN_CODE_TEMPLATE}'`)}
+        then subject is null and body_text is null and body_html is null
+        else subject is not null and body_text is not null end`,
+    ),
+  ],
+);
+
+export const notificationAttempts = pgTable(
+  "notification_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => notifications.id),
+    attempt: integer("attempt").notNull(),
+    outcome: notificationAttemptOutcome("outcome").notNull(),
+    responseCode: text("response_code"),
+    errorClass: text("error_class"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.notificationId, table.attempt)],
 );

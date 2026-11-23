@@ -6,7 +6,7 @@ import type {
   DocumentStage,
   InterviewMode,
 } from "@mbs/api-contract";
-import { schema, type Transaction } from "@mbs/db";
+import { schema, type Database, type Transaction } from "@mbs/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { takesPart } from "../admission/repository.ts";
@@ -92,7 +92,10 @@ export async function insertApplication(
   tx: Transaction,
   values: typeof schema.applications.$inferInsert,
 ) {
-  const [row] = await tx.insert(schema.applications).values(values).returning();
+  const [row] = await tx
+    .insert(schema.applications)
+    .values({ ...values, createdAt: sql`clock_timestamp()` })
+    .returning();
   return row!;
 }
 
@@ -221,10 +224,8 @@ export async function findApplicationById(tx: Transaction, applicationId: string
 
 export async function insertEvent(
   tx: Transaction,
-  values: typeof schema.applicationEvents.$inferInsert,
+  values: Omit<typeof schema.applicationEvents.$inferInsert, "createdAt">,
 ) {
-  // Write time, not transaction start: a command that waited on the row lock
-  // must not be stamped earlier than the event it waited behind.
   const [row] = await tx
     .insert(schema.applicationEvents)
     .values({ ...values, createdAt: sql`clock_timestamp()` })
@@ -236,27 +237,53 @@ export async function recordEventOnApplication(
   tx: Transaction,
   applicationId: string,
   values: {
+    eventId: string;
     stage: ApplicationStage;
     lastEventSeq: number;
     stageChanged: boolean;
     interviewMode: InterviewMode | undefined;
   },
 ) {
-  await tx
+  const { applicationEvents } = schema;
+  const writtenAt = sql`(select ${applicationEvents.createdAt} from ${applicationEvents} where ${applicationEvents.id} = ${values.eventId})`;
+  const [row] = await tx
     .update(schema.applications)
     .set({
       stage: values.stage,
       lastEventSeq: values.lastEventSeq,
       interviewMode: values.interviewMode,
-      stageChangedAt: values.stageChanged ? sql`clock_timestamp()` : undefined,
-      updatedAt: sql`now()`,
+      stageChangedAt: values.stageChanged ? writtenAt : undefined,
+      updatedAt: writtenAt,
     })
-    .where(eq(schema.applications.id, applicationId));
+    .where(eq(schema.applications.id, applicationId))
+    .returning();
+  return row!;
+}
+
+export async function findApplicationForUser(
+  db: Database | Transaction,
+  applicationId: string,
+  userId: string,
+) {
+  const rows = await db
+    .select({ application: schema.applications, schoolKey: schema.schools.key })
+    .from(schema.applications)
+    .innerJoin(
+      schema.applicationAccess,
+      and(
+        eq(schema.applicationAccess.applicationId, schema.applications.id),
+        eq(schema.applicationAccess.userId, userId),
+      ),
+    )
+    .innerJoin(schema.schools, eq(schema.schools.id, schema.applications.schoolId))
+    .where(eq(schema.applications.id, applicationId))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function updateApplicationNik(tx: Transaction, applicationId: string, nik: string) {
   await tx
     .update(schema.applications)
-    .set({ nik, updatedAt: sql`now()` })
+    .set({ nik, updatedAt: sql`clock_timestamp()` })
     .where(eq(schema.applications.id, applicationId));
 }

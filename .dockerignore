@@ -34,5 +34,4 @@
 **/.env*
 **/Dockerfile
 
-# Dev-only tools. ppdb-sim writes fake families and must never ship in an image.
 apps/api/scripts

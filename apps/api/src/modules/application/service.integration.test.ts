@@ -1,7 +1,7 @@
 import type { ApplicantProfileInput, AppliedCommand, SchoolKey } from "@mbs/api-contract";
-import { createDatabase, schema, type Transaction } from "@mbs/db";
+import { createDatabase, schema, type Database, type Transaction } from "@mbs/db";
 import { asc, eq, sql } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ZodError } from "zod";
 
 import {
@@ -15,7 +15,18 @@ import {
 } from "../../errors.ts";
 import { resetTables } from "../../test/reset.ts";
 import type { StaffContext } from "../auth/authorization.ts";
-import { applyCommand, saveProfile, submitApplication, type Actor } from "./service.ts";
+import * as service from "./service.ts";
+import type { Actor } from "./service.ts";
+
+const OUTBOX = { familyAppUrl: "http://localhost:5173" };
+const submitApplication = (
+  target: Database,
+  input: Parameters<typeof service.submitApplication>[1],
+) => service.submitApplication(target, input, OUTBOX);
+const applyCommand = (target: Database, input: Parameters<typeof service.applyCommand>[1]) =>
+  service.applyCommand(target, input, OUTBOX);
+const saveProfile = (target: Database, input: Parameters<typeof service.saveProfile>[1]) =>
+  service.saveProfile(target, input, OUTBOX);
 
 const db = createDatabase(
   process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
@@ -392,6 +403,42 @@ describe("applyCommand", () => {
     expect(row).toMatchObject({ stage: "DOCUMENTS_DUE", lastEventSeq: 3 });
   });
 
+  it("stamps the application with its newest event's time, taken after any wait", async () => {
+    const { application, event } = await submit();
+    expect(application.stageChangedAt).toEqual(event.createdAt);
+    expect(application.updatedAt).toEqual(event.createdAt);
+
+    let released = 0;
+    let waiting: Promise<Awaited<ReturnType<typeof applyCommand>>> | undefined;
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`select from applications where id = ${application.id} for update`);
+      waiting = applyCommand(db, {
+        applicationId: application.id,
+        command: "ADD_NOTE",
+        payload: { payloadVersion: 1, note: "Menunggu." },
+        actor: STAFF,
+        expectedSeq: 1,
+        idempotencyKey: null,
+      });
+      await vi.waitFor(async () => {
+        const blocked = await db.execute(
+          sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
+        );
+        expect(blocked).toHaveLength(1);
+      });
+      const [now] = await tx.execute<{ at: string }>(sql`select clock_timestamp()::text as at`);
+      released = new Date(now!.at).getTime();
+    });
+
+    const later = await waiting!;
+    expect(later.event.createdAt.getTime()).toBeGreaterThanOrEqual(released);
+    const [row] = await db
+      .select()
+      .from(schema.applications)
+      .where(eq(schema.applications.id, application.id));
+    expect(row!.updatedAt).toEqual(later.event.createdAt);
+  });
+
   it("applies a replayed idempotency key once and returns the first result", async () => {
     const applicationId = await atPaymentReview();
 
@@ -627,6 +674,125 @@ describe("applyCommand", () => {
     ).rejects.toMatchObject({
       cause: { constraint_name: "application_events_only_submit_lacks_from_stage" },
     });
+  });
+});
+
+describe("family emails", () => {
+  async function emailsOf(applicationId: string) {
+    return db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.applicationId, applicationId))
+      .orderBy(asc(schema.notifications.createdAt), asc(schema.notifications.recipient));
+  }
+
+  it("queues one email per account with access, in the event's transaction, as rendered", async () => {
+    const { application, event } = await submit();
+    await db
+      .insert(schema.applicationAccess)
+      .values({ applicationId: application.id, userId: "family-2" });
+    const upload = await applyCommand(db, {
+      applicationId: application.id,
+      actor: FAMILY,
+      command: "UPLOAD_PAYMENT_PROOF",
+      payload: { payloadVersion: 1 },
+      expectedSeq: 1,
+      idempotencyKey: crypto.randomUUID(),
+    });
+
+    const emails = await emailsOf(application.id);
+    expect(emails.map((row) => [row.eventId, row.recipient, row.templateKey])).toEqual([
+      [event.id, "family-1@example.test", "application-submitted"],
+      [upload.event.id, "family-1@example.test", "payment-received"],
+      [upload.event.id, "family-2@example.test", "payment-received"],
+    ]);
+    expect(emails[0]).toMatchObject({ status: "PENDING", channel: "EMAIL", templateVersion: 1 });
+    expect(emails[0]?.subject).toContain(application.registrationNumber);
+    expect(emails[0]?.bodyText).toContain("Aisyah Putri");
+    expect(emails[0]?.bodyHtml).toContain("http://localhost:5173");
+  });
+
+  it("queues nothing for a replayed command or an event the family does not see", async () => {
+    const { application } = await submit({ key: "submit-1" });
+    await submit({ key: "submit-1" });
+    const upload = {
+      applicationId: application.id,
+      actor: FAMILY,
+      command: "UPLOAD_PAYMENT_PROOF",
+      payload: { payloadVersion: 1 },
+      expectedSeq: 1,
+      idempotencyKey: "upload-1",
+    } as const;
+    await applyCommand(db, upload);
+    await applyCommand(db, upload);
+    await applyCommand(db, {
+      applicationId: application.id,
+      actor: STAFF,
+      command: "ADD_NOTE",
+      payload: { payloadVersion: 1, note: "Berkas asli dibawa saat wawancara." },
+      expectedSeq: 2,
+      idempotencyKey: null,
+    });
+
+    expect((await emailsOf(application.id)).map((row) => row.templateKey)).toEqual([
+      "application-submitted",
+      "payment-received",
+    ]);
+  });
+
+  it("quotes a reason as the committee's note only when staff gave it", async () => {
+    const { application } = await submit();
+    await applyCommand(db, {
+      applicationId: application.id,
+      actor: FAMILY,
+      command: "WITHDRAW",
+      payload: { payloadVersion: 1, reason: "Pindah kota" },
+      expectedSeq: 1,
+      idempotencyKey: null,
+    });
+    const withdrawn = (await emailsOf(application.id)).find(
+      (row) => row.templateKey === "withdrawn",
+    );
+    expect(withdrawn?.bodyText).not.toContain("Pindah kota");
+    expect(withdrawn?.bodyText).not.toContain("Catatan dari panitia");
+
+    const rejected = await submit({
+      userId: "family-2",
+      profile: profile({ nik: "6472010101010002" }),
+    });
+    for (const [seq, actor, command, payload] of [
+      [1, { type: "FAMILY", userId: "family-2" }, "UPLOAD_PAYMENT_PROOF", { payloadVersion: 1 }],
+      [2, STAFF, "REJECT_PAYMENT", { payloadVersion: 1, reason: "Foto buram" }],
+    ] as const) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await applyCommand(db, {
+        applicationId: rejected.application.id,
+        actor,
+        command,
+        payload,
+        expectedSeq: seq,
+        idempotencyKey: null,
+      });
+    }
+    const refusal = (await emailsOf(rejected.application.id)).find(
+      (row) => row.templateKey === "payment-rejected",
+    );
+    expect(refusal?.bodyText).toContain("Catatan dari panitia: Foto buram");
+  });
+
+  it("writes no email when the command fails", async () => {
+    const { application } = await submit();
+    await expect(
+      applyCommand(db, {
+        applicationId: application.id,
+        actor: STAFF,
+        command: "APPROVE_PAYMENT",
+        payload: { payloadVersion: 1 },
+        expectedSeq: 1,
+        idempotencyKey: null,
+      }),
+    ).rejects.toThrow(IllegalTransitionError);
+    expect(await emailsOf(application.id)).toHaveLength(1);
   });
 });
 

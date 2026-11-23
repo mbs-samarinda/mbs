@@ -5,47 +5,110 @@ import { createDatabase, type Database } from "@mbs/db";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fastify";
 import { fromNodeHeaders } from "better-auth/node";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 
 import type { Config } from "./config/env.ts";
-import { createAuth, type Auth } from "./modules/auth/auth.ts";
+import {
+  createFamilyAuth,
+  createStaffAuth,
+  REQUEST_ID_HEADER,
+  SIGN_IN_CODE_MINUTES,
+  type Audience,
+  type FamilyAuth,
+  type StaffAuth,
+} from "./modules/auth/auth.ts";
+import { createSmtpMailer, type Mailer } from "./modules/notification/email.ts";
+import {
+  createNotificationWorker,
+  type NotificationWorker,
+} from "./modules/notification/worker.ts";
 import { router } from "./router.ts";
 import { healthRoutes } from "./routes/health.ts";
 
 declare module "fastify" {
   interface FastifyInstance {
     db: Database;
-    auth: Auth;
+    auth: { FAMILY: FamilyAuth; STAFF: StaffAuth };
+    notifications: NotificationWorker;
   }
 }
 
-export async function buildApp(config: Config): Promise<FastifyInstance> {
+export type AppDeps = { mailer?: Mailer; logStream?: { write(line: string): void } };
+
+export async function buildApp(config: Config, deps: AppDeps = {}): Promise<FastifyInstance> {
   const app = Fastify({
     // Handed to the client on every response, so it has to stay unique across
     // restarts. Fastify's default is a counter that starts again at req-1.
     genReqId: () => randomUUID(),
+    frameworkErrors: (error, request, reply) => {
+      const status = error.statusCode ?? 400;
+      request.log.info({ statusCode: status, code: error.code }, "request refused");
+      reply.hijack();
+      reply.raw
+        .writeHead(status, { "content-type": "application/json", "x-request-id": request.id })
+        .end(JSON.stringify({ error: STATUS_CODES[status] }));
+    },
     logger: {
       level: config.logLevel,
-      ...(config.isProduction ? {} : { transport: { target: "pino-pretty" } }),
+      serializers: { req: requestLogFieldsWithoutQuery },
+      ...(deps.logStream
+        ? { stream: deps.logStream }
+        : config.isProduction
+          ? {}
+          : { transport: { target: "pino-pretty" } }),
     },
   });
 
   const db = createDatabase(config.databaseUrl);
   app.decorate("db", db);
-  app.addHook("onClose", () => db.$client.end({ timeout: 5 }));
+
+  const notifications = createNotificationWorker({
+    db,
+    databaseUrl: config.databaseUrl,
+    mailer:
+      deps.mailer ??
+      createSmtpMailer({
+        url: config.mail.smtpUrl,
+        from: config.mail.from,
+        domain: config.mail.domain,
+      }),
+    log: app.log,
+    codeMinutes: SIGN_IN_CODE_MINUTES,
+  });
+  app.decorate("notifications", notifications);
+  app.addHook("onClose", async () => {
+    await notifications.stop();
+    await db.$client.end({ timeout: 5 });
+  });
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);
   });
+
   // Better Auth catches its own errors and prints them to the console, query
   // parameters included. This routes them through the same redaction. Its
   // lines carry no request id, so a failure on /api/auth/* is found by time.
-  app.decorate(
-    "auth",
-    createAuth(db, config, {
-      log: (level, message, ...args) =>
-        app.log[level]({ args: args.map(redactArg) }, `better-auth: ${redactMessage(message)}`),
+  const logger = {
+    log: (level: "info" | "warn" | "error" | "debug", message: string, ...args: unknown[]) =>
+      app.log[level]({ args: args.map(redactArg) }, `better-auth: ${redactMessage(message)}`),
+  };
+  app.decorate("auth", {
+    FAMILY: createFamilyAuth(db, config, {
+      logger,
+      sendSignInCode: async (email, code) => {
+        await notifications.sendSignInCode(email, code);
+      },
     }),
-  );
+    STAFF: createStaffAuth(db, config, { logger }),
+  });
+
+  const appUrls = { FAMILY: config.auth.familyAppUrl, STAFF: config.auth.adminAppUrl };
+  const audiences = new Map<string, Audience>([
+    [new URL(appUrls.FAMILY).host, "FAMILY"],
+    [new URL(appUrls.STAFF).host, "STAFF"],
+  ]);
+  const audienceOf = (request: FastifyRequest) =>
+    audiences.get(request.headers.host?.toLowerCase() ?? "") ?? null;
+
   // Fastify's default handler logs the error whole and echoes its message to
   // the client. Client errors keep that default.
   app.setErrorHandler((error, request, reply) => {
@@ -57,6 +120,10 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     request.log.error({ err: redactError(error) }, "unexpected error");
     reply.status(status).send({ error: STATUS_CODES[status] });
   });
+  // Fastify's default handler logs and echoes the full URL, query string included.
+  app.setNotFoundHandler((_request, reply) => {
+    reply.status(404).send({ error: "Not found" });
+  });
   await app.register(healthRoutes);
 
   // Better Auth speaks Fetch. Protocol callbacks stay ordinary Fastify routes
@@ -66,11 +133,15 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     method: ["GET", "POST"],
     url: "/api/auth/*",
     async handler(request, reply) {
-      const url = new URL(request.url, config.auth.baseUrl);
-      const response = await app.auth.handler(
+      const audience = audienceOf(request);
+      if (!audience) return reply.status(404).send({ error: "Not found" });
+      const auth = app.auth[audience];
+
+      const url = new URL(request.url, appUrls[audience]);
+      const response = await auth.handler(
         new Request(url, {
           method: request.method,
-          headers: fromNodeHeaders(request.headers),
+          headers: authHeaders(request),
           ...(request.body ? { body: JSON.stringify(request.body) } : {}),
         }),
       );
@@ -94,20 +165,29 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
   // comes from the session cookie itself: Better Auth sets SameSite=Lax, so a
   // cross-site POST never carries it and arrives unauthenticated.
   app.all("/api/rpc/*", async (request, reply) => {
-    // Resolved once per request, so every procedure sees the same session and
-    // no handler reaches for headers itself.
-    const session = await app.auth.api.getSession({
-      headers: fromNodeHeaders(request.headers),
-    });
+    const audience = audienceOf(request);
+    const session = audience
+      ? await app.auth[audience].api.getSession({ headers: authHeaders(request) })
+      : null;
 
     const { matched } = await handler.handle(request, reply, {
       prefix: "/api/rpc",
-      context: { db: app.db, sessionUser: session?.user ?? null, log: request.log },
+      context: {
+        db: app.db,
+        session: audience && session ? { audience, user: session.user } : { audience: null },
+        log: request.log,
+      },
     });
     if (!matched) reply.status(404).send({ error: "Not found" });
   });
 
   return app;
+}
+
+function authHeaders(request: FastifyRequest) {
+  const headers = fromNodeHeaders(request.headers);
+  headers.set(REQUEST_ID_HEADER, request.id);
+  return headers;
 }
 
 /**
@@ -162,4 +242,17 @@ function redactArg(arg: unknown): unknown {
  */
 function redactMessage(message: string) {
   return message.replace(/\nparams: [\s\S]*/, "\nparams: [redacted]");
+}
+
+function requestLogFieldsWithoutQuery(
+  request: Pick<FastifyRequest, "method" | "url" | "host" | "ip" | "socket">,
+) {
+  const { remotePort } = request.socket;
+  return {
+    method: request.method,
+    url: request.url.replace(/\?.*$/s, ""),
+    host: request.host,
+    remoteAddress: request.ip,
+    ...(remotePort === undefined ? {} : { remotePort }),
+  };
 }
