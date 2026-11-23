@@ -51,6 +51,9 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     logger: {
       level: config.logLevel,
       serializers: { req: requestLogFieldsWithoutQuery },
+      // Node puts the raw bytes of a malformed request, query string included,
+      // on the error Fastify logs at trace level.
+      redact: { paths: ["err.rawPacket"], remove: true },
       ...(deps.logStream
         ? { stream: deps.logStream }
         : config.isProduction

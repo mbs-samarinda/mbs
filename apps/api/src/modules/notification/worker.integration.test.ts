@@ -186,6 +186,18 @@ async function stallingProxy() {
   };
 }
 
+async function refusingSentAttempts(run: () => Promise<void>) {
+  await db.execute(sql`alter table notification_attempts drop constraint if exists no_sent`);
+  await db.execute(
+    sql`alter table notification_attempts add constraint no_sent check (outcome <> 'SENT') not valid`,
+  );
+  try {
+    await run();
+  } finally {
+    await db.execute(sql`alter table notification_attempts drop constraint no_sent`);
+  }
+}
+
 async function makeDue(id: string) {
   await db
     .update(schema.notifications)
@@ -337,52 +349,112 @@ describe("notification worker", () => {
   it("never records an accepted email as a failed send", async () => {
     const fake = createFakeMailer();
     const [row] = await queue();
-    const running = worker(fake);
-    await db.execute(
-      sql`alter table notification_attempts add constraint no_sent check (outcome <> 'SENT') not valid`,
-    );
-    try {
-      await expect(running.poll()).rejects.toThrow();
-    } finally {
-      await db.execute(sql`alter table notification_attempts drop constraint no_sent`);
-    }
+    const { lines, log: captured } = capturedLog();
+    const running = worker(fake, { log: captured });
+    await refusingSentAttempts(() => expect(running.poll()).rejects.toThrow());
 
     expect(await rowOf(row!.id)).toMatchObject({ status: "SENDING", attemptCount: 1 });
     expect(await attemptsOf(row!.id)).toEqual([]);
     expect(fake.sent).toHaveLength(1);
+    expect(lines).toMatchObject([
+      { msg: "notification was sent but not recorded as sent", errorClass: "DrizzleQueryError" },
+    ]);
+  });
+
+  it("sends a code again when its send was not recorded, and does not hold up the others", async () => {
+    const fake = createFakeMailer();
+    const { lines, log: captured } = capturedLog();
+    const idle = worker(fake, { log: captured, pollMs: 60_000 });
+    let codes: string[] = [];
+    await refusingSentAttempts(async () => {
+      codes = await Promise.all([
+        idle.sendSignInCode("ibu@example.test", "482913"),
+        idle.sendSignInCode("ayah@example.test", "135790"),
+      ]);
+      await vi.waitFor(() =>
+        expect(lines.filter((line) => line.msg.includes("failed to record"))).toHaveLength(2),
+      );
+    });
+    const [first] = codes;
+    expect(await rowOf(first!)).toMatchObject({ status: "SENDING", attemptCount: 1 });
+    await db
+      .update(schema.notifications)
+      .set({ leaseUntil: sql`now() - interval '1 second'` })
+      .where(eq(schema.notifications.id, first!));
+
+    await idle.sendSignInCode("wali@example.test", "246802");
+
+    await vi.waitFor(async () =>
+      expect(await rowOf(first!)).toMatchObject({ status: "SENT", attemptCount: 2 }),
+    );
+    const copies = fake.sent.filter((message) => message.id === first);
+    expect(copies).toHaveLength(2);
+    expect(copies[1]).toEqual(copies[0]);
+    expect(await attemptsOf(first!)).toMatchObject([
+      { attempt: 1, outcome: "DELIVERY_UNKNOWN" },
+      { attempt: 2, outcome: "SENT" },
+    ]);
   });
 
   it.each([
-    { status: "PENDING", attemptCount: 0 },
-    { status: "SENDING", attemptCount: MAX_ATTEMPTS },
-  ] as const)("undoes the claim of a $status row when it stops", async (before) => {
+    { status: "PENDING", attemptCount: 0, attempts: [] },
+    {
+      status: "SENDING",
+      attemptCount: MAX_ATTEMPTS,
+      attempts: [{ attempt: MAX_ATTEMPTS, outcome: "DELIVERY_UNKNOWN" }],
+    },
+  ] as const)(
+    "undoes the claim of a $status row when it stops",
+    async ({ attempts, ...before }) => {
+      const fake = createFakeMailer();
+      const [row] = await queue();
+      const leaseUntil = before.status === "SENDING" ? sql`now() - interval '1 second'` : null;
+      await db
+        .update(schema.notifications)
+        .set({ ...before, leaseUntil })
+        .where(eq(schema.notifications.id, row!.id));
+      let statements = 0;
+      const stopsDuringClaim = new Proxy(db, {
+        get(target, key, receiver) {
+          if (key !== "execute") return Reflect.get(target, key, receiver);
+          return (query: Parameters<typeof db.execute>[0]) => {
+            statements += 1;
+            // failAbandonedCodes is the first statement, the claim the second.
+            if (statements === 2) void stoppable.stop();
+            return target.execute(query);
+          };
+        },
+      });
+      const stoppable: NotificationWorker = worker(fake, { db: stopsDuringClaim });
+
+      await stoppable.poll();
+
+      expect(statements).toBe(2);
+      expect(await rowOf(row!.id)).toMatchObject({
+        status: "PENDING",
+        attemptCount: before.attemptCount,
+        leaseUntil: null,
+      });
+      expect(await attemptsOf(row!.id)).toMatchObject(attempts);
+      expect(fake.sent).toEqual([]);
+    },
+  );
+
+  it("does not send an undone row that already used up its tries", async () => {
     const fake = createFakeMailer();
     const [row] = await queue();
-    const leaseUntil = before.status === "SENDING" ? sql`now() - interval '1 second'` : null;
     await db
       .update(schema.notifications)
-      .set({ ...before, leaseUntil })
+      .set({ attemptCount: MAX_ATTEMPTS })
       .where(eq(schema.notifications.id, row!.id));
-    let statements = 0;
-    const stopsDuringClaim = new Proxy(db, {
-      get(target, key, receiver) {
-        if (key !== "execute") return Reflect.get(target, key, receiver);
-        return (query: Parameters<typeof db.execute>[0]) => {
-          statements += 1;
-          // failAbandonedCodes is the first statement, the claim the second.
-          if (statements === 2) void stoppable.stop();
-          return target.execute(query);
-        };
-      },
-    });
-    const stoppable: NotificationWorker = worker(fake, { db: stopsDuringClaim });
 
-    await stoppable.poll();
+    await worker(fake).poll();
 
-    expect(statements).toBe(2);
-    expect(await rowOf(row!.id)).toMatchObject(before);
-    expect(await attemptsOf(row!.id)).toEqual([]);
     expect(fake.sent).toEqual([]);
+    expect(await rowOf(row!.id)).toMatchObject({ status: "FAILED" });
+    expect(await attemptsOf(row!.id)).toMatchObject([
+      { attempt: MAX_ATTEMPTS + 1, outcome: "FAILED", errorClass: "TooManyAttempts" },
+    ]);
   });
 
   it("claims nothing in a worker that does not hold the lock", async () => {

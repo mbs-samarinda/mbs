@@ -90,7 +90,7 @@ export async function isNikTaken(tx: Transaction, cycleId: string, schoolId: str
 
 export async function insertApplication(
   tx: Transaction,
-  values: typeof schema.applications.$inferInsert,
+  values: Omit<typeof schema.applications.$inferInsert, "createdAt">,
 ) {
   const [row] = await tx
     .insert(schema.applications)
