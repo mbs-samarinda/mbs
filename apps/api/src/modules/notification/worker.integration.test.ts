@@ -186,6 +186,21 @@ async function stallingProxy() {
   };
 }
 
+async function refusingSentAttempts(run: () => Promise<void>, id?: string) {
+  await db.execute(sql`alter table notification_attempts drop constraint if exists no_sent`);
+  const others = id ? `notification_id <> '${id}'` : "false";
+  await db.execute(
+    sql.raw(
+      `alter table notification_attempts add constraint no_sent check (outcome <> 'SENT' or ${others}) not valid`,
+    ),
+  );
+  try {
+    await run();
+  } finally {
+    await db.execute(sql`alter table notification_attempts drop constraint no_sent`);
+  }
+}
+
 async function makeDue(id: string) {
   await db
     .update(schema.notifications)
@@ -337,52 +352,142 @@ describe("notification worker", () => {
   it("never records an accepted email as a failed send", async () => {
     const fake = createFakeMailer();
     const [row] = await queue();
-    const running = worker(fake);
-    await db.execute(
-      sql`alter table notification_attempts add constraint no_sent check (outcome <> 'SENT') not valid`,
-    );
-    try {
-      await expect(running.poll()).rejects.toThrow();
-    } finally {
-      await db.execute(sql`alter table notification_attempts drop constraint no_sent`);
-    }
+    const { lines, log: captured } = capturedLog();
+    const running = worker(fake, { log: captured });
+    await refusingSentAttempts(() => expect(running.poll()).rejects.toThrow());
 
     expect(await rowOf(row!.id)).toMatchObject({ status: "SENDING", attemptCount: 1 });
     expect(await attemptsOf(row!.id)).toEqual([]);
     expect(fake.sent).toHaveLength(1);
+    expect(lines).toMatchObject([
+      { msg: "notification was sent but not recorded as sent", errorClass: "PostgresError 23514" },
+    ]);
   });
 
-  it.each([
-    { status: "PENDING", attemptCount: 0 },
-    { status: "SENDING", attemptCount: MAX_ATTEMPTS },
-  ] as const)("undoes the claim of a $status row when it stops", async (before) => {
+  it("sends the other codes when one cannot be recorded, and does not send that one again", async () => {
     const fake = createFakeMailer();
-    const [row] = await queue();
-    const leaseUntil = before.status === "SENDING" ? sql`now() - interval '1 second'` : null;
+    const { lines, log: captured } = capturedLog();
+    const idle = worker(fake, { log: captured, pollMs: 60_000 });
+    fake.failNext(2);
+    const lost = await idle.sendSignInCode("ibu@example.test", "482913");
+    const second = await idle.sendSignInCode("ayah@example.test", "135790");
+    await vi.waitFor(() =>
+      expect(lines.filter((line) => line.msg === "notification send failed")).toHaveLength(2),
+    );
+    await vi.waitFor(async () => {
+      expect(await rowOf(lost)).toMatchObject({ status: "PENDING", attemptCount: 1 });
+      expect(await rowOf(second)).toMatchObject({ status: "PENDING", attemptCount: 1 });
+    });
+    await makeDue(lost);
+    await makeDue(second);
+    let third = "";
+    await refusingSentAttempts(async () => {
+      third = await idle.sendSignInCode("wali@example.test", "246802");
+      await vi.waitFor(async () => {
+        expect(await rowOf(second)).toMatchObject({ status: "SENT" });
+        expect(await rowOf(third)).toMatchObject({ status: "SENT" });
+      });
+    }, lost);
+    expect(fake.sent.map((message) => message.id)).toEqual([lost, second, third]);
     await db
       .update(schema.notifications)
-      .set({ ...before, leaseUntil })
-      .where(eq(schema.notifications.id, row!.id));
-    let statements = 0;
-    const stopsDuringClaim = new Proxy(db, {
+      .set({
+        createdAt: sql`now() - interval '1 hour'`,
+        leaseUntil: sql`now() - interval '1 second'`,
+      })
+      .where(eq(schema.notifications.id, lost));
+
+    await idle.poll();
+
+    expect(fake.sent).toHaveLength(3);
+    expect(await attemptsOf(lost)).toMatchObject([
+      { attempt: 1, outcome: "FAILED", errorClass: "ECONNECTION" },
+      { attempt: 2, outcome: "DELIVERY_UNKNOWN", errorClass: "CodeUnavailable" },
+    ]);
+  });
+
+  it("records a send on the second try when the first write fails", async () => {
+    const fake = createFakeMailer();
+    const [row] = await queue();
+    let transactions = 0;
+    const failsOnce = new Proxy(db, {
       get(target, key, receiver) {
-        if (key !== "execute") return Reflect.get(target, key, receiver);
-        return (query: Parameters<typeof db.execute>[0]) => {
-          statements += 1;
-          // failAbandonedCodes is the first statement, the claim the second.
-          if (statements === 2) void stoppable.stop();
-          return target.execute(query);
+        if (key !== "transaction") return Reflect.get(target, key, receiver);
+        return (run: Parameters<typeof db.transaction>[0]) => {
+          transactions += 1;
+          // The claim is the first transaction, the record of the send the second.
+          if (transactions === 2) return Promise.reject(new Error("connection lost"));
+          return target.transaction(run);
         };
       },
     });
-    const stoppable: NotificationWorker = worker(fake, { db: stopsDuringClaim });
 
-    await stoppable.poll();
+    await worker(fake, { db: failsOnce }).poll();
 
-    expect(statements).toBe(2);
-    expect(await rowOf(row!.id)).toMatchObject(before);
-    expect(await attemptsOf(row!.id)).toEqual([]);
+    // The last transaction is the claim that finds the queue empty.
+    expect(transactions).toBe(4);
+    expect(await rowOf(row!.id)).toMatchObject({ status: "SENT", attemptCount: 1 });
+    expect(fake.sent).toHaveLength(1);
+  });
+
+  it.each([
+    { status: "PENDING", attemptCount: 0, attempts: [] },
+    {
+      status: "SENDING",
+      attemptCount: MAX_ATTEMPTS,
+      attempts: [{ attempt: MAX_ATTEMPTS, outcome: "DELIVERY_UNKNOWN" }],
+    },
+  ] as const)(
+    "undoes the claim of a $status row when it stops",
+    async ({ attempts, ...before }) => {
+      const fake = createFakeMailer();
+      const [row] = await queue();
+      const leaseUntil = before.status === "SENDING" ? sql`now() - interval '1 second'` : null;
+      await db
+        .update(schema.notifications)
+        .set({ ...before, leaseUntil })
+        .where(eq(schema.notifications.id, row!.id));
+      let claims = 0;
+      const stopsDuringClaim = new Proxy(db, {
+        get(target, key, receiver) {
+          if (key !== "transaction") return Reflect.get(target, key, receiver);
+          return (run: Parameters<typeof db.transaction>[0]) => {
+            claims += 1;
+            void stoppable.stop();
+            return target.transaction(run);
+          };
+        },
+      });
+      const stoppable: NotificationWorker = worker(fake, { db: stopsDuringClaim });
+
+      await stoppable.poll();
+
+      expect(claims).toBe(1);
+      expect(await rowOf(row!.id)).toMatchObject({
+        status: "PENDING",
+        attemptCount: before.attemptCount,
+        leaseUntil: null,
+      });
+      expect(await attemptsOf(row!.id)).toMatchObject(attempts);
+      expect(fake.sent).toEqual([]);
+    },
+  );
+
+  it("does not send an undone row that already used up its tries", async () => {
+    const fake = createFakeMailer();
+    const [row] = await queue();
+    await db
+      .update(schema.notifications)
+      .set({ attemptCount: MAX_ATTEMPTS })
+      .where(eq(schema.notifications.id, row!.id));
+
+    await worker(fake).poll();
+
     expect(fake.sent).toEqual([]);
+    expect(await rowOf(row!.id)).toMatchObject({ status: "FAILED" });
+    expect(await attemptsOf(row!.id)).toMatchObject([
+      { attempt: MAX_ATTEMPTS + 1, outcome: "FAILED", errorClass: "TooManyAttempts" },
+    ]);
   });
 
   it("claims nothing in a worker that does not hold the lock", async () => {
@@ -457,7 +562,9 @@ describe("notification worker", () => {
     await vi.waitFor(() => expect(bMailer.sent).toMatchObject([{ id: code }]));
     expect(bMailer.sent[0]?.text).toContain("482913");
     expect(aMailer.sent).toEqual([]);
-    expect(await rowOf(code)).toMatchObject({ status: "SENT", subject: null, bodyText: null });
+    await vi.waitFor(async () =>
+      expect(await rowOf(code)).toMatchObject({ status: "SENT", subject: null, bodyText: null }),
+    );
   });
 
   it("sends a sign-in code with the polling worker off, past a backlog it leaves alone", async () => {
@@ -486,7 +593,8 @@ describe("notification worker", () => {
     );
     await makeDue(code);
 
-    await vi.waitFor(() => expect(mailer.sent).toMatchObject([{ id: code }]));
+    await vi.waitFor(async () => expect(await rowOf(code)).toMatchObject({ status: "SENT" }));
+    expect(mailer.sent).toMatchObject([{ id: code }]);
     expect(await attemptsOf(code)).toMatchObject([
       { attempt: 1, outcome: "FAILED", errorClass: "ECONNECTION" },
       { attempt: 2, outcome: "SENT" },
@@ -518,10 +626,9 @@ describe("notification worker", () => {
     expect(await attemptsOf(lost)).toMatchObject([
       { attempt: 1, outcome: "FAILED", errorClass: "CodeUnavailable" },
     ]);
-    expect(await rowOf(mid)).toMatchObject({ status: "FAILED", attemptCount: 2 });
+    expect(await rowOf(mid)).toMatchObject({ status: "FAILED", attemptCount: 1 });
     expect(await attemptsOf(mid)).toMatchObject([
-      { attempt: 1, outcome: "DELIVERY_UNKNOWN" },
-      { attempt: 2, outcome: "FAILED", errorClass: "CodeUnavailable" },
+      { attempt: 1, outcome: "DELIVERY_UNKNOWN", errorClass: "CodeUnavailable" },
     ]);
   });
 

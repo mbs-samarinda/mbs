@@ -10,10 +10,9 @@ import {
   failAbandonedCodes,
   insertSignInCodeNotification,
   recordFailure,
-  recordDeliveryUnknown,
   recordSent,
   undoClaim,
-  type ClaimedNotification,
+  type NotificationRow,
 } from "./outbox.ts";
 import { TEMPLATES, type RenderedEmail } from "./templates.ts";
 
@@ -60,18 +59,15 @@ export function createNotificationWorker(options: WorkerOptions) {
   let running = false;
   let stopped: Promise<void> | null = null;
 
-  async function sendOne(row: ClaimedNotification) {
-    if (row.reclaimed) {
-      await recordDeliveryUnknown(db, row);
-      if (row.attemptCount > MAX_ATTEMPTS) {
-        codes.delete(row.id);
-        await recordFailure(db, row, {
-          errorClass: "TooManyAttempts",
-          responseCode: null,
-          retryAt: null,
-        });
-        return;
-      }
+  async function sendOne(row: NotificationRow) {
+    if (row.attemptCount > MAX_ATTEMPTS) {
+      codes.delete(row.id);
+      await recordFailure(db, row, {
+        errorClass: "TooManyAttempts",
+        responseCode: null,
+        retryAt: null,
+      });
+      return;
     }
 
     const email = messageOf(row);
@@ -91,12 +87,6 @@ export function createNotificationWorker(options: WorkerOptions) {
     } catch (error) {
       const failure = error instanceof SendError ? error : new SendError("Unknown", null);
       const retryAt = retryTime(row);
-      await recordFailure(db, row, {
-        errorClass: failure.errorClass,
-        responseCode: failure.responseCode,
-        retryAt,
-      });
-      if (!retryAt) codes.delete(row.id);
       log.warn(
         {
           notificationId: row.id,
@@ -107,22 +97,44 @@ export function createNotificationWorker(options: WorkerOptions) {
         },
         "notification send failed",
       );
+      await recordFailure(db, row, {
+        errorClass: failure.errorClass,
+        responseCode: failure.responseCode,
+        retryAt,
+      });
+      if (!retryAt) codes.delete(row.id);
       return;
     }
     codes.delete(row.id);
     let recorded: boolean;
     try {
-      recorded = await recordSent(db, row, responseCode);
+      recorded = await recordSent(db, row, responseCode).catch(() =>
+        recordSent(db, row, responseCode),
+      );
     } catch (error) {
-      log.error({ notificationId: row.id }, "notification was sent but not recorded as sent");
+      log.error(
+        { notificationId: row.id, errorClass: classOf(error) },
+        "notification was sent but not recorded as sent",
+      );
       throw error;
     }
     if (!recorded) {
-      log.warn({ notificationId: row.id }, "notification sent after its lease ran out");
+      log.warn({ notificationId: row.id }, "notification sent, but its claim was no longer held");
     }
   }
 
-  function messageOf(row: ClaimedNotification): Omit<OutgoingEmail, "id" | "to"> | null {
+  async function sendOneWithoutEndingBatch(row: NotificationRow) {
+    try {
+      await sendOne(row);
+    } catch (error) {
+      log.error(
+        { notificationId: row.id, errorClass: classOf(error) },
+        "notification worker failed to record a sign-in code",
+      );
+    }
+  }
+
+  function messageOf(row: NotificationRow): Omit<OutgoingEmail, "id" | "to"> | null {
     if (row.templateKey === SIGN_IN_CODE_TEMPLATE) {
       const held = codes.get(row.id);
       if (!held || held.expiresAt <= now().getTime()) return null;
@@ -132,7 +144,7 @@ export function createNotificationWorker(options: WorkerOptions) {
     return { subject: row.subject, text: row.bodyText, html: row.bodyHtml ?? "" };
   }
 
-  function retryTime(row: ClaimedNotification) {
+  function retryTime(row: NotificationRow) {
     const minutes = RETRY_MINUTES[row.attemptCount - 1];
     if (minutes === undefined) return null;
     const at = new Date(now().getTime() + minutes * 60_000);
@@ -142,8 +154,9 @@ export function createNotificationWorker(options: WorkerOptions) {
   }
 
   async function sendUpTo(
-    claim: () => Promise<ClaimedNotification | null>,
+    claim: () => Promise<NotificationRow | null>,
     mayClaim: () => Promise<boolean>,
+    send: (row: NotificationRow) => Promise<void>,
   ) {
     let sent = 0;
     while (sent < batchSize) {
@@ -158,7 +171,7 @@ export function createNotificationWorker(options: WorkerOptions) {
         break;
       }
       // oxlint-disable-next-line eslint/no-await-in-loop
-      await sendOne(row);
+      await send(row);
       sent += 1;
     }
     return sent;
@@ -166,7 +179,7 @@ export function createNotificationWorker(options: WorkerOptions) {
 
   async function sendBatch() {
     await failAbandonedCodes(db, codeMinutes * 60 + leaseSeconds);
-    return sendUpTo(() => claimNext(db, leaseSeconds, "queue"), holdLock);
+    return sendUpTo(() => claimNext(db, leaseSeconds, "queue"), holdLock, sendOne);
   }
 
   function runBatch(): Promise<number> {
@@ -181,6 +194,7 @@ export function createNotificationWorker(options: WorkerOptions) {
       const sent = await sendUpTo(
         () => claimNext(db, leaseSeconds, { codes: [...codes.keys()] }),
         async () => codes.size > 0,
+        sendOneWithoutEndingBatch,
       );
       if (sent >= batchSize) codesAgain = true;
     }
@@ -346,6 +360,11 @@ export function createNotificationWorker(options: WorkerOptions) {
   };
 }
 
+/** Drizzle wraps the driver's error, so the innermost one says what went wrong. */
 function classOf(error: unknown) {
-  return error instanceof Error ? error.constructor.name : typeof error;
+  let inner = error;
+  while (inner instanceof Error && inner.cause instanceof Error) inner = inner.cause;
+  if (!(inner instanceof Error)) return typeof inner;
+  const code = "code" in inner && typeof inner.code === "string" ? ` ${inner.code}` : "";
+  return `${inner.constructor.name}${code}`;
 }

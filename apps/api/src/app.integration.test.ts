@@ -1,3 +1,5 @@
+import { connect } from "node:net";
+
 import { makeSignature } from "better-auth/crypto";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
@@ -66,6 +68,32 @@ describe("request log", () => {
     expect(lines.join("")).not.toContain("one-time-code");
     expect(response.body).not.toContain("one-time-code");
     if (path !== "/%") expect(lines.join("")).toContain(`"url":"${path}"`);
+  });
+
+  it("keeps the raw bytes of a malformed request out of the log", async () => {
+    const lines: string[] = [];
+    const watched = await buildApp(
+      { ...config, logLevel: "trace" },
+      { logStream: { write: (line) => void lines.push(line) } },
+    );
+    await watched.listen({ port: 0, host: "127.0.0.1" });
+    const address = watched.server.address();
+    if (typeof address !== "object" || !address) throw new Error("the API has no port");
+
+    const answer = await new Promise<string>((resolve, reject) => {
+      const socket = connect(address.port, "127.0.0.1", () =>
+        socket.write("GET /api/auth/callback?code=one-time-code HTTP/1.1\r\nbad header\r\n\r\n"),
+      );
+      let received = "";
+      socket.on("data", (chunk) => (received += chunk));
+      socket.on("close", () => resolve(received));
+      socket.on("error", reject);
+    });
+    await watched.close();
+
+    expect(answer).toMatch(/^HTTP\/1\.1 400 /);
+    expect(lines.join("")).toContain("client error");
+    expect(lines.join("")).not.toContain("rawPacket");
   });
 });
 

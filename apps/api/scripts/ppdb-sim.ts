@@ -11,7 +11,7 @@ import {
   type ApplicationCommand,
   type CommandPayload,
 } from "@mbs/api-contract";
-import { createDatabase, schema, type Database } from "@mbs/db";
+import { createDatabase, createSessionConnection, schema, type Database } from "@mbs/db";
 import { APPLICATION_STAGES, SCHOOL_KEYS } from "@mbs/school-config";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -460,8 +460,10 @@ function parse(argv: string[]) {
 }
 
 // The password check covers what the host cannot: a tunnel makes production
-// look like localhost, but production's password is not one of these.
-function assertLocalDatabase(url: string) {
+// look like localhost, but production's password is not one of these. It proves
+// nothing on a server that takes any password, as Postgres does from inside its
+// own container, so a made-up one has to be refused.
+async function assertLocalDatabase(url: string) {
   const { hostname, password } = new URL(url);
   const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
   const isDevPassword = password === "mbs_local_dev" || password === "mbs_verify";
@@ -470,16 +472,29 @@ function assertLocalDatabase(url: string) {
       "ppdb-sim runs only against a local database with a development password, never production.",
     );
   }
+
+  const wrong = new URL(url);
+  wrong.password = randomUUID();
+  const connection = createSessionConnection(wrong.toString());
+  const refusal = await connection`select 1`.then(
+    () => null,
+    (error: unknown) => error,
+  );
+  await connection.end({ timeout: 0 });
+  if (refusal === null) {
+    throw new Error("ppdb-sim needs a database that checks passwords. This one accepts any.");
+  }
+  if (!(refusal instanceof Error && "code" in refusal && refusal.code === "28P01")) throw refusal;
 }
 
 const { args, positionals } = parse(process.argv.slice(2));
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is not set.");
-assertLocalDatabase(databaseUrl);
 const db = createDatabase(databaseUrl);
 const outbox = { familyAppUrl: process.env.FAMILY_APP_URL ?? "" };
 
 try {
+  await assertLocalDatabase(databaseUrl);
   if (args.staffSession) {
     await staffSession(db, args.staffSession);
   } else if (!outbox.familyAppUrl) {
