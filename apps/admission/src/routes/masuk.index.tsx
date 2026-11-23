@@ -41,6 +41,7 @@ function Google() {
       googleSignInUrl({
         returnTo: lanjut ?? "/",
         errorTo: lanjut ? `/masuk?lanjut=${encodeURIComponent(lanjut)}` : "/masuk",
+        chooseAccount: error !== undefined,
       }),
     onSuccess: (url) => location.assign(url),
   });
@@ -57,7 +58,7 @@ function Google() {
   const busy = google.isPending || google.isSuccess;
   const unreachable = account.error instanceof UnreachableError;
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-1 gap-4">
       {google.error ? (
         <Alert>{explain(google.error).message}</Alert>
       ) : unreachable ? (
@@ -109,8 +110,8 @@ function EmailForm() {
 
   const failure = send.error ? explain(send.error) : null;
   return (
-    <form noValidate onSubmit={submit} className="grid gap-4">
-      <div className="grid gap-2">
+    <form noValidate onSubmit={submit} className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-2">
         <Label htmlFor="email">Alamat email</Label>
         <Input
           ref={input}

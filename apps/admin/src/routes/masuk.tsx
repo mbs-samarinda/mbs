@@ -42,6 +42,7 @@ function SignIn() {
       googleSignInUrl({
         returnTo: lanjut,
         errorTo: lanjut === "/" ? "/masuk" : `/masuk?lanjut=${encodeURIComponent(lanjut)}`,
+        chooseAccount: error !== undefined,
       }),
     onSuccess: (url) => location.assign(url),
   });
@@ -60,11 +61,11 @@ function SignIn() {
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
       <Arches />
-      <div className="mx-auto flex w-full max-w-md flex-col px-[min(1.25rem,6vw)] py-8 lg:px-8">
+      <div className="mx-auto flex w-full max-w-md min-w-0 flex-col px-[min(1.25rem,6vw)] py-8 lg:px-8">
         <header>
           <BrandMark sub={APP_NAME} />
         </header>
-        <main className="my-auto grid gap-5 py-8">
+        <main className="my-auto grid grid-cols-1 gap-5 py-8">
           <div className="grid gap-1.5">
             <h1 tabIndex={-1} className="text-xl font-semibold outline-none">
               Masuk
@@ -96,6 +97,7 @@ function SignIn() {
           ) : null}
           <GoogleButton
             size="lg"
+            className="h-auto min-h-9 py-1.5 whitespace-normal"
             disabled={busy}
             focusableWhenDisabled
             onClick={() => google.mutate()}
@@ -134,12 +136,15 @@ const TONES = [
 // Harbor Teal, in both modes.
 const ACCENT = "bg-[oklch(0.499_0.086_219.2)]";
 
+/** Per direction: the round end, where the inner arch sits, and the straight part of each. */
 const FACES = {
-  up: ["rounded-t-full", "inset-x-1/4 top-1/4 bottom-0"],
-  right: ["rounded-r-full", "inset-y-1/4 left-0 right-1/4"],
-  down: ["rounded-b-full", "inset-x-1/4 top-0 bottom-1/4"],
-  left: ["rounded-l-full", "inset-y-1/4 right-0 left-1/4"],
+  up: ["rounded-t-full", "inset-x-1/4 top-1/4 bottom-0", "after:top-1/2", "after:top-1/3"],
+  right: ["rounded-r-full", "inset-y-1/4 right-1/4 left-0", "after:right-1/2", "after:right-1/3"],
+  down: ["rounded-b-full", "inset-x-1/4 top-0 bottom-1/4", "after:bottom-1/2", "after:bottom-1/3"],
+  left: ["rounded-l-full", "inset-y-1/4 right-0 left-1/4", "after:left-1/2", "after:left-1/3"],
 } as const;
+
+const ARCH = "absolute after:absolute after:inset-0 after:bg-inherit";
 
 type Cell = [face: keyof typeof FACES, ground: string, outer: string, inner: string];
 const [a, b, c, d, e] = TONES;
@@ -159,21 +164,25 @@ const CELLS: Cell[] = [
 ];
 
 /**
- * Plain round arches as a flat tile pattern. Boxes, not one SVG: the browser puts
- * a box's edges on whole pixels, so no hairline of the ground shows between two
- * tiles at any zoom. The pattern covers the panel and hangs over two sides.
+ * Plain round arches as a flat tile pattern. A browser puts a plain box's edges
+ * on whole pixels but not a rounded one's, so each arch repeats its straight part
+ * as a plain box, and each tile reaches 1px under the next. No hairline shows at
+ * any zoom. Centered by layout, because a transform moves boxes off whole pixels.
  */
 function Arches() {
   return (
-    <div aria-hidden className="@container-size sticky top-0 hidden h-dvh overflow-hidden lg:block">
-      <div className="absolute top-1/2 left-1/2 grid aspect-3/4 w-[max(100cqw,75cqh)] -translate-1/2 grid-cols-3 grid-rows-4">
+    <div
+      aria-hidden
+      className="@container-size sticky top-0 hidden h-dvh place-content-center overflow-hidden lg:grid"
+    >
+      <div className="grid aspect-3/4 w-[max(100cqw,75cqh)] grid-cols-3 grid-rows-4">
         {CELLS.map(([face, ground, outer, inner], index) => {
-          const [round, inset] = FACES[face];
+          const [round, inset, outerBody, innerBody] = FACES[face];
           return (
             // oxlint-disable-next-line react/no-array-index-key
-            <div key={index} className={cn("relative", ground)}>
-              <div className={cn("absolute inset-0", round, outer)} />
-              <div className={cn("absolute", inset, round, inner)} />
+            <div key={index} className={cn("relative -mr-px -mb-px overflow-hidden", ground)}>
+              <div className={cn(ARCH, "inset-0", round, outer, outerBody)} />
+              <div className={cn(ARCH, inset, round, inner, innerBody)} />
             </div>
           );
         })}

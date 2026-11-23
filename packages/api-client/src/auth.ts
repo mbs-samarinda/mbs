@@ -52,12 +52,19 @@ export async function signOut() {
 /**
  * Asks for the Google page to send the browser to. Both paths must already be
  * safe return targets; Better Auth checks them against the app's origin too.
+ * `chooseAccount` makes Google ask, where it would reuse its only account in
+ * silence and refuse the visitor a second time.
  */
-export async function googleSignInUrl(paths: { returnTo: string; errorTo: string }) {
+export async function googleSignInUrl(options: {
+  returnTo: string;
+  errorTo: string;
+  chooseAccount: boolean;
+}) {
   const data = await authRequest("/sign-in/social", {
     provider: "google",
-    callbackURL: new URL(paths.returnTo, location.origin).href,
-    errorCallbackURL: new URL(paths.errorTo, location.origin).href,
+    callbackURL: new URL(options.returnTo, location.origin).href,
+    errorCallbackURL: new URL(options.errorTo, location.origin).href,
+    ...(options.chooseAccount ? { additionalParams: { prompt: "select_account" } } : {}),
   });
   const url = stringIn(data, "url");
   if (url === null) throw new Error("Google sign-in gave no URL.");

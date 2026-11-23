@@ -80,7 +80,7 @@ function CodeStep() {
         </p>
       </div>
       <form
-        className="grid gap-2"
+        className="grid grid-cols-1 gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           submit(code);

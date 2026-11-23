@@ -17,7 +17,7 @@ function StatusPage({
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-10 px-[min(1.25rem,6vw)] py-6">
       <BrandMark sub={sub} />
-      <main className="my-auto grid gap-6 pb-16">
+      <main className="my-auto grid grid-cols-1 gap-6 pb-16">
         <div className="grid gap-2">
           <h1 tabIndex={-1} className="text-2xl font-semibold text-balance outline-none">
             {title}

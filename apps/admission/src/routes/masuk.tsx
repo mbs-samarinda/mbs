@@ -46,7 +46,7 @@ function SignInLayout() {
         <header>
           <BrandMark sub={APP_NAME} />
         </header>
-        <main className="grid gap-6 pt-8 pb-10 lg:my-auto lg:py-8">
+        <main className="grid grid-cols-1 gap-6 pt-8 pb-10 lg:my-auto lg:py-8">
           <Outlet />
         </main>
         <footer className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-3 lg:mt-0">
