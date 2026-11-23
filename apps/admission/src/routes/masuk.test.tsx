@@ -95,7 +95,7 @@ describe("the code step", () => {
     await user.paste("482918");
 
     await waitFor(() => expect(router.state.location.href).toBe("/"));
-    expect(calls.filter((call) => call.path === "/sign-in/email-otp").at(-1)?.body).toEqual({
+    expect(calls.findLast((call) => call.path === "/sign-in/email-otp")?.body).toEqual({
       email: "wali@example.test",
       otp: "482918",
     });

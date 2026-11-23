@@ -13,6 +13,7 @@ import { useEffect, useRef, type FormEvent } from "react";
 
 import { accountQuery } from "../account.ts";
 import { explain, pendingEmail, requestCode, setPendingEmail } from "../email-code.ts";
+import { useSingleFlight } from "../use-single-flight.ts";
 
 export const Route = createFileRoute("/masuk/")({ component: EmailStep });
 
@@ -102,10 +103,10 @@ function EmailForm() {
     onError: () => input.current?.focus(),
   });
 
+  const sendOnce = useSingleFlight(send);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (send.isPending) return;
-    send.mutate(input.current?.value.trim() ?? "");
+    sendOnce(input.current?.value.trim() ?? "");
   };
 
   const failure = send.error ? explain(send.error) : null;

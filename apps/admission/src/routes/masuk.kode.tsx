@@ -17,6 +17,7 @@ import {
   setPendingEmail,
   signInWithCode,
 } from "../email-code.ts";
+import { useSingleFlight } from "../use-single-flight.ts";
 
 export const Route = createFileRoute("/masuk/kode")({
   beforeLoad: ({ search }) => {
@@ -62,10 +63,12 @@ function CodeStep() {
 
   useEffect(() => input.current?.focus(), []);
 
+  const signInOnce = useSingleFlight(signIn);
+  const resendOnce = useSingleFlight(resend);
   const submit = (otp: string) => {
-    if (signIn.isPending || signIn.isSuccess || otp.length < CODE_LENGTH) return;
+    if (signIn.isSuccess || otp.length < CODE_LENGTH) return;
     resend.reset();
-    signIn.mutate(otp);
+    signInOnce(otp);
   };
 
   const refusal = signIn.error && explain(signIn.error);
@@ -143,7 +146,7 @@ function CodeStep() {
           className="px-0"
           disabled={resend.isPending || busy}
           focusableWhenDisabled
-          onClick={() => resend.mutate()}
+          onClick={() => resendOnce()}
         >
           {resend.isPending ? "Mengirim kode…" : "Kirim kode baru"}
         </Button>
