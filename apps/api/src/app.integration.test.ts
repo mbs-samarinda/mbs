@@ -43,6 +43,34 @@ describe("api boundary", () => {
   });
 });
 
+describe("request log", () => {
+  it.each([
+    ["GET", "/api/auth/callback/google"],
+    ["PUT", "/api/auth/callback/google"],
+    ["GET", "/no-such-route"],
+    ["GET", "/%"],
+  ] as const)("keeps the query string of %s %s out of the log", async (method, path) => {
+    const lines: string[] = [];
+    const watched = await buildApp(
+      { ...config, logLevel: "debug" },
+      { logStream: { write: (line) => void lines.push(line) } },
+    );
+
+    const response = await watched.inject({
+      method,
+      url: `${path}?code=one-time-code&state=s1`,
+      headers: { host: STAFF_HOST },
+    });
+    await watched.close();
+
+    expect(lines.join("")).not.toContain("one-time-code");
+    if (path !== "/%") {
+      expect(lines.join("")).toContain(`"url":"${path}"`);
+      expect(response.body).not.toContain("one-time-code");
+    }
+  });
+});
+
 // Collects every error-level log line, with the request it belonged to.
 async function buildWatchedApp(addRoutes?: (target: FastifyInstance) => void) {
   const watched = await buildApp(config);

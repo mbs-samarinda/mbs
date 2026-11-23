@@ -343,6 +343,7 @@ async function runCommand(
     });
 
     await recordEventOnApplication(tx, application.id, {
+      eventId: event.id,
       stage: result.to,
       lastEventSeq: seq,
       stageChanged: result.to !== application.stage,

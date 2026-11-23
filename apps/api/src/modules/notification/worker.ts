@@ -6,14 +6,12 @@ import type { FastifyBaseLogger } from "fastify";
 
 import { SendError, SMTP_TIMEOUT_MS, type Mailer, type OutgoingEmail } from "./email.ts";
 import {
-  claimDue,
+  claimNext,
   failAbandonedCodes,
   insertSignInCodeNotification,
   recordFailure,
   recordDeliveryUnknown,
   recordSent,
-  releaseUntried,
-  renewLease,
   type ClaimedNotification,
 } from "./outbox.ts";
 import { TEMPLATES, type RenderedEmail } from "./templates.ts";
@@ -86,13 +84,9 @@ export function createNotificationWorker(options: WorkerOptions) {
       return;
     }
 
-    if (!(await renewLease(db, row, leaseSeconds))) return;
+    let responseCode: string | null;
     try {
-      const { responseCode } = await mailer.send({ id: row.id, to: row.recipient, ...email });
-      if (!(await recordSent(db, row, responseCode))) {
-        log.warn({ notificationId: row.id }, "notification sent after its lease ran out");
-      }
-      codes.delete(row.id);
+      ({ responseCode } = await mailer.send({ id: row.id, to: row.recipient, ...email }));
     } catch (error) {
       const failure = error instanceof SendError ? error : new SendError("Unknown", null);
       const retryAt = retryTime(row);
@@ -112,6 +106,11 @@ export function createNotificationWorker(options: WorkerOptions) {
         },
         "notification send failed",
       );
+      return;
+    }
+    codes.delete(row.id);
+    if (!(await recordSent(db, row, responseCode))) {
+      log.warn({ notificationId: row.id }, "notification sent after its lease ran out");
     }
   }
 
@@ -134,28 +133,27 @@ export function createNotificationWorker(options: WorkerOptions) {
     return at;
   }
 
-  async function sendRows(rows: ClaimedNotification[]) {
-    for (const [index, row] of rows.entries()) {
-      if (stopped) {
-        const untried = rows.slice(index);
-        // oxlint-disable-next-line eslint/no-await-in-loop
-        await Promise.all(
-          untried.filter((left) => left.reclaimed).map((left) => recordDeliveryUnknown(db, left)),
-        );
-        // oxlint-disable-next-line eslint/no-await-in-loop
-        await releaseUntried(db, untried);
-        return;
-      }
+  async function sendUpTo(
+    claim: () => Promise<ClaimedNotification | null>,
+    mayClaim: () => Promise<boolean>,
+  ) {
+    let sent = 0;
+    while (sent < batchSize) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      if (!(await mayClaim())) break;
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const row = await claim();
+      if (!row) break;
       // oxlint-disable-next-line eslint/no-await-in-loop
       await sendOne(row);
+      sent += 1;
     }
+    return sent;
   }
 
   async function sendBatch() {
     await failAbandonedCodes(db, codeMinutes * 60 + leaseSeconds);
-    const rows = await claimDue(db, batchSize, leaseSeconds, "queue");
-    await sendRows(rows);
-    return rows.length;
+    return sendUpTo(() => claimNext(db, leaseSeconds, "queue"), holdLock);
   }
 
   function runBatch(): Promise<number> {
@@ -167,9 +165,11 @@ export function createNotificationWorker(options: WorkerOptions) {
 
   async function sendCodes() {
     if (codes.size > 0) {
-      const rows = await claimDue(db, batchSize, leaseSeconds, { codes: [...codes.keys()] });
-      if (rows.length >= batchSize) codesAgain = true;
-      await sendRows(rows);
+      const sent = await sendUpTo(
+        () => claimNext(db, leaseSeconds, { codes: [...codes.keys()] }),
+        async () => !stopped && codes.size > 0,
+      );
+      if (sent >= batchSize) codesAgain = true;
     }
     const at = now().getTime();
     for (const [id, held] of codes) if (held.expiresAt <= at) codes.delete(id);

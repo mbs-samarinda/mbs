@@ -81,18 +81,17 @@ export type ClaimedNotification = NotificationRow & {
   reclaimed: boolean;
 };
 
-export async function claimDue(
+export async function claimNext(
   db: Database,
-  limit: number,
   leaseSeconds: number,
   from: "queue" | { codes: string[] },
-) {
+): Promise<ClaimedNotification | null> {
   const n = schema.notifications;
   const scope =
     from === "queue"
       ? sql`template_key <> ${SIGN_IN_CODE_TEMPLATE}`
       : sql`template_key = ${SIGN_IN_CODE_TEMPLATE} and ${inArray(n.id, from.codes)}`;
-  const rows = await db.execute<{ id: string; reclaimed: boolean }>(sql`
+  const [claim] = await db.execute<{ id: string; reclaimed: boolean }>(sql`
     with due as (
       select id, status = 'SENDING' as reclaimed
       from ${n}
@@ -100,7 +99,7 @@ export async function claimDue(
           or (status = 'SENDING' and lease_until <= now()))
         and ${scope}
       order by next_attempt_at
-      limit ${limit}
+      limit 1
       for update skip locked
     )
     update ${n}
@@ -112,18 +111,10 @@ export async function claimDue(
     where ${n.id} = due.id
     returning ${n.id} as id, due.reclaimed as reclaimed
   `);
-  if (rows.length === 0) return [];
+  if (!claim) return null;
 
-  const reclaimed = new Map(rows.map((row) => [row.id, row.reclaimed]));
-  const claimed = await db
-    .select()
-    .from(n)
-    .where(inArray(n.id, [...reclaimed.keys()]))
-    .orderBy(n.nextAttemptAt);
-  return claimed.map((row): ClaimedNotification => ({
-    ...row,
-    reclaimed: reclaimed.get(row.id) ?? false,
-  }));
+  const [row] = await db.select().from(n).where(eq(n.id, claim.id));
+  return row ? { ...row, reclaimed: claim.reclaimed } : null;
 }
 
 export async function failAbandonedCodes(db: Database, olderThanSeconds: number) {
@@ -154,34 +145,6 @@ export async function failAbandonedCodes(db: Database, olderThanSeconds: number)
     insert into ${a} (notification_id, attempt, outcome, error_class)
     select id, attempt, 'FAILED', 'CodeUnavailable' from failed
   `);
-}
-
-// A lease that ran out while earlier rows in the batch were sending is still
-// ours unless another claim raised the attempt count, so expiry alone does not
-// lose the row.
-export async function renewLease(db: Database, row: ClaimedNotification, leaseSeconds: number) {
-  const n = schema.notifications;
-  const renewed = await db
-    .update(n)
-    .set({ leaseUntil: sql`now() + make_interval(secs => ${leaseSeconds})` })
-    .where(and(eq(n.id, row.id), eq(n.status, "SENDING"), eq(n.attemptCount, row.attemptCount)))
-    .returning({ id: n.id });
-  return renewed.length > 0;
-}
-
-export async function releaseUntried(db: Database, rows: ClaimedNotification[]) {
-  if (rows.length === 0) return;
-  const n = schema.notifications;
-  await Promise.all(
-    rows.map((row) =>
-      db
-        .update(n)
-        .set({ status: "PENDING", leaseUntil: null, attemptCount: row.attemptCount - 1 })
-        .where(
-          and(eq(n.id, row.id), eq(n.status, "SENDING"), eq(n.attemptCount, row.attemptCount)),
-        ),
-    ),
-  );
 }
 
 export async function recordDeliveryUnknown(db: Database, row: ClaimedNotification) {

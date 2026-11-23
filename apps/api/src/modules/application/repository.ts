@@ -92,7 +92,11 @@ export async function insertApplication(
   tx: Transaction,
   values: typeof schema.applications.$inferInsert,
 ) {
-  const [row] = await tx.insert(schema.applications).values(values).returning();
+  const written = sql`clock_timestamp()`;
+  const [row] = await tx
+    .insert(schema.applications)
+    .values({ ...values, createdAt: written, stageChangedAt: written, updatedAt: written })
+    .returning();
   return row!;
 }
 
@@ -221,10 +225,8 @@ export async function findApplicationById(tx: Transaction, applicationId: string
 
 export async function insertEvent(
   tx: Transaction,
-  values: typeof schema.applicationEvents.$inferInsert,
+  values: Omit<typeof schema.applicationEvents.$inferInsert, "createdAt">,
 ) {
-  // Write time, not transaction start: a command that waited on the row lock
-  // must not be stamped earlier than the event it waited behind.
   const [row] = await tx
     .insert(schema.applicationEvents)
     .values({ ...values, createdAt: sql`clock_timestamp()` })
@@ -236,20 +238,23 @@ export async function recordEventOnApplication(
   tx: Transaction,
   applicationId: string,
   values: {
+    eventId: string;
     stage: ApplicationStage;
     lastEventSeq: number;
     stageChanged: boolean;
     interviewMode: InterviewMode | undefined;
   },
 ) {
+  const { applicationEvents } = schema;
+  const writtenAt = sql`(select ${applicationEvents.createdAt} from ${applicationEvents} where ${applicationEvents.id} = ${values.eventId})`;
   await tx
     .update(schema.applications)
     .set({
       stage: values.stage,
       lastEventSeq: values.lastEventSeq,
       interviewMode: values.interviewMode,
-      stageChangedAt: values.stageChanged ? sql`clock_timestamp()` : undefined,
-      updatedAt: sql`now()`,
+      stageChangedAt: values.stageChanged ? writtenAt : undefined,
+      updatedAt: writtenAt,
     })
     .where(eq(schema.applications.id, applicationId));
 }
@@ -278,6 +283,6 @@ export async function findApplicationForUser(
 export async function updateApplicationNik(tx: Transaction, applicationId: string, nik: string) {
   await tx
     .update(schema.applications)
-    .set({ nik, updatedAt: sql`now()` })
+    .set({ nik, updatedAt: sql`clock_timestamp()` })
     .where(eq(schema.applications.id, applicationId));
 }

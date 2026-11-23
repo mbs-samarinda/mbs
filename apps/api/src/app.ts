@@ -33,7 +33,7 @@ declare module "fastify" {
   }
 }
 
-export type AppDeps = { mailer?: Mailer };
+export type AppDeps = { mailer?: Mailer; logStream?: { write(line: string): void } };
 
 export async function buildApp(config: Config, deps: AppDeps = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -42,8 +42,12 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     genReqId: () => randomUUID(),
     logger: {
       level: config.logLevel,
-      serializers: { req: requestLogFields },
-      ...(config.isProduction ? {} : { transport: { target: "pino-pretty" } }),
+      serializers: { req: requestLogFieldsWithoutQuery },
+      ...(deps.logStream
+        ? { stream: deps.logStream }
+        : config.isProduction
+          ? {}
+          : { transport: { target: "pino-pretty" } }),
     },
   });
 
@@ -107,6 +111,10 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     }
     request.log.error({ err: redactError(error) }, "unexpected error");
     reply.status(status).send({ error: STATUS_CODES[status] });
+  });
+  // Fastify's default handler logs and echoes the full URL, query string included.
+  app.setNotFoundHandler((_request, reply) => {
+    reply.status(404).send({ error: "Not found" });
   });
   await app.register(healthRoutes);
 
@@ -228,15 +236,15 @@ function redactMessage(message: string) {
   return message.replace(/\nparams: [\s\S]*/, "\nparams: [redacted]");
 }
 
-/**
- * Fastify's request log fields without the query string. Sign-in callbacks
- * carry one-time codes there, and no request query is worth that risk.
- */
-export function requestLogFields(request: Pick<FastifyRequest, "method" | "url" | "host" | "ip">) {
+function requestLogFieldsWithoutQuery(
+  request: Pick<FastifyRequest, "method" | "url" | "host" | "ip" | "socket">,
+) {
+  const { remotePort } = request.socket;
   return {
     method: request.method,
     url: request.url.replace(/\?.*$/s, ""),
     host: request.host,
     remoteAddress: request.ip,
+    ...(remotePort === undefined ? {} : { remotePort }),
   };
 }

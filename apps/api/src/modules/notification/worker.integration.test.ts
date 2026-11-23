@@ -294,6 +294,63 @@ describe("notification worker", () => {
     }
   });
 
+  it("counts no try for rows a dead worker never reached", async () => {
+    const { promise: sending, resolve: started } = Promise.withResolvers<void>();
+    const { promise: died, resolve: die } = Promise.withResolvers<void>();
+    const rows = await queue(3);
+    const hung: Mailer = {
+      ...createFakeMailer(),
+      async send() {
+        started();
+        await died;
+        throw new Error("died");
+      },
+    };
+    const polling = worker(hung).poll();
+    await sending;
+
+    const statuses = await Promise.all(rows.map((row) => rowOf(row.id)));
+    die();
+    await polling;
+
+    expect(statuses.map((row) => row.attemptCount).toSorted((a, b) => a - b)).toEqual([0, 0, 1]);
+    expect(statuses.map((row) => row.status).toSorted()).toEqual(["PENDING", "PENDING", "SENDING"]);
+  });
+
+  it("stops sending mid-batch once its lock is gone", async () => {
+    const fake = createFakeMailer();
+    await queue(3);
+    const losing: Mailer = {
+      ...fake,
+      async send(message) {
+        const [holder] = await lockHolders();
+        if (holder) await db.execute(sql`select pg_terminate_backend(${holder.pid})`);
+        return fake.send(message);
+      },
+    };
+
+    await worker(losing).poll();
+
+    expect(fake.sent).toHaveLength(1);
+  });
+
+  it("never records an accepted email as a failed send", async () => {
+    const fake = createFakeMailer();
+    const [row] = await queue();
+    await db.execute(
+      sql`alter table notification_attempts add constraint no_sent check (outcome <> 'SENT') not valid`,
+    );
+    try {
+      await expect(worker(fake).poll()).rejects.toThrow();
+    } finally {
+      await db.execute(sql`alter table notification_attempts drop constraint no_sent`);
+    }
+
+    expect(fake.sent).toHaveLength(1);
+    expect(await rowOf(row!.id)).toMatchObject({ status: "SENDING", attemptCount: 1 });
+    expect(await attemptsOf(row!.id)).toEqual([]);
+  });
+
   it("claims nothing in a worker that does not hold the lock", async () => {
     const aMailer = createFakeMailer();
     const bMailer = createFakeMailer();

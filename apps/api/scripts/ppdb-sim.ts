@@ -459,15 +459,23 @@ function parse(argv: string[]) {
   return { args, positionals };
 }
 
+// The password check covers what the host cannot: a tunnel makes production
+// look like localhost, but production refuses the development passwords.
+function assertLocalDatabase(url: string) {
+  const { hostname, password } = new URL(url);
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
+  const isDevPassword = password === "mbs_local_dev" || password === "mbs_verify";
+  if (process.env.NODE_ENV === "production" || !isLocal || !isDevPassword) {
+    throw new Error(
+      "ppdb-sim runs only against a local database with a development password, never production.",
+    );
+  }
+}
+
 const { args, positionals } = parse(process.argv.slice(2));
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is not set.");
-// The sim writes fake families into append-only tables and can run any command
-// as an administrator, so it refuses every database that is not on this machine.
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
-if (process.env.NODE_ENV === "production" || !LOCAL_HOSTS.has(new URL(databaseUrl).hostname)) {
-  throw new Error("ppdb-sim runs only against a local database, never production.");
-}
+assertLocalDatabase(databaseUrl);
 const db = createDatabase(databaseUrl);
 const outbox = { familyAppUrl: process.env.FAMILY_APP_URL ?? "" };
 
