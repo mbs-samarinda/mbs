@@ -281,7 +281,6 @@ html:active-view-transition-type(list) header {
   height: 22px;
   border-radius: 9999px;
   background: var(--background);
-  box-shadow: var(--shadow-raised);
   opacity: 0;
   animation: pending-in 150ms var(--ease-out) 150ms forwards;
 }
