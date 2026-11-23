@@ -1,0 +1,44 @@
+{
+  "name": "@mbs/admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "oxlint -c ../../.oxlintrc.json",
+    "format": "oxfmt -c ../../.oxfmtrc.json .",
+    "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
+  },
+  "dependencies": {
+    "@mbs/api-client": "workspace:*",
+    "@mbs/ui": "workspace:*",
+    "@tanstack/react-query": "5.108.2",
+    "@tanstack/react-router": "1.170.46",
+    "cn": "^0.2.5",
+    "lucide-react": "^1.41.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@mbs/typescript-config": "workspace:*",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/router-plugin": "1.169.0",
+    "@testing-library/jest-dom": "8.0.0",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.13",
+    "@types/node": "^24.0.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.3.0",
+    "jsdom": "31.0.1",
+    "oxc-transform-react": "0.156.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.8",
+    "vitest": "^4.1.11"
+  }
+}

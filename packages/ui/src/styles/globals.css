@@ -184,6 +184,13 @@
     }
   }
 
+  .theme-changing,
+  .theme-changing *,
+  .theme-changing *::before,
+  .theme-changing *::after {
+    transition: none !important;
+  }
+
   * {
     @apply border-border;
   }

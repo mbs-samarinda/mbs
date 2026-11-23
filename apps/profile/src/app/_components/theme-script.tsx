@@ -1,4 +1,4 @@
-import { THEME_SCRIPT } from "./theme-script-content.ts";
+import { THEME_SCRIPT } from "@mbs/ui/theme-script";
 
 // Overridable so a staging deploy scopes its cookie to its own domain, exactly
 // as `owners.ts` resolves hosts. Read once when this module loads, so a change

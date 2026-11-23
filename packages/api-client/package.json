@@ -1,0 +1,26 @@
+{
+  "name": "@mbs/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "oxlint -c ../../.oxlintrc.json",
+    "format": "oxfmt -c ../../.oxfmtrc.json .",
+    "format:check": "oxfmt --check -c ../../.oxfmtrc.json ."
+  },
+  "dependencies": {
+    "@mbs/api-contract": "workspace:*",
+    "@orpc/client": "1.15.0",
+    "@orpc/contract": "1.15.0"
+  },
+  "devDependencies": {
+    "@mbs/typescript-config": "workspace:*",
+    "typescript": "7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

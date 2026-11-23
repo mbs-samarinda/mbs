@@ -1,0 +1,71 @@
+import { apiFetch } from "./http.ts";
+
+export type Account = { email: string };
+
+/** What Better Auth refused, with the code the screen explains. */
+export class AuthError extends Error {
+  override name = "AuthError";
+  readonly status: number;
+  readonly code: string | null;
+  readonly retryAfterSeconds: number | null;
+
+  constructor(status: number, code: string | null, retryAfterSeconds: number | null) {
+    super(`Sign-in request refused: ${code ?? status}`);
+    this.status = status;
+    this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/** Plain fetch, not Better Auth's client library, to keep the first load small. */
+export async function authRequest(path: string, body?: object): Promise<unknown> {
+  const response = await apiFetch(
+    `/api/auth${path}`,
+    body && {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  const data: unknown = await response.json().catch(() => null);
+  if (response.ok) return data;
+  const retryAfter = Number(response.headers.get("x-retry-after"));
+  throw new AuthError(
+    response.status,
+    stringIn(data, "code"),
+    Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
+  );
+}
+
+/** The signed-in account, or null. */
+export async function fetchAccount(): Promise<Account | null> {
+  const data = await authRequest("/get-session");
+  const user = typeof data === "object" && data !== null && "user" in data ? data.user : null;
+  const email = stringIn(user, "email");
+  return email === null ? null : { email };
+}
+
+export async function signOut() {
+  await authRequest("/sign-out", {});
+}
+
+/**
+ * Asks for the Google page to send the browser to. Both paths must already be
+ * safe return targets; Better Auth checks them against the app's origin too.
+ */
+export async function googleSignInUrl(paths: { returnTo: string; errorTo: string }) {
+  const data = await authRequest("/sign-in/social", {
+    provider: "google",
+    callbackURL: new URL(paths.returnTo, location.origin).href,
+    errorCallbackURL: new URL(paths.errorTo, location.origin).href,
+  });
+  const url = stringIn(data, "url");
+  if (url === null) throw new Error("Google sign-in gave no URL.");
+  return url;
+}
+
+function stringIn(data: unknown, key: string): string | null {
+  if (typeof data !== "object" || data === null) return null;
+  const value: unknown = Reflect.get(data, key);
+  return typeof value === "string" ? value : null;
+}
