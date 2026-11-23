@@ -9,7 +9,8 @@
 # the lockfile, so reproducing one on the box would mean a checkout, pnpm and
 # turbo on a 2 vCPU machine to learn something the runner already knows.
 #
-# The order is the one the knowledge repo's docs/deployment.md fixes: pull,
+# Old images go first, to make room. After that the order is the one the
+# knowledge repo's docs/deployment.md fixes: pull,
 # back up, migrate exactly once, start cms and api in place and wait for both
 # to be healthy, then prove the new profile works before any visitor sees it.
 # After the swap it checks the public site through Caddy and TLS, and only then
@@ -26,16 +27,29 @@ source /opt/mbs/lib.sh
 # images.env itself is rewritten before anything is proven, so after a failure
 # this is the only record of what last worked.
 readonly LAST_GOOD_FILE=$ROOT/images.last-good.env
+# One line of three images for every deploy that passed, oldest first.
+readonly HISTORY_FILE=$ROOT/images.history
+readonly KEEP_RELEASES=4
 readonly PROJECT=mbs-prod
 readonly NETWORK=${PROJECT}_default
 readonly CANDIDATE=mbs-deploy-candidate
 readonly REGISTRY=ghcr.io/mbs-samarinda
+readonly RELEASE="$REGISTRY/mbs-profile:$PROFILE_TAG $REGISTRY/mbs-cms:$CMS_TAG $REGISTRY/mbs-api:$API_TAG"
 
 # Every host the site answers on, and one page of each other kind on one school.
 # The layout reads different CMS rows than these pages do, so a `/`-only check
 # would let a schema drift on any of them through.
 readonly OWNER_HOSTS=(smp sma smk)
 readonly OTHER_PAGES=(/profil /program /fasilitas /ekstrakurikuler /artikel /pendaftaran /kontak)
+
+# One deploy at a time. CI runs one, but a rollback is typed by hand, and the
+# image cleanup could remove what the other deploy just pulled. The folder is
+# locked, not a lock file, which a run under sudo would own.
+exec 9< "$ROOT"
+flock -w 1200 9 || {
+  echo "Another deploy has been running for 20 minutes. Nothing was deployed; run this one again." >&2
+  exit 1
+}
 
 log() { printf '\n== %s\n' "$*"; }
 
@@ -137,6 +151,57 @@ if docker exec "$PROJECT-caddy-1" true 2>/dev/null &&
   ! docker exec "$PROJECT-caddy-1" cat /etc/caddy/Caddyfile | cmp -s - "$ROOT/Caddyfile"; then
   caddy_stale=true
 fi
+
+log "Removing old images"
+# Postgres shares this disk, and each release adds up to 1.7 GB. What stays is
+# the last KEEP_RELEASES releases that passed and the one being deployed, so
+# images that only ever failed go first. Nothing goes until that many have passed.
+# Before the pull, so failed deploys do not pile up. Docker refuses to remove an
+# image a container uses, since this never forces it. Never fails the deploy.
+remove_old_images() {
+  local -A keep=() release_seen=()
+  local -a history=()
+  local i line app image images status
+  if [[ -f $HISTORY_FILE ]]; then mapfile -t history < "$HISTORY_FILE" || return 1; fi
+  for ((i = ${#history[@]} - 1; i >= 0 && ${#release_seen[@]} < KEEP_RELEASES; i--)); do
+    line=${history[i]}
+    [[ -n $line ]] || continue
+    release_seen[$line]=1
+    for image in $line; do keep[$image]=1; done
+  done
+  if ((${#release_seen[@]} < KEEP_RELEASES)); then
+    echo "  ${#release_seen[@]} of $KEEP_RELEASES releases recorded, keeping everything"
+    return 0
+  fi
+  # The rollback that on_exit names, in case its history line was never written.
+  images=
+  if [[ -f $LAST_GOOD_FILE ]]; then
+    # shellcheck disable=SC1090
+    images=$(source "$LAST_GOOD_FILE" && echo "$PROFILE_IMAGE $CMS_IMAGE $API_IMAGE") || return 1
+  fi
+  for image in $RELEASE $images; do keep[$image]=1; done
+  for app in profile cms api; do
+    if ! images=$(timeout 60 docker image ls "$REGISTRY/mbs-$app" \
+      --format '{{if eq .Tag "<none>"}}{{.ID}}{{else}}{{.Repository}}:{{.Tag}}{{end}}'); then
+      echo "  could not list mbs-$app images" >&2
+      continue
+    fi
+    for image in $images; do
+      [[ -z ${keep[$image]:-} ]] || continue
+      status=0
+      timeout 60 docker rmi "$image" >/dev/null || status=$?
+      if ((status == 124)); then
+        echo "  $image took over a minute, leaving the rest for the next deploy" >&2
+        return 0
+      elif ((status != 0)); then
+        echo "  kept $image, docker would not remove it" >&2
+      else
+        echo "  removed $image"
+      fi
+    done
+  done
+}
+remove_old_images || echo "Could not remove old images." >&2
 
 log "Pinning $IMAGES_FILE"
 # Written before any compose command runs: compose interpolates the whole file
@@ -418,8 +483,16 @@ log "Deployed $deployed"
   exit 1
 }
 
-# Last, so it only ever names images that passed everything above. Written to a
+# After every check, so it only ever names images that passed. Written to a
 # temporary name and renamed, so a crash mid-write cannot leave half a file.
 cp "$IMAGES_FILE" "$LAST_GOOD_FILE.tmp"
 mv "$LAST_GOOD_FILE.tmp" "$LAST_GOOD_FILE"
 log "Recorded $LAST_GOOD_FILE"
+
+# The release is live, so a history that cannot be written only warns.
+# Only when it changed, so redeploys do not push older releases out.
+[[ -f $HISTORY_FILE && $(tail -n 1 "$HISTORY_FILE") == "$RELEASE" ]] || {
+  { [[ ! -f $HISTORY_FILE ]] || tail -n 50 "$HISTORY_FILE"; } > "$HISTORY_FILE.tmp" \
+    && echo "$RELEASE" >> "$HISTORY_FILE.tmp" \
+    && mv -f "$HISTORY_FILE.tmp" "$HISTORY_FILE"
+} || echo "Could not record this release in $HISTORY_FILE." >&2
