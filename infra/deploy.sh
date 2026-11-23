@@ -4,6 +4,10 @@
 #
 #   ./deploy.sh <profile-tag> <cms-tag> <api-tag> <admission-tag> <admin-tag>
 #
+# `-` in place of both app tags leaves the two PPDB apps exactly as they are and
+# checks nothing about them. It is the way back to a release from before they
+# existed, when they are what is broken.
+#
 # The tags are computed on the runner and passed in rather than worked out here.
 # They are a hash of turbo's task hash plus the Dockerfile, .dockerignore and
 # the lockfile, so reproducing one on the box would mean a checkout, pnpm and
@@ -23,6 +27,13 @@ readonly CMS_TAG=${2:?$USAGE}
 readonly API_TAG=${3:?$USAGE}
 readonly ADMISSION_TAG=${4:?$USAGE}
 readonly ADMIN_TAG=${5:?$USAGE}
+# The apps this run deploys.
+apps=(admission admin)
+if [[ $ADMISSION_TAG == - || $ADMIN_TAG == - ]]; then
+  [[ $ADMISSION_TAG == "$ADMIN_TAG" ]] || { echo "$USAGE (or - for both apps)" >&2; exit 2; }
+  apps=()
+fi
+readonly apps
 
 # shellcheck source=lib.sh
 source /opt/mbs/lib.sh
@@ -38,7 +49,9 @@ readonly PROJECT=mbs-prod
 readonly NETWORK=${PROJECT}_default
 readonly CANDIDATE=mbs-deploy-candidate
 readonly REGISTRY=ghcr.io/mbs-samarinda
-readonly RELEASE="$REGISTRY/mbs-profile:$PROFILE_TAG $REGISTRY/mbs-cms:$CMS_TAG $REGISTRY/mbs-api:$API_TAG $REGISTRY/mbs-admission:$ADMISSION_TAG $REGISTRY/mbs-admin:$ADMIN_TAG"
+release="$REGISTRY/mbs-profile:$PROFILE_TAG $REGISTRY/mbs-cms:$CMS_TAG $REGISTRY/mbs-api:$API_TAG"
+((${#apps[@]} == 0)) || release+=" $REGISTRY/mbs-admission:$ADMISSION_TAG $REGISTRY/mbs-admin:$ADMIN_TAG"
+readonly RELEASE=$release
 
 # Every host the site answers on, and one page of each other kind on one school.
 # The layout reads different CMS rows than these pages do, so a `/`-only check
@@ -87,11 +100,10 @@ on_exit() {
   ((status != 0)) && $pinned || return "$status"
   if [[ -f $LAST_GOOD_FILE ]]; then
     local tags
-    # The two apps start from this run's tags, because a last good release from
-    # before they existed names none. Then they stay as they are.
+    # A last good release from before the two apps names none, so they stay.
     # shellcheck disable=SC1090
     tags=$(
-      ADMISSION_IMAGE=$ADMISSION_TAG ADMIN_IMAGE=$ADMIN_TAG
+      ADMISSION_IMAGE=- ADMIN_IMAGE=-
       source "$LAST_GOOD_FILE" \
         && echo "${PROFILE_IMAGE##*:} ${CMS_IMAGE##*:} ${API_IMAGE##*:} ${ADMISSION_IMAGE##*:} ${ADMIN_IMAGE##*:}"
     )
@@ -216,22 +228,32 @@ remove_old_images || echo "Could not remove old images." >&2
 log "Pinning $IMAGES_FILE"
 # Written before any compose command runs: compose interpolates the whole file
 # on every command, so every one of them needs these pins (see lib.sh).
+app_pins=$(grep -E '^(ADMISSION|ADMIN)_IMAGE=' "$IMAGES_FILE" 2>/dev/null || true)
+[[ -z $app_pins ]] || app_pins+=$'\n'
 cat > "$IMAGES_FILE" <<PINS
 # Written by deploy.sh on every deploy. Do not edit by hand.
 PROFILE_IMAGE=$REGISTRY/mbs-profile:$PROFILE_TAG
 CMS_IMAGE=$REGISTRY/mbs-cms:$CMS_TAG
 API_IMAGE=$REGISTRY/mbs-api:$API_TAG
+PINS
+if ((${#apps[@]} > 0)); then
+  cat >> "$IMAGES_FILE" <<PINS
 ADMISSION_IMAGE=$REGISTRY/mbs-admission:$ADMISSION_TAG
 ADMIN_IMAGE=$REGISTRY/mbs-admin:$ADMIN_TAG
 PINS
+else
+  printf '%s' "$app_pins" >> "$IMAGES_FILE"
+fi
 pinned=true
 
 log "Pulling images"
 docker pull -q "$REGISTRY/mbs-profile:$PROFILE_TAG"
 docker pull -q "$REGISTRY/mbs-cms:$CMS_TAG"
 docker pull -q "$REGISTRY/mbs-api:$API_TAG"
-docker pull -q "$REGISTRY/mbs-admission:$ADMISSION_TAG"
-docker pull -q "$REGISTRY/mbs-admin:$ADMIN_TAG"
+if ((${#apps[@]} > 0)); then
+  docker pull -q "$REGISTRY/mbs-admission:$ADMISSION_TAG"
+  docker pull -q "$REGISTRY/mbs-admin:$ADMIN_TAG"
+fi
 
 log "Starting Postgres"
 # Before the backup, not after. On a first deploy nothing is running at all, so
@@ -295,8 +317,8 @@ log "Starting cms, api and the two PPDB apps"
 # 7-minute cap covers the cms healthcheck's full budget (90s start + 30 × 10s),
 # so a cms stuck in a restart loop fails the deploy instead of hanging it. The
 # other healthchecks give up far sooner, the api's within 140s (20s start + 12 × 10s).
-if ! timeout 7m "${COMPOSE[@]}" up -d --wait cms api admission admin; then
-  echo "The new cms, api, admission or admin did not become healthy. All four now run (or restart)" >&2
+if ! timeout 7m "${COMPOSE[@]}" up -d --wait cms api "${apps[@]}"; then
+  echo "One of cms, api, ${apps[*]} did not become healthy. All of them now run (or restart)" >&2
   echo "on the new images, and the old profile keeps serving against them." >&2
   exit 1
 fi
@@ -329,7 +351,7 @@ app_smoke() {
   "${get[@]}" --header "Host: $app.$PROFILE_APEX" http://api:3001/api/auth/ok < /dev/null > /dev/null || return 1
   echo "  ok   $app.$PROFILE_APEX"
 }
-for app in admission admin; do
+for app in "${apps[@]}"; do
   if ! app_smoke "$app"; then
     echo "The new $app app failed its smoke check. The running profile was not touched." >&2
     exit 1
@@ -448,7 +470,14 @@ cleanup_candidate
 # compose starts a service's dependencies, never its dependents — so naming
 # profile alone left Caddy permanently unstarted and the site unreachable from
 # outside the box, with every internal probe still passing.
-"${COMPOSE[@]}" up -d
+#
+# Without the apps, every other service is named instead, so a broken app image
+# cannot stop the rest from starting.
+if ((${#apps[@]} > 0)); then
+  "${COMPOSE[@]}" up -d
+else
+  "${COMPOSE[@]}" up -d --no-deps postgres cms api profile caddy
+fi
 
 # Only when the check before pinning found Caddy's Caddyfile stale. A file that
 # validates can still fail when Caddy starts (a bind address or a certificate);
@@ -523,7 +552,12 @@ log "Deployed $deployed"
 
 # After every check, so it only ever names images that passed. Written to a
 # temporary name and renamed, so a crash mid-write cannot leave half a file.
-cp "$IMAGES_FILE" "$LAST_GOOD_FILE.tmp"
+# App images this run left alone were not checked, so they are not named.
+if ((${#apps[@]} > 0)); then
+  cp "$IMAGES_FILE" "$LAST_GOOD_FILE.tmp"
+else
+  grep -vE '^(ADMISSION|ADMIN)_IMAGE=' "$IMAGES_FILE" > "$LAST_GOOD_FILE.tmp"
+fi
 mv "$LAST_GOOD_FILE.tmp" "$LAST_GOOD_FILE"
 log "Recorded $LAST_GOOD_FILE"
 
