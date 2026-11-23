@@ -147,6 +147,14 @@ export async function failAbandonedCodes(db: Database, olderThanSeconds: number)
   `);
 }
 
+export async function releaseUntried(db: Database, row: ClaimedNotification) {
+  const n = schema.notifications;
+  await db
+    .update(n)
+    .set({ status: "PENDING", leaseUntil: null, attemptCount: row.attemptCount - 1 })
+    .where(and(eq(n.id, row.id), eq(n.status, "SENDING"), eq(n.attemptCount, row.attemptCount)));
+}
+
 export async function recordDeliveryUnknown(db: Database, row: ClaimedNotification) {
   await db
     .insert(schema.notificationAttempts)

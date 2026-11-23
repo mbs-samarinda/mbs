@@ -40,6 +40,10 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     // Handed to the client on every response, so it has to stay unique across
     // restarts. Fastify's default is a counter that starts again at req-1.
     genReqId: () => randomUUID(),
+    frameworkErrors: (_error, _request, reply) => {
+      reply.hijack();
+      reply.raw.writeHead(400).end();
+    },
     logger: {
       level: config.logLevel,
       serializers: { req: requestLogFieldsWithoutQuery },

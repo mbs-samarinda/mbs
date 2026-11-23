@@ -64,10 +64,8 @@ describe("request log", () => {
     await watched.close();
 
     expect(lines.join("")).not.toContain("one-time-code");
-    if (path !== "/%") {
-      expect(lines.join("")).toContain(`"url":"${path}"`);
-      expect(response.body).not.toContain("one-time-code");
-    }
+    expect(response.body).not.toContain("one-time-code");
+    if (path !== "/%") expect(lines.join("")).toContain(`"url":"${path}"`);
   });
 });
 

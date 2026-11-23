@@ -92,11 +92,7 @@ export async function insertApplication(
   tx: Transaction,
   values: typeof schema.applications.$inferInsert,
 ) {
-  const written = sql`clock_timestamp()`;
-  const [row] = await tx
-    .insert(schema.applications)
-    .values({ ...values, createdAt: written, stageChangedAt: written, updatedAt: written })
-    .returning();
+  const [row] = await tx.insert(schema.applications).values(values).returning();
   return row!;
 }
 
@@ -247,7 +243,7 @@ export async function recordEventOnApplication(
 ) {
   const { applicationEvents } = schema;
   const writtenAt = sql`(select ${applicationEvents.createdAt} from ${applicationEvents} where ${applicationEvents.id} = ${values.eventId})`;
-  await tx
+  const [row] = await tx
     .update(schema.applications)
     .set({
       stage: values.stage,
@@ -256,7 +252,9 @@ export async function recordEventOnApplication(
       stageChangedAt: values.stageChanged ? writtenAt : undefined,
       updatedAt: writtenAt,
     })
-    .where(eq(schema.applications.id, applicationId));
+    .where(eq(schema.applications.id, applicationId))
+    .returning();
+  return row!;
 }
 
 export async function findApplicationForUser(

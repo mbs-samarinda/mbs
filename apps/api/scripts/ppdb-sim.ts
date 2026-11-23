@@ -460,7 +460,7 @@ function parse(argv: string[]) {
 }
 
 // The password check covers what the host cannot: a tunnel makes production
-// look like localhost, but production refuses the development passwords.
+// look like localhost, but production's password is not one of these.
 function assertLocalDatabase(url: string) {
   const { hostname, password } = new URL(url);
   const isLocal = hostname === "localhost" || hostname === "127.0.0.1";

@@ -265,7 +265,7 @@ describe("notification worker", () => {
     expect(new Set(ids).size).toBe(1);
   });
 
-  it("still sends every row of a batch that outlasts its lease", async () => {
+  it("sends a row whose own lease runs out during the send", async () => {
     const fake = createFakeMailer();
     const rows = await queue(3);
     let first = true;
@@ -337,18 +337,50 @@ describe("notification worker", () => {
   it("never records an accepted email as a failed send", async () => {
     const fake = createFakeMailer();
     const [row] = await queue();
+    const running = worker(fake);
     await db.execute(
       sql`alter table notification_attempts add constraint no_sent check (outcome <> 'SENT') not valid`,
     );
     try {
-      await expect(worker(fake).poll()).rejects.toThrow();
+      await running.poll();
     } finally {
       await db.execute(sql`alter table notification_attempts drop constraint no_sent`);
     }
 
-    expect(fake.sent).toHaveLength(1);
     expect(await rowOf(row!.id)).toMatchObject({ status: "SENDING", attemptCount: 1 });
     expect(await attemptsOf(row!.id)).toEqual([]);
+    await db
+      .update(schema.notifications)
+      .set({ leaseUntil: sql`now() - interval '1 second'` })
+      .where(eq(schema.notifications.id, row!.id));
+    await running.poll();
+
+    expect(fake.sent).toHaveLength(1);
+    expect(await rowOf(row!.id)).toMatchObject({ status: "SENT" });
+  });
+
+  it("sends nothing it claimed while it was stopping", async () => {
+    const fake = createFakeMailer();
+    const [row] = await queue();
+    let statements = 0;
+    const stopsDuringClaim = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key !== "execute") return Reflect.get(target, key, receiver);
+        return (query: Parameters<typeof db.execute>[0]) => {
+          statements += 1;
+          // failAbandonedCodes is the first statement, the claim the second.
+          if (statements === 2) void stoppable.stop();
+          return target.execute(query);
+        };
+      },
+    });
+    const stoppable: NotificationWorker = worker(fake, { db: stopsDuringClaim });
+
+    await stoppable.poll();
+
+    expect(statements).toBe(2);
+    expect(await rowOf(row!.id)).toMatchObject({ status: "PENDING", attemptCount: 0 });
+    expect(fake.sent).toEqual([]);
   });
 
   it("claims nothing in a worker that does not hold the lock", async () => {
@@ -516,7 +548,7 @@ describe("notification worker", () => {
     ]);
   });
 
-  it("hands back the rest of a batch when it stops mid-send", async () => {
+  it("claims nothing more once it stops mid-send", async () => {
     const inner = createFakeMailer();
     const { promise: sending, resolve: started } = Promise.withResolvers<void>();
     const { promise: held, resolve: release } = Promise.withResolvers<void>();

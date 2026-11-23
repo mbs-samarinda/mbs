@@ -403,6 +403,32 @@ describe("applyCommand", () => {
     expect(row).toMatchObject({ stage: "DOCUMENTS_DUE", lastEventSeq: 3 });
   });
 
+  it("stamps the application with its newest event's time, taken after any wait", async () => {
+    const { application, event } = await submit();
+    expect(application.stageChangedAt).toEqual(event.createdAt);
+    expect(application.updatedAt).toEqual(event.createdAt);
+
+    let released = 0;
+    let waiting: Promise<Awaited<ReturnType<typeof applyCommand>>> | undefined;
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`select from applications where id = ${application.id} for update`);
+      waiting = applyCommand(db, {
+        applicationId: application.id,
+        command: "ADD_NOTE",
+        payload: { payloadVersion: 1, note: "Menunggu." },
+        actor: STAFF,
+        expectedSeq: 1,
+        idempotencyKey: null,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const [now] = await tx.execute<{ at: string }>(sql`select clock_timestamp()::text as at`);
+      released = new Date(now!.at).getTime();
+    });
+
+    const later = await waiting!;
+    expect(later.event.createdAt.getTime()).toBeGreaterThanOrEqual(released);
+  });
+
   it("applies a replayed idempotency key once and returns the first result", async () => {
     const applicationId = await atPaymentReview();
 

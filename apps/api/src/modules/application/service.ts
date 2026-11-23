@@ -129,7 +129,7 @@ export async function submitApplication(
     if (!result.ok) throw new IllegalTransitionError("SUBMIT is not allowed.");
 
     const seq = await nextRegistrationSeq(tx, input.cycleId, cycle.schoolId);
-    const application = await insertApplication(tx, {
+    const inserted = await insertApplication(tx, {
       admissionCycleId: input.cycleId,
       schoolId: cycle.schoolId,
       registrationSeq: seq,
@@ -144,16 +144,16 @@ export async function submitApplication(
       throw error;
     });
 
-    await snapshotDocumentRequirements(tx, application.id, input.cycleId, cycle.schoolId);
+    await snapshotDocumentRequirements(tx, inserted.id, input.cycleId, cycle.schoolId);
     await insertProfileVersion(tx, {
-      applicationId: application.id,
+      applicationId: inserted.id,
       version: 1,
       data: profile,
       authorUserId: input.userId,
     });
-    await grantAccess(tx, application.id, input.userId);
+    await grantAccess(tx, inserted.id, input.userId);
     const event = await insertEvent(tx, {
-      applicationId: application.id,
+      applicationId: inserted.id,
       seq: 1,
       command: "SUBMIT",
       fromStage: null,
@@ -168,6 +168,13 @@ export async function submitApplication(
     }).catch((error: unknown) => {
       if (isUniqueViolation(error)) throw reusedKey();
       throw error;
+    });
+    const application = await recordEventOnApplication(tx, inserted.id, {
+      eventId: event.id,
+      stage: result.to,
+      lastEventSeq: 1,
+      stageChanged: true,
+      interviewMode: undefined,
     });
     await notifyFamily(
       tx,
