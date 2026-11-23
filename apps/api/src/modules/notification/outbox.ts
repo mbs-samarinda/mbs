@@ -88,34 +88,36 @@ export async function claimNext(
     from === "queue"
       ? sql`template_key <> ${SIGN_IN_CODE_TEMPLATE}`
       : sql`template_key = ${SIGN_IN_CODE_TEMPLATE} and ${inArray(n.id, from.codes)}`;
-  const [claim] = await db.execute<{ id: string }>(sql`
-    with due as (
-      select id, attempt_count, status = 'SENDING' as reclaimed
-      from ${n}
-      where ((status = 'PENDING' and next_attempt_at <= now())
-          or (status = 'SENDING' and lease_until <= now()))
-        and ${scope}
-      order by next_attempt_at
-      limit 1
-      for update skip locked
-    ), unknown as (
-      insert into ${a} (notification_id, attempt, outcome)
-      select id, attempt_count, 'DELIVERY_UNKNOWN' from due where reclaimed
-      on conflict do nothing
-    )
-    update ${n}
-    set status = 'SENDING',
-        attempt_count = ${n.attemptCount} + 1,
-        lease_until = now() + make_interval(secs => ${leaseSeconds}),
-        updated_at = now()
-    from due
-    where ${n.id} = due.id
-    returning ${n.id} as id
-  `);
-  if (!claim) return null;
+  return db.transaction(async (tx) => {
+    const [claim] = await tx.execute<{ id: string }>(sql`
+      with due as (
+        select id, attempt_count, status = 'SENDING' as reclaimed
+        from ${n}
+        where ((status = 'PENDING' and next_attempt_at <= now())
+            or (status = 'SENDING' and lease_until <= now()))
+          and ${scope}
+        order by next_attempt_at
+        limit 1
+        for update skip locked
+      ), unknown as (
+        insert into ${a} (notification_id, attempt, outcome)
+        select id, attempt_count, 'DELIVERY_UNKNOWN' from due where reclaimed
+        on conflict do nothing
+      )
+      update ${n}
+      set status = 'SENDING',
+          attempt_count = ${n.attemptCount} + 1,
+          lease_until = now() + make_interval(secs => ${leaseSeconds}),
+          updated_at = now()
+      from due
+      where ${n.id} = due.id
+      returning ${n.id} as id
+    `);
+    if (!claim) return null;
 
-  const [row] = await db.select().from(n).where(eq(n.id, claim.id));
-  return row ?? null;
+    const [row] = await tx.select().from(n).where(eq(n.id, claim.id));
+    return row ?? null;
+  });
 }
 
 export async function failAbandonedCodes(db: Database, olderThanSeconds: number) {
@@ -132,19 +134,18 @@ export async function failAbandonedCodes(db: Database, olderThanSeconds: number)
     ), failed as (
       update ${n}
       set status = 'FAILED',
-          attempt_count = ${n.attemptCount} + 1,
+          attempt_count = ${n.attemptCount} + case when gone.reclaimed then 0 else 1 end,
           lease_until = null,
           updated_at = now()
       from gone
       where ${n.id} = gone.id
       returning ${n.id} as id, ${n.attemptCount} as attempt, gone.reclaimed as reclaimed
-    ), unknown as (
-      insert into ${a} (notification_id, attempt, outcome)
-      select id, attempt - 1, 'DELIVERY_UNKNOWN' from failed where reclaimed
-      on conflict do nothing
     )
     insert into ${a} (notification_id, attempt, outcome, error_class)
-    select id, attempt, 'FAILED', 'CodeUnavailable' from failed
+    select id, attempt,
+           (case when reclaimed then 'DELIVERY_UNKNOWN' else 'FAILED' end)::notification_attempt_outcome,
+           case when reclaimed then null else 'CodeUnavailable' end
+    from failed
   `);
 }
 

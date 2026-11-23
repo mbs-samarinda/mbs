@@ -357,11 +357,11 @@ describe("notification worker", () => {
     expect(await attemptsOf(row!.id)).toEqual([]);
     expect(fake.sent).toHaveLength(1);
     expect(lines).toMatchObject([
-      { msg: "notification was sent but not recorded as sent", errorClass: "DrizzleQueryError" },
+      { msg: "notification was sent but not recorded as sent", errorClass: "PostgresError 23514" },
     ]);
   });
 
-  it("sends a code again when its send was not recorded, and does not hold up the others", async () => {
+  it("sends the other codes when one cannot be recorded, and sends none again", async () => {
     const fake = createFakeMailer();
     const { lines, log: captured } = capturedLog();
     const idle = worker(fake, { log: captured, pollMs: 60_000 });
@@ -375,25 +375,43 @@ describe("notification worker", () => {
         expect(lines.filter((line) => line.msg.includes("failed to record"))).toHaveLength(2),
       );
     });
-    const [first] = codes;
-    expect(await rowOf(first!)).toMatchObject({ status: "SENDING", attemptCount: 1 });
-    await db
-      .update(schema.notifications)
-      .set({ leaseUntil: sql`now() - interval '1 second'` })
-      .where(eq(schema.notifications.id, first!));
+    expect(fake.sent.map((message) => message.id).toSorted()).toEqual(codes.toSorted());
+    await db.update(schema.notifications).set({
+      createdAt: sql`now() - interval '1 hour'`,
+      leaseUntil: sql`now() - interval '1 second'`,
+    });
 
-    await idle.sendSignInCode("wali@example.test", "246802");
+    await idle.poll();
 
-    await vi.waitFor(async () =>
-      expect(await rowOf(first!)).toMatchObject({ status: "SENT", attemptCount: 2 }),
-    );
-    const copies = fake.sent.filter((message) => message.id === first);
-    expect(copies).toHaveLength(2);
-    expect(copies[1]).toEqual(copies[0]);
-    expect(await attemptsOf(first!)).toMatchObject([
-      { attempt: 1, outcome: "DELIVERY_UNKNOWN" },
-      { attempt: 2, outcome: "SENT" },
-    ]);
+    expect(fake.sent).toHaveLength(2);
+    for (const code of codes) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      expect(await attemptsOf(code)).toMatchObject([
+        { attempt: 1, outcome: "DELIVERY_UNKNOWN", errorClass: null },
+      ]);
+    }
+  });
+
+  it("records a send on the second try when the first write fails", async () => {
+    const fake = createFakeMailer();
+    const [row] = await queue();
+    let transactions = 0;
+    const failsOnce = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key !== "transaction") return Reflect.get(target, key, receiver);
+        return (run: Parameters<typeof db.transaction>[0]) => {
+          transactions += 1;
+          // The claim is the first transaction, the record of the send the second.
+          if (transactions === 2) return Promise.reject(new Error("connection lost"));
+          return target.transaction(run);
+        };
+      },
+    });
+
+    await worker(fake, { db: failsOnce }).poll();
+
+    expect(await rowOf(row!.id)).toMatchObject({ status: "SENT", attemptCount: 1 });
+    expect(fake.sent).toHaveLength(1);
   });
 
   it.each([
@@ -413,15 +431,14 @@ describe("notification worker", () => {
         .update(schema.notifications)
         .set({ ...before, leaseUntil })
         .where(eq(schema.notifications.id, row!.id));
-      let statements = 0;
+      let claims = 0;
       const stopsDuringClaim = new Proxy(db, {
         get(target, key, receiver) {
-          if (key !== "execute") return Reflect.get(target, key, receiver);
-          return (query: Parameters<typeof db.execute>[0]) => {
-            statements += 1;
-            // failAbandonedCodes is the first statement, the claim the second.
-            if (statements === 2) void stoppable.stop();
-            return target.execute(query);
+          if (key !== "transaction") return Reflect.get(target, key, receiver);
+          return (run: Parameters<typeof db.transaction>[0]) => {
+            claims += 1;
+            void stoppable.stop();
+            return target.transaction(run);
           };
         },
       });
@@ -429,7 +446,7 @@ describe("notification worker", () => {
 
       await stoppable.poll();
 
-      expect(statements).toBe(2);
+      expect(claims).toBe(1);
       expect(await rowOf(row!.id)).toMatchObject({
         status: "PENDING",
         attemptCount: before.attemptCount,
@@ -590,10 +607,9 @@ describe("notification worker", () => {
     expect(await attemptsOf(lost)).toMatchObject([
       { attempt: 1, outcome: "FAILED", errorClass: "CodeUnavailable" },
     ]);
-    expect(await rowOf(mid)).toMatchObject({ status: "FAILED", attemptCount: 2 });
+    expect(await rowOf(mid)).toMatchObject({ status: "FAILED", attemptCount: 1 });
     expect(await attemptsOf(mid)).toMatchObject([
-      { attempt: 1, outcome: "DELIVERY_UNKNOWN" },
-      { attempt: 2, outcome: "FAILED", errorClass: "CodeUnavailable" },
+      { attempt: 1, outcome: "DELIVERY_UNKNOWN", errorClass: null },
     ]);
   });
 

@@ -105,9 +105,12 @@ export function createNotificationWorker(options: WorkerOptions) {
       );
       return;
     }
+    codes.delete(row.id);
     let recorded: boolean;
     try {
-      recorded = await recordSent(db, row, responseCode);
+      recorded = await recordSent(db, row, responseCode).catch(() =>
+        recordSent(db, row, responseCode),
+      );
     } catch (error) {
       log.error(
         { notificationId: row.id, errorClass: classOf(error) },
@@ -115,7 +118,6 @@ export function createNotificationWorker(options: WorkerOptions) {
       );
       throw error;
     }
-    codes.delete(row.id);
     if (!recorded) {
       log.warn({ notificationId: row.id }, "notification sent after its lease ran out");
     }
@@ -358,6 +360,11 @@ export function createNotificationWorker(options: WorkerOptions) {
   };
 }
 
+/** Drizzle wraps the driver's error, so the innermost one says what went wrong. */
 function classOf(error: unknown) {
-  return error instanceof Error ? error.constructor.name : typeof error;
+  let inner = error;
+  while (inner instanceof Error && inner.cause instanceof Error) inner = inner.cause;
+  if (!(inner instanceof Error)) return typeof inner;
+  const code = "code" in inner && typeof inner.code === "string" ? ` ${inner.code}` : "";
+  return `${inner.constructor.name}${code}`;
 }

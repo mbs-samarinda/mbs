@@ -490,11 +490,11 @@ async function assertLocalDatabase(url: string) {
 const { args, positionals } = parse(process.argv.slice(2));
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is not set.");
-await assertLocalDatabase(databaseUrl);
 const db = createDatabase(databaseUrl);
 const outbox = { familyAppUrl: process.env.FAMILY_APP_URL ?? "" };
 
 try {
+  await assertLocalDatabase(databaseUrl);
   if (args.staffSession) {
     await staffSession(db, args.staffSession);
   } else if (!outbox.familyAppUrl) {
