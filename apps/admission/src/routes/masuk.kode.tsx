@@ -45,7 +45,9 @@ function CodeStep() {
     },
     // The boxes keep the digits to compare with the email. Selecting them lets
     // the next digit start over.
-    onError: () => input.current?.setSelectionRange(0, CODE_LENGTH),
+    onError: (error) => {
+      if (!explain(error).canRetry) input.current?.setSelectionRange(0, CODE_LENGTH);
+    },
   });
   const resend = useMutation({
     mutationFn: () => requestCode(email),
@@ -101,7 +103,7 @@ function CodeStep() {
           }}
           onComplete={submit}
           readOnly={busy}
-          aria-invalid={signIn.error ? true : undefined}
+          aria-invalid={signIn.error && !failure?.canRetry ? true : undefined}
           aria-describedby="code-sent code-status"
         >
           <InputOTPGroup>

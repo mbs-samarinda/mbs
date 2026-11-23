@@ -101,6 +101,7 @@ describe("the code step", () => {
 
     expect(await screen.findByText(/Server tidak bisa dihubungi/)).toBeVisible();
     expect(code).toHaveValue("482918");
+    expect(code).not.toHaveAttribute("aria-invalid");
     expect(calls.filter((call) => call.path === "/sign-in/email-otp")).toHaveLength(2);
   });
 

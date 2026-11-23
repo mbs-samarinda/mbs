@@ -1,11 +1,11 @@
 ---
 name: verify-mbss
-description: Launch an isolated MBSS stack (throwaway Postgres, Mailpit, API, Strapi CMS, Next.js profile site) and drive it in headless Chromium to prove a change works the way a visitor or editor sees it. Use after changing the profile site, the CMS, the API (sign-in, admission, email), or the public admission endpoint, or whenever asked to verify, screenshot, or demo MBSS behavior.
+description: Launch an isolated MBSS stack (throwaway Postgres, Mailpit, API, Strapi CMS, Next.js profile site, the parent and committee Vite apps) and drive it in headless Chromium to prove a change works the way a visitor or editor sees it. Use after changing the profile site, the CMS, the parent or committee app, the API (sign-in, admission, email), or the public admission endpoint, or whenever asked to verify, screenshot, or demo MBSS behavior.
 ---
 
 # Verify MBSS
 
-MBSS has one main thing a user touches: the **profile site** (`apps/profile`). It is a single Next.js app that serves four sites by hostname: the umbrella at the apex and the SMP, SMK and SMA schools on subdomains. Its content comes from **Strapi** (`apps/cms`), where editors write and publish. Admission dates come from the **API** (`apps/api`). The parent and committee admission apps are not built yet, so there is nothing of theirs to verify.
+MBSS has three things a user touches. The main one is the **profile site** (`apps/profile`). It is a single Next.js app that serves four sites by hostname: the umbrella at the apex and the SMP, SMK and SMA schools on subdomains. Its content comes from **Strapi** (`apps/cms`), where editors write and publish. Admission dates come from the **API** (`apps/api`). The other two are Vite apps in front of the API: the **parent app** (`apps/admission`), where families sign in by email code or Google, and the **committee app** (`apps/admin`), where staff sign in with Google. Both so far hold a sign-in screen and an empty page behind it.
 
 Two helpers live next to this file. Run both from the repo root:
 
@@ -22,9 +22,9 @@ $S/stack.sh up          # prints the run id on its last line once everything is 
 eval "$($S/stack.sh env)"  # sets RUN, EVIDENCE, SMP_URL, CMS_URL, ... in this shell
 ```
 
-`up` builds everything from empty. It starts Postgres 18 in a `--rm` container named `mbs-verify-pg-<run>`, starts Mailpit (`axllent/mailpit`, also `--rm`, named `mbs-verify-mail-<run>`) to catch every email, runs the core migrations, and starts the API with its notification worker on and pointed at that Mailpit. Strapi then boots against its own `mbs_cms` database, runs its migrations and seeds all four sites, and sets up the profile's read token. Send it on REST reads, as the profile does: `-H "authorization: Bearer $CMS_READ_TOKEN"` (`stack.sh env` sets it). Without it the CMS answers 403, even for published rows. Last comes `next dev` for the profile. It only prints the run id after each layer passes a real check: the API's `/health` says ok, the CMS serves 4 published sites, and `smp.localhost` renders "SMP Islam Terpadu Madina". A fresh run takes about 1–2 minutes. If `up` fails, it tears down what it started and names the log to read.
+`up` builds everything from empty. It starts Postgres 18 in a `--rm` container named `mbs-verify-pg-<run>`, starts Mailpit (`axllent/mailpit`, also `--rm`, named `mbs-verify-mail-<run>`) to catch every email, runs the core migrations, and starts the API with its notification worker on and pointed at that Mailpit. Strapi then boots against its own `mbs_cms` database, runs its migrations and seeds all four sites, and sets up the profile's read token. Send it on REST reads, as the profile does: `-H "authorization: Bearer $CMS_READ_TOKEN"` (`stack.sh env` sets it). Without it the CMS answers 403, even for published rows. Two Vite servers serve the parent and committee apps and send `/api` to the API. Last comes `next dev` for the profile. It only prints the run id after each layer passes a real check: the API's `/health` says ok, each Vite app serves its page and reaches its own sign-in through the proxy, the CMS serves 4 published sites, and `smp.localhost` renders "SMP Islam Terpadu Madina". A fresh run takes about 1–2 minutes. If `up` fails, it tears down what it started and names the log to read.
 
-Ports: Postgres `55432`, API `3101`, CMS `1437`, profile `3102`, Mailpit SMTP `51125` and web `58125`. These are deliberately not the dev ports (5432, 3001, 1337, 3002, 1025, 8025), so a running `pnpm dev` is left alone. Override them with `PG_PORT`, `API_PORT`, `CMS_PORT`, `PROFILE_PORT`, `MAIL_SMTP_PORT` and `MAIL_WEB_PORT`.
+Ports: Postgres `55432`, API `3101`, CMS `1437`, profile `3102`, parent app `5173`, committee app `5174`, Mailpit SMTP `51125` and web `58125`. All but the two apps' are deliberately not the dev ports (5432, 3001, 1337, 3002, 1025, 8025), so a running `pnpm dev` is left alone. The parent app has to be on 5173, because the profile's "Mulai Pendaftaran" link is fixed to it on localhost. Override them with `PG_PORT`, `API_PORT`, `CMS_PORT`, `PROFILE_PORT`, `ADMISSION_PORT`, `ADMIN_PORT`, `MAIL_SMTP_PORT` and `MAIL_WEB_PORT`. The API's app URLs follow the last two overrides, but that profile link does not.
 
 The API picks its auth instance from the `Host` header. Send `Host: $FAMILY_HOST` for the parent app's routes and email codes, and `Host: $STAFF_HOST` for the committee app's. Any other host, `localhost:3101` included, gets no `/api/auth/*` routes and no session. Run the simulator through the stack, `stack.sh sim -- <args>`, so it uses the run's database and auth key. `stack.sh sim -- --staff-session <email>` prints a staff `host:` and `cookie:` pair for `curl` or a browser. Read sent email from Mailpit's API at `$MAIL_URL/api/v1/messages`, or open `$MAIL_URL` in Chromium. `stack.sh` sets every key the apps need, with fresh secrets for each run, so the user's values never decide where a run points. The apps still load their own `apps/*/.env` files, which fill in any key `stack.sh` leaves unset, such as `DATABASE_SCHEMA` or `AWS_ENDPOINT`. If a run behaves differently from a fresh clone, check those files first.
 
@@ -34,6 +34,8 @@ Site URLs (`*.localhost` resolves to 127.0.0.1 in Chromium):
 | --- | --- |
 | Umbrella (apex) | `http://localhost:3102` |
 | SMP / SMK / SMA | `http://smp.localhost:3102`, `smk.`, `sma.` |
+| Parent app | `http://localhost:5173` (`$ADMISSION_URL`) |
+| Committee app | `http://localhost:5174` (`$ADMIN_URL`) |
 | Strapi admin | `http://localhost:1437/admin` |
 | API | `http://localhost:3101` |
 
@@ -67,7 +69,7 @@ node $S/drive.mjs --out "$EVIDENCE/<feature-id>" [--state <file>] [--mobile] <st
 | `see:<role>:<name>` | wait up to 30 s for that element |
 | `text:<text>` | wait up to 30 s for that text anywhere |
 | `shot:<label>` | save `<label>.png` (full page), `<label>.aria.txt` (accessibility tree) and `<label>.url` |
-| `errors` | ask `next dev` for the open page's errors through its MCP endpoint (`/_next/mcp`, tool `get_errors`); log each with its source file and line, and fail if there are any |
+| `errors` | on the profile, ask `next dev` for the open page's errors through its MCP endpoint (`/_next/mcp`, tool `get_errors`); log each with its source file and line, and fail if there are any. On a Vite app, fail on Vite's error overlay and on anything the page threw or sent to `console.error` since the last `goto`. A failed request is logged but does not fail it, because a 400 for a wrong code is correct |
 
 Steps run in order. On the first failure it saves `fail-<n>.png` and exits 1. Everything goes into `<out>/drive.log`, including every `console.error`, page error, HTTP 4xx/5xx and request that got no answer at all (`failed net::...`). `--state` keeps cookies and local storage between calls, which a Strapi login needs. `--mobile` uses a Pixel 7 viewport.
 
@@ -94,7 +96,7 @@ Proof standards:
 - Capture the action and the state it led to, a `shot` before and after, not just the final screen.
 - Check side effects too. A publish should show `POST /api/revalidate 200` in `logs/profile.log`, and the published row should be visible through `$CMS_URL/api/<plural>`.
 - Read `drive.log` for `console.error` and `pageerror`. A page that looks right but logs React errors is a finding, not a pass.
-- End each profile journey with an `errors` step. It sees what `next dev` saw, with the source line, and it only works while the page is open, so it must be a step, not a later call.
+- End each journey with an `errors` step. On the profile it sees what `next dev` saw, with the source line, and it only works while the page is open, so it must be a step, not a later call.
 - Fixture rows inserted with SQL (for example, an admission cycle) are setup, never proof of the feature that would create them. Say which you did.
 - Mocks are never used. Every layer is the real app, and only Google sign-in and Midtrans are out of reach.
 

@@ -30,14 +30,14 @@ pnpm dev                                # every app at once
 ```
 
 Each app reads the `.env` beside it, and each `.env.example` is the list of what
-that app needs. Two of them want real values before anything starts:
+that app needs. The two Vite apps need none. Two want real values before anything
+starts:
 
 - **`apps/api`** — `DATABASE_URL`, a `BETTER_AUTH_SECRET` of at least 32
   characters, and a Google OAuth client id and secret. Startup validates all of
   them and fails with the list of what is missing. Set `BOOTSTRAP_ADMIN_EMAIL`
   to your own Google address too: nothing can grant staff access before one
-  administrator exists, so nothing can grant staff access without it. The
-  committee app that consumed this is not built yet; the API side still needs it.
+  administrator exists, so nothing can grant staff access without it.
 - **`apps/cms`** — Strapi's own secrets, and its own database connection.
   Unset, Strapi quietly falls back to SQLite instead of the `mbs_cms` database
   compose just created.
@@ -50,10 +50,14 @@ The rest of each file already holds a working local default.
 apps/
   api                Fastify + oRPC. The only source of truth for admission.
   profile            Next.js. One app serving every school subdomain.
+  admission          Vite. The parent app. Calls same-origin /api.
+  admin              Vite. The committee app. Calls same-origin /api.
   cms                Strapi. Profile content only, with its own database.
 
 packages/
   api-contract       The oRPC contract and its Zod schemas. Browser-safe.
+  api-client         How a browser app calls the API: sign-in requests, the typed
+                     oRPC client, and the check on where sign-in may return to.
   db                 Drizzle client, schema, and migrations. Used by api only.
   ui                 shadcn/ui components on Base UI, plus the design tokens.
   school-config      The fixed school list, the shared enum values, and other
@@ -70,6 +74,8 @@ talk over HTTP.
 3001  api
 3002  profile
 1337  cms
+5173  parent app
+5174  committee app
 8025  Mailpit, the inbox for every email the API sends: http://localhost:8025
 ```
 
@@ -124,15 +130,14 @@ pnpm --filter @mbs/api test:integration
 ## Components
 
 `packages/ui` is the shadcn/ui component library for every front end, built on
-Base UI primitives. Add a component from any app and the CLI puts it in the
-right place:
+Base UI primitives. Add one with the CLI:
 
 ```bash
-pnpm dlx shadcn@latest add dialog -c apps/profile
+pnpm dlx shadcn@latest add dialog -c packages/ui
 ```
 
-Base components land in `packages/ui/src/components`; anything specific to one
-app stays in that app. Import them by path:
+They land in `packages/ui/src/components`; anything specific to one app stays in
+that app. Import them by path:
 
 ```ts
 import { Button } from "@mbs/ui/components/button";
@@ -143,11 +148,16 @@ it (`pnpm add cn --filter <app>`) before the CLI writes its first app-local
 component there.
 
 Design tokens and the Tailwind entry point live in
-`packages/ui/src/styles/globals.css`. Each app's `src/styles.css` imports it and
-nothing else.
+`packages/ui/src/styles/globals.css`. Each app's own stylesheet imports it and
+adds only the tokens that app alone uses. Tailwind reads the importing app and
+`packages/ui`, never another app.
 
-Two things to know. `apps/profile` has no `components.json` yet, so the CLI
-cannot target it — add one when the profile site needs its first component.
+`packages/ui/src/theme-script.ts` runs inline in every page, and the two Vite
+apps' images allow it by hash in their CSP. After editing it, put the new hash in
+both `Caddyfile`s; each app's `test/csp.test.ts` prints the expected one.
+
+Two things to know. No app has a `components.json` yet, so the CLI cannot target
+one. Add shared components with `-c packages/ui`.
 And shadcn's own setup pins TypeScript 6 while this workspace is on 7, so a
 generated component may occasionally need a small fix after `shadcn add`.
 

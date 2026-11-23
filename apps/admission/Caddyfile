@@ -13,7 +13,9 @@
 		# The hash is the inline theme script from packages/ui/src/theme-script.ts.
 		# test/csp.test.ts fails when the two drift, because the browser would
 		# refuse the script and every dark-mode visitor would see a white flash.
-		Content-Security-Policy "default-src 'none'; script-src 'self' 'sha256-XIIddaemddRTQTS8WNMslESkURwRkUp6Ez9aYPAF2qw='; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+		# The style hash is the one of empty text: the code field's library adds an
+		# empty <style> and fills it from script, which the CSP does not cover.
+		Content-Security-Policy "default-src 'none'; script-src 'self' 'sha256-XIIddaemddRTQTS8WNMslESkURwRkUp6Ez9aYPAF2qw='; style-src 'self' 'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 		X-Frame-Options DENY
 		X-Content-Type-Options nosniff
 		Referrer-Policy same-origin

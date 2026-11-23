@@ -124,7 +124,7 @@ function EmailForm() {
           spellCheck={false}
           defaultValue={pendingEmail() ?? ""}
           placeholder="cth. nama@email.com"
-          aria-invalid={failure ? true : undefined}
+          aria-invalid={failure && !failure.canRetry ? true : undefined}
           aria-describedby="email-error"
           className="h-11 rounded-xl px-3.5"
         />

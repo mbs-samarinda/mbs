@@ -4,8 +4,8 @@ This folder is the maintained source for verifying what MBSS visitors and editor
 
 ## Baseline preconditions
 
-- A stack started by `stack.sh up` in this run, with `stack.sh doctor` passing. Never drive an instance this run did not start, including the user's `pnpm dev` on ports 3002/1337/3001.
-- `eval "$(.claude/skills/verify-mbss/stack.sh env)"` sets `APEX_URL`, `SMP_URL`, `SMK_URL`, `SMA_URL`, `CMS_URL`, `API_URL`, `EVIDENCE` and `REVALIDATE_SECRET`.
+- A stack started by `stack.sh up` in this run, with `stack.sh doctor` passing. Never drive an instance this run did not start, including the user's `pnpm dev` on ports 3002/1337/3001/5173/5174.
+- `eval "$(.claude/skills/verify-mbss/stack.sh env)"` sets `APEX_URL`, `SMP_URL`, `SMK_URL`, `SMA_URL`, `CMS_URL`, `API_URL`, `ADMISSION_URL`, `ADMIN_URL`, `MAIL_URL`, `EVIDENCE` and `REVALIDATE_SECRET`.
 - The data is the CMS seed, which is the same on every fresh run. Each owner has a Site row and every page. SMP has four articles, including the Pengumuman `Perubahan jam layanan tata usaha`, plus ekstrakurikuler (`Futsal`, ...) and fasilitas (`Asrama santri`, ...). No albums or files are seeded. No admission cycle exists.
 - For Strapi journeys, run `stack.sh admin` once per run. It creates the login `verify@mbss.test` with the password `Verify-mbss-1`.
 
@@ -34,4 +34,6 @@ Each feature file starts with an H1 and one paragraph about what the user sees. 
 - [School pages](./school-pages.md): a school's home and its section pages from the header navigation, with their detail pages and empty states.
 - [Articles](./articles.md): the article list, its type filters and archive, and an article page.
 - [Admission status](./admission-status.md): the `pendaftaran` page reading the live cycle from the API, in its no-cycle and API-down states.
+- [Family sign-in](./family-sign-in.md): the parent app, by email code or Google, its guard and its refusals.
+- [Committee sign-in](./committee-sign-in.md): the committee app, its dashboard and the two ways it refuses an account.
 - [CMS publish](./cms-publish.md): an editor changes content in Strapi, publishes, and the profile site shows it without waiting out the cache.
