@@ -43,17 +43,17 @@ function SignInLayout() {
     <div className="flex min-h-dvh flex-col lg:grid lg:grid-cols-2">
       <Schools />
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-[min(1.25rem,6vw)] py-6 lg:px-8 lg:py-10">
-        <header>
+        <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <BrandMark sub={APP_NAME} />
+          <ThemeSelect size="touch" className="-mr-[min(0.75rem,6vw)] ml-auto" />
         </header>
         <main className="grid grid-cols-1 gap-6 pt-8 pb-10 lg:my-auto lg:py-8">
           <Outlet />
         </main>
-        <footer className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-3 lg:mt-0">
+        <footer className="mt-auto lg:mt-0">
           <p className="text-xs text-pretty text-muted-foreground">
             Diselenggarakan oleh Yapendis Nurul Haq Samarinda
           </p>
-          <ThemeSelect size="touch" />
         </footer>
       </div>
     </div>

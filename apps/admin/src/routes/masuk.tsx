@@ -49,11 +49,12 @@ function SignIn() {
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
       <Arches />
-      <div className="mx-auto flex w-full max-w-md min-w-0 flex-col px-[min(1.25rem,6vw)] py-8 lg:px-8">
-        <header>
+      <div className="mx-auto grid w-full max-w-md min-w-0 grid-cols-1 grid-rows-[1fr_auto_1fr] px-[min(1.25rem,6vw)] py-8 lg:px-8">
+        <header className="flex flex-wrap items-center gap-x-4 gap-y-2 self-start">
           <BrandMark sub={APP_NAME} />
+          <ThemeSelect size="default" className="-mr-2 ml-auto" />
         </header>
-        <main className="my-auto grid grid-cols-1 gap-5 py-8">
+        <main className="grid grid-cols-1 gap-5 py-8">
           <div className="grid gap-1.5">
             <h1 tabIndex={-1} className="text-xl font-semibold outline-none">
               Masuk
@@ -97,9 +98,6 @@ function SignIn() {
                 : "Masuk dengan Google"}
           </GoogleButton>
         </main>
-        <footer>
-          <ThemeSelect size="default" />
-        </footer>
       </div>
     </div>
   );
