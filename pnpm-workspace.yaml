@@ -19,6 +19,20 @@ catalog:
 
 overrides:
   "better-auth>next": "catalog:"
+  # Strapi pins exactly this zod, and a huge invalid array makes it run out of
+  # memory (GHSA-mrhx-c7xc-m3w5). pnpm applies this to every range that allows
+  # 4.4.3, so the target is a floor and not one version. koa-body and
+  # koa-session keep zod 3: they only check our own options with it. Delete once
+  # Strapi ships 4.6.6 or later.
+  "zod@4.4.3": ^4.6.7
+  # Strapi pins exactly this release, which holds @hono/node-server on 1.x
+  # (GHSA-rmxm-3fg6-px4f). Its next patch allows 2.x with the same built files,
+  # but also wants a newer server than Strapi pins. Delete once Strapi ships it.
+  "@modelcontextprotocol/node@2.1.1>@hono/node-server": ^2.1.6
+  # drizzle-kit lists this loader but never loads it, and it pins an esbuild
+  # whose dev server any website can read (GHSA-67mh-4wv8-2f99). Delete once
+  # drizzle-kit drops the dependency.
+  "drizzle-kit>@esbuild-kit/esm-loader": "-"
 
 # Next's own type files ask for `react/experimental`, but Next does not list
 # @types/react, so the lookup falls back to whichever copy pnpm hoisted, which
