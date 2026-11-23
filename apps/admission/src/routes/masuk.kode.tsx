@@ -36,8 +36,10 @@ function CodeStep() {
 
   const signIn = useMutation({
     mutationFn: (otp: string) => signInWithCode(email, otp),
-    onSuccess: () => {
+    onSuccess: async () => {
       setPendingEmail(null);
+      // A check that started before this may answer "signed out" after it.
+      await queryClient.cancelQueries({ queryKey: accountQuery.queryKey });
       // Written here, not fetched again: the code is used up, so a failed fetch
       // would leave a screen that can only answer "wrong code".
       const account: Account = { email: email.toLowerCase() };
@@ -66,8 +68,8 @@ function CodeStep() {
     signIn.mutate(otp);
   };
 
-  const error = resend.error ?? signIn.error;
-  const failure = error ? explain(error) : null;
+  const refusal = signIn.error && explain(signIn.error);
+  const failure = resend.error ? explain(resend.error) : refusal;
   const busy = signIn.isPending || signIn.isSuccess;
   return (
     <>
@@ -97,13 +99,15 @@ function CodeStep() {
           pattern="^[0-9]*$"
           pasteTransformer={(text) => text.replace(/\D/g, "")}
           value={code}
+          // Not `onComplete`, which stays silent when six digits replace six.
           onChange={(value) => {
+            if (value === code) return;
             setCode(value);
-            if (value !== code) signIn.reset();
+            signIn.reset();
+            submit(value);
           }}
-          onComplete={submit}
           readOnly={busy}
-          aria-invalid={signIn.error && !failure?.canRetry ? true : undefined}
+          aria-invalid={refusal && !refusal.canRetry ? true : undefined}
           aria-describedby="code-sent code-status"
         >
           <InputOTPGroup>
@@ -126,7 +130,7 @@ function CodeStep() {
             {busy ? "Memeriksa kode…" : resend.isSuccess ? "Kode baru sudah dikirim." : null}
           </output>
         </div>
-        {signIn.error && failure?.canRetry && (
+        {refusal?.canRetry && !resend.error && (
           <Button type="submit" size="touch">
             Coba lagi
           </Button>

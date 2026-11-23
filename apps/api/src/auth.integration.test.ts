@@ -291,7 +291,10 @@ describe("code emails per address", () => {
 
     const refused = await ask("wAli@example.com");
     expect(refused.statusCode).toBe(429);
-    expect(refused.json()).toMatchObject({ code: "TOO_MANY_CODES" });
+    expect(refused.json()).toMatchObject({ code: "TOO_MANY_CODES", lastCodeInTime: true });
+    const wait = Number(refused.headers["x-retry-after"]);
+    expect(wait).toBeGreaterThan(14 * 60);
+    expect(wait).toBeLessThanOrEqual(15 * 60);
     expect(mailer.sent).toHaveLength(5);
 
     expect((await ask("lain@example.com")).statusCode).toBe(200);
@@ -322,7 +325,11 @@ describe("code emails per address", () => {
       // oxlint-disable-next-line eslint/no-await-in-loop
       await requestCode("sabar@example.com");
     }
-    expect((await ask("sabar@example.com")).statusCode).toBe(429);
+    await db.update(schema.notifications).set({ createdAt: sql`now() - interval '6 minutes'` });
+    const refused = await ask("sabar@example.com");
+    expect(refused.statusCode).toBe(429);
+    expect(refused.json()).toMatchObject({ lastCodeInTime: false });
+    expect(Number(refused.headers["x-retry-after"])).toBeLessThanOrEqual(9 * 60);
     await db.update(schema.notifications).set({ createdAt: sql`now() - interval '16 minutes'` });
     expect((await ask("sabar@example.com")).statusCode).toBe(200);
   });
@@ -332,6 +339,16 @@ describe("code emails per address", () => {
       Array.from({ length: 12 }, (_, i) => ask("banjir@example.com", `198.51.100.${i + 1}`)),
     );
     expect(await db.select().from(schema.notifications)).toHaveLength(5);
+    await vi.waitFor(() => expect(mailer.sent).toHaveLength(5));
+
+    const code = /\b(\d{6})\b/.exec(mailer.sent.at(-1)?.text ?? "")?.[1];
+    expect((await signInWithCode("banjir@example.com", code!)).statusCode).toBe(200);
+  });
+
+  it("refuses text that is no address before it reaches the database", async () => {
+    const refused = await ask("a\u0000@example.com");
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toMatchObject({ code: "INVALID_EMAIL" });
   });
 });
 

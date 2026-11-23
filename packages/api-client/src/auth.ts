@@ -1,4 +1,4 @@
-import { apiFetch } from "./http.ts";
+import { apiFetch, UnreachableError } from "./http.ts";
 
 export type Account = { email: string };
 
@@ -8,12 +8,20 @@ export class AuthError extends Error {
   readonly status: number;
   readonly code: string | null;
   readonly retryAfterSeconds: number | null;
+  /** The whole answer, for a code that says more than its name. */
+  readonly details: unknown;
 
-  constructor(status: number, code: string | null, retryAfterSeconds: number | null) {
+  constructor(
+    status: number,
+    code: string | null,
+    retryAfterSeconds: number | null,
+    details: unknown = null,
+  ) {
     super(`Sign-in request refused: ${code ?? status}`);
     this.status = status;
     this.code = code;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.details = details;
   }
 }
 
@@ -27,13 +35,19 @@ export async function authRequest(path: string, body?: object): Promise<unknown>
       body: JSON.stringify(body),
     },
   );
+  if (response.ok) {
+    // Never null: a body cut off on the way would then read as "no account".
+    return response.json().catch((cause: unknown) => {
+      throw new UnreachableError("The answer was cut off.", { cause });
+    });
+  }
   const data: unknown = await response.json().catch(() => null);
-  if (response.ok) return data;
   const retryAfter = Number(response.headers.get("x-retry-after"));
   throw new AuthError(
     response.status,
     stringIn(data, "code"),
     Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
+    data,
   );
 }
 

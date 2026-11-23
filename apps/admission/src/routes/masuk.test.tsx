@@ -80,6 +80,41 @@ describe("the code step", () => {
     ]);
   });
 
+  it("sends a right code pasted over a wrong one", async () => {
+    const calls = stubApi({
+      ...SIGNED_OUT,
+      "/sign-in/email-otp": [
+        { status: 400, body: { code: "INVALID_OTP" } },
+        { body: { user: {} } },
+      ],
+    });
+    const { router, code } = await openCodeStep();
+    const user = userEvent.setup();
+    await user.type(code, "111111");
+    await screen.findByText(/Kode belum cocok/);
+    await user.paste("482918");
+
+    await waitFor(() => expect(router.state.location.href).toBe("/"));
+    expect(calls.filter((call) => call.path === "/sign-in/email-otp").at(-1)?.body).toEqual({
+      email: "wali@example.test",
+      otp: "482918",
+    });
+  });
+
+  it("never sends a refused code again when asking for a new one fails", async () => {
+    stubApi({
+      ...SIGNED_OUT,
+      "/sign-in/email-otp": [{ status: 400, body: { code: "INVALID_OTP" } }],
+    });
+    const { code } = await openCodeStep();
+    const user = userEvent.setup();
+    await user.type(code, "111111");
+    await screen.findByText(/Kode belum cocok/);
+    await user.click(screen.getByRole("button", { name: "Kirim kode baru" }));
+    expect(await screen.findByText(/Server tidak bisa dihubungi/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Coba lagi" })).toBeNull();
+  });
+
   it.each([
     ["an expired code", { status: 400, body: { code: "OTP_EXPIRED" } }, /lewat 5 menit/],
     ["too many tries", { status: 403, body: { code: "TOO_MANY_ATTEMPTS" } }, /3 kali tidak cocok/],
@@ -170,15 +205,39 @@ describe("the email step", () => {
   it("leads to the last code when no more will be sent", async () => {
     stubApi({
       ...SIGNED_OUT,
-      "/email-otp/send-verification-otp": [{ status: 429, body: { code: "TOO_MANY_CODES" } }],
+      "/email-otp/send-verification-otp": [
+        {
+          status: 429,
+          body: { code: "TOO_MANY_CODES", lastCodeInTime: true },
+          headers: { "x-retry-after": "640" },
+        },
+      ],
     });
     open("/masuk");
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText("Alamat email"), "wali@example.test{Enter}");
-    expect(await screen.findByText(/sudah mengirim 5 kode/)).toBeVisible();
+    expect(await screen.findByText(/minta kode baru 11 menit lagi/)).toBeVisible();
     await user.click(screen.getByRole("link", { name: "Masukkan kode terakhir" }));
     expect(await screen.findByLabelText("Kode 6 angka")).toBeVisible();
     expect(screen.getByText("wali@example.test")).toBeVisible();
+  });
+
+  it("does not offer the last code once it is too old", async () => {
+    stubApi({
+      ...SIGNED_OUT,
+      "/email-otp/send-verification-otp": [
+        {
+          status: 429,
+          body: { code: "TOO_MANY_CODES", lastCodeInTime: false },
+          headers: { "x-retry-after": "300" },
+        },
+      ],
+    });
+    open("/masuk");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Alamat email"), "wali@example.test{Enter}");
+    expect(await screen.findByText(/Minta kode baru 5 menit lagi/)).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Masukkan kode terakhir" })).toBeNull();
   });
 
   it("sends the safe page and the sign-in page to Google", async () => {

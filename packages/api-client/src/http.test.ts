@@ -41,6 +41,13 @@ describe("calls to the API", () => {
     expect(error).toMatchObject({ status: 429, code: null, retryAfterSeconds: 42 });
   });
 
+  it("does not read a cut-off answer as no account", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('{"user":{"em', { headers: { "x-request-id": "1" } }),
+    );
+    await expect(fetchAccount()).rejects.toBeInstanceOf(UnreachableError);
+  });
+
   it("reads the account, and no account", async () => {
     fetchMock.mockResolvedValueOnce(fromApi({ user: { email: "wali@example.test" }, session: {} }));
     expect(await fetchAccount()).toEqual({ email: "wali@example.test" });

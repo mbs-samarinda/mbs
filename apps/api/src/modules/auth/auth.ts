@@ -7,10 +7,11 @@ import { APIError, createAuthMiddleware, getIP, isAPIError } from "better-auth/a
 import { makeSignature } from "better-auth/crypto";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 
 import type { Config } from "../../config/env.ts";
 import { appendAuditLog } from "../audit.ts";
-import { isCodeCapReached } from "../notification/outbox.ts";
+import { reachedCodeCap } from "../notification/outbox.ts";
 import { isApprovedLoginEmail } from "../staff/repository.ts";
 import { createRateLimitStorage } from "./rate-limit.ts";
 
@@ -45,13 +46,20 @@ export function createFamilyAuth(db: Database, config: Config, deps: AuthDeps) {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === "/sign-in/email-otp") return;
         if (ctx.path === "/email-otp/send-verification-otp" && ctx.body?.type === "sign-in") {
+          const email = z.email().safeParse(ctx.body.email);
+          if (!email.success) return;
           // Before the plugin makes a new code, so the last one sent still works.
-          const email: unknown = ctx.body.email;
-          if (typeof email === "string" && (await isCodeCapReached(db, email.toLowerCase()))) {
-            throw new APIError("TOO_MANY_REQUESTS", {
-              code: "TOO_MANY_CODES",
-              message: "Too many codes were sent to this address.",
-            });
+          const cap = await reachedCodeCap(db, email.data.toLowerCase());
+          if (cap) {
+            throw new APIError(
+              "TOO_MANY_REQUESTS",
+              {
+                code: "TOO_MANY_CODES",
+                message: "Too many codes were sent to this address.",
+                lastCodeInTime: cap.newestAgeSeconds < SIGN_IN_CODE_MINUTES * 60,
+              },
+              { "X-Retry-After": String(cap.retryAfterSeconds) },
+            );
           }
           return;
         }
@@ -116,6 +124,24 @@ export function createStaffAuth(
       },
     },
   });
+}
+
+/**
+ * Runs one code request at a time for an address. Two at once would both pass the
+ * cap, and the code stored last might not be the one emailed last. In this process
+ * only, which is the only one that sends codes.
+ */
+export function createCodeQueue() {
+  const last = new Map<string, Promise<unknown>>();
+  return async <T>(address: string, work: () => Promise<T>): Promise<T> => {
+    const run = (last.get(address) ?? Promise.resolve()).then(work, work);
+    last.set(address, run);
+    try {
+      return await run;
+    } finally {
+      if (last.get(address) === run) last.delete(address);
+    }
+  };
 }
 
 function signInOnly() {
