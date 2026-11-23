@@ -8,7 +8,11 @@ vi.stubGlobal("location", { origin: "http://localhost:5173" });
 
 const fetchMock = vi.fn<typeof fetch>();
 vi.stubGlobal("fetch", fetchMock);
-afterEach(() => fetchMock.mockReset());
+afterEach(() => {
+  fetchMock.mockReset();
+  vi.useRealTimers();
+  vi.stubGlobal("location", { origin: "http://localhost:5173" });
+});
 
 const fromApi = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   Response.json(body, { status, headers: { "x-request-id": "1", ...headers } });
@@ -58,6 +62,8 @@ describe("calls to the API", () => {
     const assign = vi.fn();
     vi.stubGlobal("location", { origin: "http://localhost:5173", assign });
     fetchMock.mockResolvedValueOnce(fromApi({ url: "https://accounts.google.test/" }));
+    const page = new EventTarget();
+    vi.stubGlobal("addEventListener", page.addEventListener.bind(page));
     let settled = false;
     const going = goToGoogle({ returnTo: "/", errorTo: "/masuk", chooseAccount: false }).then(
       () => (settled = true),
@@ -66,8 +72,20 @@ describe("calls to the API", () => {
     expect(assign).toHaveBeenCalledExactlyOnceWith("https://accounts.google.test/");
     expect(settled).toBe(false);
     await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(10_000);
     await going;
-    vi.useRealTimers();
+  });
+
+  it("gives the button back at once when the visitor goes back to the page", async () => {
+    vi.useFakeTimers();
+    const page = new EventTarget();
+    vi.stubGlobal("addEventListener", page.addEventListener.bind(page));
+    vi.stubGlobal("location", { origin: "http://localhost:5173", assign: vi.fn() });
+    fetchMock.mockResolvedValueOnce(fromApi({ url: "https://accounts.google.test/" }));
+    const going = goToGoogle({ returnTo: "/", errorTo: "/masuk", chooseAccount: false });
+    await vi.advanceTimersByTimeAsync(1_000);
+    page.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
+    await going;
   });
 
   it("reads the account, and no account", async () => {

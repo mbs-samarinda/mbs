@@ -8,8 +8,8 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <!-- The first thing the app asks. Fetched beside the script, not after it. -->
     <link rel="preload" as="fetch" href="/api/auth/get-session" crossorigin="anonymous" />
-    <!-- The sign-in photos. The script alone would ask for them only once it runs, which
-         is after it has downloaded. -->
+    <!-- The sign-in photos, which the script would ask for only once it has downloaded and
+         runs. A signed-in page fetches them too and does not draw them; they are cached by then. -->
     <link
       rel="preload"
       as="image"

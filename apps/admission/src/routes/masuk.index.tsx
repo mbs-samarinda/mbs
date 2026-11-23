@@ -45,7 +45,8 @@ function Google() {
         chooseAccount: error !== undefined,
       }),
   });
-  const unreachable = account.error instanceof UnreachableError;
+  // A failed check matters only while there is no earlier answer to show.
+  const unreachable = account.data === undefined && account.error instanceof UnreachableError;
   return (
     <div className="grid grid-cols-1 gap-4">
       {google.error ? (

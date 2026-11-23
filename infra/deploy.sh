@@ -114,6 +114,10 @@ on_exit() {
       echo
       echo "$IMAGES_FILE now pins images that did not pass. To put the last good ones back:"
       echo "  $ROOT/deploy.sh $tags"
+      if [[ $tags != *" - -" ]]; then
+        echo "Or, when the two PPDB apps are what fails, leave them as they are:"
+        echo "  $ROOT/deploy.sh ${tags% * *} - -"
+      fi
       echo "The workflow logs the box out of ghcr.io after every run, so if a pull is denied, docker login ghcr.io first."
       echo "Not past a commit that added a CMS component; that destroys its content. Roll forward instead."
     } >&2

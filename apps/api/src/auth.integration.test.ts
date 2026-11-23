@@ -403,6 +403,17 @@ describe("code emails per address", () => {
     expect(refused.statusCode).toBe(400);
     expect(refused.json()).toMatchObject({ code: "INVALID_EMAIL" });
   });
+
+  it.each([[{ toString: 1, valueOf: 1 }], [["wali@example.com"]], [7]])(
+    "refuses %j, which is not text",
+    async (email) => {
+      const refused = await auth(FAMILY_HOST, "/email-otp/send-verification-otp", {
+        email,
+        type: "sign-in",
+      });
+      expect(refused.statusCode).toBe(400);
+    },
+  );
 });
 
 describe("request limits", () => {

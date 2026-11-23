@@ -50,7 +50,7 @@ export function createFamilyAuth(db: Database, config: Config, deps: AuthDeps) {
         if (ctx.path === "/email-otp/send-verification-otp" && ctx.body?.type === "sign-in") {
           // Lowercased first, as the plugin does. Some letters are valid in an
           // address only once lowercased, and would skip the cap.
-          const email = z.email().safeParse(String(ctx.body.email).toLowerCase());
+          const email = z.string().toLowerCase().pipe(z.email()).safeParse(ctx.body.email);
           if (!email.success) return;
           // After the request limits, so a flood they refuse never waits in line.
           await deps.codeQueue.enter(email.data, ctx.headers?.get(REQUEST_ID_HEADER));

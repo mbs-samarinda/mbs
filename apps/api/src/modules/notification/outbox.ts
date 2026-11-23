@@ -81,8 +81,8 @@ const CODE_CAP = { codes: 5, minutes: 15 };
 
 /**
  * Null while an address may be sent another code. Stops one inbox from being
- * flooded, which the per-IP limit cannot. Every code counts, sent or not, and the
- * answer never depends on whether the address has an account.
+ * flooded, which the per-IP limit cannot. Every code counts, sent or not, whether
+ * or not the address has an account.
  */
 export async function reachedCodeCap(db: Database, recipient: string) {
   const n = schema.notifications;

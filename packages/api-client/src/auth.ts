@@ -71,7 +71,7 @@ export async function signOut() {
   await authPost("/sign-out", {});
 }
 
-const LEAVING_MS = 5_000;
+const LEAVING_MS = 20_000;
 
 /**
  * Sends the browser to Google. Both paths must already be safe return targets;
@@ -79,8 +79,9 @@ const LEAVING_MS = 5_000;
  * Google ask, where it would reuse its only account in silence and refuse the
  * visitor a second time.
  *
- * Resolves a while after the browser starts to leave, so a button can wait for
- * the new page and still come back when it never loads.
+ * Resolves when the visitor comes back to this page, or a while after the browser
+ * starts to leave. So a button can wait for the new page, which on mobile data
+ * takes seconds, and is never left waiting for good.
  */
 export async function goToGoogle(options: {
   returnTo: string;
@@ -98,7 +99,13 @@ export async function goToGoogle(options: {
   const url = stringIn(data, "url");
   if (url === null) throw new Error("Google sign-in gave no URL.");
   location.assign(url);
-  await new Promise((resolve) => setTimeout(resolve, LEAVING_MS));
+  const left = new AbortController();
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, LEAVING_MS);
+    // Going back can restore the page as it was left, its timers included.
+    addEventListener("pageshow", (event) => event.persisted && resolve(), { signal: left.signal });
+  });
+  left.abort();
 }
 
 function stringIn(data: unknown, key: string): string | null {

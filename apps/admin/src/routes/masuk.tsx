@@ -64,7 +64,7 @@ function SignIn() {
           </div>
           {google.error ? (
             <Alert>{explain(google.error)}</Alert>
-          ) : visitor.error instanceof UnreachableError ? (
+          ) : visitor.data === undefined && visitor.error instanceof UnreachableError ? (
             <Alert>
               Server tidak bisa dihubungi. Periksa koneksi internet kamu.
               <Button
