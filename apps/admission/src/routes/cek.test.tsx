@@ -147,7 +147,9 @@ describe("the answer", () => {
     expect(screen.getByText("SMP-0042")).toBeVisible();
     expect(screen.getByText("Giliran keluarga")).toBeVisible();
     expect(
-      screen.getByText("Pembayaran dikirim lewat akun yang mendaftarkan Muhammad Rafif Alfarizi."),
+      screen.getByText(
+        "Jangan transfer dulu. Cara membayar akan muncul di akun yang mendaftarkan Muhammad Rafif Alfarizi.",
+      ),
     ).toBeVisible();
     const road = within(screen.getByRole("list")).getAllByRole("listitem");
     expect(road.map((item) => item.textContent)).toEqual([

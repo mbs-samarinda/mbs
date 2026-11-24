@@ -251,7 +251,8 @@ const wait = ({ childName }: CheckedStatus) =>
 
 /** For a relative who only looks, so it says what the account holder does, never "kamu". */
 const NEXT: Record<FamilyStage, (status: CheckedStatus) => string> = {
-  PAYMENT_DUE: ({ childName }) => `Pembayaran dikirim lewat akun yang mendaftarkan ${childName}.`,
+  PAYMENT_DUE: ({ childName }) =>
+    `Jangan transfer dulu. Cara membayar akan muncul di akun yang mendaftarkan ${childName}.`,
   PAYMENT_REVIEW: wait,
   DOCUMENTS_DUE: ({ childName }) => `Dokumen dikirim lewat akun yang mendaftarkan ${childName}.`,
   DOCUMENTS_REVIEW: wait,

@@ -513,22 +513,35 @@ describe("the limits", () => {
     expect((await check({ number: "salah", address: "198.51.100.1" })).statusCode).toBe(404);
   });
 
-  it("allows 20 tries from one address in 15 minutes, right ones included", async () => {
+  it("allows 20 wrong tries from one address in 15 minutes", async () => {
     await register(await openCycle());
     const responses = await Promise.all(
-      Array.from({ length: 30 }, (_, index) =>
-        check({ number: index < 3 ? "SMP-0001" : `SMP-${100 + index}` }),
-      ),
+      Array.from({ length: 30 }, (_, index) => check({ number: `SMP-${100 + index}` })),
     );
     const statuses = responses.map(({ statusCode }) => statusCode);
     expect(count(statuses, 429)).toBe(10);
-    expect(count(statuses, 200) + count(statuses, 404)).toBe(20);
+    expect(count(statuses, 404)).toBe(20);
 
     const refused = await check();
     expect(refused.json()).toMatchObject({ json: { code: "TOO_MANY_TRIES" } });
     expect((await check({ address: "198.51.100.1" })).statusCode).toBe(200);
     await letPass(901);
     expect((await check()).statusCode).toBe(200);
+  });
+
+  it("lets families behind one shared address read their own, up to a far limit", async () => {
+    await register(await openCycle());
+    for (let index = 0; index < 40; index += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      expect((await check()).statusCode).toBe(200);
+    }
+    expect((await check({ nik: WRONG_NIK })).statusCode).toBe(404);
+
+    await db
+      .insert(schema.statusCheckTries)
+      .values(Array.from({ length: 260 }, () => ({ subject: "RIGHT 203.0.113.7" })));
+    expect((await check()).statusCode).toBe(429);
+    expect((await check({ address: "198.51.100.1" })).statusCode).toBe(200);
   });
 
   it("counts a whole IPv6 network as one address", async () => {

@@ -15,8 +15,13 @@ const MINUTE = 60;
 const DAY = 24 * 60 * MINUTE;
 
 const LIMITS = {
-  /** Every try from one address. */
+  /** Wrong tries from one address. */
   ADDRESS: [{ max: 20, seconds: 15 * MINUTE }],
+  /**
+   * Right ones, far above what a phone network's shared address sends on the day
+   * of the results. It only keeps a loop from filling the record.
+   */
+  RIGHT: [{ max: 300, seconds: 15 * MINUTE }],
   /** Wrong tries on one number, whether or not the number exists. */
   NUMBER: [
     { max: 5, seconds: 15 * MINUTE },
@@ -42,9 +47,12 @@ export async function checkStatus(
   const address = caller.meta.ipAddress ?? "unknown";
 
   // Without the lock and the transaction, so a flood from one address does not
-  // hold the connections that everyone else's requests need. It only ever
-  // refuses what the count below would refuse too.
-  const floodWait = await secondsToWait(db, "ADDRESS", address);
+  // hold the connections that everyone else's requests need. Wrong tries are
+  // counted again below, where none can slip past.
+  const floodWait = Math.max(
+    await secondsToWait(db, "ADDRESS", address),
+    await secondsToWait(db, "RIGHT", address),
+  );
   if (floodWait > 0) throw new TooManyTriesError(floodWait);
 
   // Refusals are returned, not thrown, because a throw would undo the count.
@@ -60,6 +68,10 @@ export async function checkStatus(
     const events = found ? await listFamilyVisibleEvents(tx, found.id) : [];
     if (found) {
       await tx.delete(statusCheckTries).where(eq(statusCheckTries.id, onNumber.tryId));
+      await tx
+        .update(statusCheckTries)
+        .set({ subject: subjectOf("RIGHT", address) })
+        .where(eq(statusCheckTries.id, fromAddress.tryId));
     }
     await forgetOldTries(tx);
     await appendAuditLog(tx, {
