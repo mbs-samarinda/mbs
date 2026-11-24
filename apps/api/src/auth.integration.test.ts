@@ -383,9 +383,10 @@ describe("code emails per address", () => {
       const refused = await ask("wali@example.com", busy);
       expect(refused.statusCode).toBe(429);
       await tx.execute(sql`commit`);
+      // Waiting in line would end only at the 8 s statement timeout, which refuses this one.
       expect(await waiting).toBe(200);
     });
-  }, 4_000);
+  }, 20_000);
 
   it("holds when many requests arrive at once from many addresses", async () => {
     await Promise.all(
