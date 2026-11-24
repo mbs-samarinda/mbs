@@ -209,7 +209,6 @@ export async function deleteLoginEmails(db: Executor, ids: readonly string[]) {
   await db.delete(schema.staffLoginEmails).where(inArray(schema.staffLoginEmails.id, [...ids]));
 }
 
-/** Which of these addresses some profile already holds. */
 export async function findTakenLoginEmails(db: Executor, emails: readonly string[]) {
   if (emails.length === 0) return [];
   const rows = await db
@@ -251,7 +250,6 @@ const staffSignIns = (authUserIds: string[]) =>
     eq(schema.auditLogs.action, "auth.sign_in"),
   );
 
-/** The newest committee sign-in per identity, from the audit rows sign-in writes. */
 async function lastStaffSignIns(db: Executor, authUserIds: string[]) {
   if (authUserIds.length === 0) return new Map<string, Date>();
   const rows = await db

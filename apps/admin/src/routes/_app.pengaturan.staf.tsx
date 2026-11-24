@@ -49,7 +49,6 @@ const ROLES: Record<StaffRole, { label: string; meaning: string }> = {
 
 const SCHOOL_DOMAIN = "@mbss.sch.id";
 
-/** Which profile the side panel shows: a new one, or an existing one by id. */
 type Editing = { kind: "new" } | { kind: "edit"; id: string } | null;
 
 function StaffPage() {
@@ -187,7 +186,6 @@ function Schools({ keys }: { keys: readonly SchoolKey[] }) {
   );
 }
 
-/** The whole profile in one panel, saved at once. */
 function StaffForm({ staff, onDone }: { staff: StaffSummary | null; onDone: () => void }) {
   const { visitor } = Route.useRouteContext();
   const queryClient = useQueryClient();
@@ -196,7 +194,13 @@ function StaffForm({ staff, onDone }: { staff: StaffSummary | null; onDone: () =
   );
 
   const [name, setName] = useState(staff?.name ?? "");
-  const [emails, setEmails] = useState(staff?.loginEmails.map((row) => row.email) ?? [""]);
+  const [emails, setEmails] = useState(
+    (staff?.loginEmails.map((row) => row.email) ?? [""]).map((email) => ({
+      id: crypto.randomUUID(),
+      email,
+    })),
+  );
+  const filled = emails.filter((row) => row.email.trim());
   const [role, setRole] = useState<StaffRole>(staff?.role ?? "STAFF");
   const [schools, setSchools] = useState<SchoolKey[]>(staff ? [...staff.schools] : []);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -222,8 +226,8 @@ function StaffForm({ staff, onDone }: { staff: StaffSummary | null; onDone: () =
     },
     onError: (error) => {
       if (error instanceof ORPCError && error.code === "EMAIL_TAKEN") {
-        const taken = emails.findIndex((email) => email.trim().toLowerCase() === error.data?.email);
-        setErrors({ [`emails.${Math.max(taken, 0)}`]: "Email ini sudah dipakai staf lain." });
+        const taken = filled.find((row) => row.email.trim().toLowerCase() === error.data?.email);
+        setErrors({ [`email:${taken?.id ?? ""}`]: "Email ini sudah dipakai staf lain." });
       }
     },
   });
@@ -238,20 +242,25 @@ function StaffForm({ staff, onDone }: { staff: StaffSummary | null; onDone: () =
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const input = { name, emails: emails.filter((email) => email.trim()), role, schools };
+    const input = { name, emails: filled.map((row) => row.email), role, schools };
     const parsed = (staff ? UpdateStaffInput : CreateStaffInput).safeParse({
       ...input,
       staffId: staff?.id,
     });
     const found = parsed.success ? {} : issuesByField(parsed.error.issues);
     if (!input.name.trim()) found.name = "Isi nama staf.";
-    if (input.emails.length === 0) found["emails.0"] = "Isi minimal satu email.";
+    if (input.emails.length === 0)
+      found[`email:${emails[0]?.id ?? ""}`] = "Isi minimal satu email.";
     else if (!input.emails.some((email) => email.trim().toLowerCase().endsWith(SCHOOL_DOMAIN))) {
       found.emails = `Satu email harus berakhiran ${SCHOOL_DOMAIN}.`;
     }
     if (input.schools.length === 0) found.schools = "Pilih minimal satu sekolah.";
+    // The contract numbers the filled addresses; the form keys each row by its own id.
     for (const key of Object.keys(found)) {
-      if (/^emails\.\d+$/.test(key)) found[key] = "Email ini belum benar.";
+      const index = /^emails\.(\d+)$/.exec(key)?.[1];
+      if (index === undefined) continue;
+      delete found[key];
+      found[`email:${filled[Number(index)]?.id ?? ""}`] = "Email ini belum benar.";
     }
     setErrors(found);
     if (Object.keys(found).length === 0 && parsed.success) save.mutate(parsed.data);
@@ -279,17 +288,20 @@ function StaffForm({ staff, onDone }: { staff: StaffSummary | null; onDone: () =
 
         <fieldset className="grid gap-1.5 text-sm">
           <legend className="pb-1.5 font-medium">Email untuk masuk</legend>
-          {emails.map((email, index) => (
-            // oxlint-disable-next-line react/no-array-index-key -- rows have no identity until saved
-            <div key={index} className="grid gap-1">
+          {emails.map(({ id: rowId, email }, index) => (
+            <div key={rowId} className="grid gap-1">
               <div className="flex gap-1">
                 <Input
                   type="email"
                   value={email}
                   aria-label={`Email ${index + 1}`}
-                  aria-invalid={errors[`emails.${index}`] ? true : undefined}
+                  aria-invalid={errors[`email:${rowId}`] ? true : undefined}
                   onChange={(event) =>
-                    setEmails(emails.map((each, i) => (i === index ? event.target.value : each)))
+                    setEmails(
+                      emails.map((row) =>
+                        row.id === rowId ? { ...row, email: event.target.value } : row,
+                      ),
+                    )
                   }
                 />
                 {emails.length > 1 && (
@@ -298,21 +310,21 @@ function StaffForm({ staff, onDone }: { staff: StaffSummary | null; onDone: () =
                     variant="ghost"
                     size="icon"
                     aria-label={`Hapus email ${index + 1}`}
-                    onClick={() => setEmails(emails.filter((_, i) => i !== index))}
+                    onClick={() => setEmails(emails.filter((row) => row.id !== rowId))}
                   >
                     <XIcon aria-hidden />
                   </Button>
                 )}
               </div>
-              {errors[`emails.${index}`] && (
-                <span className="text-xs text-destructive">{errors[`emails.${index}`]}</span>
+              {errors[`email:${rowId}`] && (
+                <span className="text-xs text-destructive">{errors[`email:${rowId}`]}</span>
               )}
             </div>
           ))}
           {emails.length < 5 && (
             <button
               type="button"
-              onClick={() => setEmails([...emails, ""])}
+              onClick={() => setEmails([...emails, { id: crypto.randomUUID(), email: "" }])}
               className="w-fit text-muted-foreground hover:text-foreground hover:underline"
             >
               Tambah email

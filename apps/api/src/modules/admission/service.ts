@@ -158,7 +158,6 @@ export async function createAdmissionCycle(
   });
 }
 
-/** The cycle page: the cycle, the caller's schools, what is missing and what changed. */
 export async function getCycleSetup(
   db: Database,
   actor: StaffContext,
@@ -317,7 +316,6 @@ async function writeSection(tx: Transaction, actor: StaffContext, input: SaveCyc
   }
 }
 
-/** Every version of one school's agreement, newest first. */
 export async function listSchoolAgreementVersions(
   db: Database,
   actor: StaffContext,
@@ -381,14 +379,12 @@ export async function setAdmissionCycleStatus(
   });
 }
 
-/** An archived cycle is history. Nothing inside it changes again. */
 function requireEditable(status: CycleStatus) {
   if (status === "ARCHIVED") throw new ConflictError("An archived cycle is read-only.");
 }
 
 type CycleRow = NonNullable<Awaited<ReturnType<typeof findCycleById>>>;
 
-/** Every school's part of one cycle with the defaults filled in, in the fixed school order. */
 async function readSchools(db: Executor, cycle: CycleRow): Promise<SchoolSetup[]> {
   const [settings, requirements, agreements] = await Promise.all([
     listSchoolSettings(db, cycle.id),
@@ -427,7 +423,6 @@ async function readSchools(db: Executor, cycle: CycleRow): Promise<SchoolSetup[]
   });
 }
 
-/** What the cycle still lacks. A school that is not taking part lacks nothing. */
 function gapsOf(cycle: CycleRow, schools: readonly SchoolSetup[]): SetupGap[] {
   const gaps: SetupGap[] = [];
   const cycleGap = (kind: SetupGap["kind"]) => gaps.push({ kind, schoolKey: null });

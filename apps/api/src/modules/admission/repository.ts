@@ -241,7 +241,6 @@ export async function upsertSchoolSetting(
     });
 }
 
-/** Copies one cycle's school settings and requirements into another, in two statements. */
 export async function copySchoolSetup(db: Executor, fromCycleId: string, toCycleId: string) {
   await db.execute(sql`
     insert into school_admission_settings
@@ -317,7 +316,6 @@ export async function insertAgreementVersion(
   return rows[0]!.version;
 }
 
-/** The cycle's change history: one indexed read of the audit rows filed under it. */
 export async function listCycleAudit(db: Executor, cycleId: string, limit: number) {
   return db
     .select({

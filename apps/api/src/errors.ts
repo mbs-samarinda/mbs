@@ -48,7 +48,6 @@ export class ConflictError extends Error {
   readonly data: unknown = undefined;
 }
 
-/** Registration cannot open while something it needs is missing. */
 export class NotReadyError extends ConflictError {
   override readonly code = "NOT_READY";
   override readonly data: { gaps: SetupGap[] };

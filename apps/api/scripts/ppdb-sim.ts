@@ -279,7 +279,6 @@ async function setCycle(db: Database, state: z.infer<typeof CycleState>, args: A
   print(`cycle ${state} ${cycleId}${args.off.length > 0 ? ` without ${args.off.join(", ")}` : ""}`);
 }
 
-/** The bank account and registration documents, which a cycle must have before it opens. */
 async function fillWhatOpeningNeeds(db: Database, cycleId: string, off: readonly SchoolKey[]) {
   await saveCycleSection(db, SIM_STAFF, {
     section: "bank",

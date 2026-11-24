@@ -83,7 +83,6 @@ export const Route = createFileRoute("/_app/pengaturan/periode")({
   component: CyclePage,
 });
 
-/** The one asked for, else the open one, else the newest. */
 function pickCycle(cycles: readonly AdmissionCycle[], wanted: string | undefined) {
   return (
     cycles.find((cycle) => cycle.id === wanted) ??
@@ -108,7 +107,6 @@ const SECTION_TITLES: Record<CycleSection, string> = {
   agreement: "Perjanjian",
 };
 
-/** The two groups follow the gap table: what blocks opening, and what can follow before results. */
 const GROUPS: { title: string; sections: CycleSection[] }[] = [
   {
     title: "Wajib sebelum pendaftaran dibuka",
@@ -471,7 +469,6 @@ const schoolsIn = (setup: CycleSetup, keys: readonly SchoolKey[]) =>
     ? "semua sekolah"
     : list.format(keys.map(schoolShortName));
 
-/** One sentence per row, naming what is missing first. */
 const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => string> = {
   schedule: ({ cycle, schools }) => {
     const off = schools.filter((school) => !school.isEnabled).map((school) => school.schoolKey);
@@ -572,7 +569,7 @@ const documentList = (value: ChangeValue) => {
   );
 };
 
-/** Words for each field the history can name. Long texts show only that they changed. */
+/** Long texts show only that they changed. */
 const FIELDS: Record<CycleField, FieldWords> = {
   name: { label: "Nama periode", value: text },
   status: {
@@ -665,8 +662,6 @@ function History({ history }: { history: CycleChange[] }) {
   );
 }
 
-/* Side panels. Each edits a copy and saves its own section, checked first against the contract. */
-
 function useSave(cycleId: string, onDone: () => void) {
   const queryClient = useQueryClient();
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -683,7 +678,6 @@ function useSave(cycleId: string, onDone: () => void) {
     },
   });
 
-  /** Checks the input with the contract's own rules, then saves. Local errors win. */
   function submit(input: unknown, local: Record<string, string> = {}) {
     const parsed = SaveCycleInput.safeParse(input);
     const found = { ...(parsed.success ? {} : issuesByField(parsed.error.issues)), ...local };
@@ -875,7 +869,6 @@ const MOMENT_FIELDS = [
 ] as const;
 
 /**
- * Turns the typed times into instants, and names any time that is not a real one.
  * A moment left as it was keeps its stored instant: the form shows minutes, and
  * resending a rounded time would record a change nobody made.
  */
@@ -1412,7 +1405,6 @@ function AgreementNote({ school }: { school: SchoolSetup }) {
   );
 }
 
-/** Next year's name, if the name carries years: PPDB 2027/2028 becomes PPDB 2028/2029. */
 const nextName = (name: string) =>
   /\d{4}/.test(name) ? name.replace(/\d{4}/g, (year) => String(Number(year) + 1)) : "";
 

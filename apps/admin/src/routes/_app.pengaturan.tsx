@@ -1,9 +1,8 @@
 import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
 
 /**
- * Settings are for administrators. Anyone else gets a plain refusal inside the
- * shell, and the pages' loaders never run, so no admin call is made for them.
- * The API refuses them on its own as well.
+ * Refused here so the pages' loaders never make an admin call. The API refuses
+ * non-administrators on its own as well.
  */
 export const Route = createFileRoute("/_app/pengaturan")({
   beforeLoad: ({ context }) => {

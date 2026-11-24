@@ -148,7 +148,6 @@ describe("cycles", () => {
     });
   });
 
-  // The school sets these after registration opens; applications copy them at publication.
   it("opens while the registrasi ulang parts are still missing, and lists them", async () => {
     const cycle = await readyCycle();
 
@@ -191,7 +190,6 @@ describe("cycles", () => {
     ).resolves.toMatchObject({ status: "OPEN" });
   });
 
-  // Checked before readiness: an incomplete second cycle should hear why it can never open now.
   it("explains that another cycle is open before listing what is missing", async () => {
     const first = await readyCycle();
     const second = await createAdmissionCycle(db, actor, { ...cycleInput, name: "PPDB 2028/2029" });
@@ -205,6 +203,7 @@ describe("cycles", () => {
   it("makes an archived cycle read-only", async () => {
     const cycle = await readyCycle();
     for (const status of ["OPEN", "CLOSED", "ARCHIVED"] as const) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
       await setAdmissionCycleStatus(db, actor, { cycleId: cycle.id, status });
     }
 
@@ -216,6 +215,7 @@ describe("cycles", () => {
   it("still accepts changes while the cycle is closed", async () => {
     const cycle = await readyCycle();
     for (const status of ["OPEN", "CLOSED"] as const) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
       await setAdmissionCycleStatus(db, actor, { cycleId: cycle.id, status });
     }
 
