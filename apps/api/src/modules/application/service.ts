@@ -14,7 +14,7 @@ import {
   type SchoolKey,
 } from "@mbs/api-contract";
 import type { Database, Transaction } from "@mbs/db";
-import { isSchoolKey } from "@mbs/school-config";
+import { CHILDREN_PER_ACCOUNT, isSchoolKey } from "@mbs/school-config";
 
 import {
   ConflictError,
@@ -26,12 +26,14 @@ import {
   NotFoundError,
   RegistrationClosedError,
   StaleSequenceError,
+  TooManyChildrenError,
 } from "../../errors.ts";
 import { findCycleById } from "../admission/repository.ts";
 import type { StaffContext } from "../auth/authorization.ts";
 import { enqueueEventEmails, type OutboxSettings } from "../notification/outbox.ts";
 import { formatRegistrationNumber } from "./registration-number.ts";
 import {
+  countOtherChildren,
   findApplicationById,
   findApplicationForUser,
   findEventByIdempotencyKey,
@@ -180,6 +182,15 @@ export async function submitApplication(
 
     if (await isNikTaken(tx, input.cycleId, cycle.schoolId, profile.nik)) {
       throw new DuplicateApplicationError(DUPLICATE_MESSAGE);
+    }
+
+    const others = await countOtherChildren(tx, {
+      cycleId: input.cycleId,
+      userId: input.userId,
+      nik: profile.nik,
+    });
+    if (others >= CHILDREN_PER_ACCOUNT) {
+      throw new TooManyChildrenError("This account registered all the children it may.");
     }
 
     const result = transition(null, "SUBMIT", "FAMILY");

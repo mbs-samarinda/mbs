@@ -138,6 +138,9 @@ export function finishedMilestones(
   return finished;
 }
 
+/** Far above a family, so a made-up account cannot fill a school's list. */
+export const CHILDREN_PER_ACCOUNT = 10;
+
 /** Kept in the form's JSON, not in a Postgres enum, so adding one needs no migration. */
 export const SEXES = ["MALE", "FEMALE"] as const;
 export const GUARDIAN_RELATIONS = ["FATHER", "MOTHER", "GUARDIAN"] as const;

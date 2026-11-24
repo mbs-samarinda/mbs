@@ -7,7 +7,7 @@ import type {
   InterviewMode,
 } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, countDistinct, desc, eq, ne, sql } from "drizzle-orm";
 
 import { takesPart } from "../admission/repository.ts";
 
@@ -86,6 +86,31 @@ export async function isNikTaken(tx: Transaction, cycleId: string, schoolId: str
     )
     .limit(1);
   return rows.length > 0;
+}
+
+/**
+ * The other children this account registered in the cycle. Locks the account
+ * first, because the submission lock is per school and one account can send to
+ * several at once. A child at two schools is one child.
+ */
+export async function countOtherChildren(
+  tx: Transaction,
+  { cycleId, userId, nik }: { cycleId: string; userId: string; nik: string },
+) {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext('applications.children'), hashtext(${cycleId} || ':' || ${userId}))`,
+  );
+  const [row] = await tx
+    .select({ children: countDistinct(schema.applications.nik) })
+    .from(schema.applications)
+    .where(
+      and(
+        eq(schema.applications.admissionCycleId, cycleId),
+        eq(schema.applications.createdByUserId, userId),
+        ne(schema.applications.nik, nik),
+      ),
+    );
+  return row!.children;
 }
 
 export async function insertApplication(

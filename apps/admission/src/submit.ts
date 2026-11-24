@@ -1,5 +1,5 @@
 import { ORPCError, safe } from "@mbs/api-client/rpc";
-import { isSchoolKey } from "@mbs/school-config";
+import { CHILDREN_PER_ACCOUNT, isSchoolKey } from "@mbs/school-config";
 
 import { api } from "./api.ts";
 import type { SchoolCycle } from "./cycles.ts";
@@ -74,6 +74,12 @@ export function explainSubmit(error: Error, draft: Draft): SubmitFailure {
     if (error.code === "DUPLICATE_APPLICATION") {
       return {
         message: `NIK ini sudah terdaftar di ${school}. Periksa lagi NIK-nya. Kalau anak ini sudah kamu daftarkan, buka statusnya di halaman utama. Kalau belum, hubungi panitia.`,
+        wayOut: true,
+      };
+    }
+    if (error.code === "TOO_MANY_CHILDREN") {
+      return {
+        message: `Satu akun bisa mendaftarkan paling banyak ${CHILDREN_PER_ACCOUNT} anak, dan akun ini sudah mencapainya. Kalau perlu mendaftarkan lebih banyak, hubungi panitia.`,
         wayOut: true,
       };
     }
