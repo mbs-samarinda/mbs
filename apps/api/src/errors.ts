@@ -39,11 +39,11 @@ export class RegistrationClosedError extends ConflictError {
 export class IdempotencyKeyReusedError extends ConflictError {
   override readonly code = "IDEMPOTENCY_KEY_REUSED";
   /** What the key was first used for, by the same actor. */
-  readonly applicationId: string;
+  readonly first: { applicationId: string; sameRegistration: boolean };
 
-  constructor(applicationId: string) {
+  constructor(first: { applicationId: string; sameRegistration: boolean }) {
     super("This idempotency key was already used for another request.");
-    this.applicationId = applicationId;
+    this.first = first;
   }
 }
 

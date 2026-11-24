@@ -118,6 +118,7 @@ export type RequestMeta = {
   userAgent?: string | null;
 };
 
+const KEY_REUSED_MESSAGE = "This idempotency key was already used for another request.";
 const DUPLICATE_MESSAGE = "This child has already applied to this school in this cycle.";
 
 function actorId(actor: Actor) {
@@ -160,7 +161,13 @@ export async function submitApplication(
           application.schoolId !== cycle.schoolId ||
           !sameAsStored(firstForm?.data, profile)
         ) {
-          throw new IdempotencyKeyReusedError(earlier.applicationId);
+          throw new IdempotencyKeyReusedError({
+            applicationId: earlier.applicationId,
+            sameRegistration:
+              application?.admissionCycleId === input.cycleId &&
+              application.schoolId === cycle.schoolId &&
+              application.nik === profile.nik,
+          });
         }
         return { application, event: earlier, replayed: true };
       }
@@ -232,8 +239,8 @@ export async function submitApplication(
     return { application, event, replayed: false };
   });
 
-  // The locks are per school, so two schools can race for one key. The loser
-  // looks up the winner only here, because its own transaction is gone.
+  // The locks are per cycle and school, so one key can race itself at two schools.
+  // The loser looks up the winner only here, because its own transaction is gone.
   return submitted.catch(async (error: unknown) => {
     if (!input.idempotencyKey || !isUniqueViolation(error)) throw error;
     const winner = await findEventByIdempotencyKey(
@@ -242,7 +249,11 @@ export async function submitApplication(
       input.userId,
       input.idempotencyKey,
     );
-    throw winner ? new IdempotencyKeyReusedError(winner.applicationId) : error;
+    if (!winner) throw error;
+    throw new IdempotencyKeyReusedError({
+      applicationId: winner.applicationId,
+      sameRegistration: false,
+    });
   });
 }
 
@@ -361,7 +372,7 @@ async function runCommand(
       );
       if (earlier) {
         if (earlier.applicationId !== application.id || !(await steps.isRetry(earlier, tx))) {
-          throw new IdempotencyKeyReusedError(earlier.applicationId);
+          throw new ConflictError(KEY_REUSED_MESSAGE);
         }
         return { event: earlier, replayed: true };
       }
@@ -405,7 +416,7 @@ async function runCommand(
       ...input.meta,
     }).catch((error: unknown) => {
       if (isUniqueViolation(error)) {
-        throw new ConflictError("This idempotency key was already used for another request.");
+        throw new ConflictError(KEY_REUSED_MESSAGE);
       }
       throw error;
     });

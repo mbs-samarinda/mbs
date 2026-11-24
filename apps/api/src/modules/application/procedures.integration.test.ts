@@ -205,7 +205,15 @@ describe("submit", () => {
 
     expect(edited.statusCode).toBe(409);
     expect(edited.json()).toMatchObject({
-      json: { defined: true, code: "IDEMPOTENCY_KEY_REUSED", data: { applicationId } },
+      json: {
+        defined: true,
+        code: "IDEMPOTENCY_KEY_REUSED",
+        data: { applicationId, sameRegistration: true },
+      },
+    });
+    const sibling = await submit({ key, profile: profile({ nik: "6472010101010009" }) });
+    expect(sibling.json()).toMatchObject({
+      json: { data: { applicationId, sameRegistration: false } },
     });
     expect(await db.$count(schema.applications)).toBe(1);
   });

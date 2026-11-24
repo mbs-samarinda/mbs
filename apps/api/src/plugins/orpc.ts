@@ -45,10 +45,7 @@ const translateErrors = os.middleware(async ({ next }) => {
       throw new ORPCError(error.code, {
         status: 409,
         message: error.message,
-        data:
-          error instanceof IdempotencyKeyReusedError
-            ? { applicationId: error.applicationId }
-            : undefined,
+        data: error instanceof IdempotencyKeyReusedError ? error.first : undefined,
       });
     }
     if (

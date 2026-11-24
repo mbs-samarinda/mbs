@@ -133,3 +133,11 @@ export type SubmitApplicationInput = z.infer<typeof SubmitApplicationInput>;
 
 export const SubmittedApplication = z.object({ applicationId: z.uuid() });
 export type SubmittedApplication = z.infer<typeof SubmittedApplication>;
+
+/**
+ * What the key was first used for. Keys belong to one account, so this is always
+ * the caller's own application. `sameRegistration` is whether the refused form
+ * was for that child at that school, or for another one.
+ */
+export const ReusedKey = SubmittedApplication.extend({ sameRegistration: z.boolean() });
+export type ReusedKey = z.infer<typeof ReusedKey>;

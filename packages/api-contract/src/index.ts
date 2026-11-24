@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   FamilyApplication,
   FamilyApplicationSummary,
+  ReusedKey,
   SubmitApplicationInput,
   SubmittedApplication,
 } from "./application.ts";
@@ -56,9 +57,7 @@ export const contract = {
         .errors({
           REGISTRATION_CLOSED: { status: 409 },
           DUPLICATE_APPLICATION: { status: 409 },
-          // Carries what the key was first used for. Keys belong to one account,
-          // so this is always the caller's own application.
-          IDEMPOTENCY_KEY_REUSED: { status: 409, data: SubmittedApplication },
+          IDEMPOTENCY_KEY_REUSED: { status: 409, data: ReusedKey },
         }),
     },
   },
