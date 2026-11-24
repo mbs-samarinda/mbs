@@ -1,10 +1,11 @@
 import type { FamilyApplicationSummary, FamilyStage } from "@mbs/api-contract";
 import { MILESTONES, type FinishedMilestones } from "@mbs/school-config";
+import { formatDayAndMonth } from "@mbs/school-config/format";
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { formatDayAndMonth, schoolName } from "./format.ts";
+import { schoolName } from "./format.ts";
 import { SchoolLogo } from "./school-logo.tsx";
 import { MILESTONE_LABELS, STAGE_COPY } from "./stage-copy.ts";
 

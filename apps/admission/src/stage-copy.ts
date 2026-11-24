@@ -1,8 +1,9 @@
 import { serverNow } from "@mbs/api-client/http";
 import type { ActorType, FamilyApplication, FamilyCommand, FamilyStage } from "@mbs/api-contract";
 import type { Milestone } from "@mbs/school-config";
+import { formatDateTime } from "@mbs/school-config/format";
 
-import { formatDateTime, formatFee, formatList, schoolName } from "./format.ts";
+import { formatFee, formatList, schoolName } from "./format.ts";
 
 export const TURNS = {
   FAMILY: "Giliran kamu",

@@ -5,9 +5,13 @@
  * change (fees, dates, whether a school takes part in a cycle) lives in
  * PostgreSQL instead.
  *
- * Colors are not here either, for a different reason: an owner's palette is one
- * CSS custom property block per owner in `apps/profile`, so the stylesheet is
- * its only consumer and a copy here would be a second place to keep in step.
+ * Colors are not here either, for a different reason: they are CSS. An owner's
+ * full palette is one custom property block per owner in `apps/profile`, and the
+ * committee app's school marks use the `--school-<key>` tokens in `packages/ui`.
+ * A copy here would be a third place to keep in step.
+ *
+ * `shortName` is the brand guide's approved shorter name, for navigation and
+ * compact repeated context.
  * Nor is the owner list — the umbrella is an owner and not a school, so
  * `OWNERS` lives beside those blocks.
  *
@@ -16,9 +20,27 @@
  * the bottom.
  */
 export const SCHOOLS = [
-  { key: "smp", name: "SMP Islam Terpadu Madina", level: "SMP", subdomain: "smp" },
-  { key: "smk", name: "SMK Terpadu Madina", level: "SMK", subdomain: "smk" },
-  { key: "sma", name: "SMA Madina Citra Insani", level: "SMA", subdomain: "sma" },
+  {
+    key: "smp",
+    name: "SMP Islam Terpadu Madina",
+    shortName: "SMP IT Madina",
+    level: "SMP",
+    subdomain: "smp",
+  },
+  {
+    key: "smk",
+    name: "SMK Terpadu Madina",
+    shortName: "SMK Terpadu Madina",
+    level: "SMK",
+    subdomain: "smk",
+  },
+  {
+    key: "sma",
+    name: "SMA Madina Citra Insani",
+    shortName: "SMA MCI",
+    level: "SMA",
+    subdomain: "sma",
+  },
 ] as const;
 
 export type School = (typeof SCHOOLS)[number];
