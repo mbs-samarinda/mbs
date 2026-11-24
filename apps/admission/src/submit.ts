@@ -46,16 +46,17 @@ export async function sendDraft(draft: Draft, schools: readonly SchoolCycle[]): 
     const { applicationId, sameRegistration } = error.data;
     return { applicationId, result: sameRegistration ? "earlier" : "earlierOther" };
   }
-  // The server looks for the key before it refuses a form, so a refusal says that
-  // nothing was made with it. Anything else says nothing.
-  if (isRefusal(error)) setAttempt(draft.userId, null);
+  if (isDefined) {
+    // The server looks for the key before either of these, so nothing was made with it.
+    setAttempt(draft.userId, null);
+  } else if (error instanceof ORPCError && error.status < 500) {
+    // This try made nothing, but the refusal came before the key was looked for, so
+    // an earlier try is as uncertain as it was.
+    setAttempt(draft.userId, draft.attempt);
+  }
   if (isDefined && error.code === "REGISTRATION_CLOSED") throw new ClosedError();
   if (error instanceof ORPCError && error.code === "NOT_FOUND") throw new ClosedError();
   throw error;
-}
-
-function isRefusal(error: Error) {
-  return error instanceof ORPCError && error.status < 500 && error.code !== "UNAUTHORIZED";
 }
 
 export type SubmitFailure = { message: string; wayOut: boolean };

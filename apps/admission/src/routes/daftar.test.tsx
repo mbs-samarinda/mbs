@@ -436,6 +436,19 @@ describe("the check", () => {
     await heading("Periksa sebelum dikirim");
     await press("Kirim pendaftaran");
     expect(await screen.findByText("Umur anak harus 8 sampai 25 tahun.")).toBeVisible();
+    expect(draftOf(ACCOUNT.id)?.attempt).toBeNull();
+  });
+
+  it("stays unsure of a lost answer when a later try is refused before its key is looked for", async () => {
+    stubApi({ ...READY, [SUBMIT]: [{ lost: true }, refusal("BAD_REQUEST", 400, { issues: [] })] });
+    fill();
+    open("/daftar/periksa");
+    await heading("Periksa sebelum dikirim");
+    await press("Kirim pendaftaran");
+    await screen.findByText(/tidak akan tercatat dua kali/);
+    await press("Kirim pendaftaran");
+    await screen.findByRole("button", { name: "Kirim pendaftaran" });
+    await waitFor(() => expect(draftOf(ACCOUNT.id)?.attempt).toMatchObject({ schoolKey: "smp" }));
   });
 
   it("signs in again when the session ended, and comes back with the form as it was", async () => {
