@@ -142,12 +142,8 @@
           "name": "applicant_profile_versions_application_id_applications_id_fk",
           "tableFrom": "applicant_profile_versions",
           "tableTo": "applications",
-          "columnsFrom": [
-            "application_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["application_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -155,12 +151,8 @@
           "name": "applicant_profile_versions_author_user_id_user_id_fk",
           "tableFrom": "applicant_profile_versions",
           "tableTo": "user",
-          "columnsFrom": [
-            "author_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["author_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -170,10 +162,7 @@
         "applicant_profile_versions_application_id_version_unique": {
           "name": "applicant_profile_versions_application_id_version_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "application_id",
-            "version"
-          ]
+          "columns": ["application_id", "version"]
         }
       },
       "policies": {},
@@ -210,12 +199,8 @@
           "name": "application_access_application_id_applications_id_fk",
           "tableFrom": "application_access",
           "tableTo": "applications",
-          "columnsFrom": [
-            "application_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["application_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -223,12 +208,8 @@
           "name": "application_access_user_id_user_id_fk",
           "tableFrom": "application_access",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -236,10 +217,7 @@
       "compositePrimaryKeys": {
         "application_access_application_id_user_id_pk": {
           "name": "application_access_application_id_user_id_pk",
-          "columns": [
-            "application_id",
-            "user_id"
-          ]
+          "columns": ["application_id", "user_id"]
         }
       },
       "uniqueConstraints": {},
@@ -291,12 +269,8 @@
           "name": "application_document_requirements_application_id_applications_id_fk",
           "tableFrom": "application_document_requirements",
           "tableTo": "applications",
-          "columnsFrom": [
-            "application_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["application_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -304,11 +278,7 @@
       "compositePrimaryKeys": {
         "application_document_requirements_application_id_stage_document_type_pk": {
           "name": "application_document_requirements_application_id_stage_document_type_pk",
-          "columns": [
-            "application_id",
-            "stage",
-            "document_type"
-          ]
+          "columns": ["application_id", "stage", "document_type"]
         }
       },
       "uniqueConstraints": {},
@@ -473,12 +443,8 @@
           "name": "application_events_application_id_applications_id_fk",
           "tableFrom": "application_events",
           "tableTo": "applications",
-          "columnsFrom": [
-            "application_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["application_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -488,10 +454,7 @@
         "application_events_application_id_seq_unique": {
           "name": "application_events_application_id_seq_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "application_id",
-            "seq"
-          ]
+          "columns": ["application_id", "seq"]
         }
       },
       "policies": {},
@@ -604,12 +567,8 @@
           "name": "applications_admission_cycle_id_admission_cycles_id_fk",
           "tableFrom": "applications",
           "tableTo": "admission_cycles",
-          "columnsFrom": [
-            "admission_cycle_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["admission_cycle_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -617,12 +576,8 @@
           "name": "applications_school_id_schools_id_fk",
           "tableFrom": "applications",
           "tableTo": "schools",
-          "columnsFrom": [
-            "school_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["school_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -630,12 +585,8 @@
           "name": "applications_created_by_user_id_user_id_fk",
           "tableFrom": "applications",
           "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -645,28 +596,17 @@
         "applications_cycle_school_seq_unique": {
           "name": "applications_cycle_school_seq_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "admission_cycle_id",
-            "school_id",
-            "registration_seq"
-          ]
+          "columns": ["admission_cycle_id", "school_id", "registration_seq"]
         },
         "applications_cycle_number_unique": {
           "name": "applications_cycle_number_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "admission_cycle_id",
-            "registration_number"
-          ]
+          "columns": ["admission_cycle_id", "registration_number"]
         },
         "applications_cycle_school_nik_unique": {
           "name": "applications_cycle_school_nik_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "admission_cycle_id",
-            "school_id",
-            "nik"
-          ]
+          "columns": ["admission_cycle_id", "school_id", "nik"]
         }
       },
       "policies": {},
@@ -838,12 +778,8 @@
           "name": "document_requirements_admission_cycle_id_admission_cycles_id_fk",
           "tableFrom": "document_requirements",
           "tableTo": "admission_cycles",
-          "columnsFrom": [
-            "admission_cycle_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["admission_cycle_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -851,12 +787,8 @@
           "name": "document_requirements_school_id_schools_id_fk",
           "tableFrom": "document_requirements",
           "tableTo": "schools",
-          "columnsFrom": [
-            "school_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["school_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -866,12 +798,7 @@
         "document_requirements_cycle_school_stage_type_unique": {
           "name": "document_requirements_cycle_school_stage_type_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "admission_cycle_id",
-            "school_id",
-            "stage",
-            "document_type"
-          ]
+          "columns": ["admission_cycle_id", "school_id", "stage", "document_type"]
         }
       },
       "policies": {},
@@ -934,12 +861,8 @@
           "name": "notification_attempts_notification_id_notifications_id_fk",
           "tableFrom": "notification_attempts",
           "tableTo": "notifications",
-          "columnsFrom": [
-            "notification_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["notification_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -949,10 +872,7 @@
         "notification_attempts_notification_id_attempt_unique": {
           "name": "notification_attempts_notification_id_attempt_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "notification_id",
-            "attempt"
-          ]
+          "columns": ["notification_id", "attempt"]
         }
       },
       "policies": {},
@@ -1147,12 +1067,8 @@
           "name": "notifications_application_id_applications_id_fk",
           "tableFrom": "notifications",
           "tableTo": "applications",
-          "columnsFrom": [
-            "application_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["application_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1160,12 +1076,8 @@
           "name": "notifications_event_id_application_events_id_fk",
           "tableFrom": "notifications",
           "tableTo": "application_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1173,12 +1085,8 @@
           "name": "notifications_user_id_user_id_fk",
           "tableFrom": "notifications",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1253,12 +1161,8 @@
           "name": "school_admission_settings_admission_cycle_id_admission_cycles_id_fk",
           "tableFrom": "school_admission_settings",
           "tableTo": "admission_cycles",
-          "columnsFrom": [
-            "admission_cycle_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["admission_cycle_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1266,12 +1170,8 @@
           "name": "school_admission_settings_school_id_schools_id_fk",
           "tableFrom": "school_admission_settings",
           "tableTo": "schools",
-          "columnsFrom": [
-            "school_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["school_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1281,10 +1181,7 @@
         "school_admission_settings_admission_cycle_id_school_id_unique": {
           "name": "school_admission_settings_admission_cycle_id_school_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "admission_cycle_id",
-            "school_id"
-          ]
+          "columns": ["admission_cycle_id", "school_id"]
         }
       },
       "policies": {},
@@ -1330,9 +1227,7 @@
         "schools_key_unique": {
           "name": "schools_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},
@@ -1395,12 +1290,8 @@
           "name": "staff_login_emails_staff_id_staff_users_id_fk",
           "tableFrom": "staff_login_emails",
           "tableTo": "staff_users",
-          "columnsFrom": [
-            "staff_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["staff_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1408,12 +1299,8 @@
           "name": "staff_login_emails_auth_user_id_user_id_fk",
           "tableFrom": "staff_login_emails",
           "tableTo": "user",
-          "columnsFrom": [
-            "auth_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["auth_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1423,16 +1310,12 @@
         "staff_login_emails_email_unique": {
           "name": "staff_login_emails_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "staff_login_emails_auth_user_id_unique": {
           "name": "staff_login_emails_auth_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "auth_user_id"
-          ]
+          "columns": ["auth_user_id"]
         }
       },
       "policies": {},
@@ -1467,12 +1350,8 @@
           "name": "staff_school_access_staff_id_staff_users_id_fk",
           "tableFrom": "staff_school_access",
           "tableTo": "staff_users",
-          "columnsFrom": [
-            "staff_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["staff_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1480,12 +1359,8 @@
           "name": "staff_school_access_school_id_schools_id_fk",
           "tableFrom": "staff_school_access",
           "tableTo": "schools",
-          "columnsFrom": [
-            "school_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["school_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1493,10 +1368,7 @@
       "compositePrimaryKeys": {
         "staff_school_access_staff_id_school_id_pk": {
           "name": "staff_school_access_staff_id_school_id_pk",
-          "columns": [
-            "staff_id",
-            "school_id"
-          ]
+          "columns": ["staff_id", "school_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1734,12 +1606,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1786,9 +1654,7 @@
         "rate_limit_key_unique": {
           "name": "rate_limit_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},
@@ -1871,12 +1737,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1886,9 +1748,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -1952,9 +1812,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -2033,11 +1891,7 @@
     "public.actor_type": {
       "name": "actor_type",
       "schema": "public",
-      "values": [
-        "FAMILY",
-        "STAFF",
-        "SYSTEM"
-      ]
+      "values": ["FAMILY", "STAFF", "SYSTEM"]
     },
     "public.application_command": {
       "name": "application_command",
@@ -2092,81 +1946,47 @@
     "public.cycle_status": {
       "name": "cycle_status",
       "schema": "public",
-      "values": [
-        "DRAFT",
-        "OPEN",
-        "CLOSED",
-        "ARCHIVED"
-      ]
+      "values": ["DRAFT", "OPEN", "CLOSED", "ARCHIVED"]
     },
     "public.document_stage": {
       "name": "document_stage",
       "schema": "public",
-      "values": [
-        "REGISTRATION",
-        "REREGISTRATION"
-      ]
+      "values": ["REGISTRATION", "REREGISTRATION"]
     },
     "public.document_type": {
       "name": "document_type",
       "schema": "public",
-      "values": [
-        "KARTU_KELUARGA",
-        "AKTA_KELAHIRAN",
-        "KARTU_IDENTITAS_ANAK",
-        "IJAZAH"
-      ]
+      "values": ["KARTU_KELUARGA", "AKTA_KELAHIRAN", "KARTU_IDENTITAS_ANAK", "IJAZAH"]
     },
     "public.interview_mode": {
       "name": "interview_mode",
       "schema": "public",
-      "values": [
-        "OFFLINE",
-        "ONLINE"
-      ]
+      "values": ["OFFLINE", "ONLINE"]
     },
     "public.notification_attempt_outcome": {
       "name": "notification_attempt_outcome",
       "schema": "public",
-      "values": [
-        "SENT",
-        "FAILED",
-        "DELIVERY_UNKNOWN"
-      ]
+      "values": ["SENT", "FAILED", "DELIVERY_UNKNOWN"]
     },
     "public.notification_channel": {
       "name": "notification_channel",
       "schema": "public",
-      "values": [
-        "EMAIL"
-      ]
+      "values": ["EMAIL"]
     },
     "public.notification_status": {
       "name": "notification_status",
       "schema": "public",
-      "values": [
-        "PENDING",
-        "SENDING",
-        "SENT",
-        "FAILED"
-      ]
+      "values": ["PENDING", "SENDING", "SENT", "FAILED"]
     },
     "public.staff_login_email_kind": {
       "name": "staff_login_email_kind",
       "schema": "public",
-      "values": [
-        "INSTITUTIONAL",
-        "PERSONAL"
-      ]
+      "values": ["INSTITUTIONAL", "PERSONAL"]
     },
     "public.staff_role": {
       "name": "staff_role",
       "schema": "public",
-      "values": [
-        "ADMINISTRATOR",
-        "STAFF",
-        "PRINCIPAL"
-      ]
+      "values": ["ADMINISTRATOR", "STAFF", "PRINCIPAL"]
     }
   },
   "schemas": {},
