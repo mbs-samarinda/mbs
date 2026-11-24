@@ -118,7 +118,7 @@ const GROUPS: { title: string; sections: CycleSection[] }[] = [
 ];
 
 const list = new Intl.ListFormat("id-ID", { type: "conjunction" });
-const schoolList = (keys: readonly SchoolKey[]) => list.format(keys.map(schoolShortName));
+const capital = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 
 function CyclePage() {
   const { periode } = Route.useSearch();
@@ -128,7 +128,7 @@ function CyclePage() {
 
   const newCycle = (
     <Sheet open={creating} onOpenChange={setCreating}>
-      <SheetContent className="data-[side=right]:sm:max-w-lg">
+      <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
         {creating && <NewCycleForm from={cycles[0]} onDone={() => setCreating(false)} />}
       </SheetContent>
     </Sheet>
@@ -240,7 +240,7 @@ function CycleRecord({
         <History history={setup.history} />
       </div>
       <Sheet open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
-        <SheetContent className="data-[side=right]:sm:max-w-lg">
+        <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
           {editing && (
             <SectionForm section={editing} setup={setup} onDone={() => setEditing(null)} />
           )}
@@ -465,6 +465,12 @@ const missingAt = (gaps: readonly SetupGap[], kind: SetupGap["kind"]) =>
 
 const taking = (setup: CycleSetup) => setup.schools.filter((school) => school.isEnabled);
 
+/** "semua sekolah" when every school taking part is named, so a row stays one line. */
+const schoolsIn = (setup: CycleSetup, keys: readonly SchoolKey[]) =>
+  keys.length > 1 && keys.length === taking(setup).length
+    ? "semua sekolah"
+    : list.format(keys.map(schoolShortName));
+
 /** One sentence per row, naming what is missing first. */
 const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => string> = {
   schedule: ({ cycle, schools }) => {
@@ -472,7 +478,7 @@ const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => s
     return [
       `${formatShortDateTime(cycle.registrationOpenAt)} sampai ${formatShortDateTime(cycle.registrationCloseAt)}.`,
       `Hasil ${formatShortDateTime(cycle.resultPublishAt)} WITA.`,
-      off.length > 0 ? `${schoolList(off)} tidak ikut.` : "",
+      off.length > 0 ? `${list.format(off.map(schoolShortName))} tidak ikut.` : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -489,7 +495,7 @@ const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => s
         ? `Pendaftaran ${formatRupiah([...fees][0]!)}.`
         : `Pendaftaran ${schools.map((school) => `${schoolShortName(school.schoolKey)} ${formatRupiah(school.effectiveFee)}`).join(", ")}.`;
     const missing = missingAt(gaps, "reregistrationFee");
-    return `${registration} ${missing.length > 0 ? `Daftar ulang ${schoolList(missing)} belum diisi.` : "Daftar ulang sudah diisi."}`;
+    return `${registration} ${missing.length > 0 ? `Daftar ulang ${schoolsIn(setup, missing)} belum diisi.` : "Daftar ulang sudah diisi."}`;
   },
   documents: (setup, gaps) => {
     const missing = missingAt(gaps, "registrationDocuments");
@@ -503,24 +509,31 @@ const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => s
     );
     return [
       missing.length > 0
-        ? `${schoolList(missing)} belum punya dokumen pendaftaran.`
+        ? `${capital(schoolsIn(setup, missing))} belum punya dokumen pendaftaran.`
         : required.length > 0
           ? `Wajib saat mendaftar: ${list.format(required.map((type) => DOCUMENT_LABELS[type]))}.`
           : "Dokumen pendaftaran sudah diatur.",
       later.length > 0
-        ? `Daftar ulang ${schoolList(later)} belum diisi.`
+        ? `Daftar ulang ${schoolsIn(setup, later)} belum diisi.`
         : "Daftar ulang sudah diatur.",
     ].join(" ");
   },
-  messages: (_, gaps) => {
+  messages: (setup, gaps) => {
     const accepted = missingAt(gaps, "acceptedInstructions");
     const rejected = missingAt(gaps, "rejectedInstructions");
     if (accepted.length === 0 && rejected.length === 0) {
       return "Pesan diterima dan tidak diterima sudah ada.";
     }
+    if (accepted.join() === rejected.join()) {
+      return `${capital(schoolsIn(setup, accepted))} belum punya pesan diterima dan tidak diterima.`;
+    }
     return [
-      accepted.length > 0 ? `${schoolList(accepted)} belum punya pesan diterima.` : "",
-      rejected.length > 0 ? `${schoolList(rejected)} belum punya pesan tidak diterima.` : "",
+      accepted.length > 0
+        ? `${capital(schoolsIn(setup, accepted))} belum punya pesan diterima.`
+        : "",
+      rejected.length > 0
+        ? `${capital(schoolsIn(setup, rejected))} belum punya pesan tidak diterima.`
+        : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -533,10 +546,10 @@ const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => s
         : [],
     );
     return [
+      versions.length > 0 ? `${capital(list.format(versions))}.` : "",
       missing.length > 0
-        ? `${schoolList(missing)} belum punya perjanjian. Baru diminta saat daftar ulang.`
+        ? `${capital(schoolsIn(setup, missing))} belum punya perjanjian. Baru diminta saat daftar ulang.`
         : "",
-      versions.length > 0 && missing.length === 0 ? `${list.format(versions)}.` : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -846,6 +859,8 @@ const CALENDAR_WORDS = {
 const CALENDAR_LABELS = {
   labelNext: () => "Bulan berikutnya",
   labelPrevious: () => "Bulan sebelumnya",
+  labelDayButton: (day: Date, modifiers: { selected?: boolean }) =>
+    `${dayFormat.format(day)}${modifiers.selected ? ", dipilih" : ""}`,
 };
 
 type Moments = Record<
@@ -859,17 +874,25 @@ const MOMENT_FIELDS = [
   ["resultPublishAt", "Hasil diumumkan", "Keluarga melihat hasil mulai jam ini."],
 ] as const;
 
-/** Turns the typed times into instants, and names any time that is not a real one. */
-function readMoments(moments: Moments) {
+/**
+ * Turns the typed times into instants, and names any time that is not a real one.
+ * A moment left as it was keeps its stored instant: the form shows minutes, and
+ * resending a rounded time would record a change nobody made.
+ */
+function readMoments(moments: Moments, stored?: Record<keyof Moments, string>) {
   const local: Record<string, string> = {};
   const values: Partial<Record<keyof Moments, string>> = {};
   for (const [key] of MOMENT_FIELDS) {
-    const iso = fromWita(moments[key].day, moments[key].time);
+    const kept = stored && sameMoment(toWita(stored[key]), moments[key]) ? stored[key] : null;
+    const iso = kept ?? fromWita(moments[key].day, moments[key].time);
     if (iso) values[key] = iso;
     else local[key] = "Pilih tanggal, lalu tulis jam seperti 08.00.";
   }
   return { values, local };
 }
+
+const sameMoment = (a: { day: string; time: string }, b: { day: string; time: string }) =>
+  a.day === b.day && a.time === b.time.trim();
 
 function MomentFields({
   moments,
@@ -917,7 +940,7 @@ function ScheduleForm({ setup, onDone }: FormProps) {
       pending={save.pending}
       onCancel={onDone}
       onSubmit={() => {
-        const { values, local } = readMoments(moments);
+        const { values, local } = readMoments(moments, cycle);
         save.submit(
           {
             section: "schedule",
@@ -1330,6 +1353,7 @@ function AgreementForm({ setup, onDone }: FormProps) {
           <SchoolHeading school={school.schoolKey} />
           <Textarea
             rows={6}
+            className="max-h-96"
             maxLength={20_000}
             aria-label={`Perjanjian ${schoolShortName(school.schoolKey)}`}
             value={bodies[school.schoolKey] ?? ""}

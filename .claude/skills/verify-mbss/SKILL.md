@@ -72,7 +72,7 @@ node $S/drive.mjs --out "$EVIDENCE/<feature-id>" [--state <file>] [--mobile] <st
 | `shot:<label>` | save `<label>.png` (full page), `<label>.aria.txt` (accessibility tree) and `<label>.url` |
 | `errors` | on the profile, ask `next dev` for the open page's errors through its MCP endpoint (`/_next/mcp`, tool `get_errors`); log each with its source file and line, and fail if there are any. On a Vite app, fail on Vite's error overlay and on anything the page threw or sent to `console.error` since the last `goto`. A failed request is logged but does not fail it, because a 400 for a wrong code is correct |
 
-Steps run in order. On the first failure it saves `fail-<n>.png` and exits 1. Everything goes into `<out>/drive.log`, including every `console.error`, page error, HTTP 4xx/5xx and request that got no answer at all (`failed net::...`). `--state` keeps cookies and local storage between calls, which a Strapi login needs. `--mobile` uses a Pixel 7 viewport.
+Steps run in order. On the first failure it saves `fail-<n>.png` and exits 1. Everything goes into `<out>/drive.log`, including every `console.error`, page error, HTTP 4xx/5xx and request that got no answer at all (`failed net::...`). `--state` keeps cookies and local storage between calls, which a Strapi login needs. `--mobile` uses a Pixel 7 viewport. `--width 375` sets a plain viewport that wide, and `--dark` asks the page for dark mode.
 
 Example: does the SMP home page render, and does its Profil link work?
 

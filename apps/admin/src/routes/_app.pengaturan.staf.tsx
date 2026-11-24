@@ -113,7 +113,7 @@ function StaffPage() {
       )}
 
       <Sheet open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
-        <SheetContent className="data-[side=right]:sm:max-w-md">
+        <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-md">
           {editing && (
             <StaffForm
               key={editing.kind === "edit" ? editing.id : "new"}
