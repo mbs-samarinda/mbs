@@ -159,7 +159,7 @@ export async function loadForCommittee(
     ...audits.map((row) => ({
       kind: "AUDIT" as const,
       action: AuditAction.parse(row.action),
-      actor: auditActor(row.actorType, row.staffName, familyName),
+      actor: auditActor(row, familyName),
       at: row.createdAt.toISOString(),
     })),
   ].toSorted((a, b) => b.at.localeCompare(a.at));
@@ -238,18 +238,19 @@ function eventFields(event: {
 
 /** A family is named by the guardian on the newest form, which is who the committee calls. */
 function eventActor(type: ActorType, staffName: string | null, familyName: string): Actor {
-  if (type === "STAFF") {
-    // Staff profiles are deactivated, never deleted, so a staff actor always has a row.
-    if (staffName === null) throw new Error("A staff actor has no staff profile.");
-    return { type, name: staffName };
-  }
+  if (type === "STAFF") return { type, name: staffName };
   if (type === "FAMILY") return { type, name: familyName };
   return { type };
 }
 
-function auditActor(type: string, staffName: string | null, familyName: string): AuditActor {
-  if (type === "STAFF" || type === "FAMILY" || type === "SYSTEM") {
-    return eventActor(type, staffName, familyName);
+/** A family account counts as this child's family only if it holds access to the application. */
+function auditActor(
+  row: { actorType: string; staffName: string | null; familyHasAccess: boolean },
+  familyName: string,
+): AuditActor {
+  if (row.actorType === "FAMILY" && !row.familyHasAccess) return { type: "OTHER_ACCOUNT" };
+  if (row.actorType === "STAFF" || row.actorType === "FAMILY" || row.actorType === "SYSTEM") {
+    return eventActor(row.actorType, row.staffName, familyName);
   }
   return { type: "PUBLIC" };
 }

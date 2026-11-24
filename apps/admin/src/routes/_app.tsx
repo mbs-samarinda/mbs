@@ -21,7 +21,7 @@ import { HomeIcon, InboxIcon, LogOutIcon, MenuIcon, UsersIcon } from "lucide-rea
 import { useState } from "react";
 
 import { APP_NAME } from "../app-name.ts";
-import { schoolMarkClass, schoolShortName, Tile } from "../committee-ui.tsx";
+import { EXACT_MATCH, schoolMarkClass, schoolShortName, Tile } from "../committee-ui.tsx";
 import { formatCount } from "../format.ts";
 import { dashboardQuery, visitorQuery } from "../staff.ts";
 
@@ -155,12 +155,6 @@ function AppShell() {
 const NAV_ITEM =
   "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-muted-foreground hover:bg-background hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:font-medium aria-[current=page]:text-foreground";
 
-/**
- * The router marks a link current on its own, and would mark "Pendaftar" on every
- * filtered list. Exact matching keeps its marks inside the rules below.
- */
-const EXACT = { exact: true, includeSearch: true };
-
 const current = (active: boolean) => (active ? ("page" as const) : undefined);
 const count = (value: number | undefined) =>
   value !== undefined && <span className="text-xs tabular-nums">{formatCount(value)}</span>;
@@ -178,7 +172,7 @@ function Nav({ schools, onNavigate }: { schools: readonly SchoolKey[]; onNavigat
       <div className="grid gap-0.5">
         <Link
           to="/"
-          activeOptions={EXACT}
+          activeOptions={EXACT_MATCH}
           className={NAV_ITEM}
           aria-current={current(pathname === "/")}
           onClick={onNavigate}
@@ -188,7 +182,7 @@ function Nav({ schools, onNavigate }: { schools: readonly SchoolKey[]; onNavigat
         </Link>
         <Link
           to="/pendaftar"
-          activeOptions={EXACT}
+          activeOptions={EXACT_MATCH}
           className={NAV_ITEM}
           aria-current={current(onList && tampil === undefined && sekolah === undefined)}
           onClick={onNavigate}
@@ -199,7 +193,7 @@ function Nav({ schools, onNavigate }: { schools: readonly SchoolKey[]; onNavigat
         </Link>
         <Link
           to="/pendaftar"
-          activeOptions={EXACT}
+          activeOptions={EXACT_MATCH}
           search={{ tampil: "perlu" }}
           className={NAV_ITEM}
           aria-current={current(onList && tampil === "perlu")}
@@ -218,7 +212,7 @@ function Nav({ schools, onNavigate }: { schools: readonly SchoolKey[]; onNavigat
               key={key}
               to="/pendaftar"
               search={{ sekolah: key }}
-              activeOptions={EXACT}
+              activeOptions={EXACT_MATCH}
               className={cn(NAV_ITEM, "text-foreground")}
               aria-current={current(onList && sekolah === key)}
               onClick={onNavigate}

@@ -14,18 +14,27 @@ import { SchoolKey } from "./schemas.ts";
 
 const At = z.iso.datetime();
 
-/** `SYSTEM` carries no name: the interface words it, so the server never writes copy. */
+/**
+ * `SYSTEM` carries no name: the interface words it, so the server never writes
+ * copy. A staff name is null only if its profile row is missing, which should
+ * never happen and must not take a whole page down when it does.
+ */
 export const Actor = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("STAFF"), name: z.string() }),
+  z.object({ type: z.literal("STAFF"), name: z.string().nullable() }),
   z.object({ type: z.literal("FAMILY"), name: z.string() }),
   z.object({ type: z.literal("SYSTEM") }),
 ]);
 export type Actor = z.infer<typeof Actor>;
 
-/** Audit rows also come from a status check without an account, which has no one to name. */
+/**
+ * Audit rows also come from status checks: `PUBLIC` without an account, and
+ * `OTHER_ACCOUNT` from a signed-in account that is not this child's family,
+ * which must not be named as the guardian.
+ */
 export const AuditActor = z.discriminatedUnion("type", [
   ...Actor.options,
   z.object({ type: z.literal("PUBLIC") }),
+  z.object({ type: z.literal("OTHER_ACCOUNT") }),
 ]);
 export type AuditActor = z.infer<typeof AuditActor>;
 

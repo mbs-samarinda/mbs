@@ -106,10 +106,6 @@ const STAGES: Record<ApplicationStage, { label: string; tone: Tone }> = {
   WITHDRAWN: { label: "Dibatalkan", tone: "muted" },
 };
 
-export function stageLabel(stage: ApplicationStage) {
-  return STAGES[stage].label;
-}
-
 /** The stage as quiet text with a dot: the child leads, the step is one property. */
 export function Stage({
   stage,
@@ -173,6 +169,8 @@ export function commandLabel(command: ApplicationCommand) {
 export function actorName(actor: AuditActor) {
   if (actor.type === "SYSTEM") return "Sistem";
   if (actor.type === "PUBLIC") return "Tanpa akun";
+  if (actor.type === "OTHER_ACCOUNT") return "Akun lain";
+  if (actor.type === "STAFF") return actor.name ?? "Staf";
   return actor.name;
 }
 
@@ -271,6 +269,13 @@ export function Timeline({ entries }: { entries: Entry[] }) {
     </ol>
   );
 }
+
+/**
+ * The router marks a link current on its own, and by default a link with fewer
+ * filters counts as current on every filtered page. Exact matching keeps its
+ * marks inside each link's own rule.
+ */
+export const EXACT_MATCH = { exact: true, includeSearch: true };
 
 /** Filter chips are links, so a filter is part of the address and survives a reload. */
 export function chipClass(active: boolean) {

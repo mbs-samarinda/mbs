@@ -21,6 +21,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   actorName,
   chipClass,
+  EXACT_MATCH,
   eventEntry,
   SchoolMark,
   Stage,
@@ -118,6 +119,7 @@ function RecordPage() {
               params={{ applicationId }}
               search={{}}
               replace
+              activeOptions={EXACT_MATCH}
               className={chipClass(tampil === undefined)}
             >
               Semua
@@ -127,6 +129,7 @@ function RecordPage() {
               params={{ applicationId }}
               search={{ tampil: "catatan" }}
               replace
+              activeOptions={EXACT_MATCH}
               className={chipClass(tampil === "catatan")}
             >
               Catatan
@@ -245,6 +248,7 @@ function Composer({ application }: { application: CommitteeApplication }) {
       await Promise.all([
         queryClient.invalidateQueries(applicationQuery(application.id)),
         queryClient.invalidateQueries(dashboardQuery),
+        queryClient.invalidateQueries({ queryKey: ["applications", "list"] }),
       ]);
     },
   });

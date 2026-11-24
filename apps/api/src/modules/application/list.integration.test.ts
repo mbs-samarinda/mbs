@@ -393,6 +393,39 @@ describe("one application for the committee", () => {
     );
   });
 
+  it("names the guardian only for a status check from the child's own family", async () => {
+    const id = await register("smp");
+    await db.insert(schema.user).values({
+      id: "family-b",
+      name: "family-b",
+      email: "lain@example.test",
+      emailVerified: true,
+      updatedAt: new Date(),
+    });
+    for (const account of ["family-b", "family-a"]) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const checked = await app.inject({
+        method: "POST",
+        url: "/api/rpc/public/application/checkStatus",
+        headers: {
+          host: FAMILY_HOST,
+          // oxlint-disable-next-line eslint/no-await-in-loop
+          cookie: await sessionCookie(app.auth.FAMILY, account),
+          "content-type": "application/json",
+        },
+        payload: { json: { registrationNumber: "SMP-0001", nik: await nikOf(id) } },
+      });
+      expect(checked.statusCode).toBe(200);
+    }
+    const { cookie } = await signIn("STAFF", ["smp"]);
+
+    const checks = (await detail(cookie, id)).history.filter((item) => item.kind === "AUDIT");
+    expect(checks.map((item) => item.actor)).toEqual([
+      { type: "FAMILY", name: "Budi Santoso" },
+      { type: "OTHER_ACCOUNT" },
+    ]);
+  });
+
   it("writes nothing when read, and one view row with the request id when recorded", async () => {
     const id = await register("smp");
     const { cookie, staffId } = await signIn("STAFF", ["smp"]);

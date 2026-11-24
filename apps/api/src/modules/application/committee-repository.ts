@@ -25,6 +25,7 @@ const {
   schools,
   staffUsers,
   user,
+  applicationAccess,
 } = schema;
 
 /** The open cycle, or the newest one that has ever opened. */
@@ -318,6 +319,11 @@ export async function listAuditRows(db: Database, applicationId: string) {
       action: auditLogs.action,
       actorType: auditLogs.actorType,
       staffName: staffUsers.name,
+      familyHasAccess: sql<boolean>`exists (
+        select 1 from ${applicationAccess}
+        where ${applicationAccess.applicationId} = ${applicationId}
+          and ${applicationAccess.userId} = ${auditLogs.actorId}
+      )`,
       createdAt: auditLogs.createdAt,
     })
     .from(auditLogs)

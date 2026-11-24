@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   chipClass,
+  EXACT_MATCH,
   commandLabel,
   SchoolMark,
   schoolShortName,
@@ -101,6 +102,7 @@ function List() {
         <Link
           to="/pendaftar"
           search={{ cari: search.cari }}
+          activeOptions={EXACT_MATCH}
           className={chipClass(search.sekolah === undefined && search.tampil === undefined)}
         >
           Semua
@@ -111,6 +113,7 @@ function List() {
               key={key}
               to="/pendaftar"
               search={{ sekolah: key, cari: search.cari }}
+              activeOptions={EXACT_MATCH}
               className={chipClass(search.sekolah === key)}
             >
               {schoolShortName(key)}
@@ -119,6 +122,7 @@ function List() {
         <Link
           to="/pendaftar"
           search={{ tampil: "perlu", cari: search.cari }}
+          activeOptions={EXACT_MATCH}
           className={chipClass(search.tampil === "perlu")}
         >
           Perlu dicek

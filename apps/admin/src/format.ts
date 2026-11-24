@@ -47,11 +47,11 @@ export function formatStamp(iso: string, now = serverNow()) {
 /** For a list cell: "2 jam lalu", "kemarin", "3 hari lalu". */
 export function formatAgo(iso: string, now = serverNow()) {
   const minutes = Math.floor((now.getTime() - Date.parse(iso)) / 60_000);
+  // Minutes win over the calendar, so 23.58 seen at 00.03 is "5 menit lalu", not "kemarin".
+  if (minutes < 1) return "baru saja";
+  if (minutes < 60) return `${minutes} menit lalu`;
   const days = daysBefore(iso, now);
-  if (days === 0) {
-    if (minutes < 1) return "baru saja";
-    return minutes < 60 ? `${minutes} menit lalu` : `${Math.floor(minutes / 60)} jam lalu`;
-  }
+  if (days === 0) return `${Math.floor(minutes / 60)} jam lalu`;
   if (days === 1) return "kemarin";
   if (days < 7) return `${days} hari lalu`;
   return dayLabel(iso, now);
