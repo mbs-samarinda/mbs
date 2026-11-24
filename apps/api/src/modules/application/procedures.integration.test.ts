@@ -277,9 +277,35 @@ describe("submit", () => {
     expect(refused.statusCode).toBe(409);
     expect(refused.json()).toMatchObject({ json: { defined: true, code: "TOO_MANY_CHILDREN" } });
 
+    // At the limit, a NIK that another account registered answers like a free one.
+    await submitted({ profile: child(30), cookie: cookieB });
+    const taken = await submit({ profile: child(30) });
+    const free = await submit({ profile: child(31) });
+    expect(taken.body).toBe(free.body);
+
     // A child it already has may still go to another school, and others are free.
     expect((await submit({ schoolKey: "sma", profile: child(0) })).statusCode).toBe(200);
     expect((await submit({ profile: child(20), cookie: cookieB })).statusCode).toBe(200);
+  });
+
+  it("leads a key that races itself to what it made, also with the tenth child", async () => {
+    for (let index = 0; index < 9; index += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await submitted({ profile: profile({ nik: `64720101010100${10 + index}` }) });
+    }
+    const key = crypto.randomUUID();
+    const answers = await Promise.all([
+      submit({ key, schoolKey: "smp", profile: profile({ nik: "6472010101010030" }) }),
+      submit({ key, schoolKey: "sma", profile: profile({ nik: "6472010101010031" }) }),
+    ]);
+    const made = answers.find(({ statusCode }) => statusCode === 200)!;
+    const other = answers.find(({ statusCode }) => statusCode !== 200)!;
+    expect(other.json()).toMatchObject({
+      json: {
+        code: "IDEMPOTENCY_KEY_REUSED",
+        data: made.json<{ json: object }>().json,
+      },
+    });
   });
 
   it("answers a submit that arrives again after the tenth child", async () => {

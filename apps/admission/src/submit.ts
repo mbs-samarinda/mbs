@@ -47,7 +47,7 @@ export async function sendDraft(draft: Draft, schools: readonly SchoolCycle[]): 
     return { applicationId, result: sameRegistration ? "earlier" : "earlierOther" };
   }
   if (isDefined) {
-    // The server looks for the key before either of these, so nothing was made with it.
+    // The server looks for the key before any of these, so nothing was made with it.
     setAttempt(draft.userId, null);
   } else if (error instanceof ORPCError && error.status < 500) {
     // This try made nothing, but the refusal came before the key was looked for, so
@@ -79,7 +79,7 @@ export function explainSubmit(error: Error, draft: Draft): SubmitFailure {
     }
     if (error.code === "TOO_MANY_CHILDREN") {
       return {
-        message: `Satu akun bisa mendaftarkan paling banyak ${CHILDREN_PER_ACCOUNT} anak, dan akun ini sudah mencapainya. Kalau perlu mendaftarkan lebih banyak, hubungi panitia.`,
+        message: `Satu akun bisa mendaftarkan paling banyak ${CHILDREN_PER_ACCOUNT} anak, dan akun ini sudah mencapainya. Anak berikutnya bisa didaftarkan dengan akun lain.`,
         wayOut: true,
       };
     }

@@ -88,18 +88,21 @@ export async function isNikTaken(tx: Transaction, cycleId: string, schoolId: str
   return rows.length > 0;
 }
 
+/** Held until the transaction ends, so one account's submits take turns at every school. */
+export async function lockAccount(tx: Transaction, userId: string) {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext('applications.account'), hashtext(${userId}))`,
+  );
+}
+
 /**
- * The other children this account registered in the cycle. Locks the account
- * first, because the submission lock is per school and one account can send to
- * several at once. A child at two schools is one child.
+ * The other children this account registered in the cycle, at any stage. A child
+ * at two schools is one. Needs the account lock. A later NIK edit is not counted.
  */
 export async function countOtherChildren(
   tx: Transaction,
   { cycleId, userId, nik }: { cycleId: string; userId: string; nik: string },
 ) {
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtext('applications.children'), hashtext(${cycleId} || ':' || ${userId}))`,
-  );
   const [row] = await tx
     .select({ children: countDistinct(schema.applications.nik) })
     .from(schema.applications)

@@ -49,6 +49,7 @@ import {
   listApplicationsForUser,
   listFamilyVisibleEvents,
   listPromisedDocuments,
+  lockAccount,
   lockApplication,
   lockForSubmission,
   nextRegistrationSeq,
@@ -144,7 +145,9 @@ export async function submitApplication(
 ): Promise<{ application: ApplicationRow; event: ApplicationEventRow; replayed: boolean }> {
   const profile = ApplicantProfile.parse(input.profile);
 
-  const submitted = db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
+    // First and for every submit, so a key that is sent twice at once meets itself here.
+    await lockAccount(tx, input.userId);
     const cycle = await lockForSubmission(tx, input.cycleId, input.schoolKey);
     if (!cycle) throw new NotFoundError("No such cycle.");
 
@@ -180,10 +183,8 @@ export async function submitApplication(
       throw new RegistrationClosedError("Registration is not open at this school.");
     }
 
-    if (await isNikTaken(tx, input.cycleId, cycle.schoolId, profile.nik)) {
-      throw new DuplicateApplicationError(DUPLICATE_MESSAGE);
-    }
-
+    // Before the NIK, or an account at its limit could ask which NIKs are taken
+    // and leave no trace.
     const others = await countOtherChildren(tx, {
       cycleId: input.cycleId,
       userId: input.userId,
@@ -191,6 +192,10 @@ export async function submitApplication(
     });
     if (others >= CHILDREN_PER_ACCOUNT) {
       throw new TooManyChildrenError("This account registered all the children it may.");
+    }
+
+    if (await isNikTaken(tx, input.cycleId, cycle.schoolId, profile.nik)) {
+      throw new DuplicateApplicationError(DUPLICATE_MESSAGE);
     }
 
     const result = transition(null, "SUBMIT", "FAMILY");
@@ -249,23 +254,6 @@ export async function submitApplication(
     );
 
     return { application, event, replayed: false };
-  });
-
-  // The locks are per cycle and school, so one key can race itself at two schools.
-  // The loser looks up the winner only here, because its own transaction is gone.
-  return submitted.catch(async (error: unknown) => {
-    if (!input.idempotencyKey || !isUniqueViolation(error)) throw error;
-    const winner = await findEventByIdempotencyKey(
-      db,
-      "FAMILY",
-      input.userId,
-      input.idempotencyKey,
-    );
-    if (!winner) throw error;
-    throw new IdempotencyKeyReusedError({
-      applicationId: winner.applicationId,
-      sameRegistration: false,
-    });
   });
 }
 
