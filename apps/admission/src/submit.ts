@@ -1,5 +1,5 @@
 import { ORPCError, safe } from "@mbs/api-client/rpc";
-import { isSchoolKey } from "@mbs/school-config";
+import { CHILDREN_PER_ACCOUNT, isSchoolKey } from "@mbs/school-config";
 
 import { api } from "./api.ts";
 import type { SchoolCycle } from "./cycles.ts";
@@ -47,7 +47,7 @@ export async function sendDraft(draft: Draft, schools: readonly SchoolCycle[]): 
     return { applicationId, result: sameRegistration ? "earlier" : "earlierOther" };
   }
   if (isDefined) {
-    // The server looks for the key before either of these, so nothing was made with it.
+    // The server looks for the key before any of these, so nothing was made with it.
     setAttempt(draft.userId, null);
   } else if (error instanceof ORPCError && error.status < 500) {
     // This try made nothing, but the refusal came before the key was looked for, so
@@ -74,6 +74,12 @@ export function explainSubmit(error: Error, draft: Draft): SubmitFailure {
     if (error.code === "DUPLICATE_APPLICATION") {
       return {
         message: `NIK ini sudah terdaftar di ${school}. Periksa lagi NIK-nya. Kalau anak ini sudah kamu daftarkan, buka statusnya di halaman utama. Kalau belum, hubungi panitia.`,
+        wayOut: true,
+      };
+    }
+    if (error.code === "TOO_MANY_CHILDREN") {
+      return {
+        message: `Satu akun bisa mendaftarkan paling banyak ${CHILDREN_PER_ACCOUNT} anak, dan akun ini sudah mencapainya. Anak berikutnya bisa didaftarkan dengan akun lain.`,
         wayOut: true,
       };
     }

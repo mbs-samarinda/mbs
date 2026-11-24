@@ -1,5 +1,6 @@
 import type { ApplicantProfileInput, AppliedCommand, SchoolKey } from "@mbs/api-contract";
 import { schema } from "@mbs/db";
+import { SCHOOL_KEYS } from "@mbs/school-config";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -260,6 +261,61 @@ describe("submit", () => {
     });
     expect(response.body).not.toMatch(/SMP-0001|Aisyah|family-a|applicationId/);
     expect(await db.$count(schema.applications)).toBe(1);
+  });
+
+  it("takes ten children from one account, also when the last ones arrive at once", async () => {
+    const child = (index: number) => profile({ nik: `64720101010100${10 + index}` });
+    for (let index = 0; index < 9; index += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await submitted({ profile: child(index) });
+    }
+    const raced = await Promise.all(
+      SCHOOL_KEYS.map((schoolKey, index) => submit({ schoolKey, profile: child(9 + index) })),
+    );
+    expect(raced.filter(({ statusCode }) => statusCode === 200)).toHaveLength(1);
+    const refused = raced.find(({ statusCode }) => statusCode !== 200)!;
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toMatchObject({ json: { defined: true, code: "TOO_MANY_CHILDREN" } });
+
+    // At the limit, a NIK that another account registered answers like a free one.
+    await submitted({ profile: child(30), cookie: cookieB });
+    const taken = await submit({ profile: child(30) });
+    const free = await submit({ profile: child(31) });
+    expect(taken.body).toBe(free.body);
+
+    // A child it already has may still go to another school, and others are free.
+    expect((await submit({ schoolKey: "sma", profile: child(0) })).statusCode).toBe(200);
+    expect((await submit({ profile: child(20), cookie: cookieB })).statusCode).toBe(200);
+  });
+
+  it("leads a key that races itself to what it made, also with the tenth child", async () => {
+    for (let index = 0; index < 9; index += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await submitted({ profile: profile({ nik: `64720101010100${10 + index}` }) });
+    }
+    const key = crypto.randomUUID();
+    const answers = await Promise.all([
+      submit({ key, schoolKey: "smp", profile: profile({ nik: "6472010101010030" }) }),
+      submit({ key, schoolKey: "sma", profile: profile({ nik: "6472010101010031" }) }),
+    ]);
+    const made = answers.find(({ statusCode }) => statusCode === 200)!;
+    const other = answers.find(({ statusCode }) => statusCode !== 200)!;
+    expect(other.json()).toMatchObject({
+      json: {
+        code: "IDEMPOTENCY_KEY_REUSED",
+        data: made.json<{ json: object }>().json,
+      },
+    });
+  });
+
+  it("answers a submit that arrives again after the tenth child", async () => {
+    const key = crypto.randomUUID();
+    const first = await submitted({ key });
+    for (let index = 0; index < 9; index += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await submitted({ profile: profile({ nik: `64720101010100${10 + index}` }) });
+    }
+    expect(await submitted({ key })).toBe(first);
   });
 
   it.each([

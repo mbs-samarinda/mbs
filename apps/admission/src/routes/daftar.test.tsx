@@ -496,6 +496,7 @@ describe("the check", () => {
     ["REGISTRATION_CLOSED", /Pendaftaran di SMP Islam Terpadu Madina sudah ditutup/],
     ["NOT_FOUND", /sudah ditutup/],
     ["DUPLICATE_APPLICATION", /NIK ini sudah terdaftar di SMP Islam Terpadu Madina/],
+    ["TOO_MANY_CHILDREN", /paling banyak 10 anak/],
   ])("explains %s, keeps the form and shows a way out", async (code, message) => {
     stubApi({ ...READY, [SUBMIT]: [refusal(code, code === "NOT_FOUND" ? 404 : 409)] });
     fill();

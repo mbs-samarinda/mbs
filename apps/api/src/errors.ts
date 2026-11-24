@@ -36,6 +36,7 @@ export class ConflictError extends Error {
     | "CONFLICT"
     | "REGISTRATION_CLOSED"
     | "DUPLICATE_APPLICATION"
+    | "TOO_MANY_CHILDREN"
     | "IDEMPOTENCY_KEY_REUSED" = "CONFLICT";
 }
 
@@ -45,6 +46,10 @@ export class StaleSequenceError extends ConflictError {}
 
 export class DuplicateApplicationError extends ConflictError {
   override readonly code = "DUPLICATE_APPLICATION";
+}
+
+export class TooManyChildrenError extends ConflictError {
+  override readonly code = "TOO_MANY_CHILDREN";
 }
 
 export class RegistrationClosedError extends ConflictError {

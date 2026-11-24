@@ -61,6 +61,7 @@ export function stubApi(answers: Record<string, Answers>, serverClock?: string) 
 const DECLARED = new Set([
   "REGISTRATION_CLOSED",
   "DUPLICATE_APPLICATION",
+  "TOO_MANY_CHILDREN",
   "IDEMPOTENCY_KEY_REUSED",
   "NO_MATCH",
   "TOO_MANY_TRIES",

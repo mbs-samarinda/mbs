@@ -71,6 +71,7 @@ export const contract = {
         .errors({
           REGISTRATION_CLOSED: { status: 409 },
           DUPLICATE_APPLICATION: { status: 409 },
+          TOO_MANY_CHILDREN: { status: 409 },
           IDEMPOTENCY_KEY_REUSED: { status: 409, data: ReusedKey },
         }),
     },
