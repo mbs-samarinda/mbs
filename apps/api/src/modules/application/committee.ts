@@ -62,16 +62,27 @@ export async function loadDashboard(
   };
   if (!cycle || schoolKeys.length === 0) return empty;
 
-  const [{ totals, perSchool }, recent] = await Promise.all([
+  const [perSchool, recent] = await Promise.all([
     countForDashboard(db, schoolKeys),
     listRecentEvents(db, schoolKeys, RECENT_ACTIVITY),
   ]);
+  const sum = (pick: (row: (typeof perSchool)[number]) => number) =>
+    perSchool.reduce((total, row) => total + pick(row), 0);
+  const oldest = perSchool
+    .map((row) => row.oldestWaitingSince)
+    .filter((at) => at !== null)
+    .map((at) => new Date(at).toISOString())
+    .toSorted()[0];
   const counted = new Map(perSchool.map((row) => [row.schoolKey, row.total]));
   return {
     ...empty,
-    ...totals,
-    oldestWaitingSince:
-      totals.oldestWaitingSince && new Date(totals.oldestWaitingSince).toISOString(),
+    total: sum((row) => row.total),
+    newThisWeek: sum((row) => row.newThisWeek),
+    paid: sum((row) => row.paid),
+    needsCommittee: sum((row) => row.needsCommittee),
+    oldestWaitingSince: oldest ?? null,
+    decided: sum((row) => row.decided),
+    accepted: sum((row) => row.accepted),
     perSchool: schoolKeys.map((schoolKey) => ({ schoolKey, total: counted.get(schoolKey) ?? 0 })),
     recent: recent.map((event) => ({
       applicationId: event.applicationId,

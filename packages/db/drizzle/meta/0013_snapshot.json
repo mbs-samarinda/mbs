@@ -1,5 +1,5 @@
 {
-  "id": "87d8d5a9-8f4d-4328-ac51-ddce9e9068e0",
+  "id": "4a1ed2d4-5895-4969-b875-86cfc0fea2c7",
   "prevId": "510a2c5d-92b6-4938-94b7-b8f8e38a955e",
   "version": "7",
   "dialect": "postgresql",
@@ -448,6 +448,21 @@
           ],
           "isUnique": true,
           "where": "idempotency_key is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "application_events_created_at": {
+          "name": "application_events_created_at",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -98,10 +98,19 @@ export type ListFilter = {
  * One page of the list, and how many rows match. "Perlu dicek" puts the longest
  * wait first; everything else puts the newest activity first. `updated_at` is the
  * newest event's time, so sorting needs no join to the events.
+ *
+ * The page is chosen first and only its 50 rows are joined to their newest form
+ * and event. The form is read for every row only when a search needs it.
  */
 export async function listCommitteeApplications(db: Database, filter: ListFilter) {
-  const profile = newestProfile(db);
   const pattern = filter.q ? `%${escapeLike(filter.q)}%` : null;
+  const order = [
+    filter.view === "NEEDS_COMMITTEE"
+      ? asc(applications.stageChangedAt)
+      : desc(applications.updatedAt),
+    asc(applications.id),
+  ];
+  const searched = newestProfile(db);
   const where = and(
     inScope(filter.schoolKeys),
     filter.view === "NEEDS_COMMITTEE"
@@ -109,13 +118,35 @@ export async function listCommitteeApplications(db: Database, filter: ListFilter
       : undefined,
     pattern
       ? or(
-          ilike(field(profile, "childFullName"), pattern),
-          ilike(field(profile, "guardianName"), pattern),
+          ilike(field(searched, "childFullName"), pattern),
+          ilike(field(searched, "guardianName"), pattern),
           ilike(applications.registrationNumber, pattern),
         )
       : undefined,
   );
 
+  let pageQuery = db
+    .select({ pageId: applications.id })
+    .from(applications)
+    .innerJoin(schools, eq(schools.id, applications.schoolId))
+    .$dynamic();
+  let totalQuery = db
+    .select({ total: count() })
+    .from(applications)
+    .innerJoin(schools, eq(schools.id, applications.schoolId))
+    .$dynamic();
+  if (pattern) {
+    pageQuery = pageQuery.innerJoinLateral(searched, sql`true`);
+    totalQuery = totalQuery.innerJoinLateral(searched, sql`true`);
+  }
+
+  const page = pageQuery
+    .where(where)
+    .orderBy(...order)
+    .limit(filter.limit)
+    .offset(filter.offset)
+    .as("page");
+  const profile = newestProfile(db);
   const rows = db
     .select({
       id: applications.id,
@@ -130,7 +161,8 @@ export async function listCommitteeApplications(db: Database, filter: ListFilter
       lastActorType: applicationEvents.actorType,
       lastAt: applicationEvents.createdAt,
     })
-    .from(applications)
+    .from(page)
+    .innerJoin(applications, eq(applications.id, page.pageId))
     .innerJoin(schools, eq(schools.id, applications.schoolId))
     .innerJoinLateral(profile, sql`true`)
     .innerJoin(
@@ -140,70 +172,54 @@ export async function listCommitteeApplications(db: Database, filter: ListFilter
         eq(applicationEvents.seq, applications.lastEventSeq),
       ),
     )
-    .where(where)
-    .orderBy(
-      ...(filter.view === "NEEDS_COMMITTEE"
-        ? [asc(applications.stageChangedAt)]
-        : [desc(applications.updatedAt)]),
-      asc(applications.id),
-    )
-    .limit(filter.limit)
-    .offset(filter.offset);
+    .orderBy(...order);
 
-  const total = db
-    .select({ total: count() })
-    .from(applications)
-    .innerJoin(schools, eq(schools.id, applications.schoolId))
-    .innerJoinLateral(profile, sql`true`)
-    .where(where);
-
-  const [page, [counted]] = await Promise.all([rows, total]);
-  return { rows: page, total: counted!.total };
+  const [found, [counted]] = await Promise.all([rows, totalQuery.where(where)]);
+  return { rows: found, total: counted!.total };
 }
-
-const hasEvent = (command: "APPROVE_PAYMENT" | "DECIDE") =>
-  sql`exists (select 1 from ${applicationEvents} where ${applicationEvents.applicationId} = ${applications.id} and ${applicationEvents.command} = ${command})`;
-
-/**
- * The committee knows its decisions before results day, so "accepted" counts the
- * newest decision, not a published result.
- */
-const newestDecision = sql`(
-  select ${applicationEvents.payload}->>'decision' from ${applicationEvents}
-  where ${applicationEvents.applicationId} = ${applications.id} and ${applicationEvents.command} = 'DECIDE'
-  order by ${applicationEvents.seq} desc limit 1
-)`;
 
 const waiting = inArray(applications.stage, [...COMMITTEE_STAGES]);
 
 // Monday 00:00 in Samarinda, whatever zone the server runs in.
 const startOfWeek = sql`date_trunc('week', now() at time zone 'Asia/Makassar') at time zone 'Asia/Makassar'`;
 
+/** One row per school that has applications. Each application's events are read once. */
 export async function countForDashboard(db: Database, schoolKeys: readonly SchoolKey[]) {
-  const [totals] = await db
+  const { command, payload, seq } = applicationEvents;
+  const history = db
     .select({
+      paid: sql<boolean>`coalesce(bool_or(${command} = 'APPROVE_PAYMENT'), false)`.as("paid"),
+      decided: sql<boolean>`coalesce(bool_or(${command} = 'DECIDE'), false)`.as("decided"),
+      // The committee knows its decisions before results day, so "accepted"
+      // counts the newest decision, not a published result.
+      decision: sql<
+        string | null
+      >`(array_agg(${payload}->>'decision' order by ${seq} desc) filter (where ${command} = 'DECIDE'))[1]`.as(
+        "decision",
+      ),
+    })
+    .from(applicationEvents)
+    .where(eq(applicationEvents.applicationId, applications.id))
+    .as("history");
+
+  return db
+    .select({
+      schoolKey: schools.key,
       total: count(),
       newThisWeek: sql<number>`count(*) filter (where ${applications.createdAt} >= ${startOfWeek})::int`,
-      paid: sql<number>`count(*) filter (where ${hasEvent("APPROVE_PAYMENT")})::int`,
+      paid: sql<number>`count(*) filter (where ${history.paid})::int`,
       needsCommittee: sql<number>`count(*) filter (where ${waiting})::int`,
       oldestWaitingSince: sql<
         string | null
       >`min(${applications.stageChangedAt}) filter (where ${waiting})`,
-      decided: sql<number>`count(*) filter (where ${hasEvent("DECIDE")})::int`,
-      accepted: sql<number>`count(*) filter (where ${newestDecision} = 'ACCEPTED')::int`,
+      decided: sql<number>`count(*) filter (where ${history.decided})::int`,
+      accepted: sql<number>`count(*) filter (where ${history.decision} = 'ACCEPTED')::int`,
     })
     .from(applications)
     .innerJoin(schools, eq(schools.id, applications.schoolId))
-    .where(inScope(schoolKeys));
-
-  const perSchool = await db
-    .select({ schoolKey: schools.key, total: count() })
-    .from(applications)
-    .innerJoin(schools, eq(schools.id, applications.schoolId))
+    .innerJoinLateral(history, sql`true`)
     .where(inScope(schoolKeys))
     .groupBy(schools.key);
-
-  return { totals: totals!, perSchool };
 }
 
 /** Newest first, across the given schools. */

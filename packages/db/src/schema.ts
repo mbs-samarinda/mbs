@@ -373,6 +373,8 @@ export const applicationEvents = pgTable(
     uniqueIndex("application_events_actor_idempotency_key")
       .on(table.actorType, table.actorId, table.idempotencyKey)
       .where(sql`idempotency_key is not null`),
+    // The committee's newest activity reads from the newest end and stops early.
+    index("application_events_created_at").on(table.createdAt),
   ],
 );
 
