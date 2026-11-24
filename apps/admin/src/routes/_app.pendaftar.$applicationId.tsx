@@ -177,7 +177,7 @@ function useRecordView(applicationId: string) {
   useEffect(() => {
     if (recorded.current === applicationId) return;
     recorded.current = applicationId;
-    // An unrecorded view must not stop anyone reading. The server logs the failure.
+    // A view that fails to record must not stop anyone reading the page.
     api.staff.applications.recordView({ applicationId }).catch(() => {});
   }, [applicationId]);
 }
