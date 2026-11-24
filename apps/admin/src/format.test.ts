@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { formatAgo, formatStamp, formatWaited, initials } from "./format.ts";
+import {
+  formatAgo,
+  formatRupiah,
+  formatStamp,
+  formatWaited,
+  fromWita,
+  initials,
+  toWita,
+} from "./format.ts";
 
 // 00.03 WITA on 25 November 2026.
 const NOW = new Date("2026-11-24T16:03:00.000Z");
@@ -31,5 +39,22 @@ describe("times in Samarinda", () => {
   it("rounds a wait down", () => {
     expect(formatWaited("2026-11-20T15:00:00.000Z", NOW)).toBe("4 hari");
     expect(formatWaited("2026-11-24T16:02:30.000Z", NOW)).toBe("1 menit");
+  });
+});
+
+describe("Samarinda form times", () => {
+  it("round-trips a day and time through an instant", () => {
+    const iso = fromWita("2026-12-01", "08.00");
+    expect(iso).toBe("2026-12-01T00:00:00.000Z");
+    expect(toWita(iso!)).toEqual({ day: "2026-12-01", time: "08.00" });
+  });
+
+  it("refuses a time that is not on the clock", () => {
+    expect(fromWita("2026-12-01", "24.00")).toBeNull();
+    expect(fromWita("2026-12-01", "8")).toBeNull();
+  });
+
+  it("writes rupiah with dots", () => {
+    expect(formatRupiah(3_500_000)).toBe("Rp3.500.000");
   });
 });

@@ -64,3 +64,41 @@ export function formatWaited(since: string, now = serverNow()) {
   const hours = Math.floor(minutes / 60);
   return hours < 24 ? `${hours} jam` : `${Math.floor(hours / 24)} hari`;
 }
+
+const rupiah = new Intl.NumberFormat("id-ID");
+/** "Rp250.000", the way the school writes it. */
+export const formatRupiah = (value: number) => `Rp${rupiah.format(value)}`;
+
+const shortDate = new Intl.DateTimeFormat("id-ID", {
+  timeZone: TIME_ZONE,
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+const clock = new Intl.DateTimeFormat("id-ID", {
+  timeZone: TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** "1 Des 2026, 08.00", for a line that names several times and says WITA once. */
+export const formatShortDateTime = (iso: string) =>
+  `${shortDate.format(new Date(iso))}, ${clock.format(new Date(iso))}`;
+
+/** The calendar day and clock time in Samarinda, as a form edits them: "2026-12-01" and "08.00". */
+export function toWita(iso: string) {
+  const date = new Date(iso);
+  return { day: calendarDay.format(date), time: clock.format(date) };
+}
+
+// Samarinda keeps UTC+8 all year, so a fixed offset is exact.
+const WITA_OFFSET = "+08:00";
+
+/** The instant for a Samarinda day and time. Null when the time is not a real "HH.MM". */
+export function fromWita(day: string, time: string) {
+  const match = /^([01]?\d|2[0-3])[.:]([0-5]\d)$/.exec(time.trim());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !match) return null;
+  const [, hours, minutes] = match;
+  return new Date(`${day}T${hours!.padStart(2, "0")}:${minutes}:00${WITA_OFFSET}`).toISOString();
+}
