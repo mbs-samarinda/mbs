@@ -554,6 +554,22 @@ describe("the dashboard", () => {
     });
   });
 
+  it("leaves a child who withdrew after acceptance out of the decided and accepted counts", async () => {
+    const stays = await register("smp");
+    const leaves = await register("smp");
+    for (const id of [stays, leaves]) {
+      await walk(id, [...toInterviewed(), [walker, "DECIDE", { decision: "ACCEPTED" }]]);
+    }
+    await walk(leaves, [[walker, "WITHDRAW"]]);
+    const { cookie } = await signIn("STAFF", ["smp"]);
+
+    expect(await ok<CommitteeDashboard>("dashboard/get", {}, cookie)).toMatchObject({
+      total: 2,
+      decided: 1,
+      accepted: 1,
+    });
+  });
+
   it("names the oldest wait, and says zero for an empty cycle", async () => {
     const { cookie } = await signIn("STAFF", ["smp"]);
     expect(await ok<CommitteeDashboard>("dashboard/get", {}, cookie)).toMatchObject({

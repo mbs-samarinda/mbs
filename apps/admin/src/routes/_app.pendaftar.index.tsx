@@ -1,5 +1,5 @@
 import type { CommitteeApplicationRow, ListApplicationsInput } from "@mbs/api-contract";
-import { isSchoolKey, SCHOOL_KEYS, type SchoolKey } from "@mbs/school-config";
+import { SCHOOL_KEYS } from "@mbs/school-config";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -17,35 +17,17 @@ import {
   Tile,
 } from "../committee-ui.tsx";
 import { formatAgo, formatCount } from "../format.ts";
+import {
+  parseListSearch,
+  rememberRow,
+  SEARCH_MAX,
+  takeReturnTo,
+  type ListSearch,
+} from "../return-to.ts";
 import { applicationsQuery } from "../staff.ts";
 
-/** Indonesian keys, like `/masuk?lanjut=`. Every key is always set, so nothing unchecked slips through. */
-type ListSearch = {
-  sekolah?: SchoolKey | undefined;
-  tampil?: "perlu" | undefined;
-  cari?: string | undefined;
-  halaman?: number | undefined;
-};
-
-const SEARCH_MAX = 100;
-
 export const Route = createFileRoute("/_app/pendaftar/")({
-  validateSearch: (search: Record<string, unknown>): ListSearch => {
-    // The router reads `?cari=2025` as a number.
-    const cari = ["string", "number"].includes(typeof search.cari)
-      ? String(search.cari).trim().slice(0, SEARCH_MAX)
-      : "";
-    const halaman = Number(search.halaman);
-    return {
-      sekolah:
-        typeof search.sekolah === "string" && isSchoolKey(search.sekolah)
-          ? search.sekolah
-          : undefined,
-      tampil: search.tampil === "perlu" ? "perlu" : undefined,
-      cari: cari || undefined,
-      halaman: Number.isInteger(halaman) && halaman > 1 ? halaman : undefined,
-    };
-  },
+  validateSearch: parseListSearch,
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
     context.queryClient.ensureQueryData(applicationsQuery(toInput(deps))),
@@ -62,9 +44,6 @@ function toInput(search: ListSearch): ListApplicationsInput {
   };
 }
 
-/** The row a visitor opened, so going back puts focus on it again. */
-const RETURN_TO = "pendaftar:dibuka";
-
 function List() {
   const search = Route.useSearch();
   const { visitor } = Route.useRouteContext();
@@ -77,9 +56,8 @@ function List() {
 
   const listRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
-    const id = sessionStorage.getItem(RETURN_TO);
+    const id = takeReturnTo()?.id;
     if (!id) return;
-    sessionStorage.removeItem(RETURN_TO);
     listRef.current
       ?.querySelector<HTMLAnchorElement>(`a[data-id="${CSS.escape(id)}"]`)
       ?.focus({ preventScroll: true });
@@ -141,7 +119,7 @@ function List() {
             <span>Terakhir</span>
           </li>
           {data.rows.map((row) => (
-            <Row key={row.id} row={row} />
+            <Row key={row.id} row={row} search={search} />
           ))}
         </ul>
       ) : (
@@ -154,7 +132,7 @@ function List() {
         </p>
       )}
 
-      {data.total > data.pageSize && (
+      {(data.total > data.pageSize || data.page > 1) && (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
           <span className="tabular-nums">
             {data.rows.length > 0
@@ -177,20 +155,33 @@ function List() {
 
 function summary(total: number, search: ListSearch) {
   const children = `${formatCount(total)} anak`;
-  if (search.tampil === "perlu") return `${children} menunggu panitia`;
+  if (search.tampil === "perlu") {
+    return search.sekolah
+      ? `${children} di ${schoolShortName(search.sekolah)} menunggu panitia`
+      : `${children} menunggu panitia`;
+  }
   if (search.sekolah) return `${children} di ${schoolShortName(search.sekolah)}`;
   return children;
 }
 
 /** A link, so Enter opens it and the browser's own back returns here. */
-function Row({ row }: { row: CommitteeApplicationRow }) {
+function Row({ row, search }: { row: CommitteeApplicationRow; search: ListSearch }) {
   return (
     <li>
       <Link
         to="/pendaftar/$applicationId"
         params={{ applicationId: row.id }}
         data-id={row.id}
-        onClick={() => sessionStorage.setItem(RETURN_TO, row.id)}
+        onClick={(event) => {
+          // A row opened in a new tab never comes back to this list.
+          const plain =
+            event.button === 0 &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.shiftKey &&
+            !event.altKey;
+          if (plain) rememberRow({ id: row.id, search });
+        }}
         className="grid grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-6 py-3 hover:bg-muted/50 max-md:grid-cols-1 max-md:gap-2"
       >
         <span className="flex min-w-0 items-center gap-3">

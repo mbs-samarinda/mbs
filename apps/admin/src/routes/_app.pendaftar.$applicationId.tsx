@@ -30,6 +30,7 @@ import {
   type AuditItem,
   type Entry,
 } from "../committee-ui.tsx";
+import { peekReturnTo } from "../return-to.ts";
 import { api, applicationQuery, dashboardQuery } from "../staff.ts";
 
 type RecordSearch = { tampil?: "catatan" | undefined };
@@ -68,11 +69,15 @@ function RecordPage() {
       ? application.history.filter((item) => item.kind === "EVENT" && item.command === "ADD_NOTE")
       : application.history;
   const phoneDigits = profile.guardianPhone.replace(/\D/g, "");
+  // Back to the filters and page the visitor came from, when they came from the list.
+  const returnTo = peekReturnTo();
+  const backSearch = returnTo?.id === applicationId ? returnTo.search : {};
   return (
     <div className="grid content-start">
       <div className="grid gap-5 border-b border-border p-[min(2rem,5vw)] pb-6">
         <Link
           to="/pendaftar"
+          search={backSearch}
           className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeftIcon aria-hidden className="size-4 shrink-0" /> Pendaftar

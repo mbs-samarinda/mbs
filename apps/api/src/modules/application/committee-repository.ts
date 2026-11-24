@@ -213,8 +213,9 @@ export async function countForDashboard(db: Database, schoolKeys: readonly Schoo
       oldestWaitingSince: sql<
         string | null
       >`min(${applications.stageChangedAt}) filter (where ${waiting})`,
-      decided: sql<number>`count(*) filter (where ${history.decided})::int`,
-      accepted: sql<number>`count(*) filter (where ${history.decision} = 'ACCEPTED')::int`,
+      // A child who withdrew after the decision will not join, so neither count keeps them.
+      decided: sql<number>`count(*) filter (where ${history.decided} and ${applications.stage} <> 'WITHDRAWN')::int`,
+      accepted: sql<number>`count(*) filter (where ${history.decision} = 'ACCEPTED' and ${applications.stage} <> 'WITHDRAWN')::int`,
     })
     .from(applications)
     .innerJoin(schools, eq(schools.id, applications.schoolId))
