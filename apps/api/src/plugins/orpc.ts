@@ -6,7 +6,6 @@ import type { FastifyBaseLogger } from "fastify";
 import {
   ConflictError,
   ForbiddenError,
-  IdempotencyKeyReusedError,
   NoMatchError,
   NotFoundError,
   TooManyTriesError,
@@ -47,7 +46,7 @@ const translateErrors = os.middleware(async ({ next }) => {
       throw new ORPCError(error.code, {
         status: 409,
         message: error.message,
-        data: error instanceof IdempotencyKeyReusedError ? error.first : undefined,
+        data: error.data,
       });
     }
     if (error instanceof NoMatchError) {

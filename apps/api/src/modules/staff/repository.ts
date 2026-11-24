@@ -66,6 +66,7 @@ export async function findSchoolKeysForStaff(db: Executor, staffId: string) {
 export async function findLoginEmailsForStaff(db: Executor, staffId: string) {
   return db
     .select({
+      id: schema.staffLoginEmails.id,
       email: schema.staffLoginEmails.email,
       kind: schema.staffLoginEmails.kind,
       authUserId: schema.staffLoginEmails.authUserId,
@@ -117,8 +118,19 @@ export async function listStaff(db: Executor, staffId?: string) {
     .where(inArray(schema.staffSchoolAccess.staffId, ids))
     .orderBy(asc(schema.schools.key));
 
+  const signIns = await lastStaffSignIns(
+    db,
+    emails.flatMap((email) => (email.authUserId ? [email.authUserId] : [])),
+  );
+
   return staff.map((row) => ({
     ...row,
+    lastSignInAt:
+      emails
+        .filter((email) => email.staffId === row.id && email.authUserId)
+        .map((email) => signIns.get(email.authUserId!))
+        .filter((at): at is Date => at !== undefined)
+        .toSorted((a, b) => b.getTime() - a.getTime())[0] ?? null,
     loginEmails: emails
       .filter((email) => email.staffId === row.id)
       .map((email) => ({
@@ -185,7 +197,72 @@ export async function insertLoginEmail(
   db: Executor,
   values: { staffId: string; email: string; kind: StaffLoginEmailKind },
 ) {
-  await db.insert(schema.staffLoginEmails).values(values);
+  const rows = await db
+    .insert(schema.staffLoginEmails)
+    .values(values)
+    .returning({ id: schema.staffLoginEmails.id });
+  return rows[0]!.id;
+}
+
+export async function deleteLoginEmails(db: Executor, ids: readonly string[]) {
+  if (ids.length === 0) return;
+  await db.delete(schema.staffLoginEmails).where(inArray(schema.staffLoginEmails.id, [...ids]));
+}
+
+/** Which of these addresses some profile already holds. */
+export async function findTakenLoginEmails(db: Executor, emails: readonly string[]) {
+  if (emails.length === 0) return [];
+  const rows = await db
+    .select({ email: schema.staffLoginEmails.email })
+    .from(schema.staffLoginEmails)
+    .where(inArray(schema.staffLoginEmails.email, [...emails]));
+  return rows.map((row) => row.email);
+}
+
+/**
+ * Signs these identities out of the committee app now. A session row does not
+ * say which app made it, so the staff sign-in audit rows pick them out, and the
+ * same person's family session stays. A session whose audit row was never
+ * written survives, and the next request is still refused, because
+ * `resolveStaff` reads the profile on every call.
+ */
+export async function endStaffSessions(db: Executor, authUserIds: readonly string[]) {
+  if (authUserIds.length === 0) return;
+  const ids = [...authUserIds];
+  await db.delete(schema.session).where(
+    and(
+      inArray(schema.session.userId, ids),
+      inArray(
+        schema.session.id,
+        db
+          .select({ id: sql<string>`${schema.auditLogs.metadata}->>'sessionId'` })
+          .from(schema.auditLogs)
+          .where(staffSignIns(ids)),
+      ),
+    ),
+  );
+}
+
+const staffSignIns = (authUserIds: string[]) =>
+  and(
+    eq(schema.auditLogs.entityType, "user"),
+    inArray(schema.auditLogs.entityId, authUserIds),
+    eq(schema.auditLogs.actorType, "STAFF"),
+    eq(schema.auditLogs.action, "auth.sign_in"),
+  );
+
+/** The newest committee sign-in per identity, from the audit rows sign-in writes. */
+async function lastStaffSignIns(db: Executor, authUserIds: string[]) {
+  if (authUserIds.length === 0) return new Map<string, Date>();
+  const rows = await db
+    .select({
+      authUserId: schema.auditLogs.entityId,
+      at: sql<Date>`max(${schema.auditLogs.createdAt})`.mapWith(schema.auditLogs.createdAt),
+    })
+    .from(schema.auditLogs)
+    .where(staffSignIns(authUserIds))
+    .groupBy(schema.auditLogs.entityId);
+  return new Map(rows.map((row) => [row.authUserId, row.at]));
 }
 
 export async function replaceSchoolAccess(db: Executor, staffId: string, schoolIds: string[]) {
@@ -200,7 +277,7 @@ export async function replaceSchoolAccess(db: Executor, staffId: string, schoolI
 export async function updateStaff(
   db: Executor,
   staffId: string,
-  values: { role?: StaffRole; isActive?: boolean },
+  values: { name?: string; role?: StaffRole; isActive?: boolean },
 ) {
   await db
     .update(schema.staffUsers)

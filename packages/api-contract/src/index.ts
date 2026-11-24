@@ -21,24 +21,30 @@ import {
   ListApplicationsInput,
 } from "./committee.ts";
 import {
+  AgreementVersion,
+  AgreementVersionsInput,
+  CycleSetup,
+  NotReady,
+  SaveCycleInput,
+} from "./cycle-setup.ts";
+import {
   AdmissionCycle,
   CreateCycleInput,
   CreateStaffInput,
   CycleRef,
+  EmailTaken,
   PublicAdmissionCycle,
-  SchoolAdmissionSetting,
   SchoolKey,
   SetCycleStatusInput,
   SetStaffActiveInput,
   StaffProfile,
   StaffSummary,
-  UpdateCycleInput,
   UpdateStaffInput,
-  UpsertSchoolSettingInput,
 } from "./schemas.ts";
 
 export * from "./application.ts";
 export * from "./committee.ts";
+export * from "./cycle-setup.ts";
 export * from "./schemas.ts";
 
 /**
@@ -109,20 +115,42 @@ export const contract = {
   },
   admin: {
     cycles: {
+      /** Newest registration window first. */
       list: oc.output(z.array(AdmissionCycle)),
+      get: oc.input(CycleRef).output(CycleSetup),
+      /** A draft that copies the bank, fees, documents and messages of the newest cycle. */
       create: oc.input(CreateCycleInput).output(AdmissionCycle),
-      update: oc.input(UpdateCycleInput).output(AdmissionCycle),
-      setStatus: oc.input(SetCycleStatusInput).output(AdmissionCycle),
+      save: oc.input(SaveCycleInput).output(CycleSetup),
+      /** OPEN is refused until every gap that blocks opening is filled. */
+      setStatus: oc
+        .input(SetCycleStatusInput)
+        .output(AdmissionCycle)
+        .errors({
+          NOT_READY: { status: 409, data: NotReady },
+          ANOTHER_CYCLE_OPEN: { status: 409 },
+        }),
     },
-    schoolSettings: {
-      list: oc.input(CycleRef).output(z.array(SchoolAdmissionSetting)),
-      upsert: oc.input(UpsertSchoolSettingInput).output(SchoolAdmissionSetting),
+    agreements: {
+      /** Every version of one school's agreement, newest first. */
+      list: oc.input(AgreementVersionsInput).output(z.array(AgreementVersion)),
     },
     staff: {
       list: oc.output(z.array(StaffSummary)),
-      create: oc.input(CreateStaffInput).output(StaffSummary),
-      update: oc.input(UpdateStaffInput).output(StaffSummary),
-      setActive: oc.input(SetStaffActiveInput).output(StaffSummary),
+      create: oc
+        .input(CreateStaffInput)
+        .output(StaffSummary)
+        .errors({ EMAIL_TAKEN: { status: 409, data: EmailTaken } }),
+      update: oc
+        .input(UpdateStaffInput)
+        .output(StaffSummary)
+        .errors({
+          EMAIL_TAKEN: { status: 409, data: EmailTaken },
+          LAST_ADMINISTRATOR: { status: 409 },
+        }),
+      setActive: oc
+        .input(SetStaffActiveInput)
+        .output(StaffSummary)
+        .errors({ LAST_ADMINISTRATOR: { status: 409 } }),
     },
   },
 };

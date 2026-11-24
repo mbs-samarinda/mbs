@@ -62,6 +62,10 @@ export const admissionCycles = pgTable(
     registrationCloseAt: timestamp("registration_close_at", { withTimezone: true }).notNull(),
     resultPublishAt: timestamp("result_publish_at", { withTimezone: true }).notNull(),
     defaultFee: integer("default_fee").notNull(),
+    // One account for every school, because the foundation collects for all three.
+    bankName: text("bank_name"),
+    bankAccountNumber: text("bank_account_number"),
+    bankAccountHolder: text("bank_account_holder"),
     status: cycleStatus("status").notNull().default("DRAFT"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -92,6 +96,8 @@ export const schoolAdmissionSettings = pgTable(
       .references(() => schools.id),
     // Effective fee is feeOverride ?? cycle.defaultFee.
     feeOverride: integer("fee_override"),
+    // No cycle-wide default: each school sets its own, usually after registration opens.
+    reregistrationFee: integer("reregistration_fee"),
     isEnabled: boolean("is_enabled").notNull().default(true),
     // The standard next step a school tells an accepted or rejected family.
     // Written once per cycle rather than retyped into every decision.
@@ -139,6 +145,29 @@ export const documentRequirements = pgTable(
       table.type,
     ),
   ],
+);
+
+/**
+ * The agreement a family accepts at registrasi ulang. It belongs to the school,
+ * not the cycle, so next year's cycle starts from the same text. Saving new text
+ * adds a version and never edits one, because an acceptance points at the exact
+ * version the family saw.
+ */
+export const schoolAgreementVersions = pgTable(
+  "school_agreement_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    schoolId: uuid("school_id")
+      .notNull()
+      .references(() => schools.id),
+    version: integer("version").notNull(),
+    body: text("body").notNull(),
+    createdByStaffId: uuid("created_by_staff_id")
+      .notNull()
+      .references(() => staffUsers.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique().on(table.schoolId, table.version)],
 );
 
 export const staffRole = pgEnum("staff_role", STAFF_ROLES);

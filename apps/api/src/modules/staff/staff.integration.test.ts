@@ -5,7 +5,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { ConflictError, ForbiddenError } from "../../errors.ts";
 import { testConfig } from "../../test/config.ts";
 import { resetTables } from "../../test/reset.ts";
-import { createStaffAuth } from "../auth/auth.ts";
+import { createStaffAuth, sessionCookie } from "../auth/auth.ts";
 import { resolveStaff, type StaffContext } from "../auth/authorization.ts";
 import { ensureBootstrapAdministrator } from "./bootstrap.ts";
 import {
@@ -16,7 +16,7 @@ import {
   lockStaffWrites,
   replaceSchoolAccess,
 } from "./repository.ts";
-import { createStaff, listStaffProfiles, setStaffActive, updateStaffAccess } from "./service.ts";
+import { createStaff, listStaffProfiles, setStaffActive, updateStaffProfile } from "./service.ts";
 
 const db = createDatabase(
   process.env.DATABASE_URL ?? "postgres://mbs:mbs_local_dev@localhost:5432/mbs_core",
@@ -52,6 +52,7 @@ beforeEach(async () => {
     schema.staffSchoolAccess,
     schema.staffLoginEmails,
     schema.staffUsers,
+    schema.session,
     schema.user,
   ]);
   await db
@@ -61,6 +62,47 @@ beforeEach(async () => {
 });
 
 afterAll(() => db.$client.end());
+
+/** The side panel sends the whole profile. These tests change only role and schools. */
+async function updateAccess(
+  database: typeof db,
+  who: StaffContext,
+  input: {
+    staffId: string;
+    role: StaffContext["role"];
+    schools: StaffContext["schoolKeys"][number][];
+  },
+) {
+  const [current] = await listStaff(database, input.staffId);
+  return updateStaffProfile(database, who, {
+    ...input,
+    name: current!.name,
+    emails: current!.loginEmails.map((row) => row.email),
+  });
+}
+
+/** Signs a staff identity in the way the app does, so the sign-in audit row is written. */
+async function signIn(email: string) {
+  const auth = createStaffAuth(db, config, {});
+  const context = await auth.$context;
+  const { user } = await context.internalAdapter.createOAuthUser(
+    { email, name: email, emailVerified: true },
+    { providerId: "google", accountId: `google-${email}` },
+  );
+  await resolveStaff(db, user);
+  await sessionCookie(auth, user.id);
+  return user;
+}
+
+const sessionsOf = (userId: string) =>
+  db.select().from(schema.session).where(eq(schema.session.userId, userId));
+
+const staffAuditRows = () =>
+  db
+    .select()
+    .from(schema.auditLogs)
+    .where(eq(schema.auditLogs.entityType, "staff_users"))
+    .orderBy(asc(schema.auditLogs.createdAt));
 
 /** Resolves once some session on this database is blocked waiting for a lock. */
 async function waitForLockWait() {
@@ -114,7 +156,7 @@ describe("ensureBootstrapAdministrator", () => {
     const [staff] = await listStaffProfiles(db, actor);
     await createStaff(db, actor, {
       name: "Administrator kedua",
-      email: "admin2@mbss.sch.id",
+      emails: ["admin2@mbss.sch.id"],
       role: "ADMINISTRATOR",
       schools: ["sma"],
     });
@@ -156,11 +198,11 @@ describe("ensureBootstrapAdministrator", () => {
     // not the last one at that moment. Both then go inactive.
     await createStaff(db, actor, {
       name: "Administrator kedua",
-      email: "admin2@mbss.sch.id",
+      emails: ["admin2@mbss.sch.id"],
       role: "ADMINISTRATOR",
       schools: ["sma", "smk", "smp"],
     });
-    await updateStaffAccess(db, actor, {
+    await updateAccess(db, actor, {
       staffId: staff!.id,
       role: "ADMINISTRATOR",
       schools: ["sma"],
@@ -277,7 +319,7 @@ describe("staff management", () => {
   it("adds a staff member scoped to one school", async () => {
     const created = await createStaff(db, actor, {
       name: "Panitia SMK",
-      email: "panitia.smk@mbss.sch.id",
+      emails: ["panitia.smk@mbss.sch.id"],
       role: "STAFF",
       schools: ["smk"],
     });
@@ -296,7 +338,7 @@ describe("staff management", () => {
     await expect(
       createStaff(db, scoped, {
         name: "Panitia SMA",
-        email: "panitia.sma@mbss.sch.id",
+        emails: ["panitia.sma@mbss.sch.id"],
         role: "STAFF",
         schools: ["sma"],
       }),
@@ -308,7 +350,7 @@ describe("staff management", () => {
   it("refuses to deactivate a profile outside the acting administrator's scope", async () => {
     const target = await createStaff(db, actor, {
       name: "Panitia SMA",
-      email: "panitia.sma@mbss.sch.id",
+      emails: ["panitia.sma@mbss.sch.id"],
       role: "STAFF",
       schools: ["sma"],
     });
@@ -322,21 +364,21 @@ describe("staff management", () => {
   it("refuses to rewrite a profile outside the acting administrator's scope", async () => {
     const target = await createStaff(db, actor, {
       name: "Panitia SMA",
-      email: "panitia.sma@mbss.sch.id",
+      emails: ["panitia.sma@mbss.sch.id"],
       role: "STAFF",
       schools: ["sma"],
     });
     const scoped = { ...actor, schoolKeys: ["smk"] as const };
 
     await expect(
-      updateStaffAccess(db, scoped, { staffId: target.id, role: "STAFF", schools: ["smk"] }),
+      updateAccess(db, scoped, { staffId: target.id, role: "STAFF", schools: ["smk"] }),
     ).rejects.toThrow(ForbiddenError);
   });
 
   it("hides profiles outside the acting administrator's scope from the list", async () => {
     await createStaff(db, actor, {
       name: "Panitia SMA",
-      email: "panitia.sma@mbss.sch.id",
+      emails: ["panitia.sma@mbss.sch.id"],
       role: "STAFF",
       schools: ["sma"],
     });
@@ -349,7 +391,7 @@ describe("staff management", () => {
   it("reports a duplicate address as a conflict rather than a server error", async () => {
     const values = {
       name: "Panitia",
-      email: "panitia@mbss.sch.id",
+      emails: ["panitia@mbss.sch.id"],
       role: "STAFF" as const,
       schools: ["smk" as const],
     };
@@ -362,7 +404,7 @@ describe("staff management", () => {
     await expect(
       createStaff(db, actor, {
         name: "Panitia",
-        email: "panitia@gmail.com",
+        emails: ["panitia@gmail.com"],
         role: "STAFF",
         schools: ["smk"],
       }),
@@ -381,7 +423,7 @@ describe("staff management", () => {
     const [administrator] = await listStaffProfiles(db, actor);
 
     await expect(
-      updateStaffAccess(db, actor, {
+      updateAccess(db, actor, {
         staffId: administrator!.id,
         role: "STAFF",
         schools: ["sma"],
@@ -396,7 +438,7 @@ describe("staff management", () => {
     const [administrator] = await listStaffProfiles(db, actor);
 
     await expect(
-      updateStaffAccess(db, actor, {
+      updateAccess(db, actor, {
         staffId: administrator!.id,
         role: "ADMINISTRATOR",
         schools: ["sma"],
@@ -408,12 +450,12 @@ describe("staff management", () => {
     const [administrator] = await listStaffProfiles(db, actor);
     await createStaff(db, actor, {
       name: "Administrator kedua",
-      email: "admin2@mbss.sch.id",
+      emails: ["admin2@mbss.sch.id"],
       role: "ADMINISTRATOR",
       schools: ["sma", "smk", "smp"],
     });
 
-    const updated = await updateStaffAccess(db, actor, {
+    const updated = await updateAccess(db, actor, {
       staffId: administrator!.id,
       role: "ADMINISTRATOR",
       schools: ["sma"],
@@ -425,7 +467,7 @@ describe("staff management", () => {
     const [first] = await listStaffProfiles(db, actor);
     await createStaff(db, actor, {
       name: "Administrator kedua",
-      email: "admin2@mbss.sch.id",
+      emails: ["admin2@mbss.sch.id"],
       role: "ADMINISTRATOR",
       schools: ["sma"],
     });
@@ -440,7 +482,7 @@ describe("staff management", () => {
   it("checks scope against the profile as it is when the save lands", async () => {
     const created = await createStaff(db, actor, {
       name: "Panitia",
-      email: "panitia@mbss.sch.id",
+      emails: ["panitia@mbss.sch.id"],
       role: "STAFF",
       schools: ["sma"],
     });
@@ -457,7 +499,7 @@ describe("staff management", () => {
     });
     await movedInsideLock;
 
-    const save = updateStaffAccess(
+    const save = updateAccess(
       db,
       { ...actor, schoolKeys: ["sma"] },
       {
@@ -486,12 +528,12 @@ describe("staff management", () => {
   it("replaces school access rather than adding to it", async () => {
     const created = await createStaff(db, actor, {
       name: "Panitia",
-      email: "panitia@mbss.sch.id",
+      emails: ["panitia@mbss.sch.id"],
       role: "STAFF",
       schools: ["smk", "sma"],
     });
 
-    const updated = await updateStaffAccess(db, actor, {
+    const updated = await updateAccess(db, actor, {
       staffId: created.id,
       role: "PRINCIPAL",
       schools: ["smp"],
@@ -504,7 +546,7 @@ describe("staff management", () => {
   it("records every change in the audit log", async () => {
     const created = await createStaff(db, actor, {
       name: "Panitia",
-      email: "panitia@mbss.sch.id",
+      emails: ["panitia@mbss.sch.id"],
       role: "STAFF",
       schools: ["smk"],
     });
@@ -517,5 +559,148 @@ describe("staff management", () => {
       .orderBy(asc(schema.auditLogs.createdAt));
 
     expect(entries.map((entry) => entry.action)).toEqual(["staff.create", "staff.deactivate"]);
+  });
+
+  it("keeps addresses and names out of the audit rows", async () => {
+    const created = await createStaff(db, actor, {
+      name: "Panitia",
+      emails: ["panitia@mbss.sch.id"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+    await updateStaffProfile(db, actor, {
+      staffId: created.id,
+      name: "Panitia Baru",
+      emails: ["panitia@mbss.sch.id", "panitia@gmail.com"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+    await updateStaffProfile(db, actor, {
+      staffId: created.id,
+      name: "Panitia Baru",
+      emails: ["panitia@gmail.com", "panitia2@mbss.sch.id"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+
+    const rows = await staffAuditRows();
+    const text = JSON.stringify(rows.map((row) => row.metadata));
+    expect(text).not.toMatch(/@|Panitia/);
+    const [, , renamed, swapped] = rows.map((row) => row.metadata);
+    expect(renamed).toMatchObject({ name: "changed", loginEmails: { removed: [] } });
+    expect(swapped).toEqual({
+      loginEmails: { added: [expect.any(String)], removed: [expect.any(String)] },
+    });
+  });
+
+  it("writes no audit row for a save that changes nothing", async () => {
+    const created = await createStaff(db, actor, {
+      name: "Panitia",
+      emails: ["panitia@mbss.sch.id"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+    await updateAccess(db, actor, { staffId: created.id, role: "STAFF", schools: ["smk"] });
+
+    expect((await staffAuditRows()).map((row) => row.action)).toEqual([
+      "staff.bootstrap",
+      "staff.create",
+    ]);
+  });
+
+  it("keeps one school address on every profile", async () => {
+    const created = await createStaff(db, actor, {
+      name: "Panitia",
+      emails: ["panitia@mbss.sch.id"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+
+    await expect(
+      updateStaffProfile(db, actor, {
+        staffId: created.id,
+        name: "Panitia",
+        emails: ["panitia@gmail.com"],
+        role: "STAFF",
+        schools: ["smk"],
+      }),
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it("names the address another profile holds", async () => {
+    await createStaff(db, actor, {
+      name: "Panitia",
+      emails: ["panitia@mbss.sch.id"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+
+    await expect(
+      createStaff(db, actor, {
+        name: "Panitia dua",
+        emails: ["dua@mbss.sch.id", "panitia@mbss.sch.id"],
+        role: "STAFF",
+        schools: ["smk"],
+      }),
+    ).rejects.toMatchObject({ code: "EMAIL_TAKEN", data: { email: "panitia@mbss.sch.id" } });
+  });
+
+  it("ends a deactivated member's committee sessions and nothing else", async () => {
+    const created = await createStaff(db, actor, {
+      name: "Panitia",
+      emails: ["panitia@mbss.sch.id"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+    const user = await signIn("panitia@mbss.sch.id");
+    // A session the parent app made for the same person: no staff sign-in row.
+    await db.insert(schema.session).values({
+      id: "family-session",
+      token: "family-token",
+      userId: user.id,
+      expiresAt: new Date(Date.now() + 86_400_000),
+      updatedAt: new Date(),
+    });
+    expect(await sessionsOf(user.id)).toHaveLength(2);
+
+    await setStaffActive(db, actor, { staffId: created.id, isActive: false });
+
+    expect((await sessionsOf(user.id)).map((row) => row.id)).toEqual(["family-session"]);
+    await expect(resolveStaff(db, user)).rejects.toThrow(/no access/);
+  });
+
+  it("signs out an address that is taken off a profile", async () => {
+    const created = await createStaff(db, actor, {
+      name: "Panitia",
+      emails: ["panitia@mbss.sch.id", "panitia@gmail.com"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+    const user = await signIn("panitia@gmail.com");
+
+    await updateStaffProfile(db, actor, {
+      staffId: created.id,
+      name: "Panitia",
+      emails: ["panitia@mbss.sch.id"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+
+    expect(await sessionsOf(user.id)).toEqual([]);
+  });
+
+  it("shows the last sign-in and hides a profile nobody can sign in as", async () => {
+    await insertStaff(db, { name: "Panitia simulasi", role: "ADMINISTRATOR" });
+    const created = await createStaff(db, actor, {
+      name: "Panitia",
+      emails: ["panitia@mbss.sch.id"],
+      role: "STAFF",
+      schools: ["smk"],
+    });
+    await signIn("panitia@mbss.sch.id");
+
+    const listed = await listStaffProfiles(db, actor);
+    expect(listed.map((row) => row.name)).not.toContain("Panitia simulasi");
+    expect(listed.find((row) => row.id === created.id)?.lastSignInAt).toEqual(expect.any(String));
   });
 });

@@ -29,7 +29,10 @@ export async function ensureBootstrapAdministrator(db: Database, email: string) 
       );
 
     const existing = await tx
-      .select({ staffId: schema.staffLoginEmails.staffId })
+      .select({
+        staffId: schema.staffLoginEmails.staffId,
+        loginEmailId: schema.staffLoginEmails.id,
+      })
       .from(schema.staffLoginEmails)
       .where(eq(schema.staffLoginEmails.email, email))
       .limit(1);
@@ -61,7 +64,7 @@ export async function ensureBootstrapAdministrator(db: Database, email: string) 
         action: "staff.bootstrap_restore",
         entityType: "staff_users",
         entityId: existing[0]!.staffId,
-        metadata: { email },
+        metadata: { loginEmailId: existing[0]!.loginEmailId },
       });
 
       return { created: false, restored: true, email };
@@ -76,9 +79,10 @@ export async function ensureBootstrapAdministrator(db: Database, email: string) 
       .values({ name: email, role: "ADMINISTRATOR" })
       .returning({ id: schema.staffUsers.id });
 
-    await tx
+    const [loginEmail] = await tx
       .insert(schema.staffLoginEmails)
-      .values({ staffId: staff!.id, email, kind: loginEmailKind(email) });
+      .values({ staffId: staff!.id, email, kind: loginEmailKind(email) })
+      .returning({ id: schema.staffLoginEmails.id });
 
     await replaceSchoolAccess(
       tx,
@@ -92,7 +96,8 @@ export async function ensureBootstrapAdministrator(db: Database, email: string) 
       action: "staff.bootstrap",
       entityType: "staff_users",
       entityId: staff!.id,
-      metadata: { email },
+      // The id, not the address: audit rows hold no personal data.
+      metadata: { loginEmailId: loginEmail!.id },
     });
 
     return { created: true, restored: false, email };

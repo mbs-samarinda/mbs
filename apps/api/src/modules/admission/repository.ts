@@ -1,6 +1,6 @@
 import type { CycleStatus, DocumentStage, DocumentType } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 type Executor = Database | Transaction;
 
@@ -86,38 +86,47 @@ export async function findCycleForUpdate(tx: Transaction, cycleId: string) {
   return rows[0] ?? null;
 }
 
+type CycleValues = Partial<
+  Pick<
+    typeof schema.admissionCycles.$inferInsert,
+    | "name"
+    | "registrationOpenAt"
+    | "registrationCloseAt"
+    | "resultPublishAt"
+    | "defaultFee"
+    | "bankName"
+    | "bankAccountNumber"
+    | "bankAccountHolder"
+  >
+>;
+
 export async function insertCycle(
   db: Executor,
-  values: {
-    name: string;
-    registrationOpenAt: Date;
-    registrationCloseAt: Date;
-    resultPublishAt: Date;
-    defaultFee: number;
-  },
+  values: CycleValues &
+    Pick<
+      typeof schema.admissionCycles.$inferInsert,
+      "name" | "registrationOpenAt" | "registrationCloseAt" | "resultPublishAt" | "defaultFee"
+    >,
 ) {
   const rows = await db.insert(schema.admissionCycles).values(values).returning();
   return rows[0]!;
 }
 
-export async function updateCycleFields(
-  db: Executor,
-  cycleId: string,
-  values: {
-    name: string;
-    registrationOpenAt: Date;
-    registrationCloseAt: Date;
-    resultPublishAt: Date;
-    defaultFee: number;
-  },
-) {
-  const rows = await db
+export async function updateCycleFields(db: Executor, cycleId: string, values: CycleValues) {
+  await db
     .update(schema.admissionCycles)
     .set({ ...values, updatedAt: sql`now()` })
-    .where(eq(schema.admissionCycles.id, cycleId))
-    .returning();
+    .where(eq(schema.admissionCycles.id, cycleId));
+}
 
-  return rows[0]!;
+/** Another open cycle, checked before the unique index so the refusal can say why. */
+export async function findOpenCycleOtherThan(db: Executor, cycleId: string) {
+  const rows = await db
+    .select({ id: schema.admissionCycles.id })
+    .from(schema.admissionCycles)
+    .where(and(eq(schema.admissionCycles.status, "OPEN"), ne(schema.admissionCycles.id, cycleId)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function updateCycleStatus(db: Executor, cycleId: string, status: CycleStatus) {
@@ -160,12 +169,17 @@ export async function listSchoolKeysTakingPart(db: Executor, cycleId: string) {
   return rows.map((row) => row.key);
 }
 
+export async function listSchools(db: Executor) {
+  return db.select({ id: schema.schools.id, key: schema.schools.key }).from(schema.schools);
+}
+
 export async function listSchoolSettings(db: Executor, cycleId: string) {
   return db
     .select({
       schoolKey: schema.schools.key,
       isEnabled: schema.schoolAdmissionSettings.isEnabled,
       feeOverride: schema.schoolAdmissionSettings.feeOverride,
+      reregistrationFee: schema.schoolAdmissionSettings.reregistrationFee,
       acceptedInstructions: schema.schoolAdmissionSettings.acceptedInstructions,
       rejectedInstructions: schema.schoolAdmissionSettings.rejectedInstructions,
     })
@@ -177,11 +191,12 @@ export async function listSchoolSettings(db: Executor, cycleId: string) {
 export async function listDocumentRequirements(
   db: Executor,
   cycleId: string,
-  stage: DocumentStage,
+  stage?: DocumentStage,
 ) {
   return db
     .select({
       schoolKey: schema.schools.key,
+      stage: schema.documentRequirements.stage,
       type: schema.documentRequirements.type,
       required: schema.documentRequirements.required,
     })
@@ -190,38 +205,144 @@ export async function listDocumentRequirements(
     .where(
       and(
         eq(schema.documentRequirements.admissionCycleId, cycleId),
-        eq(schema.documentRequirements.stage, stage),
+        stage ? eq(schema.documentRequirements.stage, stage) : undefined,
       ),
     )
     .orderBy(asc(schema.documentRequirements.type));
 }
 
+type SchoolSettingValues = Partial<
+  Pick<
+    typeof schema.schoolAdmissionSettings.$inferInsert,
+    | "isEnabled"
+    | "feeOverride"
+    | "reregistrationFee"
+    | "acceptedInstructions"
+    | "rejectedInstructions"
+  >
+>;
+
+/** Writes only the given columns. A school without a row gets one, defaults elsewhere. */
 export async function upsertSchoolSetting(
   db: Executor,
-  values: {
-    admissionCycleId: string;
-    schoolId: string;
-    isEnabled: boolean;
-    feeOverride: number | null;
-    acceptedInstructions: string | null;
-    rejectedInstructions: string | null;
-  },
+  cycleId: string,
+  schoolId: string,
+  values: SchoolSettingValues,
 ) {
   await db
     .insert(schema.schoolAdmissionSettings)
-    .values(values)
+    .values({ admissionCycleId: cycleId, schoolId, ...values })
     .onConflictDoUpdate({
       target: [
         schema.schoolAdmissionSettings.admissionCycleId,
         schema.schoolAdmissionSettings.schoolId,
       ],
-      set: {
-        isEnabled: values.isEnabled,
-        feeOverride: values.feeOverride,
-        acceptedInstructions: values.acceptedInstructions,
-        rejectedInstructions: values.rejectedInstructions,
-      },
+      set: values,
     });
+}
+
+/** Copies one cycle's school settings and requirements into another, in two statements. */
+export async function copySchoolSetup(db: Executor, fromCycleId: string, toCycleId: string) {
+  await db.execute(sql`
+    insert into school_admission_settings
+      (admission_cycle_id, school_id, fee_override, reregistration_fee, is_enabled,
+       accepted_instructions, rejected_instructions)
+    select ${toCycleId}, school_id, fee_override, reregistration_fee, is_enabled,
+       accepted_instructions, rejected_instructions
+    from school_admission_settings where admission_cycle_id = ${fromCycleId}
+  `);
+  await db.execute(sql`
+    insert into document_requirements (admission_cycle_id, school_id, document_type, required, stage)
+    select ${toCycleId}, school_id, document_type, required, stage
+    from document_requirements where admission_cycle_id = ${fromCycleId}
+  `);
+}
+
+/** Each school's newest agreement and how many versions it has. */
+export async function listNewestAgreements(db: Executor) {
+  const rows = await db.execute<{
+    id: string;
+    schoolKey: string;
+    version: number;
+    body: string;
+    createdAt: string | Date;
+    createdBy: string;
+    versions: number;
+  }>(sql`
+    select distinct on (v.school_id)
+      v.id, s.key as "schoolKey", v.version, v.body, v.created_at as "createdAt",
+      st.name as "createdBy", count(*) over (partition by v.school_id)::int as versions
+    from school_agreement_versions v
+    join schools s on s.id = v.school_id
+    join staff_users st on st.id = v.created_by_staff_id
+    order by v.school_id, v.version desc
+  `);
+  return [...rows].map((row) => ({ ...row, createdAt: new Date(row.createdAt) }));
+}
+
+export async function listAgreementVersions(db: Executor, schoolKey: string) {
+  return db
+    .select({
+      id: schema.schoolAgreementVersions.id,
+      version: schema.schoolAgreementVersions.version,
+      body: schema.schoolAgreementVersions.body,
+      createdAt: schema.schoolAgreementVersions.createdAt,
+      createdBy: schema.staffUsers.name,
+    })
+    .from(schema.schoolAgreementVersions)
+    .innerJoin(schema.schools, eq(schema.schools.id, schema.schoolAgreementVersions.schoolId))
+    .innerJoin(
+      schema.staffUsers,
+      eq(schema.staffUsers.id, schema.schoolAgreementVersions.createdByStaffId),
+    )
+    .where(eq(schema.schools.key, schoolKey))
+    .orderBy(desc(schema.schoolAgreementVersions.version));
+}
+
+/**
+ * Adds the next version. Two saves racing for one number collide on the unique
+ * key, and the caller turns that into a conflict rather than a gap.
+ */
+export async function insertAgreementVersion(
+  db: Executor,
+  values: { schoolId: string; body: string; createdByStaffId: string },
+) {
+  const rows = await db
+    .insert(schema.schoolAgreementVersions)
+    .values({
+      ...values,
+      version: sql`(select coalesce(max(version), 0) + 1 from school_agreement_versions where school_id = ${values.schoolId})`,
+    })
+    .returning({ version: schema.schoolAgreementVersions.version });
+  return rows[0]!.version;
+}
+
+/** The cycle's change history: one indexed read of the audit rows filed under it. */
+export async function listCycleAudit(db: Executor, cycleId: string, limit: number) {
+  return db
+    .select({
+      id: schema.auditLogs.id,
+      action: schema.auditLogs.action,
+      metadata: schema.auditLogs.metadata,
+      createdAt: schema.auditLogs.createdAt,
+      who: schema.staffUsers.name,
+    })
+    .from(schema.auditLogs)
+    .leftJoin(
+      schema.staffUsers,
+      and(
+        eq(schema.auditLogs.actorType, "STAFF"),
+        sql`${schema.staffUsers.id}::text = ${schema.auditLogs.actorId}`,
+      ),
+    )
+    .where(
+      and(
+        eq(schema.auditLogs.entityType, "admission_cycles"),
+        eq(schema.auditLogs.entityId, cycleId),
+      ),
+    )
+    .orderBy(desc(schema.auditLogs.createdAt), desc(schema.auditLogs.id))
+    .limit(limit);
 }
 
 export async function replaceDocumentRequirements(

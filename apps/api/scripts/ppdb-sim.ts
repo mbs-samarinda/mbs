@@ -21,9 +21,8 @@ import { listSchoolKeysTakingPart } from "../src/modules/admission/repository.ts
 import {
   createAdmissionCycle,
   listAdmissionCycles,
+  saveCycleSection,
   setAdmissionCycleStatus,
-  updateAdmissionCycle,
-  upsertSchoolAdmissionSetting,
 } from "../src/modules/admission/service.ts";
 import {
   applyCommand,
@@ -212,6 +211,7 @@ async function openCycle(db: Database) {
     resultPublishAt: new Date(Date.now() + 60 * DAY).toISOString(),
     defaultFee: 250_000,
   });
+  await fillWhatOpeningNeeds(db, cycle.id, []);
   await setAdmissionCycleStatus(db, SIM_STAFF, { cycleId: cycle.id, status: "OPEN" });
   print(`created open cycle "${cycle.name}" ${cycle.id}`);
   return cycle.id;
@@ -254,26 +254,55 @@ async function setCycle(db: Database, state: z.infer<typeof CycleState>, args: A
     defaultFee: args.fee ?? 250_000,
   };
   const cycleId = existing?.id ?? (await createAdmissionCycle(db, SIM_STAFF, values)).id;
-  await updateAdmissionCycle(db, SIM_STAFF, { cycleId, ...values });
-  if (!existing) await setStatus(cycleId, "OPEN");
-  for (const schoolKey of SCHOOL_KEYS) {
-    // oxlint-disable-next-line eslint/no-await-in-loop
-    await upsertSchoolAdmissionSetting(db, SIM_STAFF, {
-      cycleId,
+  await saveCycleSection(db, SIM_STAFF, {
+    section: "schedule",
+    cycleId,
+    ...values,
+    schools: SCHOOL_KEYS.map((schoolKey) => ({
       schoolKey,
       isEnabled: !args.off.includes(schoolKey),
+    })),
+  });
+  await saveCycleSection(db, SIM_STAFF, {
+    section: "fees",
+    cycleId,
+    defaultFee: values.defaultFee,
+    schools: SCHOOL_KEYS.map((schoolKey) => ({
+      schoolKey,
       feeOverride: null,
-      acceptedInstructions: null,
-      rejectedInstructions: null,
-      documents: [
+      reregistrationFee: null,
+    })),
+  });
+  await fillWhatOpeningNeeds(db, cycleId, args.off);
+  if (!existing) await setStatus(cycleId, "OPEN");
+  if (state === "closed") await setStatus(cycleId, "CLOSED");
+  print(`cycle ${state} ${cycleId}${args.off.length > 0 ? ` without ${args.off.join(", ")}` : ""}`);
+}
+
+/** The bank account and registration documents, which a cycle must have before it opens. */
+async function fillWhatOpeningNeeds(db: Database, cycleId: string, off: readonly SchoolKey[]) {
+  await saveCycleSection(db, SIM_STAFF, {
+    section: "bank",
+    cycleId,
+    bank: {
+      bankName: "Bank Syariah Indonesia",
+      accountNumber: "7123 4567 89",
+      accountHolder: "Yayasan Madina Samarinda",
+    },
+  });
+  await saveCycleSection(db, SIM_STAFF, {
+    section: "documents",
+    cycleId,
+    schools: SCHOOL_KEYS.filter((key) => !off.includes(key)).map((schoolKey) => ({
+      schoolKey,
+      registration: [
         { type: "KARTU_KELUARGA", required: true },
         { type: "AKTA_KELAHIRAN", required: true },
         { type: "IJAZAH", required: false },
       ],
-    });
-  }
-  if (state === "closed") await setStatus(cycleId, "CLOSED");
-  print(`cycle ${state} ${cycleId}${args.off.length > 0 ? ` without ${args.off.join(", ")}` : ""}`);
+      reregistration: [],
+    })),
+  });
 }
 
 async function takingPart(db: Database, cycleId: string) {

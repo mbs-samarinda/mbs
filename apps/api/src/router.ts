@@ -1,11 +1,11 @@
 import {
   createCycleProcedure,
   getCurrentCycleProcedure,
+  getCycleProcedure,
+  listAgreementVersionsProcedure,
   listCyclesProcedure,
-  listSchoolSettingsProcedure,
+  saveCycleProcedure,
   setCycleStatusProcedure,
-  updateCycleProcedure,
-  upsertSchoolSettingProcedure,
 } from "./modules/admission/procedures.ts";
 import {
   addNoteProcedure,
@@ -57,13 +57,13 @@ export const router = {
   admin: {
     cycles: {
       list: listCyclesProcedure,
+      get: getCycleProcedure,
       create: createCycleProcedure,
-      update: updateCycleProcedure,
+      save: saveCycleProcedure,
       setStatus: setCycleStatusProcedure,
     },
-    schoolSettings: {
-      list: listSchoolSettingsProcedure,
-      upsert: upsertSchoolSettingProcedure,
+    agreements: {
+      list: listAgreementVersionsProcedure,
     },
     staff: {
       list: listStaffProcedure,

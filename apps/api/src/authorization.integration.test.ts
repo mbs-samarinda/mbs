@@ -93,11 +93,11 @@ describe("procedure guards", () => {
     expect(response.statusCode).toBe(200);
   });
 
-  it("answers CONFLICT, not a 500, when the database refuses a duplicate", async () => {
+  it("answers EMAIL_TAKEN with the address, not a 500, for a duplicate", async () => {
     const cookie = await signIn("ADMINISTRATOR");
     const staff = {
       name: "Panitia",
-      email: "panitia@mbss.sch.id",
+      emails: ["panitia@mbss.sch.id"],
       role: "STAFF",
       schools: ["sma"],
     };
@@ -105,13 +105,15 @@ describe("procedure guards", () => {
 
     const response = await call("admin/staff/create", staff, cookie);
     expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({ json: { code: "CONFLICT" } });
+    expect(response.json()).toMatchObject({
+      json: { code: "EMAIL_TAKEN", data: { email: "panitia@mbss.sch.id" } },
+    });
   });
 
   it("answers CONFLICT, not a 500, when the domain refuses", async () => {
     const response = await call(
       "admin/staff/create",
-      { name: "Orang luar", email: "luar@gmail.com", role: "STAFF", schools: ["sma"] },
+      { name: "Orang luar", emails: ["luar@gmail.com"], role: "STAFF", schools: ["sma"] },
       await signIn("ADMINISTRATOR"),
     );
     expect(response.statusCode).toBe(409);
