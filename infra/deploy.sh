@@ -339,8 +339,8 @@ fi
 readonly PROBE_SVC=postgres
 
 log "Smoke-checking the two PPDB apps"
-# Inside the compose network only. Neither host has a DNS record before launch, so
-# Caddy has no certificate for them and no public probe can work.
+# Inside the compose network only, so a host with no DNS record or certificate yet
+# cannot fail a deploy.
 #
 # The last call proves the API answers for the host Caddy will pass on. It picks the
 # sign-in by exact host and answers 404 for any other.
