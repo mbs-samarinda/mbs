@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from "./routes/__root.tsx";
 import { Route as AppRouteImport } from "./routes/_app.tsx";
+import { Route as CekRouteImport } from "./routes/cek.tsx";
 import { Route as MasukRouteImport } from "./routes/masuk.tsx";
 import { Route as AppIndexRouteImport } from "./routes/_app.index.tsx";
 import { Route as MasukIndexRouteImport } from "./routes/masuk.index.tsx";
@@ -20,6 +21,11 @@ import { Route as AppStatusApplicationIdRouteImport } from "./routes/_app.status
 
 const AppRoute = AppRouteImport.update({
   id: "/_app",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const CekRoute = CekRouteImport.update({
+  id: "/cek",
+  path: "/cek",
   getParentRoute: () => rootRouteImport,
 } as any);
 const MasukRoute = MasukRouteImport.update({
@@ -60,6 +66,7 @@ const AppStatusApplicationIdRoute = AppStatusApplicationIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   "/": typeof AppIndexRoute;
+  "/cek": typeof CekRoute;
   "/masuk": typeof MasukRouteWithChildren;
   "/masuk/kode": typeof MasukKodeRoute;
   "/masuk/": typeof MasukIndexRoute;
@@ -68,6 +75,7 @@ export interface FileRoutesByFullPath {
   "/daftar/": typeof AppDaftarIndexRoute;
 }
 export interface FileRoutesByTo {
+  "/cek": typeof CekRoute;
   "/masuk/kode": typeof MasukKodeRoute;
   "/": typeof AppIndexRoute;
   "/masuk": typeof MasukIndexRoute;
@@ -78,6 +86,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/_app": typeof AppRouteWithChildren;
+  "/cek": typeof CekRoute;
   "/masuk": typeof MasukRouteWithChildren;
   "/masuk/kode": typeof MasukKodeRoute;
   "/_app/": typeof AppIndexRoute;
@@ -90,6 +99,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | "/"
+    | "/cek"
     | "/masuk"
     | "/masuk/kode"
     | "/masuk/"
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | "/daftar/";
   fileRoutesByTo: FileRoutesByTo;
   to:
+    | "/cek"
     | "/masuk/kode"
     | "/"
     | "/masuk"
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
   id:
     | "__root__"
     | "/_app"
+    | "/cek"
     | "/masuk"
     | "/masuk/kode"
     | "/_app/"
@@ -118,6 +130,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren;
+  CekRoute: typeof CekRoute;
   MasukRoute: typeof MasukRouteWithChildren;
 }
 
@@ -128,6 +141,13 @@ declare module "@tanstack/react-router" {
       path: "";
       fullPath: "/";
       preLoaderRoute: typeof AppRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/cek": {
+      id: "/cek";
+      path: "/cek";
+      fullPath: "/cek";
+      preLoaderRoute: typeof CekRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/masuk": {
@@ -212,6 +232,7 @@ const MasukRouteWithChildren = MasukRoute._addFileChildren(MasukRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  CekRoute: CekRoute,
   MasukRoute: MasukRouteWithChildren,
 };
 export const routeTree = rootRouteImport
