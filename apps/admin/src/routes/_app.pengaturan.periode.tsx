@@ -737,6 +737,7 @@ function Panel({
   onCancel,
   pending,
   action = "Simpan",
+  alert,
   children,
 }: {
   title: string;
@@ -744,6 +745,7 @@ function Panel({
   onCancel: () => void;
   pending: boolean;
   action?: string;
+  alert?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -759,6 +761,8 @@ function Panel({
         <SheetTitle>{title}</SheetTitle>
       </SheetHeader>
       <div className="grid flex-1 content-start gap-5 overflow-y-auto px-4 pb-4">{children}</div>
+      {/* Outside the scroll area, so a refusal shows wherever the panel is scrolled. */}
+      {alert && <div className="px-4">{alert}</div>}
       <SheetFooter className="flex-row justify-end">
         <Button type="button" variant="outline" onClick={onCancel}>
           Batal
@@ -948,6 +952,7 @@ function ScheduleForm({ setup, onDone }: FormProps) {
   return (
     <Panel
       title="Jadwal"
+      alert={save.failed}
       pending={save.pending}
       onCancel={onDone}
       onSubmit={() => {
@@ -987,7 +992,6 @@ function ScheduleForm({ setup, onDone }: FormProps) {
           Sekolah yang tidak ikut tidak menerima pendaftar di periode ini.
         </span>
       </fieldset>
-      {save.failed}
     </Panel>
   );
 }
@@ -1007,6 +1011,7 @@ function BankForm({ setup, onDone }: FormProps) {
   return (
     <Panel
       title="Rekening"
+      alert={save.failed}
       pending={save.pending}
       onCancel={onDone}
       onSubmit={() => save.submit({ section: "bank", cycleId: cycle.id, bank })}
@@ -1037,7 +1042,6 @@ function BankForm({ setup, onDone }: FormProps) {
           maxLength={120}
         />
       </Field>
-      {save.failed}
     </Panel>
   );
 }
@@ -1096,6 +1100,7 @@ function FeesForm({ setup, onDone }: FormProps) {
   return (
     <Panel
       title="Biaya"
+      alert={save.failed}
       pending={save.pending}
       onCancel={onDone}
       onSubmit={() =>
@@ -1143,7 +1148,6 @@ function FeesForm({ setup, onDone }: FormProps) {
       <p className="text-xs text-pretty text-muted-foreground">
         Pendaftar yang sudah ada tetap membayar biaya saat mereka mendaftar.
       </p>
-      {save.failed}
     </Panel>
   );
 }
@@ -1219,6 +1223,7 @@ function DocumentsForm({ setup, onDone }: FormProps) {
   return (
     <Panel
       title="Dokumen"
+      alert={save.failed}
       pending={save.pending}
       onCancel={onDone}
       onSubmit={() =>
@@ -1260,7 +1265,6 @@ function DocumentsForm({ setup, onDone }: FormProps) {
           </div>
         </div>
       ))}
-      {save.failed}
     </Panel>
   );
 }
@@ -1281,6 +1285,7 @@ function MessagesForm({ setup, onDone }: FormProps) {
   return (
     <Panel
       title="Pesan untuk keluarga"
+      alert={save.failed}
       pending={save.pending}
       onCancel={onDone}
       onSubmit={() =>
@@ -1325,7 +1330,6 @@ function MessagesForm({ setup, onDone }: FormProps) {
           </Field>
         </div>
       ))}
-      {save.failed}
     </Panel>
   );
 }
@@ -1342,6 +1346,7 @@ function AgreementForm({ setup, onDone }: FormProps) {
   return (
     <Panel
       title="Perjanjian"
+      alert={save.failed}
       pending={save.pending}
       onCancel={onDone}
       onSubmit={() => {
@@ -1392,7 +1397,6 @@ function AgreementForm({ setup, onDone }: FormProps) {
           <AgreementNote school={school} />
         </div>
       ))}
-      {save.failed}
     </Panel>
   );
 }
