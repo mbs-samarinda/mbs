@@ -3,6 +3,17 @@ export class UnreachableError extends Error {
   override name = "UnreachableError";
 }
 
+let clockOffset = 0;
+
+/**
+ * The time by the API's clock, from the answer it gave last. A phone's own clock
+ * can be days or decades off, and dates here decide what a family is offered.
+ * Display and hints only: the API decides again when a request arrives.
+ */
+export function serverNow() {
+  return new Date(Date.now() + clockOffset);
+}
+
 const TIMEOUT_MS = 20_000;
 
 /**
@@ -22,5 +33,7 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
   if (!response.headers.has("x-request-id")) {
     throw new UnreachableError("A proxy answered instead of the API.");
   }
+  const sentAt = Date.parse(response.headers.get("date") ?? "");
+  if (!Number.isNaN(sentAt)) clockOffset = sentAt - Date.now();
   return response;
 }

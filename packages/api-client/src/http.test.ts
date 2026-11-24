@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AuthError, authPost, fetchAccount, goToGoogle } from "./auth.ts";
-import { UnreachableError } from "./http.ts";
+import { serverNow, UnreachableError } from "./http.ts";
 import { createApiClient } from "./rpc.ts";
 
 vi.stubGlobal("location", { origin: "http://localhost:5173" });
@@ -54,7 +54,7 @@ describe("calls to the API", () => {
 
   it("takes a sign-in whose answer is cut off as done", async () => {
     fetchMock.mockResolvedValueOnce(new Response('{"us', { headers: { "x-request-id": "1" } }));
-    await expect(authPost("/sign-in/email-otp", {})).resolves.toBeUndefined();
+    await expect(authPost("/sign-in/email-otp", {})).resolves.toBeNull();
   });
 
   it("goes to Google, and gives the button back when the page never leaves", async () => {
@@ -89,10 +89,20 @@ describe("calls to the API", () => {
   });
 
   it("reads the account, and no account", async () => {
-    fetchMock.mockResolvedValueOnce(fromApi({ user: { email: "wali@example.test" }, session: {} }));
-    expect(await fetchAccount()).toEqual({ email: "wali@example.test" });
+    fetchMock.mockResolvedValueOnce(
+      fromApi({ user: { id: "a", email: "wali@example.test" }, session: {} }),
+    );
+    expect(await fetchAccount()).toEqual({ id: "a", email: "wali@example.test" });
     fetchMock.mockResolvedValueOnce(fromApi(null));
     expect(await fetchAccount()).toBeNull();
+  });
+
+  it("keeps the API's time, whatever the phone's clock says", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2010-01-01T00:00:00Z") });
+    fetchMock.mockResolvedValueOnce(fromApi(null, 200, { date: "Tue, 01 Dec 2026 00:00:00 GMT" }));
+    await fetchAccount();
+    vi.advanceTimersByTime(60_000);
+    expect(serverNow().toISOString()).toBe("2026-12-01T00:01:00.000Z");
   });
 
   it("sends contract calls to the same origin", async () => {
