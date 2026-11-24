@@ -81,9 +81,9 @@
 	}
 }
 
-# No DNS record exists for these two until launch, so no certificate does either.
-# Caddy keeps retrying in the background, slower each time, and the other hosts
-# are not affected.
+# Public wherever DNS points a name at this box, and *.new.mbss.sch.id is a wildcard.
+# Without a record, Caddy retries the certificate in the background and the other
+# hosts are not affected.
 admission.{$PROFILE_APEX} {
 	import ppdb_app admission
 }
