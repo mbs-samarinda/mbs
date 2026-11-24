@@ -4,6 +4,7 @@ import { STATUS_CODES } from "node:http";
 import { createDatabase, type Database } from "@mbs/db";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fastify";
+import { getIP } from "better-auth/api";
 import { fromNodeHeaders } from "better-auth/node";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 
@@ -174,9 +175,8 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
   // cross-site POST never carries it and arrives unauthenticated.
   app.all("/api/rpc/*", async (request, reply) => {
     const audience = audienceOf(request);
-    const session = audience
-      ? await app.auth[audience].api.getSession({ headers: authHeaders(request) })
-      : null;
+    const headers = authHeaders(request);
+    const session = audience ? await app.auth[audience].api.getSession({ headers }) : null;
 
     const { matched } = await handler.handle(request, reply, {
       prefix: "/api/rpc",
@@ -184,6 +184,13 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
         db: app.db,
         session: audience && session ? { audience, user: session.user } : { audience: null },
         log: request.log,
+        meta: {
+          requestId: request.id,
+          // Not `request.ip`, which is the proxy's address in production.
+          ipAddress: audience ? getIP(headers, app.auth[audience].options) : null,
+          userAgent: headers.get("user-agent"),
+        },
+        outbox: { familyAppUrl: appUrls.FAMILY },
       },
     });
     if (!matched) reply.status(404).send({ error: "Not found" });

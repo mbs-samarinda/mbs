@@ -72,7 +72,7 @@ beforeEach(async () => {
         sex: "FEMALE",
         schoolOfOrigin: "SD Negeri 1 Samarinda",
         guardianName: "Budi",
-        guardianRelation: "Ayah",
+        guardianRelation: "FATHER",
         guardianPhone: "081234567890",
       },
       idempotencyKey: null,

@@ -7,7 +7,7 @@ import {
 } from "@mbs/school-config";
 import { describe, expect, it } from "vitest";
 
-import { TRANSITIONS, isEndStage, transition } from "./stages.ts";
+import { TRANSITIONS, familyStage, isEndStage, transition } from "./stages.ts";
 
 const OPEN_STAGES = APPLICATION_STAGES.filter((stage) => !isEndStage(stage));
 
@@ -137,6 +137,11 @@ describe("transition", () => {
         expect(transition(stage, command, actor).ok).toBe(false);
       }
     }
+  });
+
+  it("shows a family every stage but a decision, which reads as still waiting", () => {
+    expect(APPLICATION_STAGES.filter((stage) => familyStage(stage) !== stage)).toEqual(["DECIDED"]);
+    expect(familyStage("DECIDED")).toBe("INTERVIEWED");
   });
 
   it("keeps the decision from the family until it is published", () => {

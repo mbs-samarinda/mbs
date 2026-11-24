@@ -12,7 +12,7 @@ import {
   type CommandPayload,
 } from "@mbs/api-contract";
 import { createDatabase, createSessionConnection, schema, type Database } from "@mbs/db";
-import { APPLICATION_STAGES, SCHOOL_KEYS } from "@mbs/school-config";
+import { APPLICATION_STAGES, GUARDIAN_RELATIONS, SCHOOL_KEYS } from "@mbs/school-config";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -109,7 +109,7 @@ function profileFor(seed: string, index: number, nik: string, edit = 0): Applica
     sex: hash[4]! % 2 === 0 ? "FEMALE" : "MALE",
     schoolOfOrigin: `SD Negeri ${(hash[5]! % 40) + 1} Samarinda`,
     guardianName: pick(FIRST_NAMES, hash, 6),
-    guardianRelation: "Orang tua",
+    guardianRelation: GUARDIAN_RELATIONS[hash[11]! % GUARDIAN_RELATIONS.length]!,
     guardianPhone: `0812${String(hash.readUInt32BE(7) % 10_000_000).padStart(7, "0")}${edit}`,
   };
 }

@@ -4,9 +4,13 @@ import {
   ApplicantProfile,
   AppliedCommand,
   COMMAND_PAYLOADS,
+  FamilyCommand,
+  type ActorType,
   type ApplicantProfileInput,
   type ApplicationCommand,
   type CommandPayload,
+  type FamilyApplication,
+  type FamilyApplicationSummary,
   type SchoolKey,
 } from "@mbs/api-contract";
 import type { Database, Transaction } from "@mbs/db";
@@ -16,12 +20,14 @@ import {
   ConflictError,
   DuplicateApplicationError,
   ForbiddenError,
+  IdempotencyKeyReusedError,
   IllegalTransitionError,
   isUniqueViolation,
   NotFoundError,
   RegistrationClosedError,
   StaleSequenceError,
 } from "../../errors.ts";
+import { findCycleById } from "../admission/repository.ts";
 import type { StaffContext } from "../auth/authorization.ts";
 import { enqueueEventEmails, type OutboxSettings } from "../notification/outbox.ts";
 import {
@@ -37,6 +43,9 @@ import {
   insertEvent,
   insertProfileVersion,
   isNikTaken,
+  listApplicationsForUser,
+  listFamilyVisibleEvents,
+  listPromisedDocuments,
   lockApplication,
   lockForSubmission,
   nextRegistrationSeq,
@@ -46,16 +55,56 @@ import {
   type ApplicationEventRow,
   type ApplicationRow,
 } from "./repository.ts";
-import { requiredCommand, transition, type NotificationKey } from "./stages.ts";
+import { familyStage, requiredCommand, transition, type NotificationKey } from "./stages.ts";
+
+export async function listFamilyApplications(
+  db: Database,
+  family: { userId: string },
+): Promise<FamilyApplicationSummary[]> {
+  return (await listApplicationsForUser(db, family.userId)).map(toFamilySummary);
+}
 
 export async function loadFamilyApplication(
   db: Database,
   family: { userId: string },
   applicationId: string,
-) {
+): Promise<FamilyApplication> {
   const found = await findApplicationForUser(db, applicationId, family.userId);
-  if (!found || !isSchoolKey(found.schoolKey)) throw new NotFoundError("No such application.");
-  return { ...found.application, schoolKey: found.schoolKey };
+  if (!found) throw new NotFoundError("No such application.");
+
+  const [cycle, documents, events] = await Promise.all([
+    findCycleById(db, found.admissionCycleId),
+    listPromisedDocuments(db, found.id, "REGISTRATION"),
+    listFamilyVisibleEvents(db, found.id),
+  ]);
+  return {
+    ...toFamilySummary(found),
+    registrationFee: found.registrationFee,
+    documents,
+    resultPublishAt: cycle!.resultPublishAt.toISOString(),
+    events: events.map(({ command, createdAt, actorType, payload }) => ({
+      command: FamilyCommand.parse(command),
+      at: createdAt.toISOString(),
+      actor: actorType,
+      reason: reasonForFamily(actorType, payload),
+    })),
+  };
+}
+
+function toFamilySummary({
+  id,
+  registrationNumber,
+  schoolKey,
+  childName,
+  stage,
+}: Awaited<ReturnType<typeof listApplicationsForUser>>[number]): FamilyApplicationSummary {
+  if (!isSchoolKey(schoolKey)) throw new Error(`Unknown school ${schoolKey}.`);
+  return { id, registrationNumber, schoolKey, childName, stage: familyStage(stage) };
+}
+
+/** A reason is for the family to read only when the committee gave it. */
+function reasonForFamily(actorType: ActorType, payload: CommandPayload<ApplicationCommand>) {
+  return actorType === "STAFF" && "reason" in payload ? (payload.reason ?? null) : null;
 }
 
 export type Actor =
@@ -91,7 +140,7 @@ export async function submitApplication(
 ): Promise<{ application: ApplicationRow; event: ApplicationEventRow; replayed: boolean }> {
   const profile = ApplicantProfile.parse(input.profile);
 
-  return db.transaction(async (tx) => {
+  const submitted = db.transaction(async (tx) => {
     const cycle = await lockForSubmission(tx, input.cycleId, input.schoolKey);
     if (!cycle) throw new NotFoundError("No such cycle.");
 
@@ -111,7 +160,7 @@ export async function submitApplication(
           application.schoolId !== cycle.schoolId ||
           !sameAsStored(firstForm?.data, profile)
         ) {
-          throw reusedKey();
+          throw new IdempotencyKeyReusedError(earlier.applicationId);
         }
         return { application, event: earlier, replayed: true };
       }
@@ -165,9 +214,6 @@ export async function submitApplication(
       payloadVersion: 1,
       idempotencyKey: input.idempotencyKey,
       ...input.meta,
-    }).catch((error: unknown) => {
-      if (isUniqueViolation(error)) throw reusedKey();
-      throw error;
     });
     const application = await recordEventOnApplication(tx, inserted.id, {
       eventId: event.id,
@@ -184,6 +230,19 @@ export async function submitApplication(
     );
 
     return { application, event, replayed: false };
+  });
+
+  // The locks are per school, so two schools can race for one key. The loser
+  // looks up the winner only here, because its own transaction is gone.
+  return submitted.catch(async (error: unknown) => {
+    if (!input.idempotencyKey || !isUniqueViolation(error)) throw error;
+    const winner = await findEventByIdempotencyKey(
+      db,
+      "FAMILY",
+      input.userId,
+      input.idempotencyKey,
+    );
+    throw winner ? new IdempotencyKeyReusedError(winner.applicationId) : error;
   });
 }
 
@@ -302,7 +361,7 @@ async function runCommand(
       );
       if (earlier) {
         if (earlier.applicationId !== application.id || !(await steps.isRetry(earlier, tx))) {
-          throw reusedKey();
+          throw new IdempotencyKeyReusedError(earlier.applicationId);
         }
         return { event: earlier, replayed: true };
       }
@@ -345,7 +404,9 @@ async function runCommand(
       idempotencyKey: input.idempotencyKey,
       ...input.meta,
     }).catch((error: unknown) => {
-      if (isUniqueViolation(error)) throw reusedKey();
+      if (isUniqueViolation(error)) {
+        throw new ConflictError("This idempotency key was already used for another request.");
+      }
       throw error;
     });
 
@@ -359,8 +420,7 @@ async function runCommand(
           ? COMMAND_PAYLOADS.CHANGE_INTERVIEW_MODE.parse(payload).mode
           : undefined,
     });
-    const staffReason =
-      input.actor.type === "STAFF" && "reason" in payload ? (payload.reason ?? null) : null;
+    const staffReason = reasonForFamily(input.actor.type, payload);
     await notifyFamily(tx, result, { application, event, schoolKey, staffReason }, outbox);
 
     return { event, replayed: false };
@@ -388,8 +448,4 @@ async function authorize(tx: Transaction, actor: Actor, applicationId: string, s
 
 function sameAsStored(stored: unknown, value: unknown) {
   return isDeepStrictEqual(stored, JSON.parse(JSON.stringify(value)));
-}
-
-function reusedKey() {
-  return new ConflictError("This idempotency key was already used for another request.");
 }

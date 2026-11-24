@@ -3,6 +3,7 @@ import type {
   ApplicationCommand,
   ApplicationStage,
   CommandPayload,
+  FamilyStage,
 } from "@mbs/api-contract";
 import { END_STAGES } from "@mbs/school-config";
 
@@ -198,6 +199,11 @@ export type NotificationKey = NonNullable<(typeof TRANSITIONS)[ApplicationComman
 export type TransitionResult =
   | { ok: true; to: ApplicationStage; familyVisible: boolean; notification: NotificationKey | null }
   | { ok: false; refusal: "ILLEGAL_STAGE" | "ACTOR_NOT_ALLOWED" | "REQUIREMENT_UNMET" };
+
+/** A decided application reads as still waiting, so a family learns nothing before publication. */
+export function familyStage(stage: ApplicationStage): FamilyStage {
+  return stage === "DECIDED" ? "INTERVIEWED" : stage;
+}
 
 export function isEndStage(stage: ApplicationStage) {
   return (END_STAGES as readonly ApplicationStage[]).includes(stage);

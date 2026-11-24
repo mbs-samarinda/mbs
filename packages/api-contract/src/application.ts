@@ -6,7 +6,8 @@ import {
 } from "@mbs/school-config";
 import { z } from "zod";
 
-import { SchoolKey } from "./schemas.ts";
+import { APPLICANT_RULES, type Rule } from "./applicant-rules.ts";
+import { DocumentRequirement, SchoolKey } from "./schemas.ts";
 
 export const ApplicationStage = z.enum(APPLICATION_STAGES);
 export type ApplicationStage = z.infer<typeof ApplicationStage>;
@@ -20,24 +21,31 @@ export type ActorType = z.infer<typeof ActorType>;
 export const InterviewMode = z.enum(INTERVIEW_MODES);
 export type InterviewMode = z.infer<typeof InterviewMode>;
 
-/** Families type NIKs with spaces or dots. Stored as the 16 digits alone. */
-export const Nik = z
-  .string()
-  .transform((value) => value.replaceAll(/[\s.]/g, ""))
-  .pipe(z.string().regex(/^\d{16}$/, "A NIK is 16 digits."));
+function ruled<T extends string>(rule: Rule<T>) {
+  return z.string().transform((raw, ctx) => {
+    const result = rule(raw, new Date());
+    if (result.ok) return result.value;
+    ctx.addIssue({ code: "custom", message: result.message });
+    return z.NEVER;
+  });
+}
 
+/**
+ * Parses what a family typed, never a stored row: the age rule is true on the
+ * day of input and stops being true as the child grows.
+ */
 export const ApplicantProfile = z.object({
-  childFullName: z.string().trim().min(1).max(200),
-  nik: Nik,
-  birthDate: z.iso.date(),
-  sex: z.enum(["MALE", "FEMALE"]),
-  schoolOfOrigin: z.string().trim().min(1).max(200),
-  guardianName: z.string().trim().min(1).max(200),
-  guardianRelation: z.string().trim().min(1).max(100),
-  guardianPhone: z.string().trim().min(6).max(30),
+  childFullName: ruled(APPLICANT_RULES.childFullName),
+  nik: ruled(APPLICANT_RULES.nik),
+  birthDate: ruled(APPLICANT_RULES.birthDate),
+  sex: ruled(APPLICANT_RULES.sex),
+  schoolOfOrigin: ruled(APPLICANT_RULES.schoolOfOrigin),
+  guardianName: ruled(APPLICANT_RULES.guardianName),
+  guardianRelation: ruled(APPLICANT_RULES.guardianRelation),
+  guardianPhone: ruled(APPLICANT_RULES.guardianPhone),
 });
 export type ApplicantProfile = z.infer<typeof ApplicantProfile>;
-/** The form as typed, before the NIK is normalized. */
+/** The form as typed. */
 export type ApplicantProfileInput = z.input<typeof ApplicantProfile>;
 
 const Reason = z.string().trim().min(1).max(2000);
@@ -75,10 +83,53 @@ export type CommandPayload<C extends ApplicationCommand> = z.infer<(typeof COMMA
 export const AppliedCommand = ApplicationCommand.exclude(["EDIT_PROFILE"]);
 export type AppliedCommand = z.infer<typeof AppliedCommand>;
 
-export const ApplicantApplication = z.object({
+/** What a family may know. A decision stays hidden until it is published. */
+export const FamilyStage = ApplicationStage.exclude(["DECIDED"]);
+export type FamilyStage = z.infer<typeof FamilyStage>;
+
+export const FamilyCommand = ApplicationCommand.exclude(["DECIDE", "ADD_NOTE"]);
+export type FamilyCommand = z.infer<typeof FamilyCommand>;
+
+/**
+ * No id, sequence number or stage: each would give away a hidden event, the
+ * sequence by its gaps and a publish event by the stage it left.
+ */
+export const FamilyEvent = z.object({
+  command: FamilyCommand,
+  at: z.iso.datetime(),
+  actor: ActorType,
+  /** The committee's reason, when the family is meant to read it. */
+  reason: z.string().nullable(),
+});
+export type FamilyEvent = z.infer<typeof FamilyEvent>;
+
+export const FamilyApplicationSummary = z.object({
   id: z.uuid(),
   registrationNumber: z.string(),
   schoolKey: SchoolKey,
-  stage: ApplicationStage,
+  childName: z.string(),
+  stage: FamilyStage,
 });
-export type ApplicantApplication = z.infer<typeof ApplicantApplication>;
+export type FamilyApplicationSummary = z.infer<typeof FamilyApplicationSummary>;
+
+export const FamilyApplication = FamilyApplicationSummary.extend({
+  registrationFee: z.int().nonnegative(),
+  /** The registration documents promised when the family submitted. */
+  documents: z.array(DocumentRequirement),
+  resultPublishAt: z.iso.datetime(),
+  /** Oldest first. */
+  events: z.array(FamilyEvent),
+});
+export type FamilyApplication = z.infer<typeof FamilyApplication>;
+
+export const SubmitApplicationInput = z.object({
+  cycleId: z.uuid(),
+  schoolKey: SchoolKey,
+  profile: ApplicantProfile,
+  /** Made once on the device. The same key again returns the first result. */
+  idempotencyKey: z.uuid(),
+});
+export type SubmitApplicationInput = z.infer<typeof SubmitApplicationInput>;
+
+export const SubmittedApplication = z.object({ applicationId: z.uuid() });
+export type SubmittedApplication = z.infer<typeof SubmittedApplication>;
