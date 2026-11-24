@@ -268,10 +268,11 @@ export const applications = pgTable(
 );
 
 /**
- * One row per try to check a status without an account, for a day. `subject` is
- * the client's address or the registration number in its canonical form, never
- * the text as typed, which can be a NIK in the wrong field. Kept apart from
- * `rate_limit`, where sign-in deletes every row after an hour.
+ * Tries to check a status without an account, for a day. A wrong try is two rows,
+ * `ADDRESS <address>` and `NUMBER <number>`, and a right one is `RIGHT <address>`.
+ * The number is in its canonical form, never the text as typed, which can be a
+ * NIK in the wrong field. Kept apart from `rate_limit`, where sign-in deletes
+ * every row after an hour.
  */
 export const statusCheckTries = pgTable(
   "status_check_tries",

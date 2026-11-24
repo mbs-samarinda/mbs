@@ -7,7 +7,7 @@ A relative opens `/cek`, types the registration number and the child's NIK, and 
 - **Entry.** "Cek status tanpa masuk" under the sign-in form.
 - **Answer.** Whose turn it is, the stage, the milestones with their dates. Never the fee, a reason, the history or a contact.
 - **Miss.** One message for an unknown number, a number that cannot exist and a wrong NIK.
-- **Limits.** 5 wrong tries on one number in 15 minutes and 20 in a day; 20 tries from one address in 15 minutes.
+- **Limits.** 5 wrong tries on one number in 15 minutes and 20 in a day; 20 wrong tries from one address in 15 minutes, and 300 right ones.
 - **No traces.** Nothing in the URL, the title, storage or the logs.
 
 ## How to get to it (user POV)
@@ -29,5 +29,5 @@ Preconditions:
 
 ## Gotchas
 
-- Every request here comes from 127.0.0.1, so a script meets the limit of 20 per address before anything else. `delete from status_check_tries` in the run's `mbs_core` starts over. That is setup, not proof.
+- Every request here comes from 127.0.0.1, so a script meets the limit of 20 wrong tries per address before anything else. `delete from status_check_tries` in the run's `mbs_core` starts over. That is setup, not proof.
 - Back and the browser's back-forward cache need a Playwright script; `drive.mjs` has no step for them.

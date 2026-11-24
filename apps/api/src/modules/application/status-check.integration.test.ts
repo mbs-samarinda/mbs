@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { buildApp } from "../../app.ts";
 import { FAMILY_HOST, STAFF_HOST, testConfig } from "../../test/config.ts";
+import { lockTable } from "../../test/lock.ts";
 import { resetTables } from "../../test/reset.ts";
 import { sessionCookie } from "../auth/auth.ts";
 import type { StaffContext } from "../auth/authorization.ts";
@@ -171,6 +172,14 @@ function check({ number = "SMP-0001", nik = NIK, address = "203.0.113.7", ...res
     payload: { json: { registrationNumber: number, nik } },
   });
 }
+
+const currentCycle = () =>
+  app.inject({
+    method: "POST",
+    url: "/api/rpc/public/admission/getCurrentCycle",
+    headers: { host: FAMILY_HOST },
+    payload: { json: { schoolKey: "smp" } },
+  });
 
 /** Wrong tries on one number, each from its own address so only the number is limited. */
 async function wrongTries(count: number, number = "SMP-0001") {
@@ -543,6 +552,69 @@ describe("the limits", () => {
     expect((await check()).statusCode).toBe(429);
     expect((await check({ address: "198.51.100.1" })).statusCode).toBe(200);
   });
+
+  it("holds the far limit against right answers that arrive at once", async () => {
+    await register(await openCycle());
+    await db
+      .insert(schema.statusCheckTries)
+      .values(Array.from({ length: 298 }, () => ({ subject: "RIGHT 203.0.113.7" })));
+    const statuses = await Promise.all(Array.from({ length: 12 }, () => check()));
+    expect(
+      count(
+        statuses.map(({ statusCode }) => statusCode),
+        200,
+      ),
+    ).toBe(2);
+    expect(await lookups()).toHaveLength(2);
+  });
+
+  it("does not use up an address with tries on a number that is locked", async () => {
+    await register(await openCycle());
+    await wrongTries(5);
+    for (let index = 0; index < 25; index += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      expect((await check()).statusCode).toBe(429);
+    }
+    expect((await check({ number: "SMP-0500" })).statusCode).toBe(404);
+  });
+
+  it("does not use up an address with tries that lost the race for a number", async () => {
+    for (let round = 1; round <= 5; round += 1) {
+      const number = `SMP-${900 + round}`;
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await wrongTries(4, number);
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      const raced = await Promise.all([1, 2, 3].map(() => check({ number, nik: WRONG_NIK })));
+      expect(
+        count(
+          raced.map(({ statusCode }) => statusCode),
+          404,
+        ),
+      ).toBe(1);
+    }
+    expect(
+      await db.$count(
+        schema.statusCheckTries,
+        eq(schema.statusCheckTries.subject, "ADDRESS 203.0.113.7"),
+      ),
+    ).toBe(5);
+  });
+
+  it("leaves the database to everyone else while hundreds of lookups wait", async () => {
+    await register(await openCycle());
+    const { release, unlocked } = await lockTable(db, "status_check_tries");
+    const flood = Array.from({ length: 300 }, (_, index) =>
+      check({ address: `198.51.100.${index % 250}` }).then(({ statusCode }) => statusCode),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Through the API's own connections, which the flood would have taken.
+    expect((await currentCycle()).statusCode).toBe(200);
+    release();
+    await unlocked;
+    const statuses = await Promise.all(flood);
+    expect(count(statuses, 500)).toBe(0);
+    expect(count(statuses, 429)).toBeGreaterThanOrEqual(97);
+  }, 30_000);
 
   it("counts a whole IPv6 network as one address", async () => {
     for (let index = 1; index <= 20; index += 1) {

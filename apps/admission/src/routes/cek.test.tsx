@@ -127,6 +127,40 @@ describe("the form", () => {
     expect(screen.queryByText(/belum cocok/)).toBeNull();
   });
 
+  it("drops the last answer's message once something else is typed", async () => {
+    stubApi({ ...SIGNED_OUT, [CHECK]: [refusal("NO_MATCH", 404)] });
+    open("/cek");
+    const user = await ask();
+    expect(await screen.findByText(/belum cocok/)).toBeVisible();
+    await user.type(await numberField(), "1");
+    await waitFor(() => expect(screen.queryByText(/belum cocok/)).toBeNull());
+  });
+
+  it.each(["/cek/", "/Cek"])("answers at %s too", async (path) => {
+    stubApi(FOUND);
+    open(path);
+    await ask();
+    expect(await child()).toBeVisible();
+  });
+
+  it("is emptied when the page is put away, and drops an answer that comes after", async () => {
+    const { promise: answered, resolve: answer } = Promise.withResolvers<null>();
+    stubApi(FOUND);
+    const fetched = fetch;
+    vi.stubGlobal("fetch", async (input: string | Request, init: RequestInit) => {
+      if (typeof input !== "string") await answered;
+      return fetched(input, init);
+    });
+    open("/cek");
+    await ask();
+    dispatchEvent(new Event("pagehide"));
+    expect(screen.getByLabelText("NIK anak")).toHaveValue("");
+    expect(screen.getByLabelText("Nomor pendaftaran")).toHaveValue("");
+    answer(null);
+    expect(await screen.findByRole("button", { name: "Lihat status" })).toBeVisible();
+    expect(screen.queryByText("Muhammad Rafif Alfarizi")).toBeNull();
+  });
+
   it("lets a miss be followed by the right answer", async () => {
     stubApi({ ...SIGNED_OUT, [CHECK]: [refusal("NO_MATCH", 404), { body: statusOf() }] });
     open("/cek");
@@ -148,7 +182,7 @@ describe("the answer", () => {
     expect(screen.getByText("Giliran keluarga")).toBeVisible();
     expect(
       screen.getByText(
-        "Jangan transfer dulu. Cara membayar akan muncul di akun yang mendaftarkan Muhammad Rafif Alfarizi.",
+        "Langkah pembayaran ada di akun yang mendaftarkan Muhammad Rafif Alfarizi. Jangan transfer sebelum melihatnya di sana.",
       ),
     ).toBeVisible();
     const road = within(screen.getByRole("list")).getAllByRole("listitem");

@@ -33,6 +33,13 @@ type Kind = keyof typeof LIMITS;
 const { statusCheckTries } = schema;
 
 /**
+ * Lookups wait here for each other's locks, so they never hold the connections
+ * that sign-in and the forms need.
+ */
+const gate = createGate({ running: 3, waiting: 200 });
+const WHEN_FULL_SECONDS = 5;
+
+/**
  * Shows one application to whoever knows its number and the child's NIK. Someone
  * who knows the child's birth date and district can guess a NIK in few tries, so
  * the limits are what protects it.
@@ -40,29 +47,57 @@ const { statusCheckTries } = schema;
 export async function checkStatus(
   db: Database,
   input: CheckStatusInput,
-  caller: { userId: string | null; meta: RequestMeta },
+  caller: Caller,
+): Promise<CheckedStatus> {
+  if (!(await gate.enter())) throw new TooManyTriesError(WHEN_FULL_SECONDS);
+  try {
+    return await check(db, input, caller);
+  } finally {
+    gate.leave();
+  }
+}
+
+type Caller = { userId: string | null; meta: RequestMeta };
+
+async function check(
+  db: Database,
+  input: CheckStatusInput,
+  caller: Caller,
 ): Promise<CheckedStatus> {
   const number = parseRegistrationNumber(input.registrationNumber);
   const nik = APPLICANT_RULES.nik(input.nik);
   const address = caller.meta.ipAddress ?? "unknown";
+  // Text that is no number counts per address, so one visitor's typos never
+  // lock out another's.
+  const about = number ?? `unreadable from ${address}`;
 
-  // Without the lock and the transaction, so a flood from one address does not
-  // hold the connections that everyone else's requests need. Wrong tries are
-  // counted again below, where none can slip past.
-  const floodWait = Math.max(
-    await secondsToWait(db, "ADDRESS", address),
-    await secondsToWait(db, "RIGHT", address),
-  );
-  if (floodWait > 0) throw new TooManyTriesError(floodWait);
+  // Cheap, for a flood. Everything is counted again below, under the locks.
+  for (const [kind, subject] of [
+    ["ADDRESS", address],
+    ["RIGHT", address],
+    ["NUMBER", about],
+  ] as const) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const wait = await secondsToWait(db, kind, subject);
+    if (wait > 0) throw new TooManyTriesError(wait);
+  }
 
   // Refusals are returned, not thrown, because a throw would undo the count.
   const outcome = await db.transaction(async (tx) => {
     const fromAddress = await takeTry(tx, "ADDRESS", address);
     if (!fromAddress.taken) return fromAddress;
-    // Text that is no number counts per address, so one visitor's typos never
-    // lock out another's.
-    const onNumber = await takeTry(tx, "NUMBER", number ?? `unreadable from ${address}`);
-    if (!onNumber.taken) return onNumber;
+    const onNumber = await takeTry(tx, "NUMBER", about);
+    // A refused try counts nowhere, or a locked number would use up the address.
+    if (!onNumber.taken) {
+      await tx.delete(statusCheckTries).where(eq(statusCheckTries.id, fromAddress.tryId));
+      return onNumber;
+    }
+    const rightWait = await secondsToWait(tx, "RIGHT", address);
+    if (rightWait > 0) {
+      const own = [fromAddress.tryId, onNumber.tryId];
+      await tx.delete(statusCheckTries).where(inArray(statusCheckTries.id, own));
+      return { taken: false as const, retryAfterSeconds: rightWait };
+    }
 
     const found = await findApplicationByNumber(tx, number ?? "", nik.ok ? nik.value : "");
     const events = found ? await listFamilyVisibleEvents(tx, found.id) : [];
@@ -157,4 +192,27 @@ async function forgetOldTries(tx: Transaction) {
     .limit(20)
     .for("update", { skipLocked: true });
   await tx.delete(statusCheckTries).where(inArray(statusCheckTries.id, old));
+}
+
+/** At most `running` at once, and `waiting` more in line. Any more are turned away. */
+function createGate({ running, waiting }: { running: number; waiting: number }) {
+  let inside = 0;
+  const line: (() => void)[] = [];
+  return {
+    async enter() {
+      if (inside < running) {
+        inside += 1;
+        return true;
+      }
+      if (line.length >= waiting) return false;
+      await new Promise<void>((resolve) => line.push(resolve));
+      return true;
+    },
+    leave() {
+      // Whoever is next takes this place, so `inside` stays as it was.
+      const next = line.shift();
+      if (next) next();
+      else inside -= 1;
+    },
+  };
 }

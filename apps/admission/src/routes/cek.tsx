@@ -51,17 +51,23 @@ function CheckStatus() {
   const page = useLocation({ select: ({ state }) => state.checked });
   const [answer, setAnswer] = useState<{ page: string; status: CheckedStatus } | null>(null);
   if (answer && answer.page !== page) setAnswer(null);
+  // Counts the times the page was left, so a typed NIK and a late answer go too.
+  const visits = useRef(0);
+  const [formKey, setFormKey] = useState(0);
 
   const check = useMutation({
     mutationFn: async (input: CheckStatusInput): Promise<Refusal | null> => {
+      const visit = visits.current;
       const { error, data, isDefined } = await safe(api.public.application.checkStatus(input));
       if (isDefined && error.code === "NO_MATCH") return { result: "noMatch" };
       if (isDefined && error.code === "TOO_MANY_TRIES") {
         return { result: "wait", seconds: error.data.retryAfterSeconds };
       }
       if (error) throw error;
-      // The visitor may have left while this was on its way.
-      if (router.state.location.pathname !== "/cek") return null;
+      // The visitor may have left while this was on its way. Asked of the route and
+      // not of the path, which can also be spelled `/cek/`.
+      const here = router.state.matches.some(({ routeId }) => routeId === Route.id);
+      if (!here || visit !== visits.current) return null;
       const next = crypto.randomUUID();
       await navigate({ to: "/cek", state: { checked: next } });
       setAnswer({ page: next, status: data });
@@ -73,7 +79,13 @@ function CheckStatus() {
 
   // A browser can keep a page it left in memory and show it again as it was.
   useEffect(() => {
-    const forget = () => flushSync(() => setAnswer(null));
+    const forget = () => {
+      visits.current += 1;
+      flushSync(() => {
+        setAnswer(null);
+        setFormKey(visits.current);
+      });
+    };
     addEventListener("pagehide", forget);
     return () => removeEventListener("pagehide", forget);
   }, []);
@@ -96,7 +108,16 @@ function CheckStatus() {
     <Result status={answer.status} onBack={() => router.history.back()} />
   ) : (
     <EntryLayout>
-      <Form onCheck={checkOnce} pending={check.isPending} problem={problem} />
+      <Form
+        key={formKey}
+        onCheck={checkOnce}
+        // What the server said was about what was sent, not what is typed now.
+        onEdit={() => {
+          if (!check.isPending) check.reset();
+        }}
+        pending={check.isPending}
+        problem={problem}
+      />
     </EntryLayout>
   );
 }
@@ -111,10 +132,12 @@ const EMPTY: CheckStatusInput = { registrationNumber: "", nik: "" };
 
 function Form({
   onCheck,
+  onEdit,
   pending,
   problem,
 }: {
   onCheck: (input: CheckStatusInput) => void;
+  onEdit: () => void;
   pending: boolean;
   problem: string | null;
 }) {
@@ -124,6 +147,10 @@ function Form({
   const errors = errorsIn(values);
   const shown = submitted ? errors : {};
 
+  const edit = (changes: Partial<CheckStatusInput>) => {
+    setValues({ ...values, ...changes });
+    onEdit();
+  };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const first = errors.registrationNumber ? "registrationNumber" : errors.nik ? "nik" : null;
@@ -166,7 +193,7 @@ function Form({
           spellCheck={false}
           placeholder="cth. SMP-0042"
           value={values.registrationNumber}
-          onChange={({ target }) => setValues({ ...values, registrationNumber: target.value })}
+          onChange={({ target }) => edit({ registrationNumber: target.value })}
         />
         <TextField
           field="nik"
@@ -178,7 +205,7 @@ function Form({
           spellCheck={false}
           placeholder="cth. 6472 0209 0714 0003"
           value={values.nik}
-          onChange={({ target }) => setValues({ ...values, nik: target.value })}
+          onChange={({ target }) => edit({ nik: target.value })}
         />
         {problem && Object.keys(shown).length === 0 && <Alert>{problem}</Alert>}
         <Button type="submit" size="touch" disabled={pending} focusableWhenDisabled>
@@ -252,7 +279,7 @@ const wait = ({ childName }: CheckedStatus) =>
 /** For a relative who only looks, so it says what the account holder does, never "kamu". */
 const NEXT: Record<FamilyStage, (status: CheckedStatus) => string> = {
   PAYMENT_DUE: ({ childName }) =>
-    `Jangan transfer dulu. Cara membayar akan muncul di akun yang mendaftarkan ${childName}.`,
+    `Langkah pembayaran ada di akun yang mendaftarkan ${childName}. Jangan transfer sebelum melihatnya di sana.`,
   PAYMENT_REVIEW: wait,
   DOCUMENTS_DUE: ({ childName }) => `Dokumen dikirim lewat akun yang mendaftarkan ${childName}.`,
   DOCUMENTS_REVIEW: wait,
