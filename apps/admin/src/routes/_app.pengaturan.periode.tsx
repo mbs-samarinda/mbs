@@ -1,6 +1,7 @@
 import { ORPCError } from "@mbs/api-client/rpc";
 import {
   CreateCycleInput,
+  NotReady,
   SaveCycleInput,
   SETUP_GAPS,
   type AdmissionCycle,
@@ -318,6 +319,7 @@ const NEXT: Partial<
 
 const GAP_NAMES: Record<SetupGap["kind"], string> = {
   schedule: "jadwal",
+  schools: "sekolah yang ikut",
   bank: "rekening",
   registrationDocuments: "dokumen pendaftaran",
   reregistrationFee: "biaya daftar ulang",
@@ -458,24 +460,30 @@ function ChecklistRow({
   );
 }
 
-const missingAt = (gaps: readonly SetupGap[], kind: SetupGap["kind"]) =>
-  gaps.flatMap((gap) => (gap.kind === kind && gap.schoolKey ? [gap.schoolKey] : []));
-
 const taking = (setup: CycleSetup) => setup.schools.filter((school) => school.isEnabled);
 
-/** "semua sekolah" when every school taking part is named, so a row stays one line. */
+/** The caller's own schools that lack this, so a summary only names schools they can fix. */
+const missingAt = (setup: CycleSetup, gaps: readonly SetupGap[], kind: SetupGap["kind"]) => {
+  const mine = new Set(taking(setup).map((school) => school.schoolKey));
+  return gaps.flatMap((gap) =>
+    gap.kind === kind && gap.schoolKey && mine.has(gap.schoolKey) ? [gap.schoolKey] : [],
+  );
+};
+
+/** "semua sekolah" when every school the caller sees taking part is named, so a row stays short. */
 const schoolsIn = (setup: CycleSetup, keys: readonly SchoolKey[]) =>
   keys.length > 1 && keys.length === taking(setup).length
     ? "semua sekolah"
     : list.format(keys.map(schoolShortName));
 
 const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => string> = {
-  schedule: ({ cycle, schools }) => {
+  schedule: ({ cycle, schools }, gaps) => {
     const off = schools.filter((school) => !school.isEnabled).map((school) => school.schoolKey);
     return [
       `${formatShortDateTime(cycle.registrationOpenAt)} sampai ${formatShortDateTime(cycle.registrationCloseAt)}.`,
       `Hasil ${formatShortDateTime(cycle.resultPublishAt)} WITA.`,
       off.length > 0 ? `${list.format(off.map(schoolShortName))} tidak ikut.` : "",
+      gaps.some((gap) => gap.kind === "schools") ? "Belum ada sekolah yang ikut." : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -486,17 +494,18 @@ const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => s
       : "Belum diisi. Keluarga mentransfer biaya ke rekening ini.",
   fees: (setup, gaps) => {
     const schools = taking(setup);
+    if (schools.length === 0) return "Tidak ada sekolah yang ikut.";
     const fees = new Set(schools.map((school) => school.effectiveFee));
     const registration =
       fees.size === 1
         ? `Pendaftaran ${formatRupiah([...fees][0]!)}.`
         : `Pendaftaran ${schools.map((school) => `${schoolShortName(school.schoolKey)} ${formatRupiah(school.effectiveFee)}`).join(", ")}.`;
-    const missing = missingAt(gaps, "reregistrationFee");
+    const missing = missingAt(setup, gaps, "reregistrationFee");
     return `${registration} ${missing.length > 0 ? `Daftar ulang ${schoolsIn(setup, missing)} belum diisi.` : "Daftar ulang sudah diisi."}`;
   },
   documents: (setup, gaps) => {
-    const missing = missingAt(gaps, "registrationDocuments");
-    const later = missingAt(gaps, "reregistrationDocuments");
+    const missing = missingAt(setup, gaps, "registrationDocuments");
+    const later = missingAt(setup, gaps, "reregistrationDocuments");
     const required = DOCUMENT_TYPES.filter((type) =>
       taking(setup).some((school) =>
         school.registrationDocuments.some(
@@ -516,8 +525,8 @@ const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => s
     ].join(" ");
   },
   messages: (setup, gaps) => {
-    const accepted = missingAt(gaps, "acceptedInstructions");
-    const rejected = missingAt(gaps, "rejectedInstructions");
+    const accepted = missingAt(setup, gaps, "acceptedInstructions");
+    const rejected = missingAt(setup, gaps, "rejectedInstructions");
     if (accepted.length === 0 && rejected.length === 0) {
       return "Pesan diterima dan tidak diterima sudah ada.";
     }
@@ -536,7 +545,7 @@ const SUMMARIES: Record<CycleSection, (setup: CycleSetup, gaps: SetupGap[]) => s
       .join(" ");
   },
   agreement: (setup, gaps) => {
-    const missing = missingAt(gaps, "agreement");
+    const missing = missingAt(setup, gaps, "agreement");
     const versions = taking(setup).flatMap((school) =>
       school.agreement
         ? [`${schoolShortName(school.schoolKey)} versi ${school.agreement.version}`]
@@ -686,13 +695,22 @@ function useSave(cycleId: string, onDone: () => void) {
   }
 
   const failed = mutation.error && !serverIssues(mutation.error) && (
-    <Alert>
-      {mutation.error instanceof ORPCError && mutation.error.code === "CONFLICT"
-        ? "Periode ini tidak bisa diubah lagi, atau baru saja diubah orang lain. Muat ulang halaman."
-        : "Perubahan belum tersimpan. Coba lagi sebentar lagi."}
-    </Alert>
+    <Alert>{saveRefusal(mutation.error)}</Alert>
   );
   return { submit, errors, pending: mutation.isPending, failed };
+}
+
+function saveRefusal(error: Error) {
+  if (!(error instanceof ORPCError)) return "Perubahan belum tersimpan. Coba lagi sebentar lagi.";
+  const notReady = error.code === "NOT_READY" ? NotReady.safeParse(error.data) : null;
+  if (notReady?.success) {
+    const names = [...new Set(notReady.data.gaps.map((gap) => GAP_NAMES[gap.kind]))];
+    return `Pendaftaran sedang dibuka, jadi ${list.format(names)} tidak boleh kosong. Perubahan ini belum disimpan.`;
+  }
+  if (error.code === "CONFLICT") {
+    return "Periode ini tidak bisa diubah lagi, atau baru saja diubah orang lain. Muat ulang halaman.";
+  }
+  return "Perubahan belum tersimpan. Coba lagi sebentar lagi.";
 }
 
 function SectionForm({
@@ -1326,16 +1344,28 @@ function AgreementForm({ setup, onDone }: FormProps) {
       title="Perjanjian"
       pending={save.pending}
       onCancel={onDone}
-      onSubmit={() =>
-        save.submit({
-          section: "agreement",
-          cycleId: cycle.id,
-          schools: setup.schools.flatMap(({ schoolKey }) => {
-            const body = bodies[schoolKey]?.trim() ?? "";
-            return body ? [{ schoolKey, body }] : [];
-          }),
-        })
-      }
+      onSubmit={() => {
+        // A version is never removed, so emptying a saved agreement cannot be saved.
+        const emptied = setup.schools.filter(
+          (school) => school.agreement && !bodies[school.schoolKey]?.trim(),
+        );
+        save.submit(
+          {
+            section: "agreement",
+            cycleId: cycle.id,
+            schools: setup.schools.flatMap(({ schoolKey }) => {
+              const body = bodies[schoolKey]?.trim() ?? "";
+              return body ? [{ schoolKey, body }] : [];
+            }),
+          },
+          Object.fromEntries(
+            emptied.map((school) => [
+              `agreement.${school.schoolKey}`,
+              "Perjanjian tidak bisa dikosongkan.",
+            ]),
+          ),
+        );
+      }}
     >
       <p className="text-sm text-pretty text-muted-foreground">
         Keluarga menyetujui perjanjian ini saat daftar ulang. Teks baru menjadi versi baru, dan
@@ -1351,8 +1381,14 @@ function AgreementForm({ setup, onDone }: FormProps) {
             aria-label={`Perjanjian ${schoolShortName(school.schoolKey)}`}
             value={bodies[school.schoolKey] ?? ""}
             placeholder="Belum ada perjanjian."
+            aria-invalid={save.errors[`agreement.${school.schoolKey}`] ? true : undefined}
             onChange={(event) => setBodies({ ...bodies, [school.schoolKey]: event.target.value })}
           />
+          {save.errors[`agreement.${school.schoolKey}`] && (
+            <span className="text-xs text-destructive">
+              {save.errors[`agreement.${school.schoolKey}`]}
+            </span>
+          )}
           <AgreementNote school={school} />
         </div>
       ))}

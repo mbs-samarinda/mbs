@@ -31,6 +31,7 @@ export type CycleSection = z.infer<typeof CycleSection>;
  */
 export const SETUP_GAP_KINDS = [
   "schedule",
+  "schools",
   "bank",
   "registrationDocuments",
   "reregistrationFee",
@@ -43,6 +44,7 @@ export type SetupGapKind = (typeof SETUP_GAP_KINDS)[number];
 
 export const SETUP_GAPS: Record<SetupGapKind, { section: CycleSection; neededToOpen: boolean }> = {
   schedule: { section: "schedule", neededToOpen: true },
+  schools: { section: "schedule", neededToOpen: true },
   bank: { section: "bank", neededToOpen: true },
   registrationDocuments: { section: "documents", neededToOpen: true },
   reregistrationFee: { section: "fees", neededToOpen: false },

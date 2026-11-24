@@ -175,7 +175,7 @@ export async function getCycleSetup(
     cycle: toCycle(cycle),
     schools: state.filter((school) => actor.schoolKeys.includes(school.schoolKey)),
     gaps: gapsOf(cycle, state),
-    history: audit.map(toChange),
+    history: audit.map(toChange).flatMap((change) => visibleTo(actor, change)),
   };
 }
 
@@ -201,7 +201,10 @@ export async function saveCycleSection(
     const before = fieldsOf(cycle, await readSchools(tx, cycle));
     await writeSection(tx, actor, input);
     const saved = (await findCycleById(tx, input.cycleId))!;
-    const after = fieldsOf(saved, await readSchools(tx, saved));
+    const schools = await readSchools(tx, saved);
+    // An open cycle stays openable: a save that takes away what opening needs is refused.
+    if (saved.status === "OPEN") requireReadyToOpen(saved, schools);
+    const after = fieldsOf(saved, schools);
 
     const changes = diff(before, after, SECTION_FIELDS[input.section]);
     if (changes.length === 0) return;
@@ -352,10 +355,7 @@ export async function setAdmissionCycleStatus(
       if (await findOpenCycleOtherThan(tx, input.cycleId)) {
         throw new AnotherCycleOpenError("Another cycle is already open.");
       }
-      const blocking = gapsOf(existing, await readSchools(tx, existing)).filter(
-        (gap) => SETUP_GAPS[gap.kind].neededToOpen,
-      );
-      if (blocking.length > 0) throw new NotReadyError(blocking);
+      requireReadyToOpen(existing, await readSchools(tx, existing));
     }
 
     await updateCycleStatus(tx, input.cycleId, input.status).catch((error: unknown) => {
@@ -423,6 +423,23 @@ async function readSchools(db: Executor, cycle: CycleRow): Promise<SchoolSetup[]
   });
 }
 
+function requireReadyToOpen(cycle: CycleRow, schools: readonly SchoolSetup[]) {
+  const blocking = gapsOf(cycle, schools).filter((gap) => SETUP_GAPS[gap.kind].neededToOpen);
+  if (blocking.length > 0) throw new NotReadyError(blocking);
+}
+
+/**
+ * A scoped administrator sees only their schools' changes. A row left with
+ * nothing to show is dropped, unless it is the cycle's own (created, or legacy).
+ */
+function visibleTo(actor: StaffContext, change: CycleChange): CycleChange[] {
+  if (change.changes.length === 0) return [change];
+  const changes = change.changes.filter(
+    (each) => each.schoolKey === null || actor.schoolKeys.includes(each.schoolKey),
+  );
+  return changes.length > 0 ? [{ ...change, changes }] : [];
+}
+
 function gapsOf(cycle: CycleRow, schools: readonly SchoolSetup[]): SetupGap[] {
   const gaps: SetupGap[] = [];
   const cycleGap = (kind: SetupGap["kind"]) => gaps.push({ kind, schoolKey: null });
@@ -432,6 +449,7 @@ function gapsOf(cycle: CycleRow, schools: readonly SchoolSetup[]): SetupGap[] {
     cycle.registrationCloseAt < cycle.resultPublishAt;
   if (!ordered) cycleGap("schedule");
   if (!toBank(cycle)) cycleGap("bank");
+  if (!schools.some((school) => school.isEnabled)) cycleGap("schools");
 
   for (const school of schools.filter((each) => each.isEnabled)) {
     const schoolGap = (kind: SetupGap["kind"], missing: boolean) => {

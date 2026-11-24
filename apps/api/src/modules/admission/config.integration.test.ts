@@ -453,6 +453,88 @@ describe("cycle sections", () => {
   });
 });
 
+describe("what a cycle must keep", () => {
+  it("refuses to open when no school takes part", async () => {
+    const cycle = await readyCycle();
+    await save({
+      section: "schedule",
+      cycleId: cycle.id,
+      ...cycleInput,
+      schools: SCHOOL_KEYS.map((schoolKey) => ({ schoolKey, isEnabled: false })),
+    });
+
+    await expect(
+      setAdmissionCycleStatus(db, actor, { cycleId: cycle.id, status: "OPEN" }),
+    ).rejects.toMatchObject({ data: { gaps: [{ kind: "schools", schoolKey: null }] } });
+  });
+
+  it("refuses a save that takes away what an open cycle needs, and keeps the old value", async () => {
+    const cycle = await readyCycle();
+    await setAdmissionCycleStatus(db, actor, { cycleId: cycle.id, status: "OPEN" });
+
+    const emptied = save({
+      section: "documents",
+      cycleId: cycle.id,
+      schools: [{ schoolKey: "sma", registration: [], reregistration: [] }],
+    });
+
+    await expect(emptied).rejects.toBeInstanceOf(NotReadyError);
+    await expect(emptied).rejects.toMatchObject({
+      data: { gaps: [{ kind: "registrationDocuments", schoolKey: "sma" }] },
+    });
+    const setup = await getCycleSetup(db, actor, { cycleId: cycle.id });
+    expect(
+      setup.schools.find((school) => school.schoolKey === "sma")?.registrationDocuments,
+    ).toEqual([{ type: "KARTU_KELUARGA", required: true }]);
+    const documentSaves = (await auditRows(cycle.id)).filter(
+      (row) => row.action === "cycle.documents",
+    );
+    expect(documentSaves).toHaveLength(1);
+  });
+
+  it("still lets an open cycle drop a school entirely", async () => {
+    const cycle = await readyCycle();
+    await setAdmissionCycleStatus(db, actor, { cycleId: cycle.id, status: "OPEN" });
+
+    await expect(
+      save({
+        section: "schedule",
+        cycleId: cycle.id,
+        ...cycleInput,
+        schools: [{ schoolKey: "sma", isEnabled: false }],
+      }),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe("history for a scoped administrator", () => {
+  it("shows no other school's changes", async () => {
+    const cycle = await createAdmissionCycle(db, actor, cycleInput);
+    await save({
+      section: "messages",
+      cycleId: cycle.id,
+      schools: [
+        { schoolKey: "smp", acceptedInstructions: "Rahasia SMP", rejectedInstructions: null },
+        { schoolKey: "sma", acceptedInstructions: "Untuk SMA", rejectedInstructions: null },
+      ],
+    });
+    await save({
+      section: "fees",
+      cycleId: cycle.id,
+      defaultFee: 250_000,
+      schools: [{ schoolKey: "smp", feeOverride: 400_000, reregistrationFee: null }],
+    });
+
+    const { history } = await getCycleSetup(db, smaOnly, { cycleId: cycle.id });
+
+    expect(JSON.stringify(history)).not.toMatch(/smp|Rahasia|400000/);
+    expect(history.map((change) => change.changes.map((each) => each.schoolKey))).toEqual([
+      ["sma"],
+      [],
+    ]);
+  });
+});
+
 describe("fees and the public page", () => {
   it("shows a new fee at once and keeps the fee an application was created with", async () => {
     const cycle = await readyCycle();
