@@ -7,7 +7,9 @@ import {
   ConflictError,
   ForbiddenError,
   IdempotencyKeyReusedError,
+  NoMatchError,
   NotFoundError,
+  TooManyTriesError,
   UnauthorizedError,
 } from "../errors.ts";
 import type { RequestMeta } from "../modules/application/service.ts";
@@ -46,6 +48,16 @@ const translateErrors = os.middleware(async ({ next }) => {
         status: 409,
         message: error.message,
         data: error instanceof IdempotencyKeyReusedError ? error.first : undefined,
+      });
+    }
+    if (error instanceof NoMatchError) {
+      throw new ORPCError(error.code, { status: 404, message: error.message });
+    }
+    if (error instanceof TooManyTriesError) {
+      throw new ORPCError(error.code, {
+        status: 429,
+        message: error.message,
+        data: { retryAfterSeconds: error.retryAfterSeconds },
       });
     }
     if (

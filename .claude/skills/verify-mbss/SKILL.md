@@ -5,7 +5,7 @@ description: Launch an isolated MBSS stack (throwaway Postgres, Mailpit, API, St
 
 # Verify MBSS
 
-MBSS has three things a user touches. The main one is the **profile site** (`apps/profile`). It is a single Next.js app that serves four sites by hostname: the umbrella at the apex and the SMP, SMK and SMA schools on subdomains. Its content comes from **Strapi** (`apps/cms`), where editors write and publish. Admission dates come from the **API** (`apps/api`). The other two are Vite apps in front of the API: the **parent app** (`apps/admission`), where families sign in by email code or Google, and the **committee app** (`apps/admin`), where staff sign in with Google. The parent app also holds the registration form and each child's status page. The committee app so far holds an empty page behind its sign-in.
+MBSS has three things a user touches. The main one is the **profile site** (`apps/profile`). It is a single Next.js app that serves four sites by hostname: the umbrella at the apex and the SMP, SMK and SMA schools on subdomains. Its content comes from **Strapi** (`apps/cms`), where editors write and publish. Admission dates come from the **API** (`apps/api`). The other two are Vite apps in front of the API: the **parent app** (`apps/admission`), where families sign in by email code or Google, and the **committee app** (`apps/admin`), where staff sign in with Google. The parent app also holds the registration form, each child's status page, and the status lookup that needs no account. The committee app so far holds an empty page behind its sign-in.
 
 Two helpers live next to this file. Run both from the repo root:
 

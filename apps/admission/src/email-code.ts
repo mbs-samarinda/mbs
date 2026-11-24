@@ -1,6 +1,8 @@
 import { accountIn, AuthError, authPost, type Account } from "@mbs/api-client/auth";
 import { UnreachableError } from "@mbs/api-client/http";
 
+import { formatWait } from "./format.ts";
+
 export const CODE_LENGTH = 6;
 
 export async function requestCode(email: string) {
@@ -75,8 +77,5 @@ function tooManyCodes(error: AuthError): Failure {
 }
 
 function waitOf({ retryAfterSeconds }: AuthError) {
-  if (retryAfterSeconds === null) return "1 menit";
-  return retryAfterSeconds < 60
-    ? `${retryAfterSeconds} detik`
-    : `${Math.ceil(retryAfterSeconds / 60)} menit`;
+  return retryAfterSeconds === null ? "1 menit" : formatWait(retryAfterSeconds);
 }

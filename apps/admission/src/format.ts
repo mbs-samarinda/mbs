@@ -26,6 +26,13 @@ export const formatDateTime = (iso: string) => `${formatDate(iso)}, ${formatTime
 export const formatFee = (amount: number) => `Rp${rupiah.format(amount)}`;
 export const formatList = (items: string[]) => list.format(items);
 
+/** Rounded up, so trying again after it always works. */
+export function formatWait(seconds: number) {
+  if (seconds < 60) return `${seconds} detik`;
+  const minutes = Math.ceil(seconds / 60);
+  return minutes < 60 ? `${minutes} menit` : `${Math.ceil(minutes / 60)} jam`;
+}
+
 export function schoolName(key: SchoolKey) {
   return SCHOOLS.find((school) => school.key === key)!.name;
 }

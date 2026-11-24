@@ -85,6 +85,13 @@
       "when": 1795449231585,
       "tag": "0011_sign_in_code_cap",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795485720431,
+      "tag": "0012_status_check_tries",
+      "breakpoints": true
     }
   ]
 }

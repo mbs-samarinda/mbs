@@ -97,6 +97,47 @@ export const APPLICATION_COMMANDS = [
   "EDIT_PROFILE",
 ] as const;
 
+/** The road a family follows, in order. */
+export const MILESTONES = [
+  "REGISTRATION",
+  "PAYMENT",
+  "DOCUMENTS",
+  "SCREENING",
+  "INTERVIEW",
+  "ANNOUNCEMENT",
+  "REREGISTRATION",
+] as const;
+export type Milestone = (typeof MILESTONES)[number];
+export type FinishedMilestones = { [M in Milestone]?: string };
+
+const FINISHES: { [C in (typeof APPLICATION_COMMANDS)[number]]?: Milestone } = {
+  SUBMIT: "REGISTRATION",
+  APPROVE_PAYMENT: "PAYMENT",
+  VERIFY_DOCUMENTS: "DOCUMENTS",
+  ADVANCE_TO_INTERVIEW: "SCREENING",
+  STOP_AT_SCREENING: "SCREENING",
+  RECORD_ATTENDED: "INTERVIEW",
+  PUBLISH_ACCEPTED: "ANNOUNCEMENT",
+  PUBLISH_NOT_ACCEPTED: "ANNOUNCEMENT",
+  CONFIRM_ENROLLMENT: "REREGISTRATION",
+};
+
+/**
+ * When each milestone was finished, from the events a family may see, oldest
+ * first. Both sides run it: the status page on the events it has, and the API
+ * for a lookup, whose answer carries no events.
+ */
+export function finishedMilestones(
+  events: readonly { command: (typeof APPLICATION_COMMANDS)[number]; at: string }[],
+): FinishedMilestones {
+  const finished: FinishedMilestones = {};
+  for (const { command, at } of events) {
+    const milestone = FINISHES[command];
+    if (milestone) finished[milestone] = at;
+  }
+  return finished;
+}
+
 /** Kept in the form's JSON, not in a Postgres enum, so adding one needs no migration. */
 export const SEXES = ["MALE", "FEMALE"] as const;
 export const GUARDIAN_RELATIONS = ["FATHER", "MOTHER", "GUARDIAN"] as const;

@@ -30,6 +30,12 @@ function EmailStep() {
         <span className="h-px flex-1 bg-border" />
       </div>
       <EmailForm />
+      <Link
+        to="/cek"
+        className="inline-flex min-h-11 items-center justify-self-center text-sm font-medium text-primary"
+      >
+        Cek status tanpa masuk
+      </Link>
     </>
   );
 }

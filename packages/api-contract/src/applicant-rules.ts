@@ -9,7 +9,7 @@ export type RuleResult<T> = { ok: true; value: T } | { ok: false; message: strin
 export type Rule<T> = (raw: string, now: Date) => RuleResult<T>;
 
 /** Zero-width and direction marks. Contact apps put them around a number that is copied. */
-const INVISIBLE = /[\u200b\u200e\u200f\u2060\u202a-\u202e\u2066-\u2069\ufeff]/g;
+export const INVISIBLE = /[\u200b\u200e\u200f\u2060\u202a-\u202e\u2066-\u2069\ufeff]/g;
 const NAME_MAX = 200;
 const AGE = { min: 8, max: 25 };
 

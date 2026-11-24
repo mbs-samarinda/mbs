@@ -36,5 +36,6 @@ Each feature file starts with an H1 and one paragraph about what the user sees. 
 - [Admission status](./admission-status.md): the `pendaftaran` page reading the live cycle from the API, in its no-cycle and API-down states.
 - [Family sign-in](./family-sign-in.md): the parent app, by email code or Google, its guard and its refusals.
 - [Family registration](./family-registration.md): the registration form, its draft on the device, the list of children and the status page.
+- [Status without an account](./status-lookup.md): a relative checks one application with its number and the child's NIK, and the limits on guessing.
 - [Committee sign-in](./committee-sign-in.md): the committee app, its dashboard and the two ways it refuses an account.
 - [CMS publish](./cms-publish.md): an editor changes content in Strapi, publishes, and the profile site shows it without waiting out the cache.

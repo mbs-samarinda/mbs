@@ -3,7 +3,7 @@ import { STATUS_CODES } from "node:http";
 
 import { createDatabase, type Database } from "@mbs/db";
 import { onError, ORPCError } from "@orpc/server";
-import { RPCHandler } from "@orpc/server/fastify";
+import { RPCHandler, type RPCHandlerOptions } from "@orpc/server/fastify";
 import { getIP } from "better-auth/api";
 import { fromNodeHeaders } from "better-auth/node";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
@@ -24,7 +24,8 @@ import {
   createNotificationWorker,
   type NotificationWorker,
 } from "./modules/notification/worker.ts";
-import { router } from "./router.ts";
+import type { ApiContext } from "./plugins/orpc.ts";
+import { familyRouter, router } from "./router.ts";
 import { healthRoutes } from "./routes/health.ts";
 
 declare module "fastify" {
@@ -161,15 +162,15 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     },
   });
 
-  const handler = new RPCHandler(router, {
-    interceptors: [
-      // oRPC answers an unexpected error with a bare 500 and logs nothing.
-      onError((error, { context }) => {
-        if (error instanceof ORPCError && error.status < 500) return;
-        context.log.error({ err: redactError(error) }, "unexpected error in procedure");
-      }),
-    ],
-  });
+  const interceptors: RPCHandlerOptions<ApiContext>["interceptors"] = [
+    // oRPC answers an unexpected error with a bare 500 and logs nothing.
+    onError((error, { context }) => {
+      if (error instanceof ORPCError && error.status < 500) return;
+      context.log.error({ err: redactError(error) }, "unexpected error in procedure");
+    }),
+  ];
+  const familyHandler = new RPCHandler(familyRouter, { interceptors });
+  const otherHandler = new RPCHandler(router, { interceptors });
   // These procedures authenticate by cookie, so they need CSRF protection. It
   // comes from the session cookie itself: Better Auth sets SameSite=Lax, so a
   // cross-site POST never carries it and arrives unauthenticated.
@@ -177,7 +178,10 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
     const audience = audienceOf(request);
     const headers = authHeaders(request);
     const session = audience ? await app.auth[audience].api.getSession({ headers }) : null;
+    // A lookup's answer is about a child, and no browser or proxy may keep it.
+    reply.header("cache-control", "no-store");
 
+    const handler = audience === "FAMILY" ? familyHandler : otherHandler;
     const { matched } = await handler.handle(request, reply, {
       prefix: "/api/rpc",
       context: {
@@ -209,8 +213,9 @@ function authHeaders(request: FastifyRequest) {
  * Drizzle puts the query parameters, emails among them, in its message and on
  * the error itself. So the log keeps each error's type and code, and the
  * message and stack of the innermost one only, which comes from the driver.
- * ponytail: a Postgres data error (22xxx) quotes its input; the contract parses
- * input before any query today, so none is expected here.
+ * ponytail: a Postgres data error (22xxx) quotes its input. The contract, and
+ * `status-check.ts` for a lookup, parse input before any query, so none is
+ * expected here.
  */
 function redactError(error: unknown) {
   const chain: Error[] = [];

@@ -3,6 +3,7 @@ import {
   APPLICATION_COMMANDS,
   APPLICATION_STAGES,
   INTERVIEW_MODES,
+  MILESTONES,
 } from "@mbs/school-config";
 import { z } from "zod";
 
@@ -141,3 +142,27 @@ export type SubmittedApplication = z.infer<typeof SubmittedApplication>;
  */
 export const ReusedKey = SubmittedApplication.extend({ sameRegistration: z.boolean() });
 export type ReusedKey = z.infer<typeof ReusedKey>;
+
+/**
+ * As typed. Any text is accepted here, because a number or NIK that could never
+ * exist has to be counted and answered exactly like one that does not.
+ */
+export const CheckStatusInput = z.object({ registrationNumber: z.string(), nik: z.string() });
+export type CheckStatusInput = z.infer<typeof CheckStatusInput>;
+
+/**
+ * All that someone without an account may see. Written out, not made from
+ * `FamilyApplication`, so a field added there never shows here by itself.
+ */
+export const CheckedStatus = z.object({
+  registrationNumber: z.string(),
+  schoolKey: SchoolKey,
+  childName: z.string(),
+  stage: FamilyStage,
+  /** The milestones that are finished, and when. */
+  finished: z.partialRecord(z.enum(MILESTONES), z.iso.datetime()),
+});
+export type CheckedStatus = z.infer<typeof CheckedStatus>;
+
+export const TooManyTries = z.object({ retryAfterSeconds: z.int().positive() });
+export type TooManyTries = z.infer<typeof TooManyTries>;

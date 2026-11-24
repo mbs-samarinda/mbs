@@ -1,5 +1,6 @@
-import { familyProcedure } from "../../plugins/orpc.ts";
+import { familyProcedure, publicProcedure } from "../../plugins/orpc.ts";
 import { listFamilyApplications, loadFamilyApplication, submitApplication } from "./service.ts";
+import { checkStatus } from "./status-check.ts";
 
 export const listFamilyApplicationsProcedure = familyProcedure.applicant.applications.list.handler(
   ({ context }) => listFamilyApplications(context.db, context.family),
@@ -18,4 +19,12 @@ export const submitApplicationProcedure = familyProcedure.applicant.applications
     );
     return { applicationId: application.id };
   },
+);
+
+export const checkStatusProcedure = publicProcedure.public.application.checkStatus.handler(
+  ({ input, context: { db, session, meta } }) =>
+    checkStatus(db, input, {
+      userId: session.audience === "FAMILY" ? session.user.id : null,
+      meta,
+    }),
 );
