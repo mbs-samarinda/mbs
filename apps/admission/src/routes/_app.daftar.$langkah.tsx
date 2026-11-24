@@ -3,7 +3,6 @@ import type { GUARDIAN_RELATIONS, SEXES } from "@mbs/school-config";
 import { Alert } from "@mbs/ui/components/alert";
 import { Button } from "@mbs/ui/components/button";
 import { Input } from "@mbs/ui/components/input";
-import { Label } from "@mbs/ui/components/label";
 import { NativeSelect, NativeSelectOption } from "@mbs/ui/components/native-select";
 import {
   useIsMutating,
@@ -21,8 +20,8 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { cn } from "cn";
-import { CheckIcon, CircleAlertIcon } from "lucide-react";
-import { useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
+import { CheckIcon } from "lucide-react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 
 import { applicationsQuery } from "../api.ts";
@@ -40,6 +39,7 @@ import {
   type ValueName,
   type Values,
 } from "../draft.ts";
+import { CONTROL, describedBy, FieldError, TextField } from "../field.tsx";
 import { formatDate, formatFee, MONTHS, schoolName } from "../format.ts";
 import {
   errorsIn,
@@ -422,45 +422,6 @@ function GuardianStep({ values, set }: StepProps) {
   );
 }
 
-const CONTROL = "h-11 rounded-xl px-3.5";
-/** Above what the rules allow, so a long paste is answered and not cut in silence. */
-const MAX_LENGTH = 400;
-
-function TextField({
-  field,
-  label,
-  hint,
-  error,
-  ...input
-}: {
-  field: ApplicantField;
-  label: string;
-  hint?: string;
-  error: string | undefined;
-} & ComponentProps<typeof Input>) {
-  return (
-    <div className="grid grid-cols-1 gap-2">
-      <Label htmlFor={field}>{label}</Label>
-      <Input
-        id={field}
-        name={field}
-        maxLength={MAX_LENGTH}
-        required
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy(field, { error, hint })}
-        className={CONTROL}
-        {...input}
-      />
-      {hint && (
-        <p id={`${field}-hint`} className="text-sm text-muted-foreground">
-          {hint}
-        </p>
-      )}
-      <FieldError field={field}>{error}</FieldError>
-    </div>
-  );
-}
-
 function BirthDate({ values, set, error }: StepProps & { error: string | undefined }) {
   const part = {
     required: true,
@@ -574,24 +535,6 @@ function Group({
       {children}
       <FieldError field={field}>{error}</FieldError>
     </fieldset>
-  );
-}
-
-function describedBy(
-  field: string,
-  { error, hint }: { error: string | undefined; hint?: string | undefined },
-) {
-  const ids = [error && `${field}-error`, hint && `${field}-hint`].filter(Boolean);
-  return ids.length > 0 ? ids.join(" ") : undefined;
-}
-
-function FieldError({ field, children }: { field: string; children: string | undefined }) {
-  if (!children) return null;
-  return (
-    <p id={`${field}-error`} className="flex items-start gap-1.5 text-sm text-destructive">
-      <CircleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-      <span className="min-w-0 text-pretty">{children}</span>
-    </p>
   );
 }
 

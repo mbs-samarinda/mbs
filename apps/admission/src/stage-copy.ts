@@ -1,5 +1,6 @@
 import { serverNow } from "@mbs/api-client/http";
 import type { ActorType, FamilyApplication, FamilyCommand, FamilyStage } from "@mbs/api-contract";
+import type { Milestone } from "@mbs/school-config";
 
 import { formatDateTime, formatFee, formatList, schoolName } from "./format.ts";
 
@@ -9,16 +10,15 @@ export const TURNS = {
   NOBODY: "Selesai",
 } as const;
 
-export const MILESTONES = [
-  "Pendaftaran",
-  "Pembayaran",
-  "Dokumen",
-  "Seleksi berkas",
-  "Wawancara",
-  "Pengumuman",
-  "Daftar ulang",
-] as const;
-type Milestone = (typeof MILESTONES)[number];
+export const MILESTONE_LABELS: Record<Milestone, string> = {
+  REGISTRATION: "Pendaftaran",
+  PAYMENT: "Pembayaran",
+  DOCUMENTS: "Dokumen",
+  SCREENING: "Seleksi berkas",
+  INTERVIEW: "Wawancara",
+  ANNOUNCEMENT: "Pengumuman",
+  REREGISTRATION: "Daftar ulang",
+};
 
 type StageCopy = {
   turn: keyof typeof TURNS;
@@ -35,7 +35,7 @@ export const STAGE_COPY: Record<FamilyStage, StageCopy> = {
   PAYMENT_DUE: {
     turn: "FAMILY",
     title: "Menunggu pembayaran",
-    at: "Pembayaran",
+    at: "PAYMENT",
     next: (application) => {
       if (sentBack(application, "REJECT_PAYMENT")) {
         return "Bukti transfer perlu diunggah ulang. Tempat mengunggahnya akan muncul di halaman ini. Jangan transfer lagi.";
@@ -48,13 +48,13 @@ export const STAGE_COPY: Record<FamilyStage, StageCopy> = {
   PAYMENT_REVIEW: {
     turn: "COMMITTEE",
     title: "Panitia memeriksa pembayaran",
-    at: "Pembayaran",
+    at: "PAYMENT",
     next: () => WAIT,
   },
   DOCUMENTS_DUE: {
     turn: "FAMILY",
     title: "Menunggu dokumen",
-    at: "Dokumen",
+    at: "DOCUMENTS",
     next: (application) =>
       sentBack(application, "REQUEST_DOCUMENT_FIX")
         ? "Ada dokumen yang perlu diperbaiki. Tempat mengunggahnya akan muncul di halaman ini."
@@ -63,31 +63,31 @@ export const STAGE_COPY: Record<FamilyStage, StageCopy> = {
   DOCUMENTS_REVIEW: {
     turn: "COMMITTEE",
     title: "Panitia memeriksa dokumen",
-    at: "Dokumen",
+    at: "DOCUMENTS",
     next: () => WAIT,
   },
   SCREENING: {
     turn: "COMMITTEE",
     title: "Panitia menyeleksi berkas",
-    at: "Seleksi berkas",
+    at: "SCREENING",
     next: () => WAIT,
   },
   INTERVIEW_PENDING: {
     turn: "COMMITTEE",
     title: "Menunggu jadwal wawancara",
-    at: "Wawancara",
+    at: "INTERVIEW",
     next: () => "Panitia sedang menyusun jadwalnya. Kami kabari lewat email.",
   },
   INTERVIEW_SCHEDULED: {
     turn: "FAMILY",
     title: "Wawancara sudah dijadwalkan",
-    at: "Wawancara",
+    at: "INTERVIEW",
     next: () => "Waktu dan tempatnya akan muncul di halaman ini.",
   },
   INTERVIEWED: {
     turn: "COMMITTEE",
     title: "Menunggu pengumuman",
-    at: "Pengumuman",
+    at: "ANNOUNCEMENT",
     next: ({ resultPublishAt }) =>
       // Once that time has passed, a date would read as a broken promise.
       Date.parse(resultPublishAt) > serverNow().getTime()
@@ -97,7 +97,7 @@ export const STAGE_COPY: Record<FamilyStage, StageCopy> = {
   REREGISTRATION: {
     turn: "FAMILY",
     title: "Diterima, menunggu daftar ulang",
-    at: "Daftar ulang",
+    at: "REREGISTRATION",
     next: (application) =>
       sentBack(application, "REQUEST_REREGISTRATION_FIX")
         ? "Ada bagian daftar ulang yang perlu diperbaiki. Caranya akan muncul di halaman ini."
@@ -106,7 +106,7 @@ export const STAGE_COPY: Record<FamilyStage, StageCopy> = {
   REREGISTRATION_REVIEW: {
     turn: "COMMITTEE",
     title: "Panitia memeriksa daftar ulang",
-    at: "Daftar ulang",
+    at: "REREGISTRATION",
     next: () => WAIT,
   },
   ENROLLED: {
@@ -139,34 +139,28 @@ export const STAGE_COPY: Record<FamilyStage, StageCopy> = {
   },
 };
 
-type EventCopy = {
-  title: string | ((actor: ActorType) => string);
-  /** The milestone this event finishes. */
-  finishes?: Milestone;
-};
-
-export const EVENT_COPY: Record<FamilyCommand, EventCopy> = {
-  SUBMIT: { title: "Pendaftaran dikirim", finishes: "Pendaftaran" },
-  UPLOAD_PAYMENT_PROOF: { title: "Bukti transfer dikirim" },
-  APPROVE_PAYMENT: { title: "Pembayaran dikonfirmasi", finishes: "Pembayaran" },
-  REJECT_PAYMENT: { title: "Bukti transfer perlu diunggah ulang" },
-  SUBMIT_DOCUMENTS: { title: "Dokumen dikirim" },
-  REQUEST_DOCUMENT_FIX: { title: "Dokumen perlu diperbaiki" },
-  VERIFY_DOCUMENTS: { title: "Dokumen lengkap", finishes: "Dokumen" },
-  ADVANCE_TO_INTERVIEW: { title: "Lanjut ke wawancara", finishes: "Seleksi berkas" },
-  STOP_AT_SCREENING: { title: "Tidak lanjut ke wawancara", finishes: "Seleksi berkas" },
-  SCHEDULE_INTERVIEW: { title: "Wawancara dijadwalkan" },
-  RESCHEDULE_INTERVIEW: { title: "Jadwal wawancara berubah" },
-  RECORD_ATTENDED: { title: "Wawancara selesai", finishes: "Wawancara" },
-  RECORD_NO_SHOW: { title: "Tercatat tidak hadir di wawancara" },
-  PUBLISH_ACCEPTED: { title: "Diterima", finishes: "Pengumuman" },
-  PUBLISH_NOT_ACCEPTED: { title: "Belum diterima", finishes: "Pengumuman" },
-  SUBMIT_REREGISTRATION: { title: "Daftar ulang dikirim" },
-  REQUEST_REREGISTRATION_FIX: { title: "Daftar ulang perlu diperbaiki" },
-  CONFIRM_ENROLLMENT: { title: "Resmi terdaftar", finishes: "Daftar ulang" },
-  WITHDRAW: { title: by("Pendaftaran dibatalkan") },
-  CHANGE_INTERVIEW_MODE: { title: by("Cara wawancara diganti") },
-  EDIT_PROFILE: { title: by("Data pendaftaran diubah") },
+export const EVENT_TITLES: Record<FamilyCommand, string | ((actor: ActorType) => string)> = {
+  SUBMIT: "Pendaftaran dikirim",
+  UPLOAD_PAYMENT_PROOF: "Bukti transfer dikirim",
+  APPROVE_PAYMENT: "Pembayaran dikonfirmasi",
+  REJECT_PAYMENT: "Bukti transfer perlu diunggah ulang",
+  SUBMIT_DOCUMENTS: "Dokumen dikirim",
+  REQUEST_DOCUMENT_FIX: "Dokumen perlu diperbaiki",
+  VERIFY_DOCUMENTS: "Dokumen lengkap",
+  ADVANCE_TO_INTERVIEW: "Lanjut ke wawancara",
+  STOP_AT_SCREENING: "Tidak lanjut ke wawancara",
+  SCHEDULE_INTERVIEW: "Wawancara dijadwalkan",
+  RESCHEDULE_INTERVIEW: "Jadwal wawancara berubah",
+  RECORD_ATTENDED: "Wawancara selesai",
+  RECORD_NO_SHOW: "Tercatat tidak hadir di wawancara",
+  PUBLISH_ACCEPTED: "Diterima",
+  PUBLISH_NOT_ACCEPTED: "Belum diterima",
+  SUBMIT_REREGISTRATION: "Daftar ulang dikirim",
+  REQUEST_REREGISTRATION_FIX: "Daftar ulang perlu diperbaiki",
+  CONFIRM_ENROLLMENT: "Resmi terdaftar",
+  WITHDRAW: by("Pendaftaran dibatalkan"),
+  CHANGE_INTERVIEW_MODE: by("Cara wawancara diganti"),
+  EDIT_PROFILE: by("Data pendaftaran diubah"),
 };
 
 /** Both sides can do these, so the line says who did. */
