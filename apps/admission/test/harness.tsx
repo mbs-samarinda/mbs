@@ -58,9 +58,11 @@ export function stubApi(answers: Record<string, Answers>, serverClock?: string) 
   return calls;
 }
 
-/** A procedure's refusal, as oRPC sends it. */
+const DECLARED = ["REGISTRATION_CLOSED", "DUPLICATE_APPLICATION", "IDEMPOTENCY_KEY_REUSED"];
+
+/** A procedure's refusal, as oRPC sends it. Only a declared code is marked defined. */
 export function refusal(code: string, status: number, data?: unknown): Answer {
-  return { status, body: { defined: true, code, status, message: code, data } };
+  return { status, body: { defined: DECLARED.includes(code), code, status, message: code, data } };
 }
 
 export function open(path: string | string[]) {
