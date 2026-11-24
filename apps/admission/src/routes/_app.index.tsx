@@ -76,7 +76,9 @@ function Title({ children }: { children: ReactNode }) {
   );
 }
 
-const ROW = "flex items-center gap-4 py-4";
+/** The logo goes above the words when large text leaves them no room beside it. */
+const ROW = "flex flex-wrap items-center gap-4 py-4";
+const WORDS = "flex min-w-0 flex-[1_1_12rem] items-center gap-4";
 
 function ApplicationRow({ application }: { application: FamilyApplicationSummary }) {
   const { turn, title } = STAGE_COPY[application.stage];
@@ -84,15 +86,19 @@ function ApplicationRow({ application }: { application: FamilyApplicationSummary
     <li>
       <Link to="/status/$applicationId" params={{ applicationId: application.id }} className={ROW}>
         <SchoolLogo school={application.schoolKey} className="size-10" />
-        <div className="min-w-0 flex-1 wrap-anywhere">
-          <p className="font-semibold">{application.childName}</p>
-          <p className="text-sm text-muted-foreground">{schoolName(application.schoolKey)}</p>
-          <p className="mt-1 text-sm">
-            <span className={cn("font-medium", turn === "FAMILY" && "text-primary")}>{title}</span>
-            {turn !== "NOBODY" && <span className="text-muted-foreground"> · {TURNS[turn]}</span>}
-          </p>
+        <div className={WORDS}>
+          <div className="min-w-0 flex-1 wrap-anywhere">
+            <p className="font-semibold">{application.childName}</p>
+            <p className="text-sm text-muted-foreground">{schoolName(application.schoolKey)}</p>
+            <p className="mt-1 text-sm">
+              <span className={cn("font-medium", turn === "FAMILY" && "text-primary")}>
+                {title}
+              </span>
+              {turn !== "NOBODY" && <span className="text-muted-foreground"> · {TURNS[turn]}</span>}
+            </p>
+          </div>
+          <Chevron />
         </div>
-        <Chevron />
       </Link>
     </li>
   );
@@ -108,17 +114,19 @@ function DraftRow({ draft: { values, attempt } }: { draft: Draft }) {
         ) : (
           <span className="size-10 shrink-0" />
         )}
-        <div className="min-w-0 flex-1 wrap-anywhere">
-          <p className="font-semibold">{values.childFullName.trim() || "Pendaftaran baru"}</p>
-          {school && <p className="text-sm text-muted-foreground">{schoolName(school)}</p>}
-          <p className="mt-1 text-sm">
-            <span className="font-medium text-primary">
-              {attempt ? "Belum pasti terkirim" : "Belum dikirim"}
-            </span>
-            <span className="text-muted-foreground"> · Lanjutkan isian</span>
-          </p>
+        <div className={WORDS}>
+          <div className="min-w-0 flex-1 wrap-anywhere">
+            <p className="font-semibold">{values.childFullName.trim() || "Pendaftaran baru"}</p>
+            {school && <p className="text-sm text-muted-foreground">{schoolName(school)}</p>}
+            <p className="mt-1 text-sm">
+              <span className="font-medium text-primary">
+                {attempt ? "Belum pasti terkirim" : "Belum dikirim"}
+              </span>
+              <span className="text-muted-foreground"> · Lanjutkan isian</span>
+            </p>
+          </div>
+          <Chevron />
         </div>
-        <Chevron />
       </Link>
     </li>
   );
@@ -204,13 +212,15 @@ function ChooseSchool({ open }: { open: ReturnType<typeof sortByPhase>["open"] }
               className={ROW}
             >
               <SchoolLogo school={schoolKey} className="size-12" />
-              <div className="min-w-0 flex-1 wrap-anywhere">
-                <p className="font-semibold">{schoolName(schoolKey)}</p>
-                <p className="text-sm text-muted-foreground">
-                  Biaya pendaftaran {formatFee(effectiveFee)}
-                </p>
+              <div className={WORDS}>
+                <div className="min-w-0 flex-1 wrap-anywhere">
+                  <p className="font-semibold">{schoolName(schoolKey)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Biaya pendaftaran {formatFee(effectiveFee)}
+                  </p>
+                </div>
+                <Chevron />
               </div>
-              <Chevron />
             </Link>
           </li>
         ))}

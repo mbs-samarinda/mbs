@@ -289,7 +289,7 @@ function SchoolStep({ values, set, offered }: StepProps & { offered: readonly Sc
           {offered.map(({ schoolKey, cycle }) => (
             <label
               key={schoolKey}
-              className="flex min-h-16 cursor-pointer items-center gap-3.5 rounded-xl border border-input px-3.5 py-2.5 has-checked:border-primary has-checked:bg-info-tint"
+              className="flex min-h-16 cursor-pointer flex-wrap items-center gap-3.5 rounded-xl border border-input px-3.5 py-2.5 has-checked:border-primary has-checked:bg-info-tint"
             >
               <input
                 type="radio"
@@ -300,7 +300,7 @@ function SchoolStep({ values, set, offered }: StepProps & { offered: readonly Sc
                 className="size-4 shrink-0 accent-primary"
               />
               <SchoolLogo school={schoolKey} className="size-9" />
-              <span className="min-w-0 flex-1 wrap-anywhere">
+              <span className="min-w-0 flex-[1_1_9rem] wrap-anywhere">
                 <span className="block text-sm font-semibold">{schoolName(schoolKey)}</span>
                 {cycle && (
                   <span className="block text-sm text-muted-foreground">
@@ -721,7 +721,7 @@ function Review({
           params={{ langkah: step }}
           search={{ dari: "periksa" }}
           state={{ from: "periksa", depth: depth + 1 }}
-          className="inline-flex min-h-11 min-w-11 items-center justify-end text-sm font-medium text-primary"
+          className="inline-flex min-h-11 min-w-11 items-center justify-end text-sm font-medium text-primary aria-disabled:opacity-50"
         >
           Ubah <span className="sr-only">{title.toLowerCase()}</span>
         </Link>
