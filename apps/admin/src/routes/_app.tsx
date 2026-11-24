@@ -17,7 +17,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { cn } from "cn";
-import { HomeIcon, InboxIcon, MenuIcon, UsersIcon } from "lucide-react";
+import { HomeIcon, InboxIcon, LogOutIcon, MenuIcon, UsersIcon } from "lucide-react";
 import { useState } from "react";
 
 import { APP_NAME } from "../app-name.ts";
@@ -72,12 +72,15 @@ function AppShell() {
   );
   const signOutButton = (
     <Button
-      variant="outline"
+      variant="ghost"
+      size="icon"
+      aria-label="Keluar"
+      title="Keluar"
       disabled={leave.isPending}
       focusableWhenDisabled
       onClick={() => leave.mutate()}
     >
-      {leave.isPending ? "Keluar…" : "Keluar"}
+      <LogOutIcon aria-hidden />
     </Button>
   );
 
@@ -113,13 +116,16 @@ function AppShell() {
 
   return (
     <div className="grid min-h-dvh grid-cols-[minmax(0,1fr)] lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside className="flex flex-col gap-6 bg-muted px-3 py-4 max-lg:hidden lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto">
-        <div className="px-2">
-          <BrandMark sub={APP_NAME} />
-        </div>
-        <Nav schools={staff.schools} />
-        <div className="mt-auto">{footer}</div>
-      </aside>
+      {/* The tint runs the page's full height; only the contents stay in view. */}
+      <div className="bg-muted max-lg:hidden">
+        <aside className="sticky top-0 flex h-dvh flex-col gap-6 overflow-y-auto px-3 py-4">
+          <div className="px-2">
+            <BrandMark sub={APP_NAME} />
+          </div>
+          <Nav schools={staff.schools} />
+          <div className="mt-auto">{footer}</div>
+        </aside>
+      </div>
       <div className="flex min-w-0 flex-col">
         <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2 lg:hidden">
           <BrandMark sub={APP_NAME} />

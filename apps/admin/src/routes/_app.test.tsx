@@ -47,7 +47,9 @@ describe("Beranda", () => {
     });
     open("/");
     expect(await screen.findByText("99% dari pendaftar")).toBeVisible();
-    expect(screen.getByText(/PPDB 2027\/2028 · pendaftaran ditutup 31 Januari 2099/)).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Beranda" }).nextElementSibling).toHaveTextContent(
+      "PPDB 2027/2028 · pendaftaran ditutup 31 Januari 2099",
+    );
     expect(screen.getAllByText("2.500")[0]).toBeVisible();
   });
 

@@ -65,7 +65,12 @@ function Home() {
 function cycleLine(cycle: CommitteeDashboard["cycle"]) {
   if (!cycle) return "Belum ada periode pendaftaran.";
   const closed = Date.parse(cycle.closesAt) <= serverNow().getTime();
-  return `${cycle.name} · pendaftaran ${closed ? "sudah ditutup" : "ditutup"} ${formatDate(cycle.closesAt)}`;
+  return (
+    <>
+      {cycle.name} · pendaftaran {closed ? "sudah ditutup" : "ditutup"}{" "}
+      <span className="whitespace-nowrap">{formatDate(cycle.closesAt)}</span>
+    </>
+  );
 }
 
 /** Every number has a plain sentence for zero, so an empty cycle never shows NaN or a blank. */
