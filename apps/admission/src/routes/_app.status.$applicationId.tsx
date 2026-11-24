@@ -50,9 +50,10 @@ function Status() {
         <ArrowLeftIcon aria-hidden className="size-4" />
         Semua pendaftaran
       </Link>
-      <div className="flex items-center gap-4">
+      {/* The name drops under the logo when large text leaves it no room. */}
+      <div className="flex flex-wrap items-center gap-4">
         <SchoolLogo school={application.schoolKey} className="size-14" />
-        <div className="min-w-0 wrap-anywhere">
+        <div className="min-w-0 flex-[1_1_11rem] wrap-anywhere">
           <h1 tabIndex={-1} className="text-xl font-semibold text-balance outline-none">
             {application.childName}
           </h1>
@@ -73,7 +74,7 @@ function Status() {
 
 function Edits({ kept }: { kept: boolean }) {
   return (
-    <div className="grid gap-1 rounded-xl bg-warning-tint p-5 text-pretty text-warning">
+    <div className="grid gap-1 rounded-xl bg-warning-tint p-[min(1.25rem,6vw)] text-pretty text-warning">
       {kept ? (
         <>
           <p>
@@ -101,7 +102,7 @@ function NextStep({ application }: { application: FamilyApplication }) {
   const { turn, title, next } = STAGE_COPY[application.stage];
   const newest = application.events.at(-1);
   return (
-    <section className="grid gap-1.5 rounded-xl bg-info-tint p-5 wrap-anywhere">
+    <section className="grid gap-1.5 rounded-xl bg-info-tint p-[min(1.25rem,6vw)] wrap-anywhere">
       <p className="text-sm font-medium text-info">{TURNS[turn]}</p>
       <h2 className="text-lg font-semibold text-balance">{title}</h2>
       <p className="text-pretty">{next(application)}</p>

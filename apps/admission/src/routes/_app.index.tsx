@@ -204,7 +204,7 @@ function ChooseSchool({ open }: { open: ReturnType<typeof sortByPhase>["open"] }
               className={ROW}
             >
               <SchoolLogo school={schoolKey} className="size-12" />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 wrap-anywhere">
                 <p className="font-semibold">{schoolName(schoolKey)}</p>
                 <p className="text-sm text-muted-foreground">
                   Biaya pendaftaran {formatFee(effectiveFee)}

@@ -266,6 +266,55 @@ describe("the check", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(`/status/${APPLICATION_ID}`));
   });
 
+  it("lists the new child on home right away, not the empty page from before", async () => {
+    stubApi({ ...READY, [LIST]: [{ body: [] }, { body: [] }, { body: [applicationOf()] }] });
+    fill();
+    open("/");
+    await userEvent.setup().click(await screen.findByRole("link", { name: /Belum dikirim/ }));
+    await heading("Periksa sebelum dikirim");
+    await press("Kirim pendaftaran");
+    await screen.findByRole("heading", { name: "Menunggu pembayaran" });
+    await waitFor(() => expect(localStorage.getItem("mbs:draft")).toBeNull());
+    const seen = new Set<string | null>();
+    const watch = new MutationObserver(() =>
+      seen.add(document.querySelector("h1")?.textContent ?? null),
+    );
+    watch.observe(document.body, { childList: true, subtree: true });
+    await userEvent.setup().click(screen.getByRole("link", { name: "Semua pendaftaran" }));
+    expect(await screen.findByRole("link", { name: /Aisyah Putri/ })).toBeVisible();
+    watch.disconnect();
+    expect(seen).not.toContain("Pilih sekolah");
+  });
+
+  it("still opens the status when another tab sent the same form first", async () => {
+    const { promise: answered, resolve: answer } = Promise.withResolvers<null>();
+    const calls = stubApi(READY);
+    const fetched = fetch;
+    vi.stubGlobal("fetch", async (input: Request, init: RequestInit) => {
+      if (typeof input !== "string" && input.url.endsWith(SUBMIT)) await answered;
+      return fetched(input, init);
+    });
+    fill();
+    const router = open("/daftar/periksa");
+    await heading("Periksa sebelum dikirim");
+    await press("Kirim pendaftaran");
+    localStorage.removeItem("mbs:draft");
+    dispatchEvent(new StorageEvent("storage", { key: "mbs:draft" }));
+    answer(null);
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/status/${APPLICATION_ID}`));
+    expect(calls.filter(({ path }) => path === SUBMIT)).toHaveLength(1);
+  });
+
+  it("goes home when another tab sent the form and nothing is running here", async () => {
+    stubApi(READY);
+    fill();
+    const router = open("/daftar/periksa");
+    await heading("Periksa sebelum dikirim");
+    localStorage.removeItem("mbs:draft");
+    dispatchEvent(new StorageEvent("storage", { key: "mbs:draft" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+  });
+
   it("sends the same request again after a lost answer, a reload and a closed cycle", async () => {
     const calls = stubApi({ ...READY, [SUBMIT]: [{ lost: true }, READY[SUBMIT][0]!] });
     const key = fill();

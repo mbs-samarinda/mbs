@@ -6,7 +6,12 @@ import { Button } from "@mbs/ui/components/button";
 import { Input } from "@mbs/ui/components/input";
 import { Label } from "@mbs/ui/components/label";
 import { NativeSelect, NativeSelectOption } from "@mbs/ui/components/native-select";
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import {
   createFileRoute,
   Link,
@@ -103,8 +108,10 @@ function Form() {
   const { draft, saved } = useDraft(account.id);
   const { data: schools } = useSuspenseQuery(cyclesQuery);
 
-  // Sent or cleared in another tab. Home shows what became of it.
-  if (!draft && langkah !== "sekolah") return <Navigate to="/" replace />;
+  // Sent or cleared in another tab. Home shows what became of it, unless this tab
+  // is still waiting for an answer of its own and goes on to that.
+  const waiting = useIsMutating() > 0;
+  if (!draft && langkah !== "sekolah" && !waiting) return <Navigate to="/" replace />;
 
   const values = draft?.values ?? EMPTY_VALUES;
   const school = schools.find(({ schoolKey }) => schoolKey === values.schoolKey);
@@ -576,7 +583,10 @@ function CheckStep({ draft, schools }: { draft: Draft; schools: readonly SchoolC
   const send = useMutation({
     mutationFn: async () => {
       const { applicationId, result } = await sendDraft(draft, schools);
-      await queryClient.invalidateQueries({ queryKey: applicationsQuery(account.id).queryKey });
+      // Dropped, not refreshed: home would show the list without this child first.
+      const list = applicationsQuery(account.id);
+      queryClient.removeQueries({ queryKey: list.queryKey, exact: true });
+      void queryClient.prefetchQuery(list);
       const { pathname, state } = router.state.location;
       if (pathname.startsWith("/daftar/")) {
         // Back to the form's first page before replacing it, so that none of its
@@ -632,7 +642,7 @@ function CheckStep({ draft, schools }: { draft: Draft; schools: readonly SchoolC
       </div>
       <div className="grid gap-2">
         {failure && (
-          <Alert>
+          <Alert className="mb-2">
             {failure.message}
             {failure.wayOut && (
               <Link to="/" className="inline-flex min-h-11 items-center font-medium underline">
