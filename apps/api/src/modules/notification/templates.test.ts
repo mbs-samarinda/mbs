@@ -50,7 +50,7 @@ describe("email templates", () => {
 });
 
 const PINNED: { [K in TemplateKey]: { version: number; hash: string } } = {
-  "application-submitted": { version: 1, hash: "73f5d6a234b4e2ba" },
+  "application-submitted": { version: 2, hash: "bd63232b45c96fc6" },
   "payment-received": { version: 1, hash: "8d1cf43c981bbbb6" },
   "payment-approved": { version: 1, hash: "c54002f8cbc4b4ce" },
   "payment-rejected": { version: 1, hash: "b838c8e5d9071654" },
