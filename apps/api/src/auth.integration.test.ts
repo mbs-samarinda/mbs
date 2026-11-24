@@ -9,6 +9,7 @@ import { sessionCookie } from "./modules/auth/auth.ts";
 import { createRateLimitStorage } from "./modules/auth/rate-limit.ts";
 import { createFakeMailer } from "./modules/notification/email.ts";
 import { FAMILY_HOST, STAFF_HOST, testConfig } from "./test/config.ts";
+import { lockTable } from "./test/lock.ts";
 import { resetTables } from "./test/reset.ts";
 
 const config = testConfig();
@@ -375,17 +376,17 @@ describe("code emails per address", () => {
       // oxlint-disable-next-line eslint/no-await-in-loop
       await ask(`lain-${i}@example.com`, busy);
     }
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`lock table notifications in access exclusive mode`);
-      // `then` starts it: an injected request waits to be awaited.
-      const waiting = ask("wali@example.com", "198.51.100.10").then((answer) => answer.statusCode);
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      const refused = await ask("wali@example.com", busy);
-      expect(refused.statusCode).toBe(429);
-      await tx.execute(sql`commit`);
-      expect(await waiting).toBe(200);
-    });
-  }, 4_000);
+    const { release, unlocked } = await lockTable(db, "notifications");
+    // `then` starts it: an injected request waits to be awaited.
+    const waiting = ask("wali@example.com", "198.51.100.10").then((answer) => answer.statusCode);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const refused = await ask("wali@example.com", busy);
+    expect(refused.statusCode).toBe(429);
+    release();
+    await unlocked;
+    // Waiting in line would end only at the 8 s statement timeout, which refuses this one.
+    expect(await waiting).toBe(200);
+  }, 20_000);
 
   it("holds when many requests arrive at once from many addresses", async () => {
     await Promise.all(

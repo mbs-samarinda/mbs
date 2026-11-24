@@ -12,13 +12,19 @@ import {
   type CommandPayload,
 } from "@mbs/api-contract";
 import { createDatabase, createSessionConnection, schema, type Database } from "@mbs/db";
-import { APPLICATION_STAGES, SCHOOL_KEYS } from "@mbs/school-config";
+import { APPLICATION_STAGES, GUARDIAN_RELATIONS, SCHOOL_KEYS } from "@mbs/school-config";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { loadConfig } from "../src/config/env.ts";
 import { listSchoolKeysTakingPart } from "../src/modules/admission/repository.ts";
-import { createAdmissionCycle, setAdmissionCycleStatus } from "../src/modules/admission/service.ts";
+import {
+  createAdmissionCycle,
+  listAdmissionCycles,
+  setAdmissionCycleStatus,
+  updateAdmissionCycle,
+  upsertSchoolAdmissionSetting,
+} from "../src/modules/admission/service.ts";
 import {
   applyCommand,
   saveProfile,
@@ -109,7 +115,7 @@ function profileFor(seed: string, index: number, nik: string, edit = 0): Applica
     sex: hash[4]! % 2 === 0 ? "FEMALE" : "MALE",
     schoolOfOrigin: `SD Negeri ${(hash[5]! % 40) + 1} Samarinda`,
     guardianName: pick(FIRST_NAMES, hash, 6),
-    guardianRelation: "Orang tua",
+    guardianRelation: GUARDIAN_RELATIONS[hash[11]! % GUARDIAN_RELATIONS.length]!,
     guardianPhone: `0812${String(hash.readUInt32BE(7) % 10_000_000).padStart(7, "0")}${edit}`,
   };
 }
@@ -209,6 +215,65 @@ async function openCycle(db: Database) {
   await setAdmissionCycleStatus(db, SIM_STAFF, { cycleId: cycle.id, status: "OPEN" });
   print(`created open cycle "${cycle.name}" ${cycle.id}`);
   return cycle.id;
+}
+
+const CycleState = z.enum(["open", "upcoming", "closed", "none"]);
+
+/**
+ * Makes the one cycle families see match a state, whatever was there. Cycles only
+ * move forward, so one that has gone too far is archived and a new one made.
+ */
+async function setCycle(db: Database, state: z.infer<typeof CycleState>, args: Args) {
+  const setStatus = (cycleId: string, status: "OPEN" | "CLOSED" | "ARCHIVED") =>
+    setAdmissionCycleStatus(db, SIM_STAFF, { cycleId, status });
+  const cycles = await listAdmissionCycles(db);
+  const existing = cycles.find(({ status }) => status === "OPEN");
+
+  for (const cycle of cycles) {
+    if (cycle.status === "CLOSED") {
+      // oxlint-disable-next-line eslint/no-await-in-loop
+      await setStatus(cycle.id, "ARCHIVED");
+    }
+  }
+  if (state === "none") {
+    if (existing) {
+      await setStatus(existing.id, "CLOSED");
+      await setStatus(existing.id, "ARCHIVED");
+    }
+    print("cycle none");
+    return;
+  }
+
+  const now = Date.now();
+  const day = (days: number) => new Date(now + days * DAY).toISOString();
+  const values = {
+    name: "PPDB 2027/2028",
+    registrationOpenAt: state === "upcoming" ? day(7) : day(-30),
+    registrationCloseAt: state === "closed" ? day(-1) : day(60),
+    resultPublishAt: day(90),
+    defaultFee: args.fee ?? 250_000,
+  };
+  const cycleId = existing?.id ?? (await createAdmissionCycle(db, SIM_STAFF, values)).id;
+  await updateAdmissionCycle(db, SIM_STAFF, { cycleId, ...values });
+  if (!existing) await setStatus(cycleId, "OPEN");
+  for (const schoolKey of SCHOOL_KEYS) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    await upsertSchoolAdmissionSetting(db, SIM_STAFF, {
+      cycleId,
+      schoolKey,
+      isEnabled: !args.off.includes(schoolKey),
+      feeOverride: null,
+      acceptedInstructions: null,
+      rejectedInstructions: null,
+      documents: [
+        { type: "KARTU_KELUARGA", required: true },
+        { type: "AKTA_KELAHIRAN", required: true },
+        { type: "IJAZAH", required: false },
+      ],
+    });
+  }
+  if (state === "closed") await setStatus(cycleId, "CLOSED");
+  print(`cycle ${state} ${cycleId}${args.off.length > 0 ? ` without ${args.off.join(", ")}` : ""}`);
 }
 
 async function takingPart(db: Database, cycleId: string) {
@@ -418,6 +483,8 @@ type Args = {
   key: string | null;
   payload: Record<string, unknown>;
   staffSession: string | null;
+  fee: number | null;
+  off: SchoolKey[];
 };
 
 function parse(argv: string[]) {
@@ -436,6 +503,8 @@ function parse(argv: string[]) {
       key: { type: "string" },
       payload: { type: "string" },
       "staff-session": { type: "string" },
+      fee: { type: "string" },
+      off: { type: "string" },
     },
   });
 
@@ -455,6 +524,8 @@ function parse(argv: string[]) {
       ? z.record(z.string(), z.unknown()).parse(JSON.parse(values.payload))
       : {},
     staffSession: values["staff-session"] ?? null,
+    fee: values.fee ? z.coerce.number().int().min(0).parse(values.fee) : null,
+    off: values.off ? z.array(SchoolKey).parse(values.off.split(",")) : [],
   };
   return { args, positionals };
 }
@@ -497,6 +568,8 @@ try {
   await assertLocalDatabase(databaseUrl);
   if (args.staffSession) {
     await staffSession(db, args.staffSession);
+  } else if (positionals[0] === "cycle") {
+    await setCycle(db, CycleState.parse(positionals[1]), args);
   } else if (!outbox.familyAppUrl) {
     throw new Error("FAMILY_APP_URL is not set. Every step queues an email that links to it.");
   } else if (positionals[0] === "apply") {

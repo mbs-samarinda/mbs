@@ -15,7 +15,10 @@ const rpc = (status: number, code: string): Answer => ({
   body: { json: { defined: false, code, status, message: code } },
 });
 const SIGNED_OUT: Answer = { status: 200, body: null };
-const SIGNED_IN: Answer = { status: 200, body: { user: { email: "wali@example.test" } } };
+const SIGNED_IN: Answer = {
+  status: 200,
+  body: { user: { id: "staff", email: "wali@example.test" } },
+};
 const STAFF: Answer = {
   status: 200,
   body: { json: { id: "1", name: "Siti Rahmah", role: "STAFF", schoolKeys: ["smp"] } },

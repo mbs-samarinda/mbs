@@ -7,7 +7,7 @@ import type {
   InterviewMode,
 } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { takesPart } from "../admission/repository.ts";
 
@@ -175,12 +175,12 @@ export async function lockApplication(tx: Transaction, applicationId: string) {
 }
 
 export async function findEventByIdempotencyKey(
-  tx: Transaction,
+  db: Database | Transaction,
   actorType: ActorType,
   actorId: string,
   idempotencyKey: string,
 ) {
-  const rows = await tx
+  const rows = await db
     .select()
     .from(schema.applicationEvents)
     .where(
@@ -260,25 +260,87 @@ export async function recordEventOnApplication(
   return row!;
 }
 
-export async function findApplicationForUser(
-  db: Database | Transaction,
-  applicationId: string,
-  userId: string,
-) {
-  const rows = await db
-    .select({ application: schema.applications, schoolKey: schema.schools.key })
-    .from(schema.applications)
-    .innerJoin(
-      schema.applicationAccess,
-      and(
-        eq(schema.applicationAccess.applicationId, schema.applications.id),
-        eq(schema.applicationAccess.userId, userId),
-      ),
-    )
-    .innerJoin(schema.schools, eq(schema.schools.id, schema.applications.schoolId))
+export async function findApplicationForUser(db: Database, applicationId: string, userId: string) {
+  const rows = await applicationsForUser(db, userId)
     .where(eq(schema.applications.id, applicationId))
     .limit(1);
   return rows[0] ?? null;
+}
+
+export async function listApplicationsForUser(db: Database, userId: string) {
+  return applicationsForUser(db, userId).orderBy(
+    desc(schema.applications.createdAt),
+    desc(schema.applications.id),
+  );
+}
+
+/** The only read a family's screens start from. Access is the join, not a filter to forget. */
+function applicationsForUser(db: Database, userId: string) {
+  const { applications, applicantProfileVersions } = schema;
+  return db
+    .select({
+      id: applications.id,
+      admissionCycleId: applications.admissionCycleId,
+      registrationNumber: applications.registrationNumber,
+      schoolKey: schema.schools.key,
+      stage: applications.stage,
+      registrationFee: applications.registrationFee,
+      childName: sql<string>`(
+        select ${applicantProfileVersions.data}->>'childFullName' from ${applicantProfileVersions}
+        where ${applicantProfileVersions.applicationId} = ${applications.id}
+        order by ${applicantProfileVersions.version} desc limit 1
+      )`,
+    })
+    .from(applications)
+    .innerJoin(
+      schema.applicationAccess,
+      and(
+        eq(schema.applicationAccess.applicationId, applications.id),
+        eq(schema.applicationAccess.userId, userId),
+      ),
+    )
+    .innerJoin(schema.schools, eq(schema.schools.id, applications.schoolId))
+    .$dynamic();
+}
+
+export async function listFamilyVisibleEvents(db: Database, applicationId: string) {
+  const { applicationEvents } = schema;
+  return db
+    .select({
+      command: applicationEvents.command,
+      createdAt: applicationEvents.createdAt,
+      actorType: applicationEvents.actorType,
+      payload: applicationEvents.payload,
+    })
+    .from(applicationEvents)
+    .where(
+      and(
+        eq(applicationEvents.applicationId, applicationId),
+        eq(applicationEvents.familyVisible, true),
+      ),
+    )
+    .orderBy(asc(applicationEvents.seq));
+}
+
+export async function listPromisedDocuments(
+  db: Database,
+  applicationId: string,
+  stage: DocumentStage,
+) {
+  const { applicationDocumentRequirements } = schema;
+  return db
+    .select({
+      type: applicationDocumentRequirements.type,
+      required: applicationDocumentRequirements.required,
+    })
+    .from(applicationDocumentRequirements)
+    .where(
+      and(
+        eq(applicationDocumentRequirements.applicationId, applicationId),
+        eq(applicationDocumentRequirements.stage, stage),
+      ),
+    )
+    .orderBy(asc(applicationDocumentRequirements.type));
 }
 
 export async function updateApplicationNik(tx: Transaction, applicationId: string, nik: string) {

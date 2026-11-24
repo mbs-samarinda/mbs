@@ -54,7 +54,7 @@ function profile(overrides: Partial<ApplicantProfileInput> = {}): ApplicantProfi
     sex: "FEMALE",
     schoolOfOrigin: "SD Negeri 1 Samarinda",
     guardianName: "Budi",
-    guardianRelation: "Ayah",
+    guardianRelation: "FATHER",
     guardianPhone: "081234567890",
     ...overrides,
   };
@@ -706,7 +706,7 @@ describe("family emails", () => {
       [upload.event.id, "family-1@example.test", "payment-received"],
       [upload.event.id, "family-2@example.test", "payment-received"],
     ]);
-    expect(emails[0]).toMatchObject({ status: "PENDING", channel: "EMAIL", templateVersion: 1 });
+    expect(emails[0]).toMatchObject({ status: "PENDING", channel: "EMAIL", templateVersion: 2 });
     expect(emails[0]?.subject).toContain(application.registrationNumber);
     expect(emails[0]?.bodyText).toContain("Aisyah Putri");
     expect(emails[0]?.bodyHtml).toContain("http://localhost:5173");

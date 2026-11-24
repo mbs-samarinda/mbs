@@ -1,6 +1,6 @@
 import { apiFetch, UnreachableError } from "./http.ts";
 
-export type Account = { email: string };
+export type Account = { id: string; email: string };
 
 /** What Better Auth refused, with the code the screen explains. */
 export class AuthError extends Error {
@@ -47,10 +47,11 @@ async function request(path: string, body?: object): Promise<Response> {
 
 /**
  * The status alone decides. A code is used up by then, so a body cut off on the
- * way must not turn a sign-in that worked into one to try again.
+ * way must not turn a sign-in that worked into one to try again. It reads as null.
  */
-export async function authPost(path: string, body: object) {
-  await request(path, body);
+export async function authPost(path: string, body: object): Promise<unknown> {
+  const response = await request(path, body);
+  return response.json().catch(() => null);
 }
 
 async function answerOf(response: Response): Promise<unknown> {
@@ -61,10 +62,15 @@ async function answerOf(response: Response): Promise<unknown> {
 
 /** The signed-in account, or null. */
 export async function fetchAccount(): Promise<Account | null> {
-  const data = await answerOf(await request("/get-session"));
+  return accountIn(await answerOf(await request("/get-session")));
+}
+
+/** The account in an answer that carries `user`: a session, or a sign-in. */
+export function accountIn(data: unknown): Account | null {
   const user = typeof data === "object" && data !== null && "user" in data ? data.user : null;
+  const id = stringIn(user, "id");
   const email = stringIn(user, "email");
-  return email === null ? null : { email };
+  return id === null || email === null ? null : { id, email };
 }
 
 export async function signOut() {

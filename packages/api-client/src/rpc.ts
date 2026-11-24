@@ -7,7 +7,7 @@ import type { ContractRouterClient } from "@orpc/contract";
 
 import { apiFetch } from "./http.ts";
 
-export { ORPCError } from "@orpc/client";
+export { ORPCError, safe } from "@orpc/client";
 
 /** Same-origin. Caddy in production and Vite in development send /api to the API. */
 export function createApiClient(): ContractRouterClient<typeof contract> {

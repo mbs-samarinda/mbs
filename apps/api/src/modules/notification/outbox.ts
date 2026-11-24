@@ -1,4 +1,3 @@
-import { ApplicantProfile } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
 import { SIGN_IN_CODE_TEMPLATE, type SchoolKey } from "@mbs/school-config";
 import { and, desc, eq, gt, inArray, sql, type SQL } from "drizzle-orm";
@@ -32,11 +31,11 @@ export async function enqueueEventEmails(
   if (recipients.length === 0) return;
 
   const profile = await findLatestProfileVersion(tx, input.applicationId);
-  const { childFullName } = ApplicantProfile.pick({ childFullName: true }).parse(profile?.data);
+  if (!profile) throw new Error("An application has no form.");
 
   const template = TEMPLATES[input.template];
   const rendered = template.render({
-    childName: childFullName,
+    childName: profile.data.childFullName,
     schoolKey: input.schoolKey,
     registrationNumber: input.registrationNumber,
     reason: input.staffReason,

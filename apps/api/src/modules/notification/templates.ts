@@ -48,10 +48,10 @@ function eventTemplate(version: number, copy: (input: EventMailInput) => EventCo
 }
 
 export const TEMPLATES: { [K in TemplateKey]: Template<TemplateInput<K>> } = {
-  "application-submitted": eventTemplate(1, ({ childName, schoolKey }) => ({
+  "application-submitted": eventTemplate(2, ({ childName, schoolKey }) => ({
     subject: `Pendaftaran ${childName} sudah kami terima`,
     happened: `Pendaftaran ${childName} di ${schoolName(schoolKey)} sudah kami terima.`,
-    next: "Sekarang kamu bisa membayar biaya pendaftaran lewat transfer bank. Setelah itu, unggah foto bukti transfernya.",
+    next: "Jangan transfer dulu. Kamu bisa melihat langkah berikutnya di halaman status pendaftaran.",
   })),
   "payment-received": eventTemplate(1, ({ childName }) => ({
     subject: "Bukti transfer sudah kami terima",
@@ -113,24 +113,24 @@ export const TEMPLATES: { [K in TemplateKey]: Template<TemplateInput<K>> } = {
     happened: `${childName} tercatat tidak hadir di wawancara.`,
     next: "Panitia akan membuat jadwal baru dan mengabari kamu lewat email.",
   })),
-  "result-accepted": eventTemplate(1, ({ childName, schoolKey }) => ({
+  "result-accepted": eventTemplate(2, ({ childName, schoolKey }) => ({
     subject: `Selamat, ${childName} diterima`,
     happened: `Selamat, ${childName} diterima di ${schoolName(schoolKey)}.`,
-    next: "Langkah berikutnya adalah registrasi ulang. Kamu perlu membayar biayanya, mengunggah dokumen tambahan, dan menyetujui ketentuan sekolah.",
+    next: "Langkah berikutnya adalah daftar ulang. Kamu perlu membayar biayanya, mengunggah dokumen tambahan, dan menyetujui ketentuan sekolah.",
   })),
   "result-not-accepted": eventTemplate(1, ({ childName, schoolKey }) => ({
     subject: "Hasil pendaftaran",
     happened: `Mohon maaf, ${childName} belum diterima di ${schoolName(schoolKey)}.`,
     next: `Terima kasih sudah mendaftar. Kalau ada yang ingin kamu tanyakan, hubungi panitia PPDB ${schoolName(schoolKey)}.`,
   })),
-  "reregistration-received": eventTemplate(1, ({ childName }) => ({
-    subject: "Registrasi ulang sudah kami terima",
-    happened: `Registrasi ulang ${childName} sudah kami terima.`,
+  "reregistration-received": eventTemplate(2, ({ childName }) => ({
+    subject: "Daftar ulang sudah kami terima",
+    happened: `Daftar ulang ${childName} sudah kami terima.`,
     next: "Panitia akan memeriksanya. Kamu tidak perlu melakukan apa-apa dulu. Kami kabari lagi lewat email.",
   })),
-  "reregistration-needs-fix": eventTemplate(1, ({ childName }) => ({
-    subject: "Registrasi ulang perlu diperbaiki",
-    happened: `Ada bagian registrasi ulang ${childName} yang perlu diperbaiki.`,
+  "reregistration-needs-fix": eventTemplate(2, ({ childName }) => ({
+    subject: "Daftar ulang perlu diperbaiki",
+    happened: `Ada bagian daftar ulang ${childName} yang perlu diperbaiki.`,
     next: "Kamu perlu memperbaiki bagian yang diminta, lalu mengirimnya lagi.",
   })),
   enrolled: eventTemplate(1, ({ childName, schoolKey }) => ({

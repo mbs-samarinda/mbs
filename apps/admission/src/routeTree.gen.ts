@@ -14,6 +14,9 @@ import { Route as MasukRouteImport } from "./routes/masuk.tsx";
 import { Route as AppIndexRouteImport } from "./routes/_app.index.tsx";
 import { Route as MasukIndexRouteImport } from "./routes/masuk.index.tsx";
 import { Route as MasukKodeRouteImport } from "./routes/masuk.kode.tsx";
+import { Route as AppDaftarIndexRouteImport } from "./routes/_app.daftar.index.tsx";
+import { Route as AppDaftarLangkahRouteImport } from "./routes/_app.daftar.$langkah.tsx";
+import { Route as AppStatusApplicationIdRouteImport } from "./routes/_app.status.$applicationId.tsx";
 
 const AppRoute = AppRouteImport.update({
   id: "/_app",
@@ -39,17 +42,38 @@ const MasukKodeRoute = MasukKodeRouteImport.update({
   path: "/kode",
   getParentRoute: () => MasukRoute,
 } as any);
+const AppDaftarIndexRoute = AppDaftarIndexRouteImport.update({
+  id: "/daftar/",
+  path: "/daftar/",
+  getParentRoute: () => AppRoute,
+} as any);
+const AppDaftarLangkahRoute = AppDaftarLangkahRouteImport.update({
+  id: "/daftar/$langkah",
+  path: "/daftar/$langkah",
+  getParentRoute: () => AppRoute,
+} as any);
+const AppStatusApplicationIdRoute = AppStatusApplicationIdRouteImport.update({
+  id: "/status/$applicationId",
+  path: "/status/$applicationId",
+  getParentRoute: () => AppRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof AppIndexRoute;
   "/masuk": typeof MasukRouteWithChildren;
   "/masuk/kode": typeof MasukKodeRoute;
   "/masuk/": typeof MasukIndexRoute;
+  "/daftar/$langkah": typeof AppDaftarLangkahRoute;
+  "/status/$applicationId": typeof AppStatusApplicationIdRoute;
+  "/daftar/": typeof AppDaftarIndexRoute;
 }
 export interface FileRoutesByTo {
   "/masuk/kode": typeof MasukKodeRoute;
   "/": typeof AppIndexRoute;
   "/masuk": typeof MasukIndexRoute;
+  "/daftar/$langkah": typeof AppDaftarLangkahRoute;
+  "/status/$applicationId": typeof AppStatusApplicationIdRoute;
+  "/daftar": typeof AppDaftarIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -58,13 +82,38 @@ export interface FileRoutesById {
   "/masuk/kode": typeof MasukKodeRoute;
   "/_app/": typeof AppIndexRoute;
   "/masuk/": typeof MasukIndexRoute;
+  "/_app/daftar/$langkah": typeof AppDaftarLangkahRoute;
+  "/_app/status/$applicationId": typeof AppStatusApplicationIdRoute;
+  "/_app/daftar/": typeof AppDaftarIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/masuk" | "/masuk/kode" | "/masuk/";
+  fullPaths:
+    | "/"
+    | "/masuk"
+    | "/masuk/kode"
+    | "/masuk/"
+    | "/daftar/$langkah"
+    | "/status/$applicationId"
+    | "/daftar/";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/masuk/kode" | "/" | "/masuk";
-  id: "__root__" | "/_app" | "/masuk" | "/masuk/kode" | "/_app/" | "/masuk/";
+  to:
+    | "/masuk/kode"
+    | "/"
+    | "/masuk"
+    | "/daftar/$langkah"
+    | "/status/$applicationId"
+    | "/daftar";
+  id:
+    | "__root__"
+    | "/_app"
+    | "/masuk"
+    | "/masuk/kode"
+    | "/_app/"
+    | "/masuk/"
+    | "/_app/daftar/$langkah"
+    | "/_app/status/$applicationId"
+    | "/_app/daftar/";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -109,15 +158,42 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MasukKodeRouteImport;
       parentRoute: typeof MasukRoute;
     };
+    "/_app/daftar/": {
+      id: "/_app/daftar/";
+      path: "/daftar";
+      fullPath: "/daftar/";
+      preLoaderRoute: typeof AppDaftarIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/_app/daftar/$langkah": {
+      id: "/_app/daftar/$langkah";
+      path: "/daftar/$langkah";
+      fullPath: "/daftar/$langkah";
+      preLoaderRoute: typeof AppDaftarLangkahRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/_app/status/$applicationId": {
+      id: "/_app/status/$applicationId";
+      path: "/status/$applicationId";
+      fullPath: "/status/$applicationId";
+      preLoaderRoute: typeof AppStatusApplicationIdRouteImport;
+      parentRoute: typeof AppRoute;
+    };
   }
 }
 
 interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute;
+  AppDaftarLangkahRoute: typeof AppDaftarLangkahRoute;
+  AppStatusApplicationIdRoute: typeof AppStatusApplicationIdRoute;
+  AppDaftarIndexRoute: typeof AppDaftarIndexRoute;
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
+  AppDaftarLangkahRoute: AppDaftarLangkahRoute,
+  AppStatusApplicationIdRoute: AppStatusApplicationIdRoute,
+  AppDaftarIndexRoute: AppDaftarIndexRoute,
 };
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren);

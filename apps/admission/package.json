@@ -15,6 +15,8 @@
   },
   "dependencies": {
     "@mbs/api-client": "workspace:*",
+    "@mbs/api-contract": "workspace:*",
+    "@mbs/school-config": "workspace:*",
     "@mbs/ui": "workspace:*",
     "@tanstack/react-query": "5.108.2",
     "@tanstack/react-router": "1.170.46",

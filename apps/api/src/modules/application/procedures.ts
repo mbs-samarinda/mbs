@@ -1,18 +1,21 @@
 import { familyProcedure } from "../../plugins/orpc.ts";
-import { loadFamilyApplication } from "./service.ts";
+import { listFamilyApplications, loadFamilyApplication, submitApplication } from "./service.ts";
 
-export const getApplicantApplicationProcedure = familyProcedure.applicant.applications.get.handler(
+export const listFamilyApplicationsProcedure = familyProcedure.applicant.applications.list.handler(
+  ({ context }) => listFamilyApplications(context.db, context.family),
+);
+
+export const getFamilyApplicationProcedure = familyProcedure.applicant.applications.get.handler(
+  ({ input, context }) => loadFamilyApplication(context.db, context.family, input.applicationId),
+);
+
+export const submitApplicationProcedure = familyProcedure.applicant.applications.submit.handler(
   async ({ input, context }) => {
-    const application = await loadFamilyApplication(
+    const { application } = await submitApplication(
       context.db,
-      context.family,
-      input.applicationId,
+      { ...input, userId: context.family.userId, meta: context.meta },
+      context.outbox,
     );
-    return {
-      id: application.id,
-      registrationNumber: application.registrationNumber,
-      schoolKey: application.schoolKey,
-      stage: application.stage,
-    };
+    return { applicationId: application.id };
   },
 );

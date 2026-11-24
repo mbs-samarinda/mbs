@@ -97,6 +97,10 @@ export const APPLICATION_COMMANDS = [
   "EDIT_PROFILE",
 ] as const;
 
+/** Kept in the form's JSON, not in a Postgres enum, so adding one needs no migration. */
+export const SEXES = ["MALE", "FEMALE"] as const;
+export const GUARDIAN_RELATIONS = ["FATHER", "MOTHER", "GUARDIAN"] as const;
+
 export const ACTOR_TYPES = ["FAMILY", "STAFF", "SYSTEM"] as const;
 
 export const NOTIFICATION_CHANNELS = ["EMAIL"] as const;

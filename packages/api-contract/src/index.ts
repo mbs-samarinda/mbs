@@ -1,7 +1,13 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 
-import { ApplicantApplication } from "./application.ts";
+import {
+  FamilyApplication,
+  FamilyApplicationSummary,
+  ReusedKey,
+  SubmitApplicationInput,
+  SubmittedApplication,
+} from "./application.ts";
 import {
   AdmissionCycle,
   CreateCycleInput,
@@ -30,7 +36,8 @@ export * from "./schemas.ts";
  * app's host gives. Anything under `staff` needs an active staff session from
  * the committee app's host; anything under `admin` needs the ADMINISTRATOR
  * role on top. An application the family cannot see is NOT_FOUND. Failures
- * arrive as oRPC codes: UNAUTHORIZED, FORBIDDEN, NOT_FOUND and CONFLICT.
+ * arrive as oRPC codes: UNAUTHORIZED, FORBIDDEN, NOT_FOUND and CONFLICT, plus
+ * the codes a procedure declares with `errors`.
  */
 export const contract = {
   public: {
@@ -42,7 +49,16 @@ export const contract = {
   },
   applicant: {
     applications: {
-      get: oc.input(z.object({ applicationId: z.uuid() })).output(ApplicantApplication),
+      list: oc.output(z.array(FamilyApplicationSummary)),
+      get: oc.input(z.object({ applicationId: z.uuid() })).output(FamilyApplication),
+      submit: oc
+        .input(SubmitApplicationInput)
+        .output(SubmittedApplication)
+        .errors({
+          REGISTRATION_CLOSED: { status: 409 },
+          DUPLICATE_APPLICATION: { status: 409 },
+          IDEMPOTENCY_KEY_REUSED: { status: 409, data: ReusedKey },
+        }),
     },
   },
   staff: {

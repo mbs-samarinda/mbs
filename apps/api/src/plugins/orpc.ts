@@ -3,9 +3,17 @@ import type { Database } from "@mbs/db";
 import { implement, ORPCError } from "@orpc/server";
 import type { FastifyBaseLogger } from "fastify";
 
-import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from "../errors.ts";
+import {
+  ConflictError,
+  ForbiddenError,
+  IdempotencyKeyReusedError,
+  NotFoundError,
+  UnauthorizedError,
+} from "../errors.ts";
+import type { RequestMeta } from "../modules/application/service.ts";
 import type { Audience } from "../modules/auth/auth.ts";
 import { requireRole, resolveStaff, type SessionUser } from "../modules/auth/authorization.ts";
+import type { OutboxSettings } from "../modules/notification/outbox.ts";
 
 export type Session = { audience: Audience; user: SessionUser } | { audience: null };
 
@@ -14,6 +22,8 @@ export type ApiContext = {
   session: Session;
   /** This request's logger, so a log line carries the request id. */
   log: FastifyBaseLogger;
+  meta: RequestMeta;
+  outbox: OutboxSettings;
 };
 
 // Not exported: a procedure built straight from this one skips the error
@@ -30,11 +40,18 @@ const translateErrors = os.middleware(async ({ next }) => {
   try {
     return await next();
   } catch (error) {
+    // The status is named because oRPC gives a code it does not know a 500.
+    if (error instanceof ConflictError) {
+      throw new ORPCError(error.code, {
+        status: 409,
+        message: error.message,
+        data: error instanceof IdempotencyKeyReusedError ? error.first : undefined,
+      });
+    }
     if (
       error instanceof UnauthorizedError ||
       error instanceof ForbiddenError ||
-      error instanceof NotFoundError ||
-      error instanceof ConflictError
+      error instanceof NotFoundError
     ) {
       throw new ORPCError(error.code, { message: error.message });
     }

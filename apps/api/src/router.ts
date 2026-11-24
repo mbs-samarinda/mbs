@@ -7,7 +7,11 @@ import {
   updateCycleProcedure,
   upsertSchoolSettingProcedure,
 } from "./modules/admission/procedures.ts";
-import { getApplicantApplicationProcedure } from "./modules/application/procedures.ts";
+import {
+  getFamilyApplicationProcedure,
+  listFamilyApplicationsProcedure,
+  submitApplicationProcedure,
+} from "./modules/application/procedures.ts";
 import {
   createStaffProcedure,
   getMeProcedure,
@@ -25,7 +29,9 @@ export const router = {
   },
   applicant: {
     applications: {
-      get: getApplicantApplicationProcedure,
+      list: listFamilyApplicationsProcedure,
+      get: getFamilyApplicationProcedure,
+      submit: submitApplicationProcedure,
     },
   },
   staff: {

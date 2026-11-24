@@ -1,4 +1,4 @@
-import { AuthError, authPost } from "@mbs/api-client/auth";
+import { accountIn, AuthError, authPost, type Account } from "@mbs/api-client/auth";
 import { UnreachableError } from "@mbs/api-client/http";
 
 export const CODE_LENGTH = 6;
@@ -7,8 +7,9 @@ export async function requestCode(email: string) {
   await authPost("/email-otp/send-verification-otp", { email, type: "sign-in" });
 }
 
-export async function signInWithCode(email: string, otp: string) {
-  await authPost("/sign-in/email-otp", { email, otp });
+/** Null when the sign-in worked but its answer was cut off on the way. */
+export async function signInWithCode(email: string, otp: string): Promise<Account | null> {
+  return accountIn(await authPost("/sign-in/email-otp", { email, otp }));
 }
 
 /**

@@ -23,11 +23,11 @@ Preconditions:
 - **No-cycle state.** Open the page. Run `drive goto:$SMP_URL/pendaftaran "see:heading:Pendaftaran santri baru" "text:Jadwal pendaftaran berikutnya diumumkan di halaman ini." shot:none`. `none.aria.txt` has `heading "Status pendaftaran"` and `button "Mulai Pendaftaran" [disabled]`, and no `Dibuka` or `Ditutup` badge.
 - **Flow steps.** In the same snapshot, the `Alur pendaftaran` section lists five level-3 headings in order: Isi data anak, Masuk akun, Lengkapi berkas, Bayar, Kirim.
 - **API down.** Stop only this run's API, reload, then start it again. Run `stack.sh api-off`, then `drive goto:$SMP_URL/pendaftaran "text:sedang tidak dapat dihubungi" shot:unavailable`, then `stack.sh api-on`. The unavailable line shows within a few seconds and no date appears. `Mulai Pendaftaran` becomes a link to the admission app instead of a disabled button. `stack.sh doctor` passes again after `api-on`.
-- **Cycle state.** Not reachable through a user path today (see Gotchas). Report it as skipped, with that reason.
+- **Cycle state.** Run `stack.sh sim -- cycle open` (or `upcoming`, `closed`, `none`) and reload. It is fixture setup (see Gotchas).
 
 ## Gotchas
 
-- Creating a cycle needs a staff session, which needs Google sign-in, and the committee app is not built yet. No user path makes a cycle yet. If you insert one with SQL into `mbs_core` (`docker exec $CONTAINER psql -U mbs -d mbs_core ...`) to see the open or closed rendering, label it as fixture setup. It is not proof that cycle creation works.
+- Creating a cycle needs a staff session, which needs Google sign-in, and the committee app is not built yet. No user path makes a cycle yet. `stack.sh sim -- cycle <state>` makes one through the domain code, so label it as fixture setup. It is not proof that cycle creation works.
 - At commit `82b1dda`, an API that **hangs** (accepts the connection but never answers) makes `/pendaftaran` hang too. The oRPC call in `apps/profile/src/admission.ts` has no timeout, so the page never finishes loading. `kill -STOP` on the API reproduces it: `goto` times out after 120 s. This is a finding. Only an API that refuses connections (`api-off`) reaches the unavailable state.
 - The page reads the cycle on every request (`connection()`), so no cache needs clearing between states.
 - The apex has no `/pendaftaran` page. It redirects to the admission app; see [Owner sites](./owner-sites.md).

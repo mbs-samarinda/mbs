@@ -1,4 +1,5 @@
 import { UnreachableError } from "@mbs/api-client/http";
+import { ORPCError } from "@mbs/api-client/rpc";
 import { Button, buttonVariants } from "@mbs/ui/components/button";
 import { StatusPage } from "@mbs/ui/components/status-page";
 import { QueryClient } from "@tanstack/react-query";
@@ -10,8 +11,11 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { cn } from "cn";
+import { use, type ReactNode } from "react";
 
+import { accountQuery } from "./account.ts";
 import { APP_NAME } from "./app-name.ts";
+import { InShell } from "./in-shell.ts";
 import { routeTree } from "./routeTree.gen.ts";
 
 export function createQueryClient() {
@@ -53,6 +57,19 @@ export function createAppRouter(queryClient: QueryClient, history?: RouterHistor
     if (!fromLocation || !pathChanged || document.activeElement !== document.body) return;
     document.querySelector("h1")?.focus();
   });
+
+  // Any answer that says the session is gone leads to sign-in and back here.
+  const onError = (error: unknown) => {
+    if (!(error instanceof ORPCError) || error.code !== "UNAUTHORIZED") return;
+    queryClient.setQueryData(accountQuery.queryKey, null);
+    void router.invalidate();
+  };
+  queryClient.getQueryCache().subscribe((event) => {
+    if (event.type === "updated" && event.action.type === "error") onError(event.action.error);
+  });
+  queryClient.getMutationCache().subscribe((event) => {
+    if (event.type === "updated" && event.action.type === "error") onError(event.action.error);
+  });
   return router;
 }
 
@@ -60,6 +77,22 @@ declare module "@tanstack/react-router" {
   interface Register {
     router: ReturnType<typeof createAppRouter>;
   }
+}
+
+/** A message in place of a page, inside the app's header when that is already there. */
+function Message(page: { title: string; body: string; actions: ReactNode }) {
+  if (!use(InShell)) return <StatusPage sub={APP_NAME} {...page} />;
+  return (
+    <>
+      <div className="grid gap-2">
+        <h1 tabIndex={-1} className="text-2xl font-semibold text-balance outline-none">
+          {page.title}
+        </h1>
+        <p className="text-pretty text-muted-foreground">{page.body}</p>
+      </div>
+      <div className="flex flex-wrap gap-3">{page.actions}</div>
+    </>
+  );
 }
 
 /**
@@ -70,8 +103,7 @@ function ErrorPage({ error }: ErrorComponentProps) {
   const router = useRouter();
   const unreachable = error instanceof UnreachableError;
   return (
-    <StatusPage
-      sub={APP_NAME}
+    <Message
       title={unreachable ? "Server tidak bisa dihubungi" : "Halaman ini gagal dimuat"}
       body={
         unreachable
@@ -96,8 +128,7 @@ function ErrorPage({ error }: ErrorComponentProps) {
 
 function NotFoundPage() {
   return (
-    <StatusPage
-      sub={APP_NAME}
+    <Message
       title="Halaman tidak ditemukan"
       body="Periksa lagi alamatnya, atau buka halaman utama."
       actions={
@@ -110,5 +141,5 @@ function NotFoundPage() {
 }
 
 function PendingPage() {
-  return <StatusPage sub={APP_NAME} title="Memuat…" body="" actions={null} />;
+  return <Message title="Memuat…" body="" actions={null} />;
 }

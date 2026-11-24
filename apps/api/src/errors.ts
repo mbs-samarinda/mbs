@@ -17,16 +17,35 @@ export class NotFoundError extends Error {
 
 /** The request is well formed but the business state refuses it. */
 export class ConflictError extends Error {
-  readonly code = "CONFLICT";
+  readonly code:
+    | "CONFLICT"
+    | "REGISTRATION_CLOSED"
+    | "DUPLICATE_APPLICATION"
+    | "IDEMPOTENCY_KEY_REUSED" = "CONFLICT";
 }
 
 export class IllegalTransitionError extends ConflictError {}
 
 export class StaleSequenceError extends ConflictError {}
 
-export class DuplicateApplicationError extends ConflictError {}
+export class DuplicateApplicationError extends ConflictError {
+  override readonly code = "DUPLICATE_APPLICATION";
+}
 
-export class RegistrationClosedError extends ConflictError {}
+export class RegistrationClosedError extends ConflictError {
+  override readonly code = "REGISTRATION_CLOSED";
+}
+
+export class IdempotencyKeyReusedError extends ConflictError {
+  override readonly code = "IDEMPOTENCY_KEY_REUSED";
+  /** What the key was first used for, by the same actor. */
+  readonly first: { applicationId: string; sameRegistration: boolean };
+
+  constructor(first: { applicationId: string; sameRegistration: boolean }) {
+    super("This idempotency key was already used for another request.");
+    this.first = first;
+  }
+}
 
 /** Postgres 23505. Drizzle wraps the driver error, so the code may sit on `cause`. */
 export function isUniqueViolation(error: unknown) {
