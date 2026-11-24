@@ -1,6 +1,6 @@
 # Family sign-in
 
-A parent opens the parent app, signs in with a code from an email or with Google, and lands on the page they asked for. Signed out, every page of the app leads to the sign-in screen first. What is behind it is [Family registration](./family-registration.md).
+A parent opens the parent app, signs in with a code from an email or with Google, and lands on the page they asked for. Signed out, every other page of the app leads to the sign-in screen first. What is behind it is [Family registration](./family-registration.md). The one page that needs no sign-in is [Status without an account](./status-lookup.md).
 
 ## Sub-features
 
