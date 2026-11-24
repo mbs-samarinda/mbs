@@ -207,20 +207,26 @@ export const staffSchoolAccess = pgTable(
  * Append-only business history. This is not the server log: it answers who
  * changed what, and when.
  */
-export const auditLogs = pgTable("audit_logs", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  actorType: text("actor_type").notNull(),
-  actorId: text("actor_id"),
-  action: text("action").notNull(),
-  entityType: text("entity_type").notNull(),
-  entityId: text("entity_id").notNull(),
-  // Sanitized. Never NIK, document contents, cookies or tokens.
-  metadata: jsonb("metadata"),
-  ipAddress: text("ip_address"),
-  requestId: text("request_id"),
-  userAgent: text("user_agent"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id"),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    // Sanitized. Never NIK, document contents, cookies or tokens.
+    metadata: jsonb("metadata"),
+    ipAddress: text("ip_address"),
+    requestId: text("request_id"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // An application's page reads its rows, and the table grows with every
+  // sign-in, view and status check.
+  (table) => [index("audit_logs_entity").on(table.entityType, table.entityId, table.createdAt)],
+);
 
 export const applicationStage = pgEnum("application_stage", APPLICATION_STAGES);
 export const applicationCommand = pgEnum("application_command", APPLICATION_COMMANDS);
