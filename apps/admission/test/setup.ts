@@ -24,6 +24,8 @@ globalThis.scrollTo = () => {};
 
 afterEach(() => {
   cleanup();
+  // A write that still waits would outlive the clearing.
+  dispatchEvent(new Event("pagehide"));
   sessionStorage.clear();
   localStorage.clear();
   // The draft is kept in memory too, as it is when the device blocks storage.

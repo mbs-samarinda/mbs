@@ -8,6 +8,7 @@ import { CircleAlertIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { accountQuery } from "../account.ts";
+import { keepOnlyDraftOf } from "../draft.ts";
 import {
   CODE_LENGTH,
   explain,
@@ -42,6 +43,7 @@ function CodeStep() {
       // A check that started before this may answer "signed out" after it.
       await queryClient.cancelQueries({ queryKey: accountQuery.queryKey });
       if (account) {
+        keepOnlyDraftOf(account.id);
         queryClient.setQueryData(accountQuery.queryKey, account);
       } else {
         // The code is used up, so this screen has nothing left to offer. The page

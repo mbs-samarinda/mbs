@@ -166,7 +166,7 @@ export async function submitApplication(
             sameRegistration:
               application?.admissionCycleId === input.cycleId &&
               application.schoolId === cycle.schoolId &&
-              application.nik === profile.nik,
+              isSameChild(firstForm?.data, profile),
           });
         }
         return { application, event: earlier, replayed: true };
@@ -455,6 +455,16 @@ async function authorize(tx: Transaction, actor: Actor, applicationId: string, s
     }
     if (actor.staff.role === "PRINCIPAL") throw new ForbiddenError("Not allowed.");
   }
+}
+
+/** A corrected NIK is still the same child, or a family would register it twice. */
+function isSameChild(stored: ApplicantProfile | undefined, form: ApplicantProfile) {
+  if (!stored) return false;
+  if (stored.nik === form.nik) return true;
+  return (
+    stored.birthDate === form.birthDate &&
+    stored.childFullName.toLowerCase() === form.childFullName.toLowerCase()
+  );
 }
 
 function sameAsStored(stored: unknown, value: unknown) {

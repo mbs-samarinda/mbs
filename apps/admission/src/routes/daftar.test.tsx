@@ -124,6 +124,17 @@ describe("a step", () => {
     expect(await heading("Orang tua/wali")).toBeVisible();
   });
 
+  it("asks for all of the birth date when the day alone is missing", async () => {
+    stubApi(READY);
+    fill({ birthDay: "" });
+    open("/daftar/anak");
+    await heading("Data anak");
+    await press("Lanjut");
+    expect(screen.getByRole("group", { name: "Tanggal lahir" })).toHaveAccessibleDescription(
+      /Isi tanggal, bulan, dan tahun/,
+    );
+  });
+
   it("focuses the part of the birth date that is missing", async () => {
     stubApi(READY);
     fill({ birthYear: "" });
@@ -200,6 +211,18 @@ describe("a step", () => {
     expect(APPLICANT_RULES.birthDate("2014-07-09", new Date()).ok).toBe(false);
   });
 });
+
+/** A submit that waits for `answer`. */
+function holdSubmit() {
+  const { promise, resolve } = Promise.withResolvers<null>();
+  const calls = stubApi(READY);
+  const fetched = fetch;
+  vi.stubGlobal("fetch", async (input: Request, init: RequestInit) => {
+    if (typeof input !== "string" && input.url.endsWith(SUBMIT)) await promise;
+    return fetched(input, init);
+  });
+  return { calls, answer: () => resolve(null) };
+}
 
 describe("the check", () => {
   it("lists everything, with the email the news goes to", async () => {
@@ -287,22 +310,86 @@ describe("the check", () => {
   });
 
   it("still opens the status when another tab sent the same form first", async () => {
-    const { promise: answered, resolve: answer } = Promise.withResolvers<null>();
-    const calls = stubApi(READY);
-    const fetched = fetch;
-    vi.stubGlobal("fetch", async (input: Request, init: RequestInit) => {
-      if (typeof input !== "string" && input.url.endsWith(SUBMIT)) await answered;
-      return fetched(input, init);
-    });
+    const { answer, calls } = holdSubmit();
     fill();
     const router = open("/daftar/periksa");
     await heading("Periksa sebelum dikirim");
     await press("Kirim pendaftaran");
     localStorage.removeItem("mbs:draft");
     dispatchEvent(new StorageEvent("storage", { key: "mbs:draft" }));
-    answer(null);
+    answer();
     await waitFor(() => expect(router.state.location.pathname).toBe(`/status/${APPLICATION_ID}`));
     expect(calls.filter(({ path }) => path === SUBMIT)).toHaveLength(1);
+  });
+
+  it("takes no edits and no second send while the first is on its way", async () => {
+    const { answer, calls } = holdSubmit();
+    fill();
+    const router = open(["/daftar/wali", "/daftar/periksa"]);
+    await heading("Periksa sebelum dikirim");
+    await press("Kirim pendaftaran");
+    expect(screen.getByRole("button", { name: "Kembali" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Ubah anak" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    router.history.back();
+    expect(await screen.findByText(/sedang dikirim/)).toBeVisible();
+    expect(screen.queryByLabelText("Nomor HP")).toBeNull();
+    router.history.forward();
+    await heading("Periksa sebelum dikirim");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Mengirim…" }));
+    answer();
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/status/${APPLICATION_ID}`));
+    expect(calls.filter(({ path }) => path === SUBMIT)).toHaveLength(1);
+    expect(router.history.length).toBe(2);
+  });
+
+  it("says so when another tab edited the form while it was on its way", async () => {
+    const { answer } = holdSubmit();
+    fill();
+    open("/daftar/periksa");
+    await heading("Periksa sebelum dikirim");
+    await press("Kirim pendaftaran");
+    const stored = JSON.parse(localStorage.getItem("mbs:draft")!);
+    stored.values.guardianPhone = "0813 1111 2222";
+    localStorage.setItem("mbs:draft", JSON.stringify(stored));
+    dispatchEvent(new StorageEvent("storage", { key: "mbs:draft" }));
+    answer();
+    expect(await screen.findByText(/ubahan itu tidak ikut terkirim/)).toBeVisible();
+  });
+
+  it("leaves the check when another tab empties a field", async () => {
+    stubApi(READY);
+    fill();
+    const router = open("/daftar/periksa");
+    await heading("Periksa sebelum dikirim");
+    const stored = JSON.parse(localStorage.getItem("mbs:draft")!);
+    stored.values.birthDay = "";
+    localStorage.setItem("mbs:draft", JSON.stringify(stored));
+    dispatchEvent(new StorageEvent("storage", { key: "mbs:draft" }));
+    await heading("Data anak");
+    expect(router.state.location.pathname).toBe("/daftar/anak");
+  });
+
+  it("offers the school an unanswered try went to, after every school closed", async () => {
+    stubApi({ ...READY, [SUBMIT]: [{ lost: true }] });
+    fill();
+    const first = open("/daftar/periksa");
+    await heading("Periksa sebelum dikirim");
+    await press("Kirim pendaftaran");
+    await screen.findByText(/tidak akan tercatat dua kali/);
+    editDraft(ACCOUNT.id, { schoolKey: "sma" });
+    flushDraft();
+    first.unmount();
+
+    stubApi({ ...READY, [CYCLES]: [{ body: null }] });
+    open("/daftar");
+    await heading("Pilih sekolah");
+    await userEvent.setup().click(screen.getByRole("radio", { name: /SMP/ }));
+    await press("Lanjut");
+    await heading("Data anak");
   });
 
   it("goes home when another tab sent the form and nothing is running here", async () => {
@@ -641,6 +728,34 @@ describe("the status page", () => {
       "Bukti transfer dikirim3 Desember 2026, 09.10 WITA",
       "Pendaftaran dikirim2 Desember 2026, 00.30 WITA",
     ]);
+  });
+
+  it("keeps the next step of a receipt sent back when the form was edited after it", async () => {
+    stubApi({
+      ...READY,
+      [GET]: [
+        {
+          body: applicationOf({
+            events: [
+              { command: "SUBMIT", at: at(2), actor: "FAMILY", reason: null },
+              { command: "REJECT_PAYMENT", at: at(3), actor: "STAFF", reason: "Nominal buram." },
+              { command: "EDIT_PROFILE", at: at(4), actor: "STAFF", reason: null },
+            ],
+          }),
+        },
+      ],
+    });
+    open(`/status/${APPLICATION_ID}`);
+    await heading("Aisyah Putri");
+    expect(screen.getByText(/Jangan transfer lagi/)).toBeVisible();
+    expect(screen.getAllByText("Catatan panitia: Nominal buram.")).toHaveLength(2);
+  });
+
+  it("stops saying that edits are kept once they are gone", async () => {
+    stubApi(READY);
+    open(`/status/${APPLICATION_ID}?ubahan=tersimpan`);
+    await heading("Aisyah Putri");
+    expect(screen.queryByText(/masih ada di perangkat ini/)).toBeNull();
   });
 
   it("ends the road where the application ended", async () => {

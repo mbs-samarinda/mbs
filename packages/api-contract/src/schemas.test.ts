@@ -164,6 +164,13 @@ describe("ApplicantProfile", () => {
     },
   );
 
+  it("takes a number copied with invisible marks around it", () => {
+    expect(parsed({ guardianPhone: "\u202a+62 812-3456-7890\u202c" }).data?.guardianPhone).toBe(
+      "+6281234567890",
+    );
+    expect(parsed({ nik: "\u200e6472010101010001\ufeff" }).data?.nik).toBe("6472010101010001");
+  });
+
   it("keeps a name in any script, as one clean line", () => {
     expect(parsed({ childFullName: "  Nur\tالهدى \u0000 A\u202e " }).data?.childFullName).toBe(
       "Nur الهدى A",

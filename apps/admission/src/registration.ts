@@ -24,11 +24,12 @@ export const STEP_FIELDS = {
 export function toProfile(values: Values): ApplicantProfileInput {
   const { birthDay, birthMonth, birthYear, childFullName, nik, sex, schoolOfOrigin } = values;
   const { guardianName, guardianRelation, guardianPhone } = values;
+  const day = birthDay.trim();
   return {
     childFullName,
     nik,
     // Parts left empty make no date, which the rule answers by asking for all three.
-    birthDate: `${birthYear.trim()}-${birthMonth}-${birthDay.trim().padStart(2, "0")}`,
+    birthDate: `${birthYear.trim()}-${birthMonth}-${day && day.padStart(2, "0")}`,
     sex,
     schoolOfOrigin,
     guardianName,
@@ -62,7 +63,7 @@ export async function openForm(context: { queryClient: QueryClient; account: Acc
 }
 
 /** The first step that still needs something. */
-function firstOpenStep(draft: Draft | null, schools: readonly SchoolCycle[]): Step {
+export function firstOpenStep(draft: Draft | null, schools: readonly SchoolCycle[]): Step {
   if (!draft || !canChoose(draft, schools)) return "sekolah";
   for (const step of ["anak", "wali"] as const) {
     if (Object.keys(errorsIn(draft.values, STEP_FIELDS[step])).length > 0) return step;
@@ -75,9 +76,14 @@ function firstOpenStep(draft: Draft | null, schools: readonly SchoolCycle[]): St
  * closes, because sending it again is how the family finds out.
  */
 function canChoose({ values, attempt }: Draft, schools: readonly SchoolCycle[]) {
+  return offeredSchools(schools, attempt).some(({ schoolKey }) => schoolKey === values.schoolKey);
+}
+
+/** The schools to choose from: the open ones, and the one an unanswered try went to. */
+export function offeredSchools(schools: readonly SchoolCycle[], attempt: Draft["attempt"]) {
   const { open } = sortByPhase(schools, serverNow());
-  return (
-    open.some((school) => school.schoolKey === values.schoolKey) ||
-    (attempt !== null && attempt.schoolKey === values.schoolKey)
+  return schools.filter(
+    ({ schoolKey }) =>
+      attempt?.schoolKey === schoolKey || open.some((school) => school.schoolKey === schoolKey),
   );
 }

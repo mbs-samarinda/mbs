@@ -211,7 +211,14 @@ describe("submit", () => {
         data: { applicationId, sameRegistration: true },
       },
     });
-    const sibling = await submit({ key, profile: profile({ nik: "6472010101010009" }) });
+    const correctedNik = await submit({ key, profile: profile({ nik: "6472010101010009" }) });
+    expect(correctedNik.json()).toMatchObject({
+      json: { data: { applicationId, sameRegistration: true } },
+    });
+    const sibling = await submit({
+      key,
+      profile: profile({ nik: "6472010101010009", childFullName: "Adik Aisyah" }),
+    });
     expect(sibling.json()).toMatchObject({
       json: { data: { applicationId, sameRegistration: false } },
     });

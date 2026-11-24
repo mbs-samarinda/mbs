@@ -174,8 +174,16 @@ function by(title: string) {
   return (actor: ActorType) => (actor === "STAFF" ? `${title} oleh panitia` : title);
 }
 
-function sentBack({ events }: FamilyApplication, command: FamilyCommand) {
-  return events.at(-1)?.command === command;
+/** Both can happen at any stage, and neither is why the application is where it is. */
+const CHANGES_NO_STAGE = new Set<FamilyCommand>(["EDIT_PROFILE", "CHANGE_INTERVIEW_MODE"]);
+
+/** The event the family's next step follows from. */
+export function newestMove({ events }: FamilyApplication) {
+  return events.findLast(({ command }) => !CHANGES_NO_STAGE.has(command));
+}
+
+function sentBack(application: FamilyApplication, command: FamilyCommand) {
+  return newestMove(application)?.command === command;
 }
 
 const DOCUMENT_LABELS: Record<FamilyApplication["documents"][number]["type"], string> = {

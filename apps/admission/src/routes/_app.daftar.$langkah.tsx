@@ -1,5 +1,4 @@
-import { serverNow } from "@mbs/api-client/http";
-import type { ApplicantField } from "@mbs/api-contract/applicant-rules";
+import { APPLICANT_RULES, type ApplicantField } from "@mbs/api-contract/applicant-rules";
 import type { GUARDIAN_RELATIONS, SEXES } from "@mbs/school-config";
 import { Alert } from "@mbs/ui/components/alert";
 import { Button } from "@mbs/ui/components/button";
@@ -27,13 +26,15 @@ import { useState, type ComponentProps, type FormEvent, type ReactNode } from "r
 import { flushSync } from "react-dom";
 
 import { applicationsQuery } from "../api.ts";
-import { cyclesQuery, sortByPhase, type SchoolCycle } from "../cycles.ts";
+import { cyclesQuery, type SchoolCycle } from "../cycles.ts";
 import {
   draftSent,
+  draftOf,
   editDraft,
   EMPTY_VALUES,
   lastSent,
   renewKey,
+  sameValues,
   useDraft,
   type Draft,
   type ValueName,
@@ -42,7 +43,9 @@ import {
 import { formatDate, formatFee, MONTHS, schoolName } from "../format.ts";
 import {
   errorsIn,
+  firstOpenStep,
   isStep,
+  offeredSchools,
   openForm,
   STEP_FIELDS,
   STEPS,
@@ -68,6 +71,8 @@ const TITLES: Record<Step, string> = {
   wali: "Orang tua/wali",
   periksa: "Periksa sebelum dikirim",
 };
+
+const SEND = ["send-registration"];
 
 /** `dari` marks an edit that goes straight back to the check. */
 type FormSearch = { dari?: "periksa" | undefined };
@@ -110,8 +115,13 @@ function Form() {
 
   // Sent or cleared in another tab. Home shows what became of it, unless this tab
   // is still waiting for an answer of its own and goes on to that.
-  const waiting = useIsMutating() > 0;
-  if (!draft && langkah !== "sekolah" && !waiting) return <Navigate to="/" replace />;
+  const sending = useIsMutating({ mutationKey: SEND }) > 0;
+  if (!draft && langkah !== "sekolah" && !sending) return <Navigate to="/" replace />;
+  // Another tab can empty a field without a navigation here to notice it.
+  const firstOpen = firstOpenStep(draft, schools);
+  if (langkah === "periksa" && draft && !sending && firstOpen !== langkah) {
+    return <Navigate to="/daftar/$langkah" params={{ langkah: firstOpen }} replace />;
+  }
 
   const values = draft?.values ?? EMPTY_VALUES;
   const school = schools.find(({ schoolKey }) => schoolKey === values.schoolKey);
@@ -138,9 +148,22 @@ function Form() {
           {TITLES[langkah]}
         </h1>
       </div>
-      {langkah === "sekolah" && <SchoolStep values={values} set={set} schools={schools} />}
-      {langkah === "anak" && <ChildStep values={values} set={set} />}
-      {langkah === "wali" && <GuardianStep values={values} set={set} />}
+      {sending && langkah !== "periksa" ? (
+        // What is typed now would not be in the form that is on its way.
+        <output className="text-muted-foreground">
+          Pendaftaran sedang dikirim. Tunggu sebentar, isiannya belum bisa diubah.
+        </output>
+      ) : langkah === "sekolah" ? (
+        <SchoolStep
+          values={values}
+          set={set}
+          offered={offeredSchools(schools, draft?.attempt ?? null)}
+        />
+      ) : langkah === "anak" ? (
+        <ChildStep values={values} set={set} />
+      ) : langkah === "wali" ? (
+        <GuardianStep values={values} set={set} />
+      ) : null}
       {langkah === "periksa" && draft && <CheckStep draft={draft} schools={schools} />}
       {saved && draft && (
         <p className="flex items-center gap-1.5 justify-self-center text-sm text-muted-foreground">
@@ -249,9 +272,8 @@ function focusField(field: string) {
   control?.focus();
 }
 
-function SchoolStep({ values, set, schools }: StepProps & { schools: readonly SchoolCycle[] }) {
-  const { open } = sortByPhase(schools, serverNow());
-  const chosen = open.find(({ schoolKey }) => schoolKey === values.schoolKey);
+function SchoolStep({ values, set, offered }: StepProps & { offered: readonly SchoolCycle[] }) {
+  const chosen = offered.find(({ schoolKey }) => schoolKey === values.schoolKey);
   return (
     <StepForm
       fields={["schoolKey"]}
@@ -264,7 +286,7 @@ function SchoolStep({ values, set, schools }: StepProps & { schools: readonly Sc
           aria-describedby={describedBy("schoolKey", { error: errors.schoolKey })}
           className="grid grid-cols-1 gap-2"
         >
-          {open.map(({ schoolKey, cycle }) => (
+          {offered.map(({ schoolKey, cycle }) => (
             <label
               key={schoolKey}
               className="flex min-h-16 cursor-pointer items-center gap-3.5 rounded-xl border border-input px-3.5 py-2.5 has-checked:border-primary has-checked:bg-info-tint"
@@ -280,9 +302,11 @@ function SchoolStep({ values, set, schools }: StepProps & { schools: readonly Sc
               <SchoolLogo school={schoolKey} className="size-9" />
               <span className="min-w-0 flex-1 wrap-anywhere">
                 <span className="block text-sm font-semibold">{schoolName(schoolKey)}</span>
-                <span className="block text-sm text-muted-foreground">
-                  {formatFee(cycle.effectiveFee)}
-                </span>
+                {cycle && (
+                  <span className="block text-sm text-muted-foreground">
+                    {formatFee(cycle.effectiveFee)}
+                  </span>
+                )}
               </span>
             </label>
           ))}
@@ -581,25 +605,34 @@ function CheckStep({ draft, schools }: { draft: Draft; schools: readonly SchoolC
   const school = schools.find(({ schoolKey }) => schoolKey === values.schoolKey);
 
   const send = useMutation({
+    mutationKey: SEND,
     mutationFn: async () => {
       const { applicationId, result } = await sendDraft(draft, schools);
+      // Another tab may have typed on while this one was sending.
+      const now = draftOf(account.id);
+      const edited = now !== null && !sameValues(now.values, values);
+      const edits =
+        result === "earlierOther"
+          ? "tersimpan"
+          : result === "earlier" || edited
+            ? "tertinggal"
+            : undefined;
       // Dropped, not refreshed: home would show the list without this child first.
       const list = applicationsQuery(account.id);
       queryClient.removeQueries({ queryKey: list.queryKey, exact: true });
       void queryClient.prefetchQuery(list);
       const { pathname, state } = router.state.location;
-      if (pathname.startsWith("/daftar/")) {
-        // Back to the form's first page before replacing it, so that none of its
-        // pages are left under the status.
-        if (state.depth) await stepBack(router.history, state.depth);
+      const onForm = pathname.startsWith("/daftar/");
+      // Back to the form's first page before replacing it, so that none of its
+      // pages are left under the status.
+      if (onForm && state.depth) await stepBack(router.history, state.depth);
+      // Elsewhere, only edits that did not go out are worth an interruption.
+      if (onForm || (edits && pathname === "/")) {
         await router.navigate({
           to: "/status/$applicationId",
           params: { applicationId },
-          search: {
-            ubahan:
-              result === "created" ? undefined : result === "earlier" ? "tertinggal" : "tersimpan",
-          },
-          replace: true,
+          search: { ubahan: edits },
+          replace: onForm,
         });
       }
       // Last, so a crash before this leaves a form that can be sent again.
@@ -608,7 +641,9 @@ function CheckStep({ draft, schools }: { draft: Draft; schools: readonly SchoolC
     },
   });
   const sendOnce = useSingleFlight(send);
-  const failure = send.error && !send.isPending ? explainSubmit(send.error, draft) : null;
+  // Counted by the key, so leaving this step and coming back still finds it.
+  const sending = useIsMutating({ mutationKey: SEND }) > 0;
+  const failure = send.error && !sending ? explainSubmit(send.error, draft) : null;
 
   return (
     <form
@@ -616,24 +651,24 @@ function CheckStep({ draft, schools }: { draft: Draft; schools: readonly SchoolC
       className="grid grid-cols-1 gap-8"
       onSubmit={(event) => {
         event.preventDefault();
-        sendOnce();
+        if (queryClient.isMutating({ mutationKey: SEND }) === 0) sendOnce();
       }}
     >
       <div className="grid grid-cols-1 gap-5">
-        <Review title="Sekolah" step="sekolah">
+        <Review title="Sekolah" step="sekolah" locked={sending}>
           <Row label="Sekolah">{school && schoolName(school.schoolKey)}</Row>
           {school?.cycle && (
             <Row label="Biaya pendaftaran">{formatFee(school.cycle.effectiveFee)}</Row>
           )}
         </Review>
-        <Review title="Anak" step="anak">
+        <Review title="Anak" step="anak" locked={sending}>
           <Row label="Nama lengkap">{profile.childFullName}</Row>
-          <Row label="NIK">{inGroups(profile.nik.replaceAll(/[\s.]/g, ""))}</Row>
+          <Row label="NIK">{inGroups(profile.nik)}</Row>
           <Row label="Tanggal lahir">{formatDate(profile.birthDate)}</Row>
           <Row label="Jenis kelamin">{labelOf(SEX_LABELS, profile.sex)}</Row>
           <Row label="Asal sekolah">{profile.schoolOfOrigin}</Row>
         </Review>
-        <Review title="Orang tua/wali" step="wali">
+        <Review title="Orang tua/wali" step="wali" locked={sending}>
           <Row label="Nama lengkap">{profile.guardianName}</Row>
           <Row label="Hubungan">{labelOf(RELATION_LABELS, profile.guardianRelation)}</Row>
           <Row label="Nomor HP">{profile.guardianPhone}</Row>
@@ -651,11 +686,11 @@ function CheckStep({ draft, schools }: { draft: Draft; schools: readonly SchoolC
             )}
           </Alert>
         )}
-        <Button type="submit" size="touch" disabled={send.isPending} focusableWhenDisabled>
-          {send.isPending ? "Mengirim…" : "Kirim pendaftaran"}
+        <Button type="submit" size="touch" disabled={sending} focusableWhenDisabled>
+          {sending ? "Mengirim…" : "Kirim pendaftaran"}
         </Button>
         {back && (
-          <Button type="button" variant="ghost" size="touch" onClick={back}>
+          <Button type="button" variant="ghost" size="touch" disabled={sending} onClick={back}>
             Kembali
           </Button>
         )}
@@ -664,7 +699,17 @@ function CheckStep({ draft, schools }: { draft: Draft; schools: readonly SchoolC
   );
 }
 
-function Review({ title, step, children }: { title: string; step: Step; children: ReactNode }) {
+function Review({
+  title,
+  step,
+  locked,
+  children,
+}: {
+  title: string;
+  step: Step;
+  locked: boolean;
+  children: ReactNode;
+}) {
   const { depth = 0 } = useLocation().state;
   return (
     <section className="grid grid-cols-1 gap-3 border-t border-border pt-4">
@@ -672,6 +717,7 @@ function Review({ title, step, children }: { title: string; step: Step; children
         <h2 className="font-semibold">{title}</h2>
         <Link
           to="/daftar/$langkah"
+          disabled={locked}
           params={{ langkah: step }}
           search={{ dari: "periksa" }}
           state={{ from: "periksa", depth: depth + 1 }}
@@ -698,8 +744,9 @@ function labelOf(labels: Record<string, string>, value: string) {
   return labels[value];
 }
 
-function inGroups(digits: string) {
-  return digits.replaceAll(/(\d{4})(?=\d)/g, "$1 ");
+function inGroups(nik: string) {
+  const result = APPLICANT_RULES.nik(nik);
+  return result.ok ? result.value.replaceAll(/(\d{4})(?=\d)/g, "$1 ") : nik;
 }
 
 /** Resolves once the browser has gone back, or after a moment if it cannot. */

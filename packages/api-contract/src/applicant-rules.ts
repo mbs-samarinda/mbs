@@ -8,13 +8,15 @@ import { GUARDIAN_RELATIONS, SEXES } from "@mbs/school-config";
 export type RuleResult<T> = { ok: true; value: T } | { ok: false; message: string };
 export type Rule<T> = (raw: string, now: Date) => RuleResult<T>;
 
+/** Zero-width and direction marks. Contact apps put them around a number that is copied. */
+const INVISIBLE = /[\u200b\u200e\u200f\u2060\u202a-\u202e\u2066-\u2069\ufeff]/g;
 const NAME_MAX = 200;
 const AGE = { min: 8, max: 25 };
 
 export const APPLICANT_RULES = {
   childFullName: name("nama lengkap anak"),
   nik: (raw) => {
-    const digits = raw.replaceAll(/[\s.]/g, "");
+    const digits = raw.replaceAll(INVISIBLE, "").replaceAll(/[\s.]/g, "");
     if (digits === "") return refuse("Isi NIK anak, 16 angka di kartu keluarga.");
     if (/\D/.test(digits)) return refuse("NIK anak hanya berisi angka. Periksa lagi NIK-nya.");
     if (digits.length !== 16) {
@@ -81,7 +83,7 @@ function name(label: string): Rule<string> {
 function cleanLine(raw: string) {
   return raw
     .replaceAll(/[\p{Cc}\p{Cs}\u2028\u2029]/gu, " ")
-    .replaceAll(/[\u200b\u2060\u202a-\u202e\u2066-\u2069]/g, "")
+    .replaceAll(INVISIBLE, "")
     .replaceAll(/\s+/g, " ")
     .trim();
 }
@@ -97,7 +99,7 @@ const PUNCTUATION = /[\s.()\-\u2010-\u2015]/g;
 
 /** `0812…`, `62812…` and `+62…` are Indonesian. Any other country needs its `+`. */
 function toE164(raw: string) {
-  const compact = raw.replaceAll(PUNCTUATION, "").replace(/^00/, "+");
+  const compact = raw.replaceAll(INVISIBLE, "").replaceAll(PUNCTUATION, "").replace(/^00/, "+");
   if (!/^\+?\d+$/.test(compact)) return null;
   if (compact.startsWith("+") && !compact.startsWith("+62")) {
     return /^\+[1-9]\d{7,14}$/.test(compact) ? compact : null;

@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { clearDraft, draftOf, editDraft, flushDraft, setAttempt } from "./draft.ts";
+import {
+  clearDraft,
+  draftOf,
+  editDraft,
+  flushDraft,
+  keepOnlyDraftOf,
+  setAttempt,
+} from "./draft.ts";
 
 const KEY = "mbs:draft";
 
@@ -59,7 +66,12 @@ describe("the draft", () => {
   it("is dropped, from the device too, when a different account signs in", () => {
     editDraft("a", { nik: "6472010101010001" });
     flushDraft();
+    // Reading alone must not delete it: a tab can still show the account from before.
     expect(draftOf("b")).toBeNull();
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    keepOnlyDraftOf("a");
+    expect(draftOf("a")).not.toBeNull();
+    keepOnlyDraftOf("b");
     expect(localStorage.getItem(KEY)).toBeNull();
     reload();
     expect(draftOf("a")).toBeNull();

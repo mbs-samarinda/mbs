@@ -6,9 +6,10 @@ import { cn } from "cn";
 import { ArrowLeftIcon, CheckIcon } from "lucide-react";
 
 import { applicationQuery } from "../api.ts";
+import { useDraft } from "../draft.ts";
 import { formatDateTime, formatDayAndMonth, schoolName } from "../format.ts";
 import { SchoolLogo } from "../school-logo.tsx";
-import { EVENT_COPY, MILESTONES, STAGE_COPY, TURNS } from "../stage-copy.ts";
+import { EVENT_COPY, MILESTONES, newestMove, STAGE_COPY, TURNS } from "../stage-copy.ts";
 
 /** Set when the form was sent before its last edits, so the page can say what became of them. */
 type StatusSearch = { ubahan?: "tertinggal" | "tersimpan" | undefined };
@@ -36,6 +37,7 @@ function Status() {
   const { account } = Route.useRouteContext();
   const { applicationId } = Route.useParams();
   const { ubahan } = Route.useSearch();
+  const { draft } = useDraft(account.id);
   const { data: application } = useSuspenseQuery({
     ...applicationQuery(account.id, applicationId),
     refetchOnMount: "always",
@@ -64,7 +66,8 @@ function Status() {
           </p>
         </div>
       </div>
-      {ubahan && <Edits kept={ubahan === "tersimpan"} />}
+      {ubahan === "tertinggal" && <EditsNotSent />}
+      {ubahan === "tersimpan" && draft && <EditsKept />}
       <NextStep application={application} />
       <Road application={application} />
       <History events={application.events} />
@@ -72,35 +75,39 @@ function Status() {
   );
 }
 
-function Edits({ kept }: { kept: boolean }) {
+const NOTICE =
+  "grid gap-1 rounded-xl bg-warning-tint p-[min(1.25rem,6vw)] text-pretty text-warning";
+
+function EditsNotSent() {
   return (
-    <div className="grid gap-1 rounded-xl bg-warning-tint p-[min(1.25rem,6vw)] text-pretty text-warning">
-      {kept ? (
-        <>
-          <p>
-            Pendaftaran ini sudah terkirim lebih dulu. Isian yang baru belum terkirim dan masih ada
-            di perangkat ini.
-          </p>
-          <Link
-            to="/daftar"
-            className="inline-flex min-h-11 items-center justify-self-start font-medium underline underline-offset-4"
-          >
-            Lanjutkan isian
-          </Link>
-        </>
-      ) : (
-        <p>
-          Pendaftaran ini sudah terkirim sebelum isiannya kamu ubah, jadi ubahan itu tidak ikut
-          terkirim. Kalau ada data yang perlu diperbaiki, hubungi panitia.
-        </p>
-      )}
+    <p className={NOTICE}>
+      Pendaftaran ini sudah terkirim sebelum isiannya kamu ubah, jadi ubahan itu tidak ikut
+      terkirim. Kalau ada data yang perlu diperbaiki, hubungi panitia.
+    </p>
+  );
+}
+
+function EditsKept() {
+  return (
+    <div className={NOTICE}>
+      <p>
+        Pendaftaran ini sudah terkirim lebih dulu. Isian yang baru belum terkirim dan masih ada di
+        perangkat ini. Kalau anaknya sama, jangan kirim lagi. Hubungi panitia untuk memperbaiki
+        datanya.
+      </p>
+      <Link
+        to="/daftar"
+        className="inline-flex min-h-11 items-center justify-self-start font-medium underline underline-offset-4"
+      >
+        Lanjutkan isian
+      </Link>
     </div>
   );
 }
 
 function NextStep({ application }: { application: FamilyApplication }) {
   const { turn, title, next } = STAGE_COPY[application.stage];
-  const newest = application.events.at(-1);
+  const newest = newestMove(application);
   return (
     <section className="grid gap-1.5 rounded-xl bg-info-tint p-[min(1.25rem,6vw)] wrap-anywhere">
       <p className="text-sm font-medium text-info">{TURNS[turn]}</p>

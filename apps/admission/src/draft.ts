@@ -106,11 +106,20 @@ export function flushDraft() {
   if (timer !== undefined) write();
 }
 
-/** This account's draft. Anyone else's is dropped, because this device is now theirs. */
+/** This account's draft. Anyone else's reads as none. */
 export function draftOf(userId: string): Draft | null {
   const { draft } = current();
+  return draft?.userId === userId ? draft : null;
+}
+
+/**
+ * Drops another account's draft, because this device is now this one's. Only a
+ * fresh answer from the server may call it: a tab that still shows the account
+ * from before would delete the new one's form.
+ */
+export function keepOnlyDraftOf(userId: string) {
+  const { draft } = current();
   if (draft && draft.userId !== userId) clearDraft();
-  return current().draft;
 }
 
 /** The draft and whether it is kept, for a component. */
@@ -180,6 +189,11 @@ export function isStarted({ values, attempt }: Draft) {
     attempt !== null ||
     VALUE_NAMES.some((name) => name !== "schoolKey" && values[name].trim() !== "")
   );
+}
+
+/** Whether two forms say the same. */
+export function sameValues(a: Values, b: Values) {
+  return VALUE_NAMES.every((name) => a[name] === b[name]);
 }
 
 function emptyDraft(userId: string): Draft {

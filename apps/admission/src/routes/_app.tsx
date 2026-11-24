@@ -9,18 +9,14 @@ import { useEffect } from "react";
 
 import { accountQuery } from "../account.ts";
 import { APP_NAME } from "../app-name.ts";
-import { clearDraft, draftOf } from "../draft.ts";
+import { clearDraft } from "../draft.ts";
 import { explain } from "../email-code.ts";
 import { InShell } from "../in-shell.ts";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context, location }) => {
     const account = await context.queryClient.fetchQuery(accountQuery);
-    if (account) {
-      // Another account's form on this device goes the moment this one signs in.
-      draftOf(account.id);
-      return { account };
-    }
+    if (account) return { account };
 
     // Better Auth sends a Google sign-in it cannot place to `/?error=`.
     const { error }: { error?: unknown } = location.search;
