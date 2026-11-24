@@ -227,7 +227,9 @@ function StaffForm({ staff, onDone }: { staff: StaffSummary | null; onDone: () =
     onError: (error) => {
       if (error instanceof ORPCError && error.code === "EMAIL_TAKEN") {
         const taken = filled.find((row) => row.email.trim().toLowerCase() === error.data?.email);
-        setErrors({ [`email:${taken?.id ?? ""}`]: "Email ini sudah dipakai staf lain." });
+        setErrors({
+          [`email:${(taken ?? filled[0])?.id ?? ""}`]: "Email ini sudah dipakai staf lain.",
+        });
       }
     },
   });
