@@ -30,6 +30,7 @@ import {
 import { findCycleById } from "../admission/repository.ts";
 import type { StaffContext } from "../auth/authorization.ts";
 import { enqueueEventEmails, type OutboxSettings } from "../notification/outbox.ts";
+import { formatRegistrationNumber } from "./registration-number.ts";
 import {
   findApplicationById,
   findApplicationForUser,
@@ -189,7 +190,7 @@ export async function submitApplication(
       admissionCycleId: input.cycleId,
       schoolId: cycle.schoolId,
       registrationSeq: seq,
-      registrationNumber: `${input.schoolKey.toUpperCase()}-${String(seq).padStart(4, "0")}`,
+      registrationNumber: formatRegistrationNumber(input.schoolKey, seq),
       stage: result.to,
       nik: profile.nik,
       registrationFee: cycle.feeOverride ?? cycle.defaultFee,

@@ -2,11 +2,14 @@ import { oc } from "@orpc/contract";
 import { z } from "zod";
 
 import {
+  CheckedStatus,
+  CheckStatusInput,
   FamilyApplication,
   FamilyApplicationSummary,
   ReusedKey,
   SubmitApplicationInput,
   SubmittedApplication,
+  TooManyTries,
 } from "./application.ts";
 import {
   AdmissionCycle,
@@ -32,7 +35,8 @@ export * from "./schemas.ts";
  * The public contract, organised by audience: `public`, `applicant`, `staff`
  * and `admin`.
  *
- * Anything under `applicant` needs a family session, which only the parent
+ * `public.application` exists only on the parent app's host. Anything under
+ * `applicant` needs a family session, which only the parent
  * app's host gives. Anything under `staff` needs an active staff session from
  * the committee app's host; anything under `admin` needs the ADMINISTRATOR
  * role on top. An application the family cannot see is NOT_FOUND. Failures
@@ -45,6 +49,16 @@ export const contract = {
       getCurrentCycle: oc
         .input(z.object({ schoolKey: SchoolKey }))
         .output(PublicAdmissionCycle.nullable()),
+    },
+    application: {
+      /** NO_MATCH is the one answer to every miss, so it never says which part was wrong. */
+      checkStatus: oc
+        .input(CheckStatusInput)
+        .output(CheckedStatus)
+        .errors({
+          NO_MATCH: { status: 404 },
+          TOO_MANY_TRIES: { status: 429, data: TooManyTries },
+        }),
     },
   },
   applicant: {

@@ -274,9 +274,15 @@ export async function listApplicationsForUser(db: Database, userId: string) {
   );
 }
 
+const newestChildName = sql<string>`(
+  select ${schema.applicantProfileVersions.data}->>'childFullName' from ${schema.applicantProfileVersions}
+  where ${schema.applicantProfileVersions.applicationId} = ${schema.applications.id}
+  order by ${schema.applicantProfileVersions.version} desc limit 1
+)`;
+
 /** The only read a family's screens start from. Access is the join, not a filter to forget. */
 function applicationsForUser(db: Database, userId: string) {
-  const { applications, applicantProfileVersions } = schema;
+  const { applications } = schema;
   return db
     .select({
       id: applications.id,
@@ -285,11 +291,7 @@ function applicationsForUser(db: Database, userId: string) {
       schoolKey: schema.schools.key,
       stage: applications.stage,
       registrationFee: applications.registrationFee,
-      childName: sql<string>`(
-        select ${applicantProfileVersions.data}->>'childFullName' from ${applicantProfileVersions}
-        where ${applicantProfileVersions.applicationId} = ${applications.id}
-        order by ${applicantProfileVersions.version} desc limit 1
-      )`,
+      childName: newestChildName,
     })
     .from(applications)
     .innerJoin(
@@ -303,7 +305,34 @@ function applicationsForUser(db: Database, userId: string) {
     .$dynamic();
 }
 
-export async function listFamilyVisibleEvents(db: Database, applicationId: string) {
+/**
+ * The number and the NIK are matched in one statement, so a number that does not
+ * exist takes the same work as a wrong NIK. Numbers start over each cycle.
+ */
+export async function findApplicationByNumber(
+  tx: Transaction,
+  registrationNumber: string,
+  nik: string,
+) {
+  const { applications, admissionCycles } = schema;
+  const rows = await tx
+    .select({
+      id: applications.id,
+      registrationNumber: applications.registrationNumber,
+      schoolKey: schema.schools.key,
+      stage: applications.stage,
+      childName: newestChildName,
+    })
+    .from(applications)
+    .innerJoin(schema.schools, eq(schema.schools.id, applications.schoolId))
+    .innerJoin(admissionCycles, eq(admissionCycles.id, applications.admissionCycleId))
+    .where(and(eq(applications.registrationNumber, registrationNumber), eq(applications.nik, nik)))
+    .orderBy(desc(admissionCycles.registrationOpenAt), desc(admissionCycles.id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function listFamilyVisibleEvents(db: Database | Transaction, applicationId: string) {
   const { applicationEvents } = schema;
   return db
     .select({

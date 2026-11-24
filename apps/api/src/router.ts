@@ -8,6 +8,7 @@ import {
   upsertSchoolSettingProcedure,
 } from "./modules/admission/procedures.ts";
 import {
+  checkStatusProcedure,
   getFamilyApplicationProcedure,
   listFamilyApplicationsProcedure,
   submitApplicationProcedure,
@@ -20,7 +21,7 @@ import {
   updateStaffProcedure,
 } from "./modules/staff/procedures.ts";
 
-/** Mirrors the contract. Audiences appear here as they get procedures. */
+/** Mirrors the contract, as far as every host serves it. */
 export const router = {
   public: {
     admission: {
@@ -55,6 +56,17 @@ export const router = {
       create: createStaffProcedure,
       update: updateStaffProcedure,
       setActive: setStaffActiveProcedure,
+    },
+  },
+};
+
+/** The parent app's host serves everything, the lookup without an account included. */
+export const familyRouter = {
+  ...router,
+  public: {
+    ...router.public,
+    application: {
+      checkStatus: checkStatusProcedure,
     },
   },
 };

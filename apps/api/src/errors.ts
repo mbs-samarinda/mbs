@@ -15,6 +15,21 @@ export class NotFoundError extends Error {
   readonly code = "NOT_FOUND";
 }
 
+/** No application has this number and NIK together. Says nothing about either alone. */
+export class NoMatchError extends Error {
+  readonly code = "NO_MATCH";
+}
+
+export class TooManyTriesError extends Error {
+  readonly code = "TOO_MANY_TRIES";
+  readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number) {
+    super("Too many tries.");
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 /** The request is well formed but the business state refuses it. */
 export class ConflictError extends Error {
   readonly code:

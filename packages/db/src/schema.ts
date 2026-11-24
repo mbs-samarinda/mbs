@@ -267,6 +267,27 @@ export const applications = pgTable(
   ],
 );
 
+/**
+ * One row per try to check a status without an account, for a day. `subject` is
+ * the client's address or the registration number in its canonical form, never
+ * the text as typed, which can be a NIK in the wrong field. Kept apart from
+ * `rate_limit`, where sign-in deletes every row after an hour.
+ */
+export const statusCheckTries = pgTable(
+  "status_check_tries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subject: text("subject").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    index("status_check_tries_subject").on(table.subject, table.createdAt),
+    index("status_check_tries_age").on(table.createdAt),
+  ],
+);
+
 export const applicationDocumentRequirements = pgTable(
   "application_document_requirements",
   {
