@@ -566,6 +566,11 @@ const outbox = { familyAppUrl: process.env.FAMILY_APP_URL ?? "" };
 
 try {
   await assertLocalDatabase(databaseUrl);
+  // The committee's history names every staff actor from this table.
+  await db
+    .insert(schema.staffUsers)
+    .values({ id: SIM_STAFF.id, name: "Panitia simulasi", role: SIM_STAFF.role, isActive: false })
+    .onConflictDoNothing();
   if (args.staffSession) {
     await staffSession(db, args.staffSession);
   } else if (positionals[0] === "cycle") {

@@ -20,6 +20,12 @@
   --color-warning-tint: var(--warning-tint);
   --color-info: var(--info);
   --color-info-tint: var(--info-tint);
+  --color-school-smp: var(--school-smp);
+  --color-school-smp-tint: var(--school-smp-tint);
+  --color-school-smk: var(--school-smk);
+  --color-school-smk-tint: var(--school-smk-tint);
+  --color-school-sma: var(--school-sma);
+  --color-school-sma-tint: var(--school-sma-tint);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -100,6 +106,16 @@
   --warning-tint: oklch(0.97 0.024 83.4); /* #fdf4e3 */
   --info: oklch(0.499 0.086 219.2); /* #126e84, 5.06:1 */
   --info-tint: oklch(0.949 0.01 219.6); /* #e7f0f3 */
+  /* A school as context, never as a state: the committee app's initials tiles,
+     marks and bars. Each school's approved primary is the ink and its surface
+     tint the ground, from the brand guide's School digital colors. The ink
+     carries text on its tint: 5.70, 5.03 and 6.01 to 1. */
+  --school-smp: oklch(0.469 0.104 154.6); /* #1A6B3F */
+  --school-smp-tint: oklch(0.952 0.013 159.9); /* #E8F2EC */
+  --school-smk: oklch(0.514 0.166 258.1); /* #1D63C4 */
+  --school-smk-tint: oklch(0.952 0.017 256.3); /* #E8F0FB */
+  --school-sma: oklch(0.49 0.181 21.8); /* #B01C2E */
+  --school-sma-tint: oklch(0.955 0.016 8.2); /* #FBECEE */
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.35 0.063 219.2);
@@ -143,6 +159,14 @@
   --warning-tint: oklch(0.259 0.05 69.8); /* #331f05 */
   --info: oklch(0.8 0.09 218.7); /* #76cce5, 8.45:1 */
   --info-tint: oklch(0.259 0.047 218.5); /* #002933 */
+  /* The guide's School palettes in dark mode: the light primary as ink on the
+     dark surface tint, 7.89, 7.76 and 7.49 to 1. */
+  --school-smp: oklch(0.779 0.104 154.9); /* #7fcb9a */
+  --school-smp-tint: oklch(0.261 0.055 154.9); /* #082c18 */
+  --school-smk: oklch(0.78 0.113 258.1); /* #8ab9ff */
+  --school-smk-tint: oklch(0.26 0.055 257.6); /* #12243e */
+  --school-sma: oklch(0.78 0.128 22.1); /* #ff9592 */
+  --school-sma-tint: oklch(0.261 0.055 21.6); /* #3b1818 */
   --border: oklch(0.341 0 0); /* #383838 hairline */
   --input: oklch(0.341 0 0);
   /* Lighter than its own primary, the reverse of light mode. Same reason both

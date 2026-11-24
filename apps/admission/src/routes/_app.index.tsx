@@ -1,6 +1,7 @@
 import { serverNow } from "@mbs/api-client/http";
 import type { FamilyApplicationSummary, PublicAdmissionCycle } from "@mbs/api-contract";
 import { SCHOOL_KEYS, type SchoolKey } from "@mbs/school-config";
+import { formatDate, formatDateTime, formatTime } from "@mbs/school-config/format";
 import { buttonVariants } from "@mbs/ui/components/button";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -11,14 +12,7 @@ import type { ReactNode } from "react";
 import { applicationsQuery } from "../api.ts";
 import { cyclesQuery, sortByPhase, type SchoolCycle } from "../cycles.ts";
 import { editDraft, isStarted, useDraft, type Draft } from "../draft.ts";
-import {
-  formatDate,
-  formatDateTime,
-  formatFee,
-  formatList,
-  formatTime,
-  schoolName,
-} from "../format.ts";
+import { formatFee, formatList, schoolName } from "../format.ts";
 import { SchoolLogo } from "../school-logo.tsx";
 import { STAGE_COPY, TURNS } from "../stage-copy.ts";
 

@@ -7,7 +7,7 @@ import {
 } from "@mbs/school-config";
 import { describe, expect, it } from "vitest";
 
-import { TRANSITIONS, familyStage, isEndStage, transition } from "./stages.ts";
+import { COMMITTEE_STAGES, TRANSITIONS, familyStage, isEndStage, transition } from "./stages.ts";
 
 const OPEN_STAGES = APPLICATION_STAGES.filter((stage) => !isEndStage(stage));
 
@@ -165,5 +165,20 @@ describe("transition", () => {
       .filter(([, row]) => row.familyVisible && row.to !== "SAME" && row.notification === null)
       .map(([command]) => command);
     expect(silent).toEqual([]);
+  });
+});
+
+describe("COMMITTEE_STAGES", () => {
+  it("holds the stages the committee acts on next, leaving INTERVIEW_SCHEDULED out until P9 stores the interview time", () => {
+    expect(COMMITTEE_STAGES.toSorted()).toEqual(
+      [
+        "PAYMENT_REVIEW",
+        "DOCUMENTS_REVIEW",
+        "SCREENING",
+        "INTERVIEW_PENDING",
+        "INTERVIEWED",
+        "REREGISTRATION_REVIEW",
+      ].toSorted(),
+    );
   });
 });

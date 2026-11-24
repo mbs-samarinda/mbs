@@ -1,5 +1,6 @@
 import { APPLICANT_RULES, type ApplicantField } from "@mbs/api-contract/applicant-rules";
 import type { GUARDIAN_RELATIONS, SEXES } from "@mbs/school-config";
+import { formatDate } from "@mbs/school-config/format";
 import { Alert } from "@mbs/ui/components/alert";
 import { Button } from "@mbs/ui/components/button";
 import { Input } from "@mbs/ui/components/input";
@@ -40,7 +41,7 @@ import {
   type Values,
 } from "../draft.ts";
 import { CONTROL, describedBy, FieldError, TextField } from "../field.tsx";
-import { formatDate, formatFee, MONTHS, schoolName } from "../format.ts";
+import { formatFee, MONTHS, schoolName } from "../format.ts";
 import {
   errorsIn,
   firstOpenStep,

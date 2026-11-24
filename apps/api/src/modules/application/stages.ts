@@ -194,6 +194,28 @@ export const TRANSITIONS = {
   },
 } as const satisfies Record<ApplicationCommand, Transition>;
 
+/**
+ * The stages where the committee acts next: a staff-only command names the stage
+ * and moves the application somewhere else. DECIDED drops out on its own, because
+ * DECIDE keeps it DECIDED and the system publishes it.
+ *
+ * INTERVIEW_SCHEDULED is taken out by hand. It is the committee's turn only once
+ * the interview time has passed, and no interview time is stored yet.
+ */
+export const COMMITTEE_STAGES: readonly ApplicationStage[] = [
+  ...new Set(
+    Object.values(TRANSITIONS as Record<ApplicationCommand, Transition>).flatMap((row) =>
+      row.actors.length === 1 && row.actors[0] === "STAFF" && Array.isArray(row.from)
+        ? row.from.filter((stage) => row.to !== "SAME" && row.to !== stage)
+        : [],
+    ),
+  ),
+].filter((stage) => stage !== "INTERVIEW_SCHEDULED");
+
+export function needsCommittee(stage: ApplicationStage) {
+  return COMMITTEE_STAGES.includes(stage);
+}
+
 export type NotificationKey = NonNullable<(typeof TRANSITIONS)[ApplicationCommand]["notification"]>;
 
 export type TransitionResult =

@@ -342,9 +342,29 @@ export async function saveProfile(
   return { version, ...result };
 }
 
+/**
+ * A note says nothing about the application's state, so it has no stale check: a
+ * note written while someone else moved the application on is still true.
+ */
+export async function addNote(
+  db: Database,
+  input: Omit<CommandContext, "expectedSeq" | "idempotencyKey"> & {
+    note: string;
+    idempotencyKey: string;
+  },
+  outbox: OutboxSettings,
+): Promise<{ event: ApplicationEventRow; replayed: boolean }> {
+  const payload = COMMAND_PAYLOADS.ADD_NOTE.parse({ payloadVersion: 1, note: input.note });
+  return runCommand(db, { ...input, expectedSeq: null }, "ADD_NOTE", outbox, {
+    isRetry: async (earlier) =>
+      earlier.command === "ADD_NOTE" && sameAsStored(earlier.payload, payload),
+    write: async () => payload,
+  });
+}
+
 async function runCommand(
   db: Database,
-  input: CommandContext,
+  input: Omit<CommandContext, "expectedSeq"> & { expectedSeq: number | null },
   command: ApplicationCommand,
   outbox: OutboxSettings,
   steps: {
@@ -378,7 +398,7 @@ async function runCommand(
       }
     }
 
-    if (input.expectedSeq !== application.lastEventSeq) {
+    if (input.expectedSeq !== null && input.expectedSeq !== application.lastEventSeq) {
       throw new StaleSequenceError("This application changed since it was loaded.");
     }
 

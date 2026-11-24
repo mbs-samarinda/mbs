@@ -8,7 +8,12 @@ import {
   upsertSchoolSettingProcedure,
 } from "./modules/admission/procedures.ts";
 import {
+  addNoteProcedure,
   checkStatusProcedure,
+  getCommitteeApplicationProcedure,
+  getDashboardProcedure,
+  listCommitteeApplicationsProcedure,
+  recordViewProcedure,
   getFamilyApplicationProcedure,
   listFamilyApplicationsProcedure,
   submitApplicationProcedure,
@@ -38,6 +43,15 @@ export const router = {
   staff: {
     me: {
       get: getMeProcedure,
+    },
+    dashboard: {
+      get: getDashboardProcedure,
+    },
+    applications: {
+      list: listCommitteeApplicationsProcedure,
+      get: getCommitteeApplicationProcedure,
+      recordView: recordViewProcedure,
+      addNote: addNoteProcedure,
     },
   },
   admin: {

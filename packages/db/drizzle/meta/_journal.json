@@ -92,6 +92,13 @@
       "when": 1795485720431,
       "tag": "0012_status_check_tries",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795527509425,
+      "tag": "0013_committee_reads",
+      "breakpoints": true
     }
   ]
 }

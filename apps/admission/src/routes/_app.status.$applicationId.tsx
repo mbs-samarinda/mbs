@@ -1,13 +1,13 @@
 import { ORPCError } from "@mbs/api-client/rpc";
 import type { FamilyApplication } from "@mbs/api-contract";
 import { finishedMilestones } from "@mbs/school-config";
+import { formatDateTime } from "@mbs/school-config/format";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 
 import { applicationQuery } from "../api.ts";
 import { useDraft } from "../draft.ts";
-import { formatDateTime } from "../format.ts";
 import { EVENT_TITLES, newestMove, STAGE_COPY, TURNS } from "../stage-copy.ts";
 import { ApplicationHeader, NextStep, Road } from "../status-parts.tsx";
 
