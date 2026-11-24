@@ -12,6 +12,15 @@ import {
   TooManyTries,
 } from "./application.ts";
 import {
+  AddedNote,
+  AddNoteInput,
+  ApplicationRef,
+  CommitteeApplication,
+  CommitteeApplicationPage,
+  CommitteeDashboard,
+  ListApplicationsInput,
+} from "./committee.ts";
+import {
   AdmissionCycle,
   CreateCycleInput,
   CreateStaffInput,
@@ -29,6 +38,7 @@ import {
 } from "./schemas.ts";
 
 export * from "./application.ts";
+export * from "./committee.ts";
 export * from "./schemas.ts";
 
 /**
@@ -79,6 +89,22 @@ export const contract = {
   staff: {
     me: {
       get: oc.output(StaffProfile),
+    },
+    dashboard: {
+      get: oc.output(CommitteeDashboard),
+    },
+    /**
+     * Reads answer NOT_FOUND for an application outside the caller's schools, as
+     * for one that does not exist. Only `addNote` can be FORBIDDEN: a principal
+     * reads but does not write.
+     */
+    applications: {
+      list: oc.input(ListApplicationsInput).output(CommitteeApplicationPage),
+      /** Writes nothing, because the app preloads it on hover. */
+      get: oc.input(ApplicationRef).output(CommitteeApplication),
+      /** Once per visit to an application's page. */
+      recordView: oc.input(ApplicationRef).output(z.void()),
+      addNote: oc.input(AddNoteInput).output(AddedNote),
     },
   },
   admin: {
