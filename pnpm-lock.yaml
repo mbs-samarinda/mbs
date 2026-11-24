@@ -226,6 +226,12 @@ importers:
       '@mbs/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@mbs/api-contract':
+        specifier: workspace:*
+        version: link:../../packages/api-contract
+      '@mbs/school-config':
+        specifier: workspace:*
+        version: link:../../packages/school-config
       '@mbs/ui':
         specifier: workspace:*
         version: link:../../packages/ui

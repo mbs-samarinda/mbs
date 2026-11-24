@@ -1,9 +1,8 @@
-import type { Account } from "@mbs/api-client/auth";
 import { Button, buttonVariants } from "@mbs/ui/components/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@mbs/ui/components/input-otp";
 import { Label } from "@mbs/ui/components/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { cn } from "cn";
 import { CircleAlertIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -31,20 +30,25 @@ export const Route = createFileRoute("/masuk/kode")({
 function CodeStep() {
   const { email } = Route.useRouteContext();
   const search = Route.useSearch();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
   const [code, setCode] = useState("");
 
   const signIn = useMutation({
     mutationFn: (otp: string) => signInWithCode(email, otp),
-    onSuccess: async () => {
+    onSuccess: async (account) => {
       setPendingEmail(null);
       // A check that started before this may answer "signed out" after it.
       await queryClient.cancelQueries({ queryKey: accountQuery.queryKey });
-      // Written here, not fetched again: the code is used up, so a failed fetch
-      // would leave a screen that can only answer "wrong code".
-      const account: Account = { email: email.toLowerCase() };
-      queryClient.setQueryData(accountQuery.queryKey, account);
+      if (account) {
+        queryClient.setQueryData(accountQuery.queryKey, account);
+      } else {
+        // The code is used up, so this screen has nothing left to offer. The page
+        // asked for fetches the account itself and can be tried again.
+        queryClient.removeQueries({ queryKey: accountQuery.queryKey });
+        router.history.replace(search.lanjut ?? "/");
+      }
     },
     // The boxes keep the digits to compare with the email. Selecting them lets
     // the next digit start over.
