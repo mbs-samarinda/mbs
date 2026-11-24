@@ -5,7 +5,7 @@ description: Launch an isolated MBSS stack (throwaway Postgres, Mailpit, API, St
 
 # Verify MBSS
 
-MBSS has three things a user touches. The main one is the **profile site** (`apps/profile`). It is a single Next.js app that serves four sites by hostname: the umbrella at the apex and the SMP, SMK and SMA schools on subdomains. Its content comes from **Strapi** (`apps/cms`), where editors write and publish. Admission dates come from the **API** (`apps/api`). The other two are Vite apps in front of the API: the **parent app** (`apps/admission`), where families sign in by email code or Google, and the **committee app** (`apps/admin`), where staff sign in with Google. Both so far hold a sign-in screen and an empty page behind it.
+MBSS has three things a user touches. The main one is the **profile site** (`apps/profile`). It is a single Next.js app that serves four sites by hostname: the umbrella at the apex and the SMP, SMK and SMA schools on subdomains. Its content comes from **Strapi** (`apps/cms`), where editors write and publish. Admission dates come from the **API** (`apps/api`). The other two are Vite apps in front of the API: the **parent app** (`apps/admission`), where families sign in by email code or Google, and the **committee app** (`apps/admin`), where staff sign in with Google. The parent app also holds the registration form and each child's status page. The committee app so far holds an empty page behind its sign-in.
 
 Two helpers live next to this file. Run both from the repo root:
 
@@ -26,7 +26,7 @@ eval "$($S/stack.sh env)"  # sets RUN, EVIDENCE, SMP_URL, CMS_URL, ... in this s
 
 Ports: Postgres `55432`, API `3101`, CMS `1437`, profile `3102`, parent app `5173`, committee app `5174`, Mailpit SMTP `51125` and web `58125`. All but the two apps' are deliberately not the dev ports (5432, 3001, 1337, 3002, 1025, 8025), so a running `pnpm dev` is left alone. The parent app has to be on 5173, because the profile's "Mulai Pendaftaran" link is fixed to it on localhost. Override them with `PG_PORT`, `API_PORT`, `CMS_PORT`, `PROFILE_PORT`, `ADMISSION_PORT`, `ADMIN_PORT`, `MAIL_SMTP_PORT` and `MAIL_WEB_PORT`. The API's app URLs follow the last two overrides, but that profile link does not.
 
-The API picks its auth instance from the `Host` header. Send `Host: $FAMILY_HOST` for the parent app's routes and email codes, and `Host: $STAFF_HOST` for the committee app's. Any other host, `localhost:3101` included, gets no `/api/auth/*` routes and no session. Run the simulator through the stack, `stack.sh sim -- <args>`, so it uses the run's database and auth key. `stack.sh sim -- --staff-session <email>` prints a staff `host:` and `cookie:` pair for `curl` or a browser. Read sent email from Mailpit's API at `$MAIL_URL/api/v1/messages`, or open `$MAIL_URL` in Chromium. `stack.sh` sets every key the apps need, with fresh secrets for each run, so the user's values never decide where a run points. The apps still load their own `apps/*/.env` files, which fill in any key `stack.sh` leaves unset, such as `DATABASE_SCHEMA` or `AWS_ENDPOINT`. If a run behaves differently from a fresh clone, check those files first.
+The API picks its auth instance from the `Host` header. Send `Host: $FAMILY_HOST` for the parent app's routes and email codes, and `Host: $STAFF_HOST` for the committee app's. Any other host, `localhost:3101` included, gets no `/api/auth/*` routes and no session. Run the simulator through the stack, `stack.sh sim -- <args>`, so it uses the run's database and auth key. `stack.sh sim -- cycle open|upcoming|closed|none` sets up the admission cycle families see, whatever was there before; `--off smk` leaves a school out and `--fee 0` sets the fee. `stack.sh sim -- apply SMP-0001 <COMMAND>` moves one application on. `stack.sh sim -- --staff-session <email>` prints a staff `host:` and `cookie:` pair for `curl` or a browser. Read sent email from Mailpit's API at `$MAIL_URL/api/v1/messages`, or open `$MAIL_URL` in Chromium. `stack.sh` sets every key the apps need, with fresh secrets for each run, so the user's values never decide where a run points. The apps still load their own `apps/*/.env` files, which fill in any key `stack.sh` leaves unset, such as `DATABASE_SCHEMA` or `AWS_ENDPOINT`. If a run behaves differently from a fresh clone, check those files first.
 
 Site URLs (`*.localhost` resolves to 127.0.0.1 in Chromium):
 
@@ -65,6 +65,7 @@ node $S/drive.mjs --out "$EVIDENCE/<feature-id>" [--state <file>] [--mobile] <st
 | `click:<role>:<name>` | click the first element with that ARIA role and exact accessible name |
 | `tryclick:<role>:<name>` | the same, but skip it if it does not show within 5 s (popups that come only sometimes) |
 | `fill:<role>:<name>=<value>` | type into a textbox or searchbox |
+| `select:<role>:<name>=<label>` | choose an option of a native select |
 | `press:<key>` | press a key |
 | `see:<role>:<name>` | wait up to 30 s for that element |
 | `text:<text>` | wait up to 30 s for that text anywhere |

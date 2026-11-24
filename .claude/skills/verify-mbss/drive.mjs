@@ -11,6 +11,7 @@
 //   tryclick:<role>:<name>        click it if it shows within 5s, else go on
 //                                 (for popups that come only sometimes)
 //   fill:<role>:<name>=<value>    type into a textbox, searchbox or combobox
+//   select:<role>:<name>=<label>  choose an option of a native select
 //   press:<key>                   press a key on the page (Enter, Escape, /)
 //   see:<role>:<name>             wait until such an element is visible
 //   text:<text>                   wait until this text is visible anywhere
@@ -178,6 +179,9 @@ for (const [n, step] of args.entries()) {
     else if (cmd === "fill") {
       const [target, value] = split(rest, "=");
       await byRole(target).fill(value);
+    } else if (cmd === "select") {
+      const [target, label] = split(rest, "=");
+      await byRole(target).selectOption({ label });
     } else if (cmd === "press") await page.keyboard.press(rest);
     else if (cmd === "see") await byRole(rest).waitFor({ state: "visible", timeout: 30_000 });
     else if (cmd === "text")
