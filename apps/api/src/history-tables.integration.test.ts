@@ -10,6 +10,7 @@ const HISTORY_TABLES = [
   schema.applicantProfileVersions,
   schema.applicationDocumentRequirements,
   schema.notificationAttempts,
+  schema.schoolAgreementVersions,
 ].map((table) => getTableName(table));
 
 const db = createDatabase(

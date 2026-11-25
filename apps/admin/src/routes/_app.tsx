@@ -17,7 +17,15 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { cn } from "cn";
-import { HomeIcon, InboxIcon, LogOutIcon, MenuIcon, UsersIcon } from "lucide-react";
+import {
+  CalendarRangeIcon,
+  HomeIcon,
+  InboxIcon,
+  LogOutIcon,
+  MenuIcon,
+  UserCogIcon,
+  UsersIcon,
+} from "lucide-react";
 import { useState } from "react";
 
 import { APP_NAME } from "../app-name.ts";
@@ -122,7 +130,7 @@ function AppShell() {
           <div className="px-2">
             <BrandMark sub={APP_NAME} />
           </div>
-          <Nav schools={staff.schools} />
+          <Nav schools={staff.schools} administrator={staff.role === "ADMINISTRATOR"} />
           <div className="mt-auto">{footer}</div>
         </aside>
       </div>
@@ -138,7 +146,11 @@ function AppShell() {
               <div className="px-2 pr-10">
                 <BrandMark sub={APP_NAME} />
               </div>
-              <Nav schools={staff.schools} onNavigate={() => setMenuOpen(false)} />
+              <Nav
+                schools={staff.schools}
+                administrator={staff.role === "ADMINISTRATOR"}
+                onNavigate={() => setMenuOpen(false)}
+              />
               <div className="mt-auto">{footer}</div>
             </SheetContent>
           </Sheet>
@@ -160,7 +172,15 @@ const count = (value: number | undefined) =>
   value !== undefined && <span className="text-xs tabular-nums">{formatCount(value)}</span>;
 
 /** Only the staff member's own schools: a filter for a school they cannot read would show nothing. */
-function Nav({ schools, onNavigate }: { schools: readonly SchoolKey[]; onNavigate?: () => void }) {
+function Nav({
+  schools,
+  administrator,
+  onNavigate,
+}: {
+  schools: readonly SchoolKey[];
+  administrator: boolean;
+  onNavigate?: () => void;
+}) {
   const { pathname, search } = useLocation();
   const dashboard = useQuery(dashboardQuery);
   const onList = pathname === "/pendaftar";
@@ -224,6 +244,29 @@ function Nav({ schools, onNavigate }: { schools: readonly SchoolKey[]; onNavigat
               <span className="min-w-0 flex-1 truncate">{schoolShortName(key)}</span>
             </Link>
           ))}
+        </div>
+      )}
+      {administrator && (
+        <div className="grid gap-0.5">
+          <h2 className="px-2 pb-1 text-xs font-medium text-muted-foreground">Pengaturan</h2>
+          <Link
+            to="/pengaturan/periode"
+            className={NAV_ITEM}
+            aria-current={current(pathname === "/pengaturan/periode")}
+            onClick={onNavigate}
+          >
+            <CalendarRangeIcon aria-hidden className="size-4 shrink-0" />
+            <span className="flex-1">Periode</span>
+          </Link>
+          <Link
+            to="/pengaturan/staf"
+            className={NAV_ITEM}
+            aria-current={current(pathname === "/pengaturan/staf")}
+            onClick={onNavigate}
+          >
+            <UserCogIcon aria-hidden className="size-4 shrink-0" />
+            <span className="flex-1">Staf</span>
+          </Link>
         </div>
       )}
     </nav>

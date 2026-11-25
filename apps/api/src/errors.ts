@@ -1,3 +1,5 @@
+import type { SetupGap } from "@mbs/api-contract";
+
 /**
  * Transport-independent domain errors. Services throw these; the oRPC boundary
  * turns them into declared codes. Domain code never throws ORPCError, an HTTP
@@ -37,7 +39,41 @@ export class ConflictError extends Error {
     | "REGISTRATION_CLOSED"
     | "DUPLICATE_APPLICATION"
     | "TOO_MANY_CHILDREN"
-    | "IDEMPOTENCY_KEY_REUSED" = "CONFLICT";
+    | "IDEMPOTENCY_KEY_REUSED"
+    | "NOT_READY"
+    | "ANOTHER_CYCLE_OPEN"
+    | "EMAIL_TAKEN"
+    | "LAST_ADMINISTRATOR" = "CONFLICT";
+  /** What the screen needs to explain the refusal, in the shape the contract declares. */
+  readonly data: unknown = undefined;
+}
+
+export class NotReadyError extends ConflictError {
+  override readonly code = "NOT_READY";
+  override readonly data: { gaps: SetupGap[] };
+
+  constructor(gaps: SetupGap[]) {
+    super("The cycle is not ready to open.");
+    this.data = { gaps };
+  }
+}
+
+export class AnotherCycleOpenError extends ConflictError {
+  override readonly code = "ANOTHER_CYCLE_OPEN";
+}
+
+export class EmailTakenError extends ConflictError {
+  override readonly code = "EMAIL_TAKEN";
+  override readonly data: { email: string };
+
+  constructor(email: string) {
+    super("That address already has a profile.");
+    this.data = { email };
+  }
+}
+
+export class LastAdministratorError extends ConflictError {
+  override readonly code = "LAST_ADMINISTRATOR";
 }
 
 export class IllegalTransitionError extends ConflictError {}
@@ -59,11 +95,11 @@ export class RegistrationClosedError extends ConflictError {
 export class IdempotencyKeyReusedError extends ConflictError {
   override readonly code = "IDEMPOTENCY_KEY_REUSED";
   /** What the key was first used for, by the same actor. */
-  readonly first: { applicationId: string; sameRegistration: boolean };
+  override readonly data: { applicationId: string; sameRegistration: boolean };
 
   constructor(first: { applicationId: string; sameRegistration: boolean }) {
     super("This idempotency key was already used for another request.");
-    this.first = first;
+    this.data = first;
   }
 }
 

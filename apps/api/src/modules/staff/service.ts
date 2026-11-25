@@ -9,15 +9,25 @@ import type {
 import type { Database, Transaction } from "@mbs/db";
 import { isSchoolKey } from "@mbs/school-config";
 
-import { ConflictError, ForbiddenError, isUniqueViolation, NotFoundError } from "../../errors.ts";
+import {
+  ConflictError,
+  EmailTakenError,
+  ForbiddenError,
+  isUniqueViolation,
+  LastAdministratorError,
+  NotFoundError,
+} from "../../errors.ts";
 import { appendAuditLog } from "../audit.ts";
 import { requireSchoolAccess, type StaffContext } from "../auth/authorization.ts";
 import {
   countOtherActiveAdministrators,
+  deleteLoginEmails,
+  endStaffSessions,
   findLoginEmailsForStaff,
   findSchoolIdsByKeys,
   findSchoolKeysForStaff,
   findStaffById,
+  findTakenLoginEmails,
   insertLoginEmail,
   insertStaff,
   listStaff,
@@ -52,7 +62,8 @@ export async function getStaffProfile(db: Database, staff: StaffContext): Promis
 /**
  * Only the profiles this administrator may act on: those whose schools all sit
  * inside their own scope. A profile with no school yet is visible to everyone,
- * because somebody has to be able to give it one.
+ * because somebody has to be able to give it one. A profile with no address is
+ * left out: nobody can sign in as it, and ppdb-sim keeps one to name its actor.
  */
 export async function listStaffProfiles(
   db: Database,
@@ -60,10 +71,12 @@ export async function listStaffProfiles(
 ): Promise<StaffSummary[]> {
   const rows = await listStaff(db);
   return rows
-    .filter((row) =>
-      // Checked against the raw keys: filtering to known ones first would let a
-      // profile carrying an unrecognised school slip through the check.
-      row.schools.every((school) => isSchoolKey(school) && actor.schoolKeys.includes(school)),
+    .filter(
+      (row) =>
+        row.loginEmails.length > 0 &&
+        // Checked against the raw keys: filtering to known ones first would let a
+        // profile carrying an unrecognised school slip through the check.
+        row.schools.every((school) => isSchoolKey(school) && actor.schoolKeys.includes(school)),
     )
     .map(toSummary);
 }
@@ -73,34 +86,24 @@ export async function createStaff(
   actor: StaffContext,
   input: CreateStaffInput,
 ): Promise<StaffSummary> {
-  const { email } = input;
-  if (loginEmailKind(email) !== "INSTITUTIONAL") {
-    throw new ConflictError(`A staff profile starts from a ${INSTITUTIONAL_DOMAIN} address.`);
-  }
-
+  requireInstitutionalAddress(input.emails);
   input.schools.forEach((school) => requireSchoolAccess(actor, school));
 
   const staffId = await db.transaction(async (tx) => {
     const schoolIds = await resolveSchoolIds(tx, input.schools);
+    await requireFreeAddresses(tx, input.emails);
 
-    const created = await insertStaff(tx, { name: input.name.trim(), role: input.role });
-    // The unique index on email is what actually prevents a duplicate; a
-    // pre-check would only narrow the race, not close it. Translating it here
-    // keeps the database error out of the contract.
-    try {
-      await insertLoginEmail(tx, { staffId: created.id, email, kind: "INSTITUTIONAL" });
-    } catch (error) {
-      if (isUniqueViolation(error)) throw new ConflictError("That address already has a profile.");
-      throw error;
-    }
+    const created = await insertStaff(tx, { name: input.name, role: input.role });
+    const added = await addLoginEmails(tx, created.id, input.emails);
     await replaceSchoolAccess(tx, created.id, schoolIds);
+    // Ids, never addresses or the name: audit rows hold no personal data.
     await appendAuditLog(tx, {
       actorType: "STAFF",
       actorId: actor.id,
       action: "staff.create",
       entityType: "staff_users",
       entityId: created.id,
-      metadata: { email, role: input.role, schools: input.schools },
+      metadata: { role: input.role, schools: input.schools, loginEmails: { added } },
     });
 
     return created.id;
@@ -109,11 +112,16 @@ export async function createStaff(
   return readSummary(db, staffId);
 }
 
-export async function updateStaffAccess(
+/**
+ * Saves the whole side panel. Removing an address signs it out of the
+ * committee app at once, as deactivating does.
+ */
+export async function updateStaffProfile(
   db: Database,
   actor: StaffContext,
   input: UpdateStaffInput,
 ): Promise<StaffSummary> {
+  requireInstitutionalAddress(input.emails);
   input.schools.forEach((school) => requireSchoolAccess(actor, school));
 
   await db.transaction(async (tx) => {
@@ -135,22 +143,53 @@ export async function updateStaffAccess(
       }
     }
 
-    await updateStaff(tx, input.staffId, { role: input.role });
+    const emails = await findLoginEmailsForStaff(tx, input.staffId);
+    const removed = emails.filter((row) => !input.emails.includes(row.email));
+    const kept = new Set(emails.map((row) => row.email));
+    const fresh = input.emails.filter((email) => !kept.has(email));
+    await requireFreeAddresses(tx, fresh);
+
+    await deleteLoginEmails(
+      tx,
+      removed.map((row) => row.id),
+    );
+    await endStaffSessions(
+      tx,
+      removed.flatMap((row) => (row.authUserId ? [row.authUserId] : [])),
+    );
+    const added = await addLoginEmails(tx, input.staffId, fresh);
+    await updateStaff(tx, input.staffId, { name: input.name, role: input.role });
     await replaceSchoolAccess(tx, input.staffId, schoolIds);
+
+    const changes = {
+      ...(existing.name !== input.name && { name: "changed" }),
+      ...(existing.role !== input.role && { role: { from: existing.role, to: input.role } }),
+      ...(schoolSet(currentSchools) !== schoolSet(input.schools) && {
+        schools: { from: currentSchools, to: input.schools },
+      }),
+      ...((added.length > 0 || removed.length > 0) && {
+        loginEmails: { added, removed: removed.map((row) => row.id) },
+      }),
+    };
+    if (Object.keys(changes).length === 0) return;
     await appendAuditLog(tx, {
       actorType: "STAFF",
       actorId: actor.id,
       action: "staff.update",
       entityType: "staff_users",
       entityId: input.staffId,
-      metadata: { role: input.role, schools: input.schools },
+      metadata: changes,
     });
   });
 
   return readSummary(db, input.staffId);
 }
 
-/** Access is switched off, never deleted: history keeps pointing at these identities. */
+/**
+ * Access is switched off, never deleted: history keeps pointing at these
+ * identities. Switching off also ends their committee sessions, so the person
+ * is out at once rather than at their next click.
+ */
 export async function setStaffActive(
   db: Database,
   actor: StaffContext,
@@ -167,6 +206,13 @@ export async function setStaffActive(
     }
 
     await updateStaff(tx, input.staffId, { isActive: input.isActive });
+    if (!input.isActive) {
+      const emails = await findLoginEmailsForStaff(tx, input.staffId);
+      await endStaffSessions(
+        tx,
+        emails.flatMap((row) => (row.authUserId ? [row.authUserId] : [])),
+      );
+    }
     await appendAuditLog(tx, {
       actorType: "STAFF",
       actorId: actor.id,
@@ -179,10 +225,45 @@ export async function setStaffActive(
   return readSummary(db, input.staffId);
 }
 
+const schoolSet = (keys: readonly string[]) => keys.toSorted().join(",");
+
+/** A profile keeps one school address, because a personal one is only ever added to it. */
+function requireInstitutionalAddress(emails: readonly string[]) {
+  if (!emails.some((email) => loginEmailKind(email) === "INSTITUTIONAL")) {
+    throw new ConflictError(`A staff profile keeps a ${INSTITUTIONAL_DOMAIN} address.`);
+  }
+}
+
+/**
+ * Names the address that is taken, so the form can point at it. The unique
+ * index is still what prevents a duplicate: this only narrows the race.
+ */
+async function requireFreeAddresses(tx: Transaction, emails: readonly string[]) {
+  const [taken] = await findTakenLoginEmails(tx, emails);
+  if (taken) throw new EmailTakenError(taken);
+}
+
+async function addLoginEmails(tx: Transaction, staffId: string, emails: readonly string[]) {
+  const ids: string[] = [];
+  for (const email of emails) {
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const id = await insertLoginEmail(tx, { staffId, email, kind: loginEmailKind(email) }).catch(
+      (error: unknown) => {
+        if (isUniqueViolation(error)) throw new EmailTakenError(email);
+        throw error;
+      },
+    );
+    ids.push(id);
+  }
+  return ids;
+}
+
 /** The caller holds `lockStaffWrites`, or two administrators deactivating each other both pass. */
 async function requireAnotherAdministrator(tx: Transaction, staffId: string) {
   const others = await countOtherActiveAdministrators(tx, staffId);
-  if (others === 0) throw new ConflictError("MBSS would be left with no active administrator.");
+  if (others === 0) {
+    throw new LastAdministratorError("MBSS would be left with no active administrator.");
+  }
 }
 
 /**
@@ -223,5 +304,6 @@ function toSummary(row: Awaited<ReturnType<typeof listStaff>>[number]): StaffSum
     isActive: row.isActive,
     schools: row.schools.filter(isSchoolKey),
     loginEmails: row.loginEmails,
+    lastSignInAt: row.lastSignInAt?.toISOString() ?? null,
   };
 }

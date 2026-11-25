@@ -4,7 +4,7 @@ import {
   getStaffProfile,
   listStaffProfiles,
   setStaffActive,
-  updateStaffAccess,
+  updateStaffProfile,
 } from "./service.ts";
 
 // Procedures stay thin: contract -> authorization -> domain operation.
@@ -23,7 +23,7 @@ export const createStaffProcedure = administratorProcedure.admin.staff.create.ha
 );
 
 export const updateStaffProcedure = administratorProcedure.admin.staff.update.handler(
-  ({ input, context }) => updateStaffAccess(context.db, context.staff, input),
+  ({ input, context }) => updateStaffProfile(context.db, context.staff, input),
 );
 
 export const setStaffActiveProcedure = administratorProcedure.admin.staff.setActive.handler(

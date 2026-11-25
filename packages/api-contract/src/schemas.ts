@@ -50,6 +50,20 @@ export const PublicAdmissionCycle = z.object({
 });
 export type PublicAdmissionCycle = z.infer<typeof PublicAdmissionCycle>;
 
+/**
+ * Where families transfer the fee. One account for every school, per cycle.
+ * All three parts or none, so a half-filled account is never shown to a family.
+ */
+export const BankAccount = z.object({
+  bankName: z.string().trim().min(1).max(80),
+  accountNumber: z
+    .string()
+    .trim()
+    .regex(/^[0-9][0-9 .-]{3,38}[0-9]$/, "Nomor rekening hanya angka."),
+  accountHolder: z.string().trim().min(1).max(120),
+});
+export type BankAccount = z.infer<typeof BankAccount>;
+
 /** The committee's view of a cycle. Global across MBSS, so it carries no school. */
 export const AdmissionCycle = z.object({
   id: z.uuid(),
@@ -59,6 +73,7 @@ export const AdmissionCycle = z.object({
   registrationCloseAt: z.iso.datetime(),
   resultPublishAt: z.iso.datetime(),
   defaultFee: z.int().nonnegative(),
+  bank: BankAccount.nullable(),
 });
 export type AdmissionCycle = z.infer<typeof AdmissionCycle>;
 
@@ -68,22 +83,22 @@ export type AdmissionCycle = z.infer<typeof AdmissionCycle>;
  * oversized amount passes validation and fails in Postgres, which surfaces as
  * an opaque 500 rather than a rejected field.
  */
-const Rupiah = z.int().nonnegative().max(2_147_483_647);
+export const Rupiah = z.int().nonnegative().max(2_147_483_647);
 
-const CycleFields = z.object({
-  name: z.string().trim().min(1).max(120),
+export const CycleName = z.string().trim().min(1).max(120);
+
+export const Schedule = z.object({
   registrationOpenAt: z.iso.datetime(),
   registrationCloseAt: z.iso.datetime(),
   resultPublishAt: z.iso.datetime(),
-  defaultFee: Rupiah,
 });
 
 /**
- * Registration has to open before it closes, and a result cannot be published
- * while registration is still open. Checked here because it is a property of
- * the three values together, not of any one field.
+ * Registration opens before it closes, and results come after it closes.
+ * Checked here because it is a property of the three values together, and the
+ * path puts the message under the field the committee has to change.
  */
-const orderedDates = (value: z.infer<typeof CycleFields>, ctx: z.RefinementCtx) => {
+export const orderedDates = (value: z.infer<typeof Schedule>, ctx: z.RefinementCtx) => {
   const openAt = Date.parse(value.registrationOpenAt);
   const closeAt = Date.parse(value.registrationCloseAt);
   const publishAt = Date.parse(value.resultPublishAt);
@@ -95,56 +110,27 @@ const orderedDates = (value: z.infer<typeof CycleFields>, ctx: z.RefinementCtx) 
       message: "Penutupan harus setelah pembukaan.",
     });
   }
-  if (closeAt > publishAt) {
+  if (closeAt >= publishAt) {
     ctx.addIssue({
       code: "custom",
       path: ["resultPublishAt"],
-      message: "Pengumuman tidak boleh sebelum penutupan.",
+      message: "Pengumuman harus setelah penutupan.",
     });
   }
 };
 
-export const CreateCycleInput = CycleFields.superRefine(orderedDates);
+/** A new cycle copies everything else from the newest one, so only these are asked. */
+export const CreateCycleInput = Schedule.extend({
+  name: CycleName,
+  defaultFee: Rupiah,
+}).superRefine(orderedDates);
 export type CreateCycleInput = z.infer<typeof CreateCycleInput>;
-
-export const UpdateCycleInput = CycleFields.extend({ cycleId: z.uuid() }).superRefine(orderedDates);
-export type UpdateCycleInput = z.infer<typeof UpdateCycleInput>;
 
 export const SetCycleStatusInput = z.object({ cycleId: z.uuid(), status: CycleStatus });
 export type SetCycleStatusInput = z.infer<typeof SetCycleStatusInput>;
 
-const Instructions = z.string().trim().max(2000).nullable();
-
-export const SchoolAdmissionSetting = z.object({
-  schoolKey: SchoolKey,
-  isEnabled: z.boolean(),
-  feeOverride: Rupiah.nullable(),
-  effectiveFee: Rupiah,
-  acceptedInstructions: Instructions,
-  rejectedInstructions: Instructions,
-  documents: z.array(DocumentRequirement),
-});
-export type SchoolAdmissionSetting = z.infer<typeof SchoolAdmissionSetting>;
-
 export const CycleRef = z.object({ cycleId: z.uuid() });
 export type CycleRef = z.infer<typeof CycleRef>;
-
-/** One save for the whole per-school page, documents included. */
-export const UpsertSchoolSettingInput = z.object({
-  cycleId: z.uuid(),
-  schoolKey: SchoolKey,
-  isEnabled: z.boolean(),
-  feeOverride: Rupiah.nullable(),
-  acceptedInstructions: Instructions,
-  rejectedInstructions: Instructions,
-  documents: z
-    .array(DocumentRequirement)
-    .refine(
-      (documents) => new Set(documents.map((document) => document.type)).size === documents.length,
-      "Jenis dokumen tidak boleh diulang.",
-    ),
-});
-export type UpsertSchoolSettingInput = z.infer<typeof UpsertSchoolSettingInput>;
 
 export const StaffRole = z.enum(STAFF_ROLES);
 export type StaffRole = z.infer<typeof StaffRole>;
@@ -180,6 +166,7 @@ export const StaffSummary = z.object({
   isActive: z.boolean(),
   schools: z.array(SchoolKey),
   loginEmails: z.array(StaffLoginEmail),
+  lastSignInAt: z.iso.datetime().nullable(),
 });
 export type StaffSummary = z.infer<typeof StaffSummary>;
 
@@ -189,20 +176,28 @@ const SchoolKeys = z
   .min(1)
   .refine((keys) => new Set(keys).size === keys.length, "Sekolah tidak boleh diulang.");
 
-export const CreateStaffInput = z.object({
+/**
+ * The addresses that may sign in as one profile. At least one, or the profile
+ * could never sign in again. The institutional-domain rule is business policy,
+ * so the service owns it.
+ */
+const LoginEmails = z
+  .array(z.string().trim().toLowerCase().pipe(z.email()))
+  .min(1)
+  .max(5)
+  .refine((emails) => new Set(emails).size === emails.length, "Email tidak boleh diulang.");
+
+const StaffFields = z.object({
   name: z.string().trim().min(1).max(120),
-  // The institutional-domain rule is business policy, so the service owns it.
-  email: z.string().trim().toLowerCase().pipe(z.email()),
+  emails: LoginEmails,
   role: StaffRole,
   schools: SchoolKeys,
 });
+
+export const CreateStaffInput = StaffFields;
 export type CreateStaffInput = z.infer<typeof CreateStaffInput>;
 
-export const UpdateStaffInput = z.object({
-  staffId: z.uuid(),
-  role: StaffRole,
-  schools: SchoolKeys,
-});
+export const UpdateStaffInput = StaffFields.extend({ staffId: z.uuid() });
 export type UpdateStaffInput = z.infer<typeof UpdateStaffInput>;
 
 export const SetStaffActiveInput = z.object({
@@ -210,3 +205,6 @@ export const SetStaffActiveInput = z.object({
   isActive: z.boolean(),
 });
 export type SetStaffActiveInput = z.infer<typeof SetStaffActiveInput>;
+
+/** The address another profile already holds, so the form can point at it. */
+export const EmailTaken = z.object({ email: z.string() });

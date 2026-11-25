@@ -3,7 +3,7 @@
 // writes what it saw into --out. Steps run in order; the first failure takes a
 // screenshot named fail-<n>, and the script exits 1.
 //
-//   node drive.mjs --out <dir> [--state <file>] [--mobile] <step>...
+//   node drive.mjs --out <dir> [--state <file>] [--mobile | --width <px>] [--dark] <step>...
 //
 // Steps (role names are ARIA roles, names are accessible names, exact match):
 //   goto:<url>                    open a URL, record the HTTP status; fails on 5xx
@@ -49,8 +49,12 @@ const flag = (name) => {
 const out = flag("--out");
 const state = flag("--state");
 const mobile = args.includes("--mobile") && args.splice(args.indexOf("--mobile"), 1);
+const width = flag("--width");
+const dark = args.includes("--dark") && args.splice(args.indexOf("--dark"), 1);
 if (!out || args.length === 0) {
-  console.error("usage: node drive.mjs --out <dir> [--state <file>] [--mobile] <step>...");
+  console.error(
+    "usage: node drive.mjs --out <dir> [--state <file>] [--mobile | --width <px>] [--dark] <step>...",
+  );
   process.exit(2);
 }
 mkdirSync(out, { recursive: true });
@@ -72,7 +76,10 @@ const executablePath = chromiumDir ? join(cache, chromiumDir, "chrome-linux64/ch
 
 const browser = await chromium.launch({ executablePath });
 const context = await browser.newContext({
-  ...(mobile ? devices["Pixel 7"] : { viewport: { width: 1280, height: 900 } }),
+  ...(mobile
+    ? devices["Pixel 7"]
+    : { viewport: { width: width ? Number(width) : 1280, height: width ? 812 : 900 } }),
+  colorScheme: dark ? "dark" : "light",
   storageState: state && existsSync(state) ? state : undefined,
 });
 const page = await context.newPage();

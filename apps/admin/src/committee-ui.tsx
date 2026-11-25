@@ -3,6 +3,7 @@ import type {
   ApplicationCommand,
   ApplicationStage,
   AuditActor,
+  DocumentType,
   HistoryItem,
 } from "@mbs/api-contract";
 import { SCHOOLS, type SchoolKey } from "@mbs/school-config";
@@ -282,5 +283,39 @@ export function chipClass(active: boolean) {
   return cn(
     "rounded-md px-2.5 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground",
     active && "bg-muted font-medium text-foreground",
+  );
+}
+
+export const DOCUMENT_LABELS: Record<DocumentType, string> = {
+  KARTU_KELUARGA: "Kartu Keluarga",
+  AKTA_KELAHIRAN: "Akta kelahiran",
+  KARTU_IDENTITAS_ANAK: "Kartu Identitas Anak",
+  IJAZAH: "Ijazah",
+};
+
+/** A label above its control, with a hint or an error under it. The error wins. */
+export function Field({
+  label,
+  hint,
+  error,
+  children,
+  className,
+}: {
+  label: string;
+  hint?: string | undefined;
+  error?: string | undefined;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={cn("grid min-w-0 content-start gap-1.5 text-sm", className)}>
+      <span className="font-medium">{label}</span>
+      {children}
+      {error ? (
+        <span className="text-xs text-pretty text-destructive">{error}</span>
+      ) : (
+        hint && <span className="text-xs text-pretty text-muted-foreground">{hint}</span>
+      )}
+    </label>
   );
 }

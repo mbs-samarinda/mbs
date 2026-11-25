@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApplicantProfile } from "./application.ts";
-import { CreateCycleInput, CreateStaffInput, UpsertSchoolSettingInput } from "./schemas.ts";
+import { SaveCycleInput } from "./cycle-setup.ts";
+import { CreateCycleInput, CreateStaffInput } from "./schemas.ts";
 
 const cycle = {
   name: "2027/2028",
@@ -52,35 +53,51 @@ describe("CreateCycleInput", () => {
   });
 });
 
-describe("UpsertSchoolSettingInput", () => {
+describe("SaveCycleInput", () => {
+  const cycleId = "6f1c2b0e-3d4a-4f5b-8c6d-7e8f9a0b1c2d";
+
   it("rejects a repeated document type", () => {
-    const result = UpsertSchoolSettingInput.safeParse({
-      cycleId: "00000000-0000-0000-0000-000000000001",
-      schoolKey: "sma",
-      isEnabled: true,
-      feeOverride: null,
-      acceptedInstructions: null,
-      rejectedInstructions: null,
-      documents: [
-        { type: "IJAZAH", required: true },
-        { type: "IJAZAH", required: false },
+    const result = SaveCycleInput.safeParse({
+      section: "documents",
+      cycleId,
+      schools: [
+        {
+          schoolKey: "sma",
+          registration: [
+            { type: "IJAZAH", required: true },
+            { type: "IJAZAH", required: false },
+          ],
+          reregistration: [],
+        },
       ],
     });
 
-    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["schools", 0, "registration"]);
+  });
+
+  it("puts a close before the open under the close date", () => {
+    const result = SaveCycleInput.safeParse({
+      section: "schedule",
+      cycleId,
+      ...cycle,
+      registrationCloseAt: "2026-10-01T00:00:00.000Z",
+      schools: [],
+    });
+
+    expect(result.error?.issues[0]?.path).toEqual(["registrationCloseAt"]);
   });
 });
 
 describe("CreateStaffInput", () => {
-  it("trims and lowercases the email", () => {
+  it("trims and lowercases the emails", () => {
     const parsed = CreateStaffInput.parse({
       name: "Panitia",
-      email: " Panitia@MBSS.sch.id ",
+      emails: [" Panitia@MBSS.sch.id "],
       role: "STAFF",
       schools: ["sma"],
     });
 
-    expect(parsed.email).toBe("panitia@mbss.sch.id");
+    expect(parsed.emails).toEqual(["panitia@mbss.sch.id"]);
   });
 });
 
