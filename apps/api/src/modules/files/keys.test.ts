@@ -1,6 +1,8 @@
+import { PROOF_CONTENT_TYPES, PROOF_MAX_BYTES } from "@mbs/school-config";
 import { describe, expect, it } from "vitest";
 
 import { KEY_PREFIXES, newObjectKey } from "./keys.ts";
+import { proofProblem } from "./service.ts";
 
 const SECRETS = {
   childName: "Aisyah Nur Rahmadani",
@@ -34,5 +36,27 @@ describe("an object key", () => {
         /^payment-proofs\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
     }
+  });
+});
+
+describe("a receipt", () => {
+  const ok = { contentType: "image/jpeg", byteSize: 480_000 };
+
+  it("is accepted as a photo or a PDF", () => {
+    for (const contentType of PROOF_CONTENT_TYPES) {
+      expect(proofProblem({ ...ok, contentType })).toBeNull();
+    }
+  });
+
+  it("is refused for its type", () => {
+    for (const contentType of ["image/gif", "text/html", "application/zip", ""]) {
+      expect(proofProblem({ ...ok, contentType })).toBe("TYPE");
+    }
+  });
+
+  it("is refused for its size", () => {
+    expect(proofProblem({ ...ok, byteSize: PROOF_MAX_BYTES })).toBeNull();
+    expect(proofProblem({ ...ok, byteSize: PROOF_MAX_BYTES + 1 })).toBe("SIZE");
+    expect(proofProblem({ ...ok, byteSize: 0 })).toBe("SIZE");
   });
 });

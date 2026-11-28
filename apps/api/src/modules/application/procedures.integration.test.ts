@@ -195,7 +195,7 @@ describe("submit", () => {
     });
     const [mail] = await db.select().from(schema.notifications);
     expect(mail).toMatchObject({ templateVersion: 2, recipient: "family-a@example.test" });
-    expect(mail!.bodyText).toContain("Jangan transfer dulu");
+    expect(mail!.bodyText).toContain("halaman status pendaftaran");
   });
 
   it("leads a key reused with an edited form to the application it made", async () => {

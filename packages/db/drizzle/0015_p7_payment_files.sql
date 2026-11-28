@@ -18,7 +18,6 @@ CREATE TABLE "payment_reviews" (
 	"decision" "payment_decision" NOT NULL,
 	"reason" text,
 	"reviewed_by_staff_id" uuid NOT NULL,
-	"event_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "payment_reviews_payment_id_unique" UNIQUE("payment_id"),
 	CONSTRAINT "payment_reviews_reason_kept" CHECK ((reason is not null) = (decision = 'REJECTED'))
@@ -39,7 +38,6 @@ CREATE TABLE "payments" (
 ALTER TABLE "files" ADD CONSTRAINT "files_uploaded_by_user_id_user_id_fk" FOREIGN KEY ("uploaded_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_reviews" ADD CONSTRAINT "payment_reviews_payment_id_payments_id_fk" FOREIGN KEY ("payment_id") REFERENCES "public"."payments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_reviews" ADD CONSTRAINT "payment_reviews_reviewed_by_staff_id_staff_users_id_fk" FOREIGN KEY ("reviewed_by_staff_id") REFERENCES "public"."staff_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_reviews" ADD CONSTRAINT "payment_reviews_event_id_application_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."application_events"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_application_id_applications_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."applications"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_file_id_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."files"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_created_by_user_id_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

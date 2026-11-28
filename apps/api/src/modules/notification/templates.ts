@@ -48,10 +48,12 @@ function eventTemplate(version: number, copy: (input: EventMailInput) => EventCo
 }
 
 export const TEMPLATES: { [K in TemplateKey]: Template<TemplateInput<K>> } = {
-  "application-submitted": eventTemplate(2, ({ childName, schoolKey }) => ({
+  // Says nothing about paying: a school that charges nothing skips that step
+  // altogether, and the status page names the next step either way.
+  "application-submitted": eventTemplate(3, ({ childName, schoolKey }) => ({
     subject: `Pendaftaran ${childName} sudah kami terima`,
     happened: `Pendaftaran ${childName} di ${schoolName(schoolKey)} sudah kami terima.`,
-    next: "Jangan transfer dulu. Kamu bisa melihat langkah berikutnya di halaman status pendaftaran.",
+    next: "Buka halaman status pendaftaran untuk melihat langkah berikutnya.",
   })),
   "payment-received": eventTemplate(1, ({ childName }) => ({
     subject: "Bukti transfer sudah kami terima",

@@ -1,5 +1,5 @@
 {
-  "id": "1a0d6ed4-692f-4e4d-9ab1-307241cb9262",
+  "id": "0d7fac44-b984-4fb8-8822-6b36260f324d",
   "prevId": "879d31d4-251f-4500-af94-1f7c67e6fb73",
   "version": "7",
   "dialect": "postgresql",
@@ -1233,12 +1233,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1263,15 +1257,6 @@
           "tableFrom": "payment_reviews",
           "tableTo": "staff_users",
           "columnsFrom": ["reviewed_by_staff_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "payment_reviews_event_id_application_events_id_fk": {
-          "name": "payment_reviews_event_id_application_events_id_fk",
-          "tableFrom": "payment_reviews",
-          "tableTo": "application_events",
-          "columnsFrom": ["event_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"

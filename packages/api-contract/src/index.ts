@@ -28,6 +28,17 @@ import {
   SaveCycleInput,
 } from "./cycle-setup.ts";
 import {
+  BeginUploadInput,
+  DecideProofInput,
+  ListWaitingProofsInput,
+  PaymentPage,
+  PaymentRef,
+  ProofToReview,
+  SendProofInput,
+  SignedUpload,
+  WaitingProofPage,
+} from "./payment.ts";
+import {
   AdmissionCycle,
   CreateCycleInput,
   CreateStaffInput,
@@ -45,6 +56,7 @@ import {
 export * from "./application.ts";
 export * from "./committee.ts";
 export * from "./cycle-setup.ts";
+export * from "./payment.ts";
 export * from "./schemas.ts";
 
 /**
@@ -91,6 +103,18 @@ export const contract = {
           IDEMPOTENCY_KEY_REUSED: { status: 409, data: ReusedKey },
         }),
     },
+    /**
+     * Bytes go from the browser to the bucket. `beginUpload` signs that PUT,
+     * `sendProof` records what landed.
+     */
+    payments: {
+      get: oc.input(z.object({ applicationId: z.uuid() })).output(PaymentPage),
+      beginUpload: oc.input(BeginUploadInput).output(SignedUpload),
+      sendProof: oc
+        .input(SendProofInput)
+        .output(z.void())
+        .errors({ UPLOAD_INCOMPLETE: { status: 409 }, CONFLICT: { status: 409 } }),
+    },
   },
   staff: {
     me: {
@@ -111,6 +135,18 @@ export const contract = {
       /** Once per visit to an application's page. */
       recordView: oc.input(ApplicationRef).output(z.void()),
       addNote: oc.input(AddNoteInput).output(AddedNote),
+    },
+    /**
+     * The payment desk. `get` is what records a staff view of a family's file,
+     * so nothing may preload it.
+     */
+    payments: {
+      listWaiting: oc.input(ListWaitingProofsInput).output(WaitingProofPage),
+      get: oc.input(PaymentRef).output(ProofToReview),
+      decide: oc
+        .input(DecideProofInput)
+        .output(z.void())
+        .errors({ ALREADY_HANDLED: { status: 409 }, CONFLICT: { status: 409 } }),
     },
   },
   admin: {

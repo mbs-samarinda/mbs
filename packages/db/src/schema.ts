@@ -483,9 +483,6 @@ export const paymentReviews = pgTable(
     reviewedByStaffId: uuid("reviewed_by_staff_id")
       .notNull()
       .references(() => staffUsers.id),
-    eventId: uuid("event_id")
-      .notNull()
-      .references(() => applicationEvents.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   () => [check("payment_reviews_reason_kept", sql`(reason is not null) = (decision = 'REJECTED')`)],
