@@ -19,6 +19,7 @@ import {
   type FamilyAuth,
   type StaffAuth,
 } from "./modules/auth/auth.ts";
+import { createFiles, createStorage } from "./modules/files/service.ts";
 import { createSmtpMailer, type Mailer } from "./modules/notification/email.ts";
 import {
   createNotificationWorker,
@@ -67,6 +68,7 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
 
   const db = createDatabase(config.databaseUrl);
   app.decorate("db", db);
+  const files = createFiles(createStorage(config.storage), config.auth.secret, config.storage);
 
   const notifications = createNotificationWorker({
     db,
@@ -194,6 +196,7 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
           ipAddress: audience ? getIP(headers, app.auth[audience].options) : null,
           userAgent: headers.get("user-agent"),
         },
+        files,
         outbox: { familyAppUrl: appUrls.FAMILY },
       },
     });

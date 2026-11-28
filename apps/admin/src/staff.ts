@@ -1,7 +1,7 @@
 import { fetchAccount } from "@mbs/api-client/auth";
 import { createApiClient, ORPCError } from "@mbs/api-client/rpc";
 import type { ListApplicationsInput, SchoolKey } from "@mbs/api-contract";
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 export const api = createApiClient();
 
@@ -96,3 +96,22 @@ function isIssue(value: unknown): value is Issue {
     typeof value.message === "string"
   );
 }
+
+export const waitingProofsQuery = infiniteQueryOptions({
+  queryKey: ["payments", "waiting"],
+  queryFn: ({ pageParam }) => api.staff.payments.listWaiting({ page: pageParam }),
+  initialPageParam: 1,
+  getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
+});
+
+export const proofQuery = (paymentId: string) =>
+  queryOptions({
+    queryKey: ["payments", "proof", paymentId],
+    queryFn: () => api.staff.payments.open({ paymentId }),
+    // A minute before the signed URL dies, so the next ask beats the 403.
+    staleTime: ({ state }) =>
+      state.data ? Math.max(0, state.data.urlExpiresInSeconds - 60) * 1000 : 0,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });

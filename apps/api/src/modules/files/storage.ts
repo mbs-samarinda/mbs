@@ -1,0 +1,80 @@
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+import type { Config } from "../../config/env.ts";
+
+export type Storage = {
+  signUpload(object: { key: string; contentType: string; byteSize: number }): Promise<string>;
+  signDownload(object: { key: string; contentType: string }): Promise<string>;
+  head(key: string): Promise<{ byteSize: number } | null>;
+};
+
+export function createStorage(config: Config["storage"]): Storage {
+  const client = new S3Client({
+    region: config.region,
+    endpoint: config.endpoint,
+    // The bucket is a path, not a subdomain of the endpoint. Both apps allow
+    // this endpoint's origin in their Content-Security-Policy, and a bucket
+    // subdomain would not match it, so every upload would be refused by the
+    // browser before it left.
+    forcePathStyle: true,
+    // Without this the SDK adds a CRC32 header of its own to every signed PUT,
+    // which the browser never sends, so the bucket refuses the upload.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
+    // The SDK waits forever by default. `completeUpload` runs while an
+    // application row is locked, so a bucket that accepts connections and
+    // stops answering would hold that lock and drain the connection pool.
+    requestHandler: { connectionTimeout: 3_000, requestTimeout: 10_000 },
+  });
+
+  return {
+    // A presigned URL signs `content-length;host` and nothing else, so the size
+    // is bound but the type is not. That is why the stored type comes from the
+    // grant and the download below names it, rather than trusting the object's.
+    signUpload: ({ key, contentType, byteSize }) =>
+      getSignedUrl(
+        client,
+        new PutObjectCommand({
+          Bucket: config.bucket,
+          Key: key,
+          ContentType: contentType,
+          ContentLength: byteSize,
+        }),
+        { expiresIn: config.uploadUrlSeconds },
+      ),
+
+    signDownload: ({ key, contentType }) =>
+      getSignedUrl(
+        client,
+        new GetObjectCommand({
+          Bucket: config.bucket,
+          Key: key,
+          ResponseContentType: contentType,
+          ResponseContentDisposition: "inline",
+        }),
+        { expiresIn: config.downloadUrlSeconds },
+      ),
+
+    head: async (key) => {
+      try {
+        const found = await client.send(new HeadObjectCommand({ Bucket: config.bucket, Key: key }));
+        return { byteSize: found.ContentLength ?? 0 };
+      } catch (error) {
+        if (isMissing(error)) return null;
+        throw error;
+      }
+    },
+  };
+}
+
+function isMissing(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+  const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+  return status === 404 || (error as { name?: string }).name === "NotFound";
+}

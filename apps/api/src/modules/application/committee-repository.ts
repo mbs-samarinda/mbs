@@ -50,7 +50,7 @@ export async function findCommitteeCycle(db: Database) {
 }
 
 /** The same choice as `findCommitteeCycle`, inside a query, so a read needs no second trip. */
-const currentCycleId = sql`(
+export const currentCycleId = sql`(
   select ${admissionCycles.id} from ${admissionCycles}
   where ${admissionCycles.status} <> 'DRAFT'
   order by ${sql.join(CURRENT_CYCLE_ORDER, sql`, `)}

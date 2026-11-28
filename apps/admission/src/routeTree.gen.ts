@@ -15,6 +15,7 @@ import { Route as MasukRouteImport } from "./routes/masuk.tsx";
 import { Route as AppIndexRouteImport } from "./routes/_app.index.tsx";
 import { Route as MasukIndexRouteImport } from "./routes/masuk.index.tsx";
 import { Route as MasukKodeRouteImport } from "./routes/masuk.kode.tsx";
+import { Route as AppBayarApplicationIdRouteImport } from "./routes/_app.bayar.$applicationId.tsx";
 import { Route as AppDaftarIndexRouteImport } from "./routes/_app.daftar.index.tsx";
 import { Route as AppDaftarLangkahRouteImport } from "./routes/_app.daftar.$langkah.tsx";
 import { Route as AppStatusApplicationIdRouteImport } from "./routes/_app.status.$applicationId.tsx";
@@ -48,6 +49,11 @@ const MasukKodeRoute = MasukKodeRouteImport.update({
   path: "/kode",
   getParentRoute: () => MasukRoute,
 } as any);
+const AppBayarApplicationIdRoute = AppBayarApplicationIdRouteImport.update({
+  id: "/bayar/$applicationId",
+  path: "/bayar/$applicationId",
+  getParentRoute: () => AppRoute,
+} as any);
 const AppDaftarIndexRoute = AppDaftarIndexRouteImport.update({
   id: "/daftar/",
   path: "/daftar/",
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   "/masuk": typeof MasukRouteWithChildren;
   "/masuk/kode": typeof MasukKodeRoute;
   "/masuk/": typeof MasukIndexRoute;
+  "/bayar/$applicationId": typeof AppBayarApplicationIdRoute;
   "/daftar/$langkah": typeof AppDaftarLangkahRoute;
   "/status/$applicationId": typeof AppStatusApplicationIdRoute;
   "/daftar/": typeof AppDaftarIndexRoute;
@@ -79,6 +86,7 @@ export interface FileRoutesByTo {
   "/masuk/kode": typeof MasukKodeRoute;
   "/": typeof AppIndexRoute;
   "/masuk": typeof MasukIndexRoute;
+  "/bayar/$applicationId": typeof AppBayarApplicationIdRoute;
   "/daftar/$langkah": typeof AppDaftarLangkahRoute;
   "/status/$applicationId": typeof AppStatusApplicationIdRoute;
   "/daftar": typeof AppDaftarIndexRoute;
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   "/masuk/kode": typeof MasukKodeRoute;
   "/_app/": typeof AppIndexRoute;
   "/masuk/": typeof MasukIndexRoute;
+  "/_app/bayar/$applicationId": typeof AppBayarApplicationIdRoute;
   "/_app/daftar/$langkah": typeof AppDaftarLangkahRoute;
   "/_app/status/$applicationId": typeof AppStatusApplicationIdRoute;
   "/_app/daftar/": typeof AppDaftarIndexRoute;
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
     | "/masuk"
     | "/masuk/kode"
     | "/masuk/"
+    | "/bayar/$applicationId"
     | "/daftar/$langkah"
     | "/status/$applicationId"
     | "/daftar/";
@@ -112,6 +122,7 @@ export interface FileRouteTypes {
     | "/masuk/kode"
     | "/"
     | "/masuk"
+    | "/bayar/$applicationId"
     | "/daftar/$langkah"
     | "/status/$applicationId"
     | "/daftar";
@@ -123,6 +134,7 @@ export interface FileRouteTypes {
     | "/masuk/kode"
     | "/_app/"
     | "/masuk/"
+    | "/_app/bayar/$applicationId"
     | "/_app/daftar/$langkah"
     | "/_app/status/$applicationId"
     | "/_app/daftar/";
@@ -178,6 +190,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MasukKodeRouteImport;
       parentRoute: typeof MasukRoute;
     };
+    "/_app/bayar/$applicationId": {
+      id: "/_app/bayar/$applicationId";
+      path: "/bayar/$applicationId";
+      fullPath: "/bayar/$applicationId";
+      preLoaderRoute: typeof AppBayarApplicationIdRouteImport;
+      parentRoute: typeof AppRoute;
+    };
     "/_app/daftar/": {
       id: "/_app/daftar/";
       path: "/daftar";
@@ -204,6 +223,7 @@ declare module "@tanstack/react-router" {
 
 interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute;
+  AppBayarApplicationIdRoute: typeof AppBayarApplicationIdRoute;
   AppDaftarLangkahRoute: typeof AppDaftarLangkahRoute;
   AppStatusApplicationIdRoute: typeof AppStatusApplicationIdRoute;
   AppDaftarIndexRoute: typeof AppDaftarIndexRoute;
@@ -211,6 +231,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
+  AppBayarApplicationIdRoute: AppBayarApplicationIdRoute,
   AppDaftarLangkahRoute: AppDaftarLangkahRoute,
   AppStatusApplicationIdRoute: AppStatusApplicationIdRoute,
   AppDaftarIndexRoute: AppDaftarIndexRoute,

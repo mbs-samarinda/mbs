@@ -13,7 +13,12 @@
 		# The hash is the inline theme script from packages/ui/src/theme-script.ts.
 		# test/csp.test.ts fails when the two drift, because the browser would
 		# refuse the script and every dark-mode visitor would see a white flash.
-		Content-Security-Policy "default-src 'none'; script-src 'self' 'sha256-XIIddaemddRTQTS8WNMslESkURwRkUp6Ez9aYPAF2qw='; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+		#
+		# The bucket is in img-src because the desk shows a family's receipt from
+		# a signed URL. It is not in connect-src: nothing here uploads, and a PDF
+		# opens in its own tab, which is a navigation no directive governs. The
+		# origin comes from the same S3_ENDPOINT the API signs with.
+		Content-Security-Policy "default-src 'none'; script-src 'self' 'sha256-XIIddaemddRTQTS8WNMslESkURwRkUp6Ez9aYPAF2qw='; style-src 'self'; img-src 'self' {$S3_PUBLIC_ORIGIN}; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 		X-Frame-Options DENY
 		X-Content-Type-Options nosniff
 		Referrer-Policy same-origin

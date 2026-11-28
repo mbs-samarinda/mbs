@@ -9,7 +9,7 @@ import { END_STAGES } from "@mbs/school-config";
 
 type Transition = Effects &
   (
-    | { from: "NONE"; to: ApplicationStage }
+    | { from: "NONE"; to: ApplicationStage; whenFree: ApplicationStage }
     | { from: readonly ApplicationStage[] | "ANY_OPEN"; to: ApplicationStage | "SAME" }
   );
 
@@ -32,6 +32,7 @@ export const TRANSITIONS = {
   SUBMIT: {
     from: "NONE",
     to: "PAYMENT_DUE",
+    whenFree: "DOCUMENTS_DUE",
     actors: FAMILY,
     familyVisible: true,
     notification: "application-submitted",
@@ -241,10 +242,11 @@ export function transition(
   command: ApplicationCommand,
   actorType: ActorType,
   newestRequiredPayload?: unknown,
+  registrationFee?: number,
 ): TransitionResult {
   const row: Transition = TRANSITIONS[command];
 
-  const to = destination(row, stage);
+  const to = destination(row, stage, registrationFee);
   if (to === null) return { ok: false, refusal: "ILLEGAL_STAGE" };
   if (!row.actors.includes(actorType)) return { ok: false, refusal: "ACTOR_NOT_ALLOWED" };
   if (row.requiresNewest && !carries(newestRequiredPayload, row.requiresNewest.payload)) {
@@ -259,8 +261,11 @@ export function transition(
   };
 }
 
-function destination(row: Transition, stage: ApplicationStage | null) {
-  if (row.from === "NONE") return stage === null ? row.to : null;
+function destination(row: Transition, stage: ApplicationStage | null, registrationFee?: number) {
+  if (row.from === "NONE") {
+    if (stage !== null) return null;
+    return registrationFee === 0 ? row.whenFree : row.to;
+  }
   if (stage === null) return null;
   const allowed = row.from === "ANY_OPEN" ? !isEndStage(stage) : row.from.includes(stage);
   if (!allowed) return null;

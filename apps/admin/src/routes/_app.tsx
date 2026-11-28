@@ -7,7 +7,7 @@ import { Button } from "@mbs/ui/components/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@mbs/ui/components/sheet";
 import { StatusPage } from "@mbs/ui/components/status-page";
 import { ThemeSelect } from "@mbs/ui/components/theme-select";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   Link,
@@ -25,13 +25,14 @@ import {
   MenuIcon,
   UserCogIcon,
   UsersIcon,
+  WalletIcon,
 } from "lucide-react";
 import { useState } from "react";
 
 import { APP_NAME } from "../app-name.ts";
 import { EXACT_MATCH, schoolMarkClass, schoolShortName, Tile } from "../committee-ui.tsx";
 import { formatCount } from "../format.ts";
-import { dashboardQuery, visitorQuery } from "../staff.ts";
+import { dashboardQuery, visitorQuery, waitingProofsQuery } from "../staff.ts";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ context, location }) => {
@@ -183,6 +184,10 @@ function Nav({
 }) {
   const { pathname, search } = useLocation();
   const dashboard = useQuery(dashboardQuery);
+  const waiting = useInfiniteQuery({
+    ...waitingProofsQuery,
+    select: (data) => data.pages[0]?.total,
+  });
   const onList = pathname === "/pendaftar";
   const { tampil, sekolah }: { tampil?: unknown; sekolah?: unknown } = search;
   const ordered = SCHOOL_KEYS.filter((key) => schools.includes(key));
@@ -222,6 +227,16 @@ function Nav({
           <InboxIcon aria-hidden className="size-4 shrink-0" />
           <span className="flex-1">Perlu dicek</span>
           {count(dashboard.data?.needsCommittee)}
+        </Link>
+        <Link
+          to="/pembayaran"
+          className={NAV_ITEM}
+          aria-current={current(pathname === "/pembayaran")}
+          onClick={onNavigate}
+        >
+          <WalletIcon aria-hidden className="size-4 shrink-0" />
+          <span className="flex-1">Pembayaran</span>
+          {count(waiting.data)}
         </Link>
       </div>
       {ordered.length > 0 && (

@@ -48,10 +48,10 @@ function eventTemplate(version: number, copy: (input: EventMailInput) => EventCo
 }
 
 export const TEMPLATES: { [K in TemplateKey]: Template<TemplateInput<K>> } = {
-  "application-submitted": eventTemplate(2, ({ childName, schoolKey }) => ({
+  "application-submitted": eventTemplate(3, ({ childName, schoolKey }) => ({
     subject: `Pendaftaran ${childName} sudah kami terima`,
     happened: `Pendaftaran ${childName} di ${schoolName(schoolKey)} sudah kami terima.`,
-    next: "Jangan transfer dulu. Kamu bisa melihat langkah berikutnya di halaman status pendaftaran.",
+    next: "Kamu bisa melihat langkah berikutnya di halaman status pendaftaran.",
   })),
   "payment-received": eventTemplate(1, ({ childName }) => ({
     subject: "Bukti transfer sudah kami terima",

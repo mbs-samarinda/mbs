@@ -349,6 +349,7 @@ export async function findApplicationByNumber(
       registrationNumber: applications.registrationNumber,
       schoolKey: schema.schools.key,
       stage: applications.stage,
+      registrationFee: applications.registrationFee,
       childName: newestChildName,
     })
     .from(applications)

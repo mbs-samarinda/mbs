@@ -198,7 +198,8 @@ export async function submitApplication(
       throw new DuplicateApplicationError(DUPLICATE_MESSAGE);
     }
 
-    const result = transition(null, "SUBMIT", "FAMILY");
+    const registrationFee = cycle.feeOverride ?? cycle.defaultFee;
+    const result = transition(null, "SUBMIT", "FAMILY", null, registrationFee);
     if (!result.ok) throw new IllegalTransitionError("SUBMIT is not allowed.");
 
     const seq = await nextRegistrationSeq(tx, input.cycleId, cycle.schoolId);
@@ -209,7 +210,7 @@ export async function submitApplication(
       registrationNumber: formatRegistrationNumber(input.schoolKey, seq),
       stage: result.to,
       nik: profile.nik,
-      registrationFee: cycle.feeOverride ?? cycle.defaultFee,
+      registrationFee,
       lastEventSeq: 1,
       createdByUserId: input.userId,
     }).catch((error: unknown) => {
@@ -362,7 +363,7 @@ export async function addNote(
   });
 }
 
-async function runCommand(
+export async function runCommand(
   db: Database,
   input: Omit<CommandContext, "expectedSeq"> & { expectedSeq: number | null },
   command: ApplicationCommand,

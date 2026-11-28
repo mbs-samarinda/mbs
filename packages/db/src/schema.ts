@@ -10,6 +10,9 @@ import {
   NOTIFICATION_ATTEMPT_OUTCOMES,
   NOTIFICATION_CHANNELS,
   NOTIFICATION_STATUSES,
+  PAYMENT_DECISIONS,
+  PAYMENT_METHODS,
+  PAYMENT_PURPOSES,
   SIGN_IN_CODE_TEMPLATE,
   STAFF_LOGIN_EMAIL_KINDS,
   STAFF_ROLES,
@@ -405,6 +408,62 @@ export const applicationEvents = pgTable(
     // The committee's newest activity reads from the newest end and stops early.
     index("application_events_created_at").on(table.createdAt),
   ],
+);
+
+export const paymentPurpose = pgEnum("payment_purpose", PAYMENT_PURPOSES);
+export const paymentMethod = pgEnum("payment_method", PAYMENT_METHODS);
+export const paymentDecision = pgEnum("payment_decision", PAYMENT_DECISIONS);
+
+export const files = pgTable("files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  objectKey: text("object_key").notNull().unique(),
+  byteSize: integer("byte_size").notNull(),
+  contentType: text("content_type").notNull(),
+  sha256: text("sha256").notNull(),
+  uploadedByUserId: text("uploaded_by_user_id")
+    .notNull()
+    .references(() => user.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    applicationId: uuid("application_id")
+      .notNull()
+      .references(() => applications.id),
+    purpose: paymentPurpose("purpose").notNull(),
+    amountDue: integer("amount_due").notNull(),
+    method: paymentMethod("method").notNull(),
+    fileId: uuid("file_id")
+      .notNull()
+      .unique()
+      .references(() => files.id),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("payments_application").on(table.applicationId, table.createdAt)],
+);
+
+export const paymentReviews = pgTable(
+  "payment_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    paymentId: uuid("payment_id")
+      .notNull()
+      .unique()
+      .references(() => payments.id),
+    decision: paymentDecision("decision").notNull(),
+    reason: text("reason"),
+    reviewedByStaffId: uuid("reviewed_by_staff_id")
+      .notNull()
+      .references(() => staffUsers.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [check("payment_reviews_reason_kept", sql`(reason is not null) = (decision = 'REJECTED')`)],
 );
 
 export const notificationChannel = pgEnum("notification_channel", NOTIFICATION_CHANNELS);

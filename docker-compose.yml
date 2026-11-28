@@ -26,6 +26,24 @@ services:
       timeout: 3s
       retries: 10
 
+  bucket:
+    image: chrislusf/seaweedfs:3.97
+    container_name: mbs-bucket
+    restart: unless-stopped
+    command: server -s3 -dir=/data -ip=0.0.0.0
+    environment:
+      AWS_ACCESS_KEY_ID: mbs_local_dev
+      AWS_SECRET_ACCESS_KEY: mbs_local_dev_secret
+    ports:
+      - "9000:8333"
+    volumes:
+      - bucket-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8333/ >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   mailpit:
     image: axllent/mailpit:v1.34.0
     container_name: mbs-mailpit
@@ -36,3 +54,4 @@ services:
 
 volumes:
   postgres-data:
+  bucket-data:

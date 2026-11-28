@@ -132,6 +132,7 @@ async function check(
     stage: familyStage(found.stage),
     finished: finishedMilestones(
       events.map(({ command, createdAt }) => ({ command, at: createdAt.toISOString() })),
+      { registrationFee: found.registrationFee },
     ),
   };
 }

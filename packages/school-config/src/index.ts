@@ -151,11 +151,13 @@ const FINISHES: { [C in (typeof APPLICATION_COMMANDS)[number]]?: Milestone } = {
  */
 export function finishedMilestones(
   events: readonly { command: (typeof APPLICATION_COMMANDS)[number]; at: string }[],
+  options: { registrationFee: number },
 ): FinishedMilestones {
   const finished: FinishedMilestones = {};
   for (const { command, at } of events) {
     const milestone = FINISHES[command];
     if (milestone) finished[milestone] = at;
+    if (command === "SUBMIT" && options.registrationFee === 0) finished.PAYMENT = at;
   }
   return finished;
 }
@@ -168,6 +170,25 @@ export const SEXES = ["MALE", "FEMALE"] as const;
 export const GUARDIAN_RELATIONS = ["FATHER", "MOTHER", "GUARDIAN"] as const;
 
 export const ACTOR_TYPES = ["FAMILY", "STAFF", "SYSTEM"] as const;
+
+export const PAYMENT_PURPOSES = ["REGISTRATION", "REREGISTRATION"] as const;
+export const PAYMENT_METHODS = ["BANK_TRANSFER"] as const;
+export const PAYMENT_DECISIONS = ["APPROVED", "REJECTED"] as const;
+
+/**
+ * What a family may send as a receipt. HEIC is here because an iPhone shoots it
+ * by default and Chrome cannot shrink it, so it travels as it was taken.
+ */
+export const PROOF_CONTENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+] as const;
+
+export const PROOF_MAX_BYTES = 10 * 1024 * 1024;
 
 export const NOTIFICATION_CHANNELS = ["EMAIL"] as const;
 export const NOTIFICATION_STATUSES = ["PENDING", "SENDING", "SENT", "FAILED"] as const;

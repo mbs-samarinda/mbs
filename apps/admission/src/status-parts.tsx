@@ -17,7 +17,7 @@ export function ApplicationHeader({
 }) {
   return (
     // The name drops under the logo when large text leaves it no room.
-    <div className="flex flex-wrap items-center gap-4">
+    <div className="flex flex-wrap items-start gap-4">
       <SchoolLogo school={application.schoolKey} className="size-14" />
       <div className="min-w-0 flex-[1_1_11rem] wrap-anywhere">
         <h1 tabIndex={-1} className="text-xl font-semibold text-balance outline-none">

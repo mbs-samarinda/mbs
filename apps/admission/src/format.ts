@@ -6,6 +6,13 @@ const list = new Intl.ListFormat("id-ID", { type: "conjunction" });
 export const formatFee = (amount: number) => `Rp${rupiah.format(amount)}`;
 export const formatList = (items: string[]) => list.format(items);
 
+const oneDecimal = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 });
+
+export function formatBytes(bytes: number) {
+  const mb = bytes / 1024 / 1024;
+  return mb >= 1 ? `${oneDecimal.format(mb)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 /** Rounded up, so trying again after it always works. */
 export function formatWait(seconds: number) {
   if (seconds < 60) return `${seconds} detik`;

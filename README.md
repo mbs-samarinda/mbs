@@ -22,10 +22,11 @@ live in `packages/ui/src/styles/globals.css` and, one block per owner,
 
 ```bash
 pnpm install
-docker compose up -d                    # PostgreSQL, core and CMS databases, Mailpit
+docker compose up -d                    # PostgreSQL, core and CMS databases, Mailpit, the bucket
 cp apps/api/.env.example apps/api/.env
 cp apps/cms/.env.example apps/cms/.env
 DATABASE_URL=postgres://mbs:mbs_local_dev@localhost:5432/mbs_core pnpm db:migrate
+node --env-file-if-exists=apps/api/.env apps/api/scripts/ensure-bucket.ts   # the bucket and its CORS rule
 pnpm dev                                # every app at once
 ```
 
@@ -77,6 +78,7 @@ talk over HTTP.
 5173  parent app
 5174  committee app
 8025  Mailpit, the inbox for every email the API sends: http://localhost:8025
+9000  the bucket, S3-compatible, where receipts and documents go
 ```
 
 ## Checks

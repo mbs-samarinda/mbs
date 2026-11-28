@@ -16,3 +16,9 @@ export const applicationQuery = (accountId: string, applicationId: string) =>
     queryKey: ["applications", accountId, applicationId],
     queryFn: () => api.applicant.applications.get({ applicationId }),
   });
+
+export const paymentQuery = (accountId: string, applicationId: string) =>
+  queryOptions({
+    queryKey: ["payments", accountId, applicationId],
+    queryFn: () => api.applicant.payments.get({ applicationId }),
+  });

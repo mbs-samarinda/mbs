@@ -80,8 +80,18 @@ mkdir -p "$scratch/srv/assets"
 echo '<div id="root"></div>' > "$scratch/srv/index.html"
 echo 'app' > "$scratch/srv/assets/index-abc.js"
 chmod -R a+rX "$scratch/srv"
+# The bucket's origin reaches the policy only if the name compose sets and the
+# name the Caddyfile reads are the same name. A unit test can see one or the
+# other, never both, so the value is put in here under the name compose uses and
+# looked for in the header Caddy actually sends.
+bucket_env=$(sed -n '/^  admission:/,/^  [a-z]/p' "$infra/compose.prod.yml" \
+  | sed -n 's/^ *\([A-Z0-9_]*\): \${S3_ENDPOINT.*/\1/p' | head -1)
+[[ -n $bucket_env ]] || { echo "FAIL  compose.prod.yml passes no S3_ENDPOINT to admission"; exit 1; }
+readonly BUCKET_PROBE=https://bucket.test
+
 for app in admission admin; do
   docker run -d --rm --name "$run-app" --user nobody -p 127.0.0.1::8080 \
+    -e "$bucket_env=$BUCKET_PROBE" \
     -v "$infra/../apps/$app/Caddyfile:/etc/caddy/Caddyfile:ro" -v "$scratch/srv:/srv:ro" "$image" >/dev/null
   port=$(published_port "$run-app" 8080)
   headers() { ask "http://127.0.0.1:$port$1" -o /dev/null -D - | tr -d '\r'; }
@@ -90,6 +100,14 @@ for app in admission admin; do
   check "$app asks again for its page" "Cache-Control: no-cache" "$page"
   check "$app refuses to be framed" "frame-ancestors 'none'.*X-Frame-Options: DENY|X-Frame-Options: DENY.*frame-ancestors 'none'" "$(tr '\n' ' ' <<< "$page")"
   check "$app sets a strict CSP" "default-src 'none'; script-src 'self' 'sha256-" "$page"
+  # A family uploads a receipt from the parent app; both apps show one back.
+  check "$app lets the bucket's images load" "img-src [^;]*$BUCKET_PROBE" "$page"
+  if [[ $app == admission ]]; then
+    check "$app lets a receipt go to the bucket" "connect-src [^;]*$BUCKET_PROBE" "$page"
+    check "$app shows the file just chosen" "img-src [^;]*blob:" "$page"
+  else
+    check "$app keeps the bucket out of connect-src" "connect-src 'self';" "$page"
+  fi
   check "$app keeps hashed files for a year" "immutable" "$(headers /assets/index-abc.js)"
   gone=$(headers /assets/index-old.js)
   check "$app answers 404 for a hashed file that is gone" "^HTTP/1.1 404" "$gone"

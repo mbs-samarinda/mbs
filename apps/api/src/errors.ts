@@ -43,7 +43,9 @@ export class ConflictError extends Error {
     | "NOT_READY"
     | "ANOTHER_CYCLE_OPEN"
     | "EMAIL_TAKEN"
-    | "LAST_ADMINISTRATOR" = "CONFLICT";
+    | "LAST_ADMINISTRATOR"
+    | "UPLOAD_INCOMPLETE"
+    | "ALREADY_HANDLED" = "CONFLICT";
   /** What the screen needs to explain the refusal, in the shape the contract declares. */
   readonly data: unknown = undefined;
 }
@@ -74,6 +76,14 @@ export class EmailTakenError extends ConflictError {
 
 export class LastAdministratorError extends ConflictError {
   override readonly code = "LAST_ADMINISTRATOR";
+}
+
+export class UploadIncompleteError extends ConflictError {
+  override readonly code = "UPLOAD_INCOMPLETE";
+}
+
+export class AlreadyHandledError extends ConflictError {
+  override readonly code = "ALREADY_HANDLED";
 }
 
 export class IllegalTransitionError extends ConflictError {}

@@ -19,6 +19,14 @@ import {
   submitApplicationProcedure,
 } from "./modules/application/procedures.ts";
 import {
+  beginProofUploadProcedure,
+  decideProofProcedure,
+  getPaymentPageProcedure,
+  listWaitingProofsProcedure,
+  openProofProcedure,
+  sendProofProcedure,
+} from "./modules/payment/procedures.ts";
+import {
   createStaffProcedure,
   getMeProcedure,
   listStaffProcedure,
@@ -39,6 +47,11 @@ export const router = {
       get: getFamilyApplicationProcedure,
       submit: submitApplicationProcedure,
     },
+    payments: {
+      get: getPaymentPageProcedure,
+      beginUpload: beginProofUploadProcedure,
+      sendProof: sendProofProcedure,
+    },
   },
   staff: {
     me: {
@@ -52,6 +65,11 @@ export const router = {
       get: getCommitteeApplicationProcedure,
       recordView: recordViewProcedure,
       addNote: addNoteProcedure,
+    },
+    payments: {
+      listWaiting: listWaitingProofsProcedure,
+      open: openProofProcedure,
+      decide: decideProofProcedure,
     },
   },
   admin: {

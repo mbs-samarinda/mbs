@@ -14,6 +14,7 @@ import {
 import type { RequestMeta } from "../modules/application/service.ts";
 import type { Audience } from "../modules/auth/auth.ts";
 import { requireRole, resolveStaff, type SessionUser } from "../modules/auth/authorization.ts";
+import type { Files } from "../modules/files/service.ts";
 import type { OutboxSettings } from "../modules/notification/outbox.ts";
 
 export type Session = { audience: Audience; user: SessionUser } | { audience: null };
@@ -24,6 +25,7 @@ export type ApiContext = {
   /** This request's logger, so a log line carries the request id. */
   log: FastifyBaseLogger;
   meta: RequestMeta;
+  files: Files;
   outbox: OutboxSettings;
 };
 

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from "./routes/__root.tsx";
 import { Route as AppRouteImport } from "./routes/_app.tsx";
 import { Route as MasukRouteImport } from "./routes/masuk.tsx";
 import { Route as AppIndexRouteImport } from "./routes/_app.index.tsx";
+import { Route as AppPembayaranRouteImport } from "./routes/_app.pembayaran.tsx";
 import { Route as AppPengaturanRouteImport } from "./routes/_app.pengaturan.tsx";
 import { Route as AppPendaftarIndexRouteImport } from "./routes/_app.pendaftar.index.tsx";
 import { Route as AppPendaftarApplicationIdRouteImport } from "./routes/_app.pendaftar.$applicationId.tsx";
@@ -30,6 +31,11 @@ const MasukRoute = MasukRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: "/",
   path: "/",
+  getParentRoute: () => AppRoute,
+} as any);
+const AppPembayaranRoute = AppPembayaranRouteImport.update({
+  id: "/pembayaran",
+  path: "/pembayaran",
   getParentRoute: () => AppRoute,
 } as any);
 const AppPengaturanRoute = AppPengaturanRouteImport.update({
@@ -62,6 +68,7 @@ const AppPengaturanStafRoute = AppPengaturanStafRouteImport.update({
 export interface FileRoutesByFullPath {
   "/": typeof AppIndexRoute;
   "/masuk": typeof MasukRoute;
+  "/pembayaran": typeof AppPembayaranRoute;
   "/pengaturan": typeof AppPengaturanRouteWithChildren;
   "/pendaftar/$applicationId": typeof AppPendaftarApplicationIdRoute;
   "/pengaturan/periode": typeof AppPengaturanPeriodeRoute;
@@ -70,6 +77,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   "/masuk": typeof MasukRoute;
+  "/pembayaran": typeof AppPembayaranRoute;
   "/pengaturan": typeof AppPengaturanRouteWithChildren;
   "/": typeof AppIndexRoute;
   "/pendaftar/$applicationId": typeof AppPendaftarApplicationIdRoute;
@@ -81,6 +89,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/_app": typeof AppRouteWithChildren;
   "/masuk": typeof MasukRoute;
+  "/_app/pembayaran": typeof AppPembayaranRoute;
   "/_app/pengaturan": typeof AppPengaturanRouteWithChildren;
   "/_app/": typeof AppIndexRoute;
   "/_app/pendaftar/$applicationId": typeof AppPendaftarApplicationIdRoute;
@@ -93,6 +102,7 @@ export interface FileRouteTypes {
   fullPaths:
     | "/"
     | "/masuk"
+    | "/pembayaran"
     | "/pengaturan"
     | "/pendaftar/$applicationId"
     | "/pengaturan/periode"
@@ -101,6 +111,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo;
   to:
     | "/masuk"
+    | "/pembayaran"
     | "/pengaturan"
     | "/"
     | "/pendaftar/$applicationId"
@@ -111,6 +122,7 @@ export interface FileRouteTypes {
     | "__root__"
     | "/_app"
     | "/masuk"
+    | "/_app/pembayaran"
     | "/_app/pengaturan"
     | "/_app/"
     | "/_app/pendaftar/$applicationId"
@@ -145,6 +157,13 @@ declare module "@tanstack/react-router" {
       path: "/";
       fullPath: "/";
       preLoaderRoute: typeof AppIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/_app/pembayaran": {
+      id: "/_app/pembayaran";
+      path: "/pembayaran";
+      fullPath: "/pembayaran";
+      preLoaderRoute: typeof AppPembayaranRouteImport;
       parentRoute: typeof AppRoute;
     };
     "/_app/pengaturan": {
@@ -200,6 +219,7 @@ const AppPengaturanRouteWithChildren = AppPengaturanRoute._addFileChildren(
 );
 
 interface AppRouteChildren {
+  AppPembayaranRoute: typeof AppPembayaranRoute;
   AppPengaturanRoute: typeof AppPengaturanRouteWithChildren;
   AppIndexRoute: typeof AppIndexRoute;
   AppPendaftarApplicationIdRoute: typeof AppPendaftarApplicationIdRoute;
@@ -207,6 +227,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppPembayaranRoute: AppPembayaranRoute,
   AppPengaturanRoute: AppPengaturanRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
   AppPendaftarApplicationIdRoute: AppPendaftarApplicationIdRoute,

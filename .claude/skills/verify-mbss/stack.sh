@@ -13,6 +13,8 @@
 #   stack.sh api-on  [run] start the API again and wait for /health
 #   stack.sh mail-off [run] stop Mailpit (to see the outbox retry)
 #   stack.sh mail-on  [run] start Mailpit again, empty, on the same ports
+#   stack.sh bucket-off [run] stop the bucket (to see an upload fail)
+#   stack.sh bucket-on  [run] start the bucket again, empty, on the same port
 #   stack.sh sim [run] -- <args>  run pnpm ppdb-sim with the run's API config
 #   stack.sh down   [run]  stop what this run started, keep the evidence
 #
@@ -32,7 +34,12 @@ ADMISSION_PORT=${ADMISSION_PORT:-5173}
 ADMIN_PORT=${ADMIN_PORT:-5174}
 MAIL_SMTP_PORT=${MAIL_SMTP_PORT:-51125}
 MAIL_WEB_PORT=${MAIL_WEB_PORT:-58125}
+BUCKET_PORT=${BUCKET_PORT:-59000}
 MAILPIT_IMAGE=axllent/mailpit:v1.34.0
+BUCKET_IMAGE=chrislusf/seaweedfs:3.97
+BUCKET_NAME=mbss-ppdb
+BUCKET_KEY=mbs_verify
+BUCKET_SECRET=mbs_verify_secret
 CMS_DB_PASSWORD=mbs_cms_verify
 CORE_DB_PASSWORD=mbs_verify
 
@@ -112,6 +119,8 @@ build_envs() {
     BETTER_AUTH_SECRET="$AUTH_SECRET"
     GOOGLE_CLIENT_ID=verify-placeholder GOOGLE_CLIENT_SECRET=verify-placeholder
     FAMILY_APP_URL="http://localhost:$ADMISSION_PORT" ADMIN_APP_URL="http://localhost:$ADMIN_PORT"
+    S3_ENDPOINT="http://127.0.0.1:$BUCKET_PORT" S3_BUCKET="$BUCKET_NAME"
+    S3_ACCESS_KEY="$BUCKET_KEY" S3_SECRET_KEY="$BUCKET_SECRET" S3_REGION=us-east-1
     SMTP_URL="smtp://127.0.0.1:$MAIL_SMTP_PORT" MAIL_FROM="PPDB MBSS <ppdb@mbss.test>"
     NOTIFICATION_WORKER=on BOOTSTRAP_ADMIN_EMAIL=)
   CMS_ENV=(HOST=127.0.0.1 PORT="$CMS_PORT" PUBLIC_URL="http://localhost:$CMS_PORT"
@@ -160,6 +169,26 @@ start_mail() {
     -p "127.0.0.1:$MAIL_SMTP_PORT:1025" -p "127.0.0.1:$MAIL_WEB_PORT:8025" "$MAILPIT_IMAGE" >/dev/null
   wait_for 30 mailpit mail_ready || die "mailpit not ready; see docker logs $MAIL_CONTAINER"
 }
+
+bucket_ready() { curl -s -o /dev/null --max-time 5 "http://127.0.0.1:$BUCKET_PORT/"; }
+bucket_closed() {
+  [[ $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$BUCKET_PORT/$BUCKET_NAME/") == 403 ]]
+}
+bucket_made() {
+  (cd "$REPO/apps/api" && env "${API_ENV[@]}" node scripts/ensure-bucket.ts --check)
+}
+start_bucket() {
+  docker run --rm -d --name "$BUCKET_CONTAINER" \
+    -e AWS_ACCESS_KEY_ID="$BUCKET_KEY" -e AWS_SECRET_ACCESS_KEY="$BUCKET_SECRET" \
+    -p "127.0.0.1:$BUCKET_PORT:8333" "$BUCKET_IMAGE" \
+    server -s3 -dir=/data -ip=0.0.0.0 >/dev/null
+  wait_for 90 bucket bucket_ready || die "bucket not ready; see docker logs $BUCKET_CONTAINER"
+  (cd "$REPO/apps/api" && env "${API_ENV[@]}" node scripts/ensure-bucket.ts) \
+    >>"$LOGS/bucket.log" 2>&1 || die "bucket setup failed; see $LOGS/bucket.log"
+  wait_for 30 "bucket $BUCKET_NAME" bucket_made || die "bucket $BUCKET_NAME missing"
+  bucket_closed || die "the bucket answers an unsigned list; it must refuse one"
+}
+
 profile_ready() {
   [[ $(curl -fsS --max-time 120 -H "Host: smp.localhost:$PROFILE_PORT" \
     "http://127.0.0.1:$PROFILE_PORT/") == *"SMP Islam Terpadu Madina"* ]]
@@ -176,8 +205,8 @@ app_ready() {
 
 cmd_up() {
   command -v docker >/dev/null || die "docker is not installed"
-  for p in "$PG_PORT" "$API_PORT" "$CMS_PORT" "$PROFILE_PORT" "$ADMISSION_PORT" "$ADMIN_PORT" "$MAIL_SMTP_PORT" "$MAIL_WEB_PORT"; do
-    port_busy "$p" && die "port $p is already in use; set PG_PORT/API_PORT/CMS_PORT/PROFILE_PORT/ADMISSION_PORT/ADMIN_PORT/MAIL_SMTP_PORT/MAIL_WEB_PORT or stop the other stack"
+  for p in "$PG_PORT" "$API_PORT" "$CMS_PORT" "$PROFILE_PORT" "$ADMISSION_PORT" "$ADMIN_PORT" "$MAIL_SMTP_PORT" "$MAIL_WEB_PORT" "$BUCKET_PORT"; do
+    port_busy "$p" && die "port $p is already in use; set PG_PORT/API_PORT/CMS_PORT/PROFILE_PORT/ADMISSION_PORT/ADMIN_PORT/MAIL_SMTP_PORT/MAIL_WEB_PORT/BUCKET_PORT or stop the other stack"
   done
   local held
   held=$(procs_in "$REPO/apps/profile" "next" ; procs_in "$REPO/apps/cms" "strapi")
@@ -190,6 +219,7 @@ cmd_up() {
   mkdir -p "$SCRATCH/profile-cache" "$LOGS"
   CONTAINER=mbs-verify-pg-$RUN
   MAIL_CONTAINER=mbs-verify-mail-$RUN
+  BUCKET_CONTAINER=mbs-verify-bucket-$RUN
   AUTH_SECRET=$(openssl rand -hex 32)
   REVALIDATE_SECRET=$(openssl rand -hex 24)
   CMS_READ_TOKEN=$(openssl rand -hex 32)
@@ -205,6 +235,11 @@ EVIDENCE=$dir/evidence
 LOGS=$LOGS
 CONTAINER=$CONTAINER
 MAIL_CONTAINER=$MAIL_CONTAINER
+BUCKET_CONTAINER=$BUCKET_CONTAINER
+BUCKET_PORT=$BUCKET_PORT
+BUCKET_NAME=$BUCKET_NAME
+BUCKET_KEY=$BUCKET_KEY
+BUCKET_SECRET=$BUCKET_SECRET
 MAIL_SMTP_PORT=$MAIL_SMTP_PORT
 MAIL_WEB_PORT=$MAIL_WEB_PORT
 PG_PORT=$PG_PORT
@@ -237,6 +272,7 @@ EOF
     -p "127.0.0.1:$PG_PORT:5432" postgres:18-alpine >/dev/null
   wait_for 90 postgres pg_ready || die "postgres not ready; see docker logs $CONTAINER"
   start_mail
+  start_bucket
 
   (cd "$REPO/packages/db" && env "${API_ENV[@]}" pnpm exec drizzle-kit migrate) >"$LOGS/migrate.log" 2>&1 \
     || die "core migrations failed; see $LOGS/migrate.log"
@@ -297,6 +333,9 @@ cmd_doctor() {
   check "port $ADMIN_PORT owned by this run's committee app" port_owner "$ADMIN_PORT" admin
   check "postgres container $CONTAINER answers" pg_ready
   check "mailpit $MAIL_CONTAINER answers on $MAIL_WEB_PORT" mail_ready
+  check "bucket server $BUCKET_CONTAINER answers on $BUCKET_PORT" bucket_ready
+  check "bucket $BUCKET_NAME exists" bucket_made
+  check "bucket $BUCKET_NAME refuses an unsigned list" bucket_closed
   cms_tables() {
     docker exec -e PGPASSWORD="$CMS_DB_PASSWORD" "$CONTAINER" \
       psql -h 127.0.0.1 -U mbs_cms -d mbs_cms -tAc "select count(*) from sites" | grep -x 4
@@ -345,6 +384,17 @@ cmd_mail_on() {
   start_mail
 }
 
+cmd_bucket_off() {
+  load_run "${1:-}"
+  docker stop "$BUCKET_CONTAINER" >/dev/null && log "stopped $BUCKET_CONTAINER"
+}
+
+cmd_bucket_on() {
+  load_run "${1:-}"
+  docker inspect "$BUCKET_CONTAINER" >/dev/null 2>&1 && die "the bucket is already running"
+  start_bucket
+}
+
 cmd_sim() {
   local run=
   [[ ${1:-} != -- ]] && { run=$1; shift; }
@@ -362,6 +412,10 @@ CONTAINER=$CONTAINER
 API_URL=http://localhost:$API_PORT
 CMS_URL=http://localhost:$CMS_PORT
 PROFILE_PORT=$PROFILE_PORT
+BUCKET_URL=http://127.0.0.1:$BUCKET_PORT
+BUCKET_NAME=$BUCKET_NAME
+BUCKET_KEY=$BUCKET_KEY
+BUCKET_SECRET=$BUCKET_SECRET
 MAIL_URL=http://localhost:$MAIL_WEB_PORT
 MAIL_SMTP=smtp://127.0.0.1:$MAIL_SMTP_PORT
 ADMISSION_URL=http://localhost:$ADMISSION_PORT
@@ -384,6 +438,7 @@ cmd_down() {
   for name in admission admin profile cms api; do stop_group "$name"; done
   docker stop "$CONTAINER" >/dev/null 2>&1 && log "stopped $CONTAINER" || true
   docker stop "${MAIL_CONTAINER:-}" >/dev/null 2>&1 && log "stopped $MAIL_CONTAINER" || true
+  docker stop "${BUCKET_CONTAINER:-}" >/dev/null 2>&1 && log "stopped $BUCKET_CONTAINER" || true
 
   # A run must not leave tracked files changed. Report it; reverting is the
   # caller's call, since the user may have been editing at the same time.
@@ -406,7 +461,9 @@ case ${1:-} in
   api-on) cmd_api_on "${2:-}" ;;
   mail-off) cmd_mail_off "${2:-}" ;;
   mail-on) cmd_mail_on "${2:-}" ;;
+  bucket-off) cmd_bucket_off "${2:-}" ;;
+  bucket-on) cmd_bucket_on "${2:-}" ;;
   sim) shift; cmd_sim "$@" ;;
   down) cmd_down "${2:-}" ;;
-  *) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
