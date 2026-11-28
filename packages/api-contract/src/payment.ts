@@ -109,6 +109,8 @@ export const ProofToReview = z.object({
   url: z.url(),
   /** How long `url` lasts, so the desk asks again before it dies rather than after. */
   urlExpiresInSeconds: z.int().positive(),
+  /** Someone has already approved or rejected this attempt. */
+  decided: z.boolean(),
   /** False for a principal, who reads and decides nothing. */
   canDecide: z.boolean(),
 });

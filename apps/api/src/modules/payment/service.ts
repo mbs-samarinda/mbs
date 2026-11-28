@@ -206,7 +206,8 @@ export async function openProof(
     file: ProofFile.parse(row.file),
     url: await files.signDownload(row.file),
     urlExpiresInSeconds: files.downloadUrlSeconds,
-    canDecide: staff.role !== "PRINCIPAL" && !row.decided,
+    decided: row.decided,
+    canDecide: staff.role !== "PRINCIPAL",
   };
 }
 

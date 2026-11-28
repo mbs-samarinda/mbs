@@ -1,5 +1,5 @@
 import { ORPCError } from "@mbs/api-client/rpc";
-import type { ProofToReview, WaitingProof } from "@mbs/api-contract";
+import { COMMAND_PAYLOADS, type ProofToReview, type WaitingProof } from "@mbs/api-contract";
 import { Button } from "@mbs/ui/components/button";
 import { Textarea } from "@mbs/ui/components/textarea";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,6 +27,8 @@ import {
   formatWaited,
 } from "../format.ts";
 import { api, proofQuery, waitingProofsQuery } from "../staff.ts";
+
+const REASON_MAX = COMMAND_PAYLOADS.REJECT_PAYMENT.shape.reason.maxLength!;
 
 type DeskSearch = { bukti?: string | undefined };
 
@@ -152,7 +154,7 @@ function Queue({
 }
 
 function Pane({ paymentId }: { paymentId: string }) {
-  const { data: proof, isPending, isError } = useQuery(proofQuery(paymentId));
+  const { data: proof, isPending, isError, isStale, refetch } = useQuery(proofQuery(paymentId));
   const [shown, setShown] = useState(false);
 
   if (isError) {
@@ -190,7 +192,11 @@ function Pane({ paymentId }: { paymentId: string }) {
         </p>
       </div>
       <TopBar proof={proof} canApprove={shown} />
-      <ProofViewer proof={proof} onShown={setShown} />
+      <ProofViewer
+        proof={proof}
+        onShown={setShown}
+        refresh={async () => (isStale ? ((await refetch()).data?.url ?? proof.url) : proof.url)}
+      />
     </div>
   );
 }
@@ -266,6 +272,9 @@ function Actions({
     await navigate({ to: "/pembayaran", search: {}, replace: true });
   }
 
+  if (proof.decided) {
+    return <Notice>Bukti ini sudah ditangani.</Notice>;
+  }
   if (!proof.canDecide) {
     return <Notice>Kamu bisa membaca bukti ini, tapi tidak memutuskannya.</Notice>;
   }
@@ -291,7 +300,14 @@ function Actions({
             id={reasonId}
             rows={3}
             value={reason}
-            onChange={(event) => setReason(event.target.value)}
+            maxLength={REASON_MAX}
+            onChange={(event) => {
+              setReason(event.target.value);
+              // A changed reason is a different decision, so it gets its own
+              // key. The same text retried after a lost answer keeps its key
+              // and is written once.
+              setKey(crypto.randomUUID());
+            }}
             placeholder="Contoh: Nominalnya kurang Rp50.000. Transfer kekurangannya, lalu unggah bukti yang baru."
             className="field-sizing-content min-h-20 resize-none"
           />
@@ -363,20 +379,27 @@ function Failed() {
 function ProofViewer({
   proof,
   onShown,
+  refresh,
 }: {
   proof: ProofToReview;
   onShown: (shown: boolean) => void;
+  refresh: () => Promise<string>;
 }) {
   const [zoom, setZoom] = useState(1);
   const [turn, setTurn] = useState(0);
   const [failed, setFailed] = useState(false);
 
   if (proof.file.contentType === "application/pdf") {
-    return <OpenFile proof={proof} onShown={onShown} note="PDF" />;
+    return <OpenFile proof={proof} onShown={onShown} refresh={refresh} note="PDF" />;
   }
   if (failed) {
     return (
-      <OpenFile proof={proof} onShown={onShown} note="Gambarnya tidak bisa ditampilkan di sini." />
+      <OpenFile
+        proof={proof}
+        onShown={onShown}
+        refresh={refresh}
+        note="Gambarnya tidak bisa ditampilkan di sini."
+      />
     );
   }
   return (
@@ -428,10 +451,12 @@ function ProofViewer({
 function OpenFile({
   proof,
   onShown,
+  refresh,
   note,
 }: {
   proof: ProofToReview;
   onShown: (shown: boolean) => void;
+  refresh: () => Promise<string>;
   note: string;
 }) {
   return (
@@ -447,8 +472,12 @@ function OpenFile({
         variant="outline"
         size="sm"
         onClick={() => {
-          window.open(proof.url, "_blank", "noopener");
-          onShown(true);
+          // A link signed minutes ago may already be dead, and a 403 in the
+          // other tab must not be what unlocks Setujui.
+          void refresh().then((url) => {
+            window.open(url, "_blank", "noopener");
+            onShown(true);
+          });
         }}
       >
         Buka berkas

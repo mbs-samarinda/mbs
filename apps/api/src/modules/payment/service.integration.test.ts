@@ -310,6 +310,7 @@ describe("the committee deciding", () => {
 
     expect(open.url).toContain("?get");
     expect(open.canDecide).toBe(true);
+    expect(open.decided).toBe(false);
     expect(open.attempt).toBe(1);
     const viewed = await db
       .select()
@@ -337,7 +338,9 @@ describe("the committee deciding", () => {
 
     const open = await payment.openProof(db, files, principal, paymentId, {});
 
+    // Two different answers: this account may not decide, and nobody has yet.
     expect(open.canDecide).toBe(false);
+    expect(open.decided).toBe(false);
     await expect(
       payment.decideProof(
         db,
@@ -365,6 +368,8 @@ describe("the committee deciding", () => {
     const page = await payment.loadPaymentPage(db, files, { userId: "family-1" }, application.id);
     expect(page.stage).toBe("DOCUMENTS_DUE");
     expect(page.attempts[0]).toMatchObject({ decision: "APPROVED", reason: null });
+    const reopened = await payment.openProof(db, files, staff, paymentId, {});
+    expect(reopened).toMatchObject({ decided: true, canDecide: true });
     expect(await payment.listProofQueue(db, staff, { page: 1 })).toMatchObject({ total: 0 });
   });
 

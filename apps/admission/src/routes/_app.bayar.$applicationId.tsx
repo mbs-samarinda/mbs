@@ -230,7 +230,12 @@ function Upload({ applicationId, accountId }: { applicationId: string; accountId
   });
 
   async function done() {
-    await queryClient.invalidateQueries({ queryKey: ["applications", accountId] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["applications", accountId] }),
+      // The status page shows what was just sent. Without this it shows the
+      // receipt before it, with the date to match.
+      queryClient.invalidateQueries({ queryKey: ["payments", accountId] }),
+    ]);
     await navigate({ to: "/status/$applicationId", params: { applicationId } });
   }
 

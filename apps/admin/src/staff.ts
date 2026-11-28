@@ -108,7 +108,9 @@ export const proofQuery = (paymentId: string) =>
   queryOptions({
     queryKey: ["payments", "proof", paymentId],
     queryFn: () => api.staff.payments.open({ paymentId }),
-    staleTime: 4 * 60_000,
+    // A minute before the signed URL dies, so the next ask beats the 403.
+    staleTime: ({ state }) =>
+      state.data ? Math.max(0, state.data.urlExpiresInSeconds - 60) * 1000 : 0,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

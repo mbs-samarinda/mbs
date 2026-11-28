@@ -26,7 +26,7 @@ docker compose up -d                    # PostgreSQL, core and CMS databases, Ma
 cp apps/api/.env.example apps/api/.env
 cp apps/cms/.env.example apps/cms/.env
 DATABASE_URL=postgres://mbs:mbs_local_dev@localhost:5432/mbs_core pnpm db:migrate
-node apps/api/scripts/ensure-bucket.ts  # makes the bucket and its CORS rule
+node --env-file-if-exists=apps/api/.env apps/api/scripts/ensure-bucket.ts   # the bucket and its CORS rule
 pnpm dev                                # every app at once
 ```
 

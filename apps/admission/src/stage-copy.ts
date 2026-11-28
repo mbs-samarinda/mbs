@@ -37,10 +37,16 @@ export const STAGE_COPY: Record<FamilyStage, StageCopy> = {
     turn: "FAMILY",
     title: "Bayar biaya pendaftaran",
     at: "PAYMENT",
-    next: (application) =>
-      sentBack(application, "REJECT_PAYMENT")
+    next: (application) => {
+      // A school that charges nothing skips this stage, but an application
+      // registered before its fee was set to zero can still be sitting here.
+      if (application.registrationFee === 0) {
+        return "Tidak ada biaya pendaftaran di sekolah ini. Hubungi panitia untuk melanjutkan.";
+      }
+      return sentBack(application, "REJECT_PAYMENT")
         ? "Bukti transfer kamu belum bisa dikonfirmasi. Baca catatan panitia, lalu unggah bukti lagi."
-        : `Biaya pendaftaran ${formatFee(application.registrationFee)}. Transfer ke rekening sekolah, lalu unggah buktinya.`,
+        : `Biaya pendaftaran ${formatFee(application.registrationFee)}. Transfer ke rekening sekolah, lalu unggah buktinya.`;
+    },
   },
   PAYMENT_REVIEW: {
     turn: "COMMITTEE",

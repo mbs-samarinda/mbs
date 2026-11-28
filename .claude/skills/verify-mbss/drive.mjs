@@ -218,15 +218,18 @@ for (const [n, step] of args.entries()) {
       await context.setOffline(rest === "on");
       log(`  network ${rest === "on" ? "cut" : "back"}`);
     } else if (cmd === "abort") {
-      await page.route(
-        (url) => url.href.includes(rest),
-        async (route) => {
-          await page.unroute((url) => url.href.includes(rest));
-          await route.fetch().catch(() => undefined);
-          await route.abort("connectionfailed");
-          log(`  dropped the answer to ${rest}`);
-        },
-      );
+      // Playwright matches a route by the identity of its predicate, so it is
+      // named and reused rather than written out twice.
+      const matches = (url) => url.href.includes(rest);
+      let dropped = false;
+      await page.route(matches, async (route) => {
+        if (dropped) return route.continue();
+        dropped = true;
+        await page.unroute(matches);
+        await route.fetch().catch(() => undefined);
+        await route.abort("connectionfailed");
+        log(`  dropped the answer to ${rest}`);
+      });
     } else if (cmd === "wait") await page.waitForTimeout(Number(rest));
     else if (cmd === "tryclick") {
       const target = byRole(rest);

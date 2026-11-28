@@ -25,6 +25,10 @@ export function createStorage(config: Config["storage"]): Storage {
     // which the browser never sends, so the bucket refuses the upload.
     requestChecksumCalculation: "WHEN_REQUIRED",
     credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
+    // The SDK waits forever by default. `completeUpload` runs while an
+    // application row is locked, so a bucket that accepts connections and
+    // stops answering would hold that lock and drain the connection pool.
+    requestHandler: { connectionTimeout: 3_000, requestTimeout: 10_000 },
   });
 
   return {
