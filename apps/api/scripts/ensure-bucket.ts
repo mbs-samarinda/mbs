@@ -4,8 +4,14 @@
  * Biznet's bucket and its CORS rule are set by hand, once, by the operator.
  *
  *   node apps/api/scripts/ensure-bucket.ts
+ *   node apps/api/scripts/ensure-bucket.ts --check   # is it there?
  */
-import { CreateBucketCommand, PutBucketCorsCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  CreateBucketCommand,
+  HeadBucketCommand,
+  PutBucketCorsCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 
 import { loadConfig } from "../src/config/env.ts";
 
@@ -19,6 +25,13 @@ const client = new S3Client({
   requestChecksumCalculation: "WHEN_REQUIRED",
   credentials: { accessKeyId: storage.accessKey, secretAccessKey: storage.secretKey },
 });
+
+// `--check` asks only whether the bucket is there and the keys work, so a
+// readiness probe never writes.
+if (process.argv.includes("--check")) {
+  await client.send(new HeadBucketCommand({ Bucket: storage.bucket }));
+  process.exit(0);
+}
 
 try {
   await client.send(new CreateBucketCommand({ Bucket: storage.bucket }));

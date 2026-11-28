@@ -7,6 +7,10 @@
 //
 // Steps (role names are ARIA roles, names are accessible names, exact match):
 //   goto:<url>                    open a URL, record the HTTP status; fails on 5xx
+//   upload:<role>:<name>=<path>   give a file to the input a button opens
+//   offline:on | offline:off      cut the network and bring it back
+//   abort:<substring>             drop the next response whose URL contains it,
+//                                 once, after it reached the server
 //   click:<role>:<name>           click the first matching element
 //   tryclick:<role>:<name>        click it if it shows within 5s, else go on
 //                                 (for popups that come only sometimes)
@@ -15,12 +19,15 @@
 //   press:<key>                   press a key on the page (Enter, Escape, /)
 //   see:<role>:<name>             wait until such an element is visible
 //   text:<text>                   wait until this text is visible anywhere
+//   wait:<ms>                     sit still, for a sampler or an expiry
 //   shot:<label>                  save <label>.png, <label>.aria.txt, <label>.url
 //   errors                        fail on the open page's errors: what next dev
 //                                 reports (/_next/mcp get_errors), or, on a Vite
 //                                 app, its overlay and what the page itself threw
 //                                 or printed since the last goto
 //
+// --slow4g throttles the browser's network to a phone on a bad signal.
+// --video <dir> records the whole run as a .webm there.
 // --state loads and saves cookies, so a CMS login survives between runs.
 // Everything printed to the console or failing over the network goes to
 // <out>/drive.log alongside each step.
@@ -50,6 +57,8 @@ const out = flag("--out");
 const state = flag("--state");
 const mobile = args.includes("--mobile") && args.splice(args.indexOf("--mobile"), 1);
 const width = flag("--width");
+const video = flag("--video");
+const slow4g = args.includes("--slow4g") && args.splice(args.indexOf("--slow4g"), 1);
 const dark = args.includes("--dark") && args.splice(args.indexOf("--dark"), 1);
 if (!out || args.length === 0) {
   console.error(
@@ -81,8 +90,23 @@ const context = await browser.newContext({
     : { viewport: { width: width ? Number(width) : 1280, height: width ? 812 : 900 } }),
   colorScheme: dark ? "dark" : "light",
   storageState: state && existsSync(state) ? state : undefined,
+  ...(video ? { recordVideo: { dir: video, size: { width: 1280, height: 720 } } } : {}),
 });
 const page = await context.newPage();
+
+// Chrome DevTools Protocol, because Playwright's own throttling covers routes
+// it intercepts only. The numbers are Chrome's own "Slow 4G" preset.
+if (slow4g) {
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Network.enable");
+  await cdp.send("Network.emulateNetworkConditions", {
+    offline: false,
+    latency: 400,
+    downloadThroughput: (400 * 1024) / 8,
+    uploadThroughput: (400 * 1024) / 8,
+  });
+  log("  throttled to Slow 4G");
+}
 // The page's own errors since the last goto. Chromium also prints one for every
 // 4xx and dropped request; those are logged below and are often the point.
 let pageErrors = [];
@@ -174,6 +198,32 @@ for (const [n, step] of args.entries()) {
       // 4xx can be the point of a step (a 404 page); 5xx never is.
       if ((response?.status() ?? 0) >= 500) throw new Error(`server error ${response?.status()}`);
     } else if (cmd === "click") await byRole(rest).click();
+    else if (cmd === "upload") {
+      const [target, file] = split(rest, "=");
+      // The button is a label over a hidden input, so the click is what names
+      // which input to fill: exactly how a person reaches it.
+      const [chooser] = await Promise.all([
+        page.waitForEvent("filechooser", { timeout: 30_000 }),
+        byRole(target).click(),
+      ]);
+      await chooser.setFiles(file);
+      log(`  gave ${file}`);
+    } else if (cmd === "offline") {
+      await context.setOffline(rest === "on");
+      log(`  network ${rest === "on" ? "cut" : "back"}`);
+    } else if (cmd === "abort") {
+      // The request reaches the server and only its answer is lost, which is
+      // the failure a retry has to survive.
+      await page.route(
+        (url) => url.href.includes(rest),
+        async (route) => {
+          await page.unroute((url) => url.href.includes(rest));
+          await route.fetch().catch(() => undefined);
+          await route.abort("connectionfailed");
+          log(`  dropped the answer to ${rest}`);
+        },
+      );
+    } else if (cmd === "wait") await page.waitForTimeout(Number(rest));
     else if (cmd === "tryclick") {
       const target = byRole(rest);
       const shown = await target.waitFor({ state: "visible", timeout: 5_000 }).then(
@@ -209,5 +259,6 @@ for (const [n, step] of args.entries()) {
 }
 
 if (state) await context.storageState({ path: state });
+await context.close();
 await browser.close();
 process.exit(failed ? 1 : 0);

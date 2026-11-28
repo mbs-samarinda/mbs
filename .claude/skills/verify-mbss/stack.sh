@@ -166,11 +166,21 @@ cms_ready() {
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).data.length===4?0:1))'
 }
 mail_ready() { curl -fsS -o /dev/null "http://127.0.0.1:$MAIL_WEB_PORT/readyz"; }
-bucket_ready() { curl -fsS -o /dev/null "http://127.0.0.1:$BUCKET_PORT/"; }
-# The bucket answers an unsigned list with 403, not a connection error, which
-# also proves it is not serving families' receipts to anyone who asks.
-bucket_made() {
+start_mail() {
+  docker run --rm -d --name "$MAIL_CONTAINER" \
+    -p "127.0.0.1:$MAIL_SMTP_PORT:1025" -p "127.0.0.1:$MAIL_WEB_PORT:8025" "$MAILPIT_IMAGE" >/dev/null
+  wait_for 30 mailpit mail_ready || die "mailpit not ready; see docker logs $MAIL_CONTAINER"
+}
+
+# Any HTTP answer means the server is up. It refuses an unsigned request with
+# 403, which is the point: it is not serving families' receipts to anyone.
+bucket_ready() { curl -s -o /dev/null --max-time 5 "http://127.0.0.1:$BUCKET_PORT/"; }
+bucket_closed() {
   [[ $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$BUCKET_PORT/$BUCKET_NAME/") == 403 ]]
+}
+# Signed, so it proves the bucket is really there and the keys work.
+bucket_made() {
+  (cd "$REPO/apps/api" && env "${API_ENV[@]}" node scripts/ensure-bucket.ts --check)
 }
 start_bucket() {
   docker run --rm -d --name "$BUCKET_CONTAINER" \
@@ -182,6 +192,7 @@ start_bucket() {
   (cd "$REPO/apps/api" && env "${API_ENV[@]}" node scripts/ensure-bucket.ts) \
     >>"$LOGS/bucket.log" 2>&1 || die "bucket setup failed; see $LOGS/bucket.log"
   wait_for 30 "bucket $BUCKET_NAME" bucket_made || die "bucket $BUCKET_NAME missing"
+  bucket_closed || die "the bucket answers an unsigned list; it must refuse one"
 }
 
 profile_ready() {
@@ -329,7 +340,8 @@ cmd_doctor() {
   check "postgres container $CONTAINER answers" pg_ready
   check "mailpit $MAIL_CONTAINER answers on $MAIL_WEB_PORT" mail_ready
   check "bucket server $BUCKET_CONTAINER answers on $BUCKET_PORT" bucket_ready
-  check "bucket $BUCKET_NAME exists and refuses an unsigned list" bucket_made
+  check "bucket $BUCKET_NAME exists" bucket_made
+  check "bucket $BUCKET_NAME refuses an unsigned list" bucket_closed
   cms_tables() {
     docker exec -e PGPASSWORD="$CMS_DB_PASSWORD" "$CONTAINER" \
       psql -h 127.0.0.1 -U mbs_cms -d mbs_cms -tAc "select count(*) from sites" | grep -x 4
