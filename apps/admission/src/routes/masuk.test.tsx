@@ -7,6 +7,12 @@ import { setPendingEmail } from "../email-code.ts";
 
 const SIGNED_OUT = { "/get-session": [{ body: null }] };
 
+// The code step also shows the address, and stays on screen while the next page loads.
+const signedInAs = (email: string) =>
+  screen.findByText(
+    (_, node) => node?.tagName === "P" && node.textContent === `Kamu masuk sebagai ${email}`,
+  );
+
 async function openCodeStep(path = "/masuk/kode") {
   setPendingEmail("wali@example.test");
   const router = open(path);
@@ -46,7 +52,7 @@ describe("the code step", () => {
     await user.paste("482 918");
 
     await waitFor(() => expect(router.state.location.href).toBe("/?dari=profil"));
-    expect(await screen.findByText("wali@example.test")).toBeVisible();
+    expect(await signedInAs("wali@example.test")).toBeVisible();
     expect(calls.filter((call) => call.path === "/sign-in/email-otp")).toEqual([
       { path: "/sign-in/email-otp", body: { email: "wali@example.test", otp: "482918" } },
     ]);
@@ -61,7 +67,7 @@ describe("the code step", () => {
     const { router, code } = await openCodeStep("/masuk/kode?lanjut=%2F%3Fdari%3Dprofil");
     await userEvent.setup().type(code, "482918");
     await waitFor(() => expect(router.state.location.href).toBe("/?dari=profil"));
-    expect(await screen.findByText(ACCOUNT.email)).toBeVisible();
+    expect(await signedInAs(ACCOUNT.email)).toBeVisible();
   });
 
   it("sends a right code pasted over a wrong one", async () => {
