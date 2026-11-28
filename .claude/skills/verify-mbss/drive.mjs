@@ -221,11 +221,12 @@ for (const [n, step] of args.entries()) {
       // Playwright matches a route by the identity of its predicate, so it is
       // named and reused rather than written out twice.
       const matches = (url) => url.href.includes(rest);
+      // The flag, not `unroute`, is what makes it happen once: unrouting from
+      // inside the handler takes the route out from under the abort.
       let dropped = false;
       await page.route(matches, async (route) => {
         if (dropped) return route.continue();
         dropped = true;
-        await page.unroute(matches);
         await route.fetch().catch(() => undefined);
         await route.abort("connectionfailed");
         log(`  dropped the answer to ${rest}`);
