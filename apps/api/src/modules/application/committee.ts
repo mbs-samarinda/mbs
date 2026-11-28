@@ -12,6 +12,7 @@ import {
   type CommitteeDashboard,
   type HistoryItem,
   type ListApplicationsInput,
+  VIEWED_ACTION,
   type SchoolKey,
 } from "@mbs/api-contract";
 import type { Database } from "@mbs/db";
@@ -36,8 +37,6 @@ import { isEndStage, needsCommittee } from "./stages.ts";
 
 // Reads answer NOT_FOUND for another school's application, never FORBIDDEN, so
 // a staff member cannot learn which ids exist elsewhere.
-
-export const VIEWED_ACTION = "application.viewed";
 
 const RECENT_ACTIVITY = 5;
 
