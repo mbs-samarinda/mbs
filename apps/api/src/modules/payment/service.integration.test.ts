@@ -314,6 +314,8 @@ describe("the committee deciding", () => {
 
     expect(open.url).toContain("?get");
     expect(open.canDecide).toBe(true);
+    // A proof always counts itself, whatever precision its stored time has.
+    expect(open.attempt).toBe(1);
     const viewed = await db
       .select()
       .from(schema.auditLogs)
@@ -401,6 +403,8 @@ describe("the committee deciding", () => {
     });
     const queue = await payment.listProofQueue(db, staff, { page: 1 });
     expect(queue.rows[0]).toMatchObject({ attempt: 2 });
+    const opened = await payment.openProof(db, files, staff, queue.rows[0]!.paymentId, {});
+    expect(opened.attempt).toBe(2);
   });
 
   it("tells the second of two staff that the proof was already handled", async () => {

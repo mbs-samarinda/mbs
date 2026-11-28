@@ -40,8 +40,9 @@ function Desk() {
   const rows = queue.data?.pages.flatMap((page) => page.rows) ?? [];
   const total = queue.data?.pages[0]?.total ?? 0;
   // A proof named in the address bar wins, so the desk stays where it was told
-  // to be. Otherwise the longest wait is next.
-  const open = rows.find((row) => row.paymentId === bukti) ?? rows[0];
+  // to be, even when it sits past the pages the queue has loaded. Otherwise the
+  // longest wait is next.
+  const open = bukti ?? rows[0]?.paymentId;
 
   return (
     <div className="grid min-w-0 content-start">
@@ -67,11 +68,11 @@ function Desk() {
           <Queue
             rows={rows}
             total={total}
-            openId={open.paymentId}
+            openId={open}
             more={queue.hasNextPage ? () => void queue.fetchNextPage() : null}
             loading={queue.isFetchingNextPage}
           />
-          <Pane key={open.paymentId} paymentId={open.paymentId} />
+          <Pane key={open} paymentId={open} />
         </div>
       )}
     </div>
@@ -169,9 +170,24 @@ function Queue({
  * photos and long phone screenshots.
  */
 function Pane({ paymentId }: { paymentId: string }) {
-  const { data: proof, isPending } = useQuery(proofQuery(paymentId));
+  const { data: proof, isPending, isError } = useQuery(proofQuery(paymentId));
   const [shown, setShown] = useState(false);
 
+  // A link to a proof that was decided, or never existed, lands here.
+  if (isError) {
+    return (
+      <div className="grid justify-items-start gap-3 p-[min(2rem,5vw)]">
+        <Notice>Bukti ini tidak ada lagi. Mungkin staf lain sudah menanganinya.</Notice>
+        <Link
+          to="/pembayaran"
+          search={{}}
+          className="text-sm font-medium underline underline-offset-4"
+        >
+          Buka bukti yang menunggu
+        </Link>
+      </div>
+    );
+  }
   if (isPending || !proof) {
     return <div className="p-[min(2rem,5vw)] text-sm text-muted-foreground">Memuat bukti…</div>;
   }

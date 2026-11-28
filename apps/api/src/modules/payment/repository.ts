@@ -132,19 +132,27 @@ export async function lockPaymentForReview(tx: Transaction, paymentId: string) {
   return found ?? null;
 }
 
-/** How many attempts came before this one, so the desk can say "unggahan ke-N". */
+/**
+ * Which attempt this is, so the desk can say "unggahan ke-N".
+ *
+ * The time it compares against is read inside the query. A `timestamptz` keeps
+ * microseconds and a JavaScript `Date` keeps milliseconds, so a value that went
+ * through Node would be rounded down and the row would not count itself.
+ */
 export async function countAttemptsUpTo(tx: Reader, payment: PaymentRow) {
   const [row] = await tx
-    .select({ total: count() })
+    .select({ attempt: sql<number>`count(*)::int` })
     .from(payments)
     .where(
       and(
         eq(payments.applicationId, payment.applicationId),
         eq(payments.purpose, payment.purpose),
-        lte(payments.createdAt, payment.createdAt),
+        sql`${payments.createdAt} <= (
+          select earlier.created_at from ${payments} earlier where earlier.id = ${payment.id}
+        )`,
       ),
     );
-  return row?.total ?? 1;
+  return row?.attempt ?? 1;
 }
 
 /**

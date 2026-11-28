@@ -9,12 +9,17 @@
 //   goto:<url>                    open a URL, record the HTTP status; fails on 5xx
 //   upload:<role>:<name>=<path>   give a file to the input a button opens
 //   offline:on | offline:off      cut the network and bring it back
+//   slow4g:on | slow4g:off        throttle to a phone on a bad signal. Turn it
+//                                 on after the page has loaded, or a dev
+//                                 server's module graph alone takes minutes
 //   abort:<substring>             drop the next response whose URL contains it,
 //                                 once, after it reached the server
 //   click:<role>:<name>           click the first matching element
 //   tryclick:<role>:<name>        click it if it shows within 5s, else go on
 //                                 (for popups that come only sometimes)
 //   fill:<role>:<name>=<value>    type into a textbox, searchbox or combobox
+//   code:<role>:<name>=<address>  type the newest sign-in code Mailpit holds for
+//                                 that address (needs --mail)
 //   select:<role>:<name>=<label>  choose an option of a native select
 //   press:<key>                   press a key on the page (Enter, Escape, /)
 //   see:<role>:<name>             wait until such an element is visible
@@ -26,7 +31,7 @@
 //                                 app, its overlay and what the page itself threw
 //                                 or printed since the last goto
 //
-// --slow4g throttles the browser's network to a phone on a bad signal.
+// --mail <url> is Mailpit's web address, for the `code` step.
 // --video <dir> records the whole run as a .webm there.
 // --state loads and saves cookies, so a CMS login survives between runs.
 // Everything printed to the console or failing over the network goes to
@@ -58,7 +63,7 @@ const state = flag("--state");
 const mobile = args.includes("--mobile") && args.splice(args.indexOf("--mobile"), 1);
 const width = flag("--width");
 const video = flag("--video");
-const slow4g = args.includes("--slow4g") && args.splice(args.indexOf("--slow4g"), 1);
+const mail = flag("--mail");
 const dark = args.includes("--dark") && args.splice(args.indexOf("--dark"), 1);
 if (!out || args.length === 0) {
   console.error(
@@ -94,19 +99,19 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
-// Chrome DevTools Protocol, because Playwright's own throttling covers routes
-// it intercepts only. The numbers are Chrome's own "Slow 4G" preset.
-if (slow4g) {
-  const cdp = await context.newCDPSession(page);
+// Chrome DevTools Protocol, because Playwright's own throttling covers only
+// the routes it intercepts. The numbers are Chrome's own "Slow 4G" preset.
+let cdp;
+const throttle = async (on) => {
+  cdp ??= await context.newCDPSession(page);
   await cdp.send("Network.enable");
   await cdp.send("Network.emulateNetworkConditions", {
     offline: false,
-    latency: 400,
-    downloadThroughput: (400 * 1024) / 8,
-    uploadThroughput: (400 * 1024) / 8,
+    latency: on ? 400 : 0,
+    downloadThroughput: on ? (400 * 1024) / 8 : -1,
+    uploadThroughput: on ? (400 * 1024) / 8 : -1,
   });
-  log("  throttled to Slow 4G");
-}
+};
 // The page's own errors since the last goto. Chromium also prints one for every
 // 4xx and dropped request; those are logged below and are often the point.
 let pageErrors = [];
@@ -208,6 +213,9 @@ for (const [n, step] of args.entries()) {
       ]);
       await chooser.setFiles(file);
       log(`  gave ${file}`);
+    } else if (cmd === "slow4g") {
+      await throttle(rest === "on");
+      log(`  Slow 4G ${rest}`);
     } else if (cmd === "offline") {
       await context.setOffline(rest === "on");
       log(`  network ${rest === "on" ? "cut" : "back"}`);
@@ -236,6 +244,17 @@ for (const [n, step] of args.entries()) {
     else if (cmd === "fill") {
       const [target, value] = split(rest, "=");
       await byRole(target).fill(value);
+    } else if (cmd === "code") {
+      const [target, address] = split(rest, "=");
+      // Read after the request, never before: asking for a code ends the one
+      // before it, so a code fetched earlier is already dead.
+      if (!mail) throw new Error("the code step needs --mail <mailpit url>");
+      const { messages } = await fetch(`${mail}/api/v1/messages?limit=200`).then((r) => r.json());
+      const newest = messages.find((m) => m.To.some((t) => t.Address === address));
+      const digits = newest && /\b(\d{6})\b/.exec(newest.Subject)?.[1];
+      if (!digits) throw new Error(`no sign-in code for ${address} in Mailpit`);
+      log(`  code ${digits}`);
+      await byRole(target).fill(digits);
     } else if (cmd === "select") {
       const [target, label] = split(rest, "=");
       await byRole(target).selectOption({ label });
