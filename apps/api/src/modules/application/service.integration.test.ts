@@ -706,7 +706,7 @@ describe("family emails", () => {
       [upload.event.id, "family-1@example.test", "payment-received"],
       [upload.event.id, "family-2@example.test", "payment-received"],
     ]);
-    expect(emails[0]).toMatchObject({ status: "PENDING", channel: "EMAIL", templateVersion: 2 });
+    expect(emails[0]).toMatchObject({ status: "PENDING", channel: "EMAIL", templateVersion: 3 });
     expect(emails[0]?.subject).toContain(application.registrationNumber);
     expect(emails[0]?.bodyText).toContain("Aisyah Putri");
     expect(emails[0]?.bodyHtml).toContain("http://localhost:5173");
