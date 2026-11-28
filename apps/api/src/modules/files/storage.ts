@@ -18,8 +18,10 @@ export function createStorage(config: Config["storage"]): Storage {
   const client = new S3Client({
     region: config.region,
     endpoint: config.endpoint,
-    // MinIO and most S3-compatible buckets serve the bucket as a path, not as
-    // a subdomain of the endpoint.
+    // The bucket is a path, not a subdomain of the endpoint. Both apps allow
+    // this endpoint's origin in their Content-Security-Policy, and a bucket
+    // subdomain would not match it, so every upload would be refused by the
+    // browser before it left.
     forcePathStyle: true,
     // Without this the SDK adds a CRC32 header of its own to every signed PUT,
     // which the browser never sends, so the bucket refuses the upload.

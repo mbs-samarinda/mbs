@@ -153,6 +153,16 @@ for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET CMS_READ_T
   fi
 done
 
+# Both apps put S3_ENDPOINT in their Content-Security-Policy. A CSP source with
+# a path matches that path and nothing under it, so an endpoint carrying one
+# would pass every check here and then block every upload in the browser. Only
+# when this run deploys the apps: the way back leaves them alone.
+if ((${#apps[@]} > 0)) && [[ ! $S3_ENDPOINT =~ ^https?://[^/]+/?$ ]]; then
+  echo "S3_ENDPOINT must be a bare origin such as https://nos.jkt-1.neo.id, not $S3_ENDPOINT" >&2
+  echo "The apps' Content-Security-Policy uses it as an origin; a path there blocks every upload." >&2
+  exit 1
+fi
+
 log "Checking the Caddyfile"
 # The release unpacks this file into $ROOT before this script runs, and Caddy
 # reads it through a single-file bind mount. tar writes a new file rather than

@@ -172,9 +172,14 @@ const nextErrors = async () => {
   log("  next dev reports no errors");
 };
 
-// Vite has no report to ask. Its overlay holds a build error; the rest is what the
-// page did. There is no Next there to ask, so which of the two this is comes first.
-const viteErrors = async () => {
+// Everything that is not `next dev`: a Vite app in dev, and a built app behind
+// its own Caddy, which has neither a report to ask nor an overlay. The overlay
+// holds a build error where there is one; the rest is what the page did.
+const pageProblems = async () => {
+  // Without this an `errors` step before any `goto` reports a clean blank page.
+  if (new URL(page.url()).protocol === "about:") {
+    throw new Error("no page is open; goto one first");
+  }
   const overlay = await page
     .locator("vite-error-overlay .message")
     .allTextContents()
@@ -184,7 +189,10 @@ const viteErrors = async () => {
   if (lines.length > 0) throw new Error(`the page has ${lines.length} error(s)`);
   log("  no Vite overlay and no page errors");
 };
-const servedByVite = () => page.locator('script[src="/@vite/client"]').count();
+// `next dev` is the only thing with a report to ask, so it is what is looked
+// for. Asking "is this Vite?" instead made a production build, which carries no
+// Vite client either, fall through to Next and fail on its 405.
+const servedByNextDev = () => page.locator('script[src^="/_next/"]').count();
 
 const byRole = (spec) => {
   const [role, name] = split(spec, ":");
@@ -265,7 +273,7 @@ for (const [n, step] of args.entries()) {
       writeFileSync(join(out, `${rest}.aria.txt`), await page.locator("body").ariaSnapshot());
       writeFileSync(join(out, `${rest}.url`), `${page.url()}\n`);
       log(`  saved ${rest}.png ${rest}.aria.txt`);
-    } else if (cmd === "errors") await ((await servedByVite()) ? viteErrors() : nextErrors());
+    } else if (cmd === "errors") await ((await servedByNextDev()) ? nextErrors() : pageProblems());
     else throw new Error(`unknown step "${cmd}"`);
   } catch (error) {
     log(`  FAILED ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);

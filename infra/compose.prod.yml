@@ -224,6 +224,11 @@ services:
   admission:
     image: ${ADMISSION_IMAGE:-ghcr.io/mbs-samarinda/mbs-admission:not-deployed-yet}
     restart: unless-stopped
+    environment:
+      # The bucket's origin, for this app's Content-Security-Policy. It is the
+      # endpoint the API signs with, not a value of its own, so the policy and
+      # the URLs it has to allow can never drift apart.
+      S3_PUBLIC_ORIGIN: ${S3_ENDPOINT:?set S3_ENDPOINT}
     healthcheck: &app-health
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
       interval: 5s
@@ -234,6 +239,8 @@ services:
   admin:
     image: ${ADMIN_IMAGE:-ghcr.io/mbs-samarinda/mbs-admin:not-deployed-yet}
     restart: unless-stopped
+    environment:
+      S3_PUBLIC_ORIGIN: ${S3_ENDPOINT:?set S3_ENDPOINT}
     healthcheck: *app-health
     oom_score_adj: 200
 
