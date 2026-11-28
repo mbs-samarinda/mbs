@@ -25,6 +25,8 @@ export const PaymentAttempt = z.object({
   id: z.uuid(),
   sentAt: At,
   file: ProofFile,
+  /** Signed and short-lived, so the family can see what it sent. Its own file. */
+  url: z.url(),
   decision: PaymentDecision.nullable(),
   /** Written by the committee for the family to read. Only on a rejection. */
   reason: z.string().nullable(),

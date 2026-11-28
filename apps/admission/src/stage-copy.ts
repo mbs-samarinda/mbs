@@ -35,20 +35,16 @@ const WAIT = "Kamu tidak perlu melakukan apa-apa dulu. Kami kabari lewat email."
 export const STAGE_COPY: Record<FamilyStage, StageCopy> = {
   PAYMENT_DUE: {
     turn: "FAMILY",
-    title: "Menunggu pembayaran",
+    title: "Bayar biaya pendaftaran",
     at: "PAYMENT",
-    next: (application) => {
-      if (sentBack(application, "REJECT_PAYMENT")) {
-        return "Bukti transfer perlu diunggah ulang. Tempat mengunggahnya akan muncul di halaman ini. Jangan transfer lagi.";
-      }
-      return application.registrationFee === 0
-        ? "Tidak ada biaya pendaftaran. Langkah berikutnya akan muncul di halaman ini."
-        : `Biaya pendaftaran ${formatFee(application.registrationFee)}. Rekening tujuan akan muncul di halaman ini. Jangan transfer dulu.`;
-    },
+    next: (application) =>
+      sentBack(application, "REJECT_PAYMENT")
+        ? "Bukti transfer kamu belum bisa dikonfirmasi. Baca catatan panitia, lalu unggah bukti lagi."
+        : `Biaya pendaftaran ${formatFee(application.registrationFee)}. Transfer ke rekening sekolah, lalu unggah buktinya.`,
   },
   PAYMENT_REVIEW: {
     turn: "COMMITTEE",
-    title: "Panitia memeriksa pembayaran",
+    title: "Panitia memeriksa bukti transfer",
     at: "PAYMENT",
     next: () => WAIT,
   },

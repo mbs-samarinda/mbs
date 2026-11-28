@@ -9,7 +9,8 @@ import {
 } from "./service.ts";
 
 export const getPaymentPageProcedure = familyProcedure.applicant.payments.get.handler(
-  ({ input, context }) => loadPaymentPage(context.db, context.family, input.applicationId),
+  ({ input, context }) =>
+    loadPaymentPage(context.db, context.files, context.family, input.applicationId),
 );
 
 export const beginProofUploadProcedure = familyProcedure.applicant.payments.beginUpload.handler(

@@ -261,7 +261,7 @@ describe("the check", () => {
     await heading("Periksa sebelum dikirim");
     await userEvent.setup().dblClick(screen.getByRole("button", { name: "Kirim pendaftaran" }));
 
-    expect(await screen.findByRole("heading", { name: "Menunggu pembayaran" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Bayar biaya pendaftaran" })).toBeVisible();
     const sent = calls.filter(({ path }) => path === SUBMIT);
     expect(sent.map(({ body }) => body)).toEqual([
       {
@@ -296,7 +296,7 @@ describe("the check", () => {
     await userEvent.setup().click(await screen.findByRole("link", { name: /Belum dikirim/ }));
     await heading("Periksa sebelum dikirim");
     await press("Kirim pendaftaran");
-    await screen.findByRole("heading", { name: "Menunggu pembayaran" });
+    await screen.findByRole("heading", { name: "Bayar biaya pendaftaran" });
     await waitFor(() => expect(localStorage.getItem("mbs:draft")).toBeNull());
     const seen = new Set<string | null>();
     const watch = new MutationObserver(() =>
@@ -423,7 +423,7 @@ describe("the check", () => {
       .click(await screen.findByRole("link", { name: /Belum pasti terkirim/ }));
     await heading("Periksa sebelum dikirim");
     await press("Kirim pendaftaran");
-    expect(await screen.findByRole("heading", { name: "Menunggu pembayaran" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Bayar biaya pendaftaran" })).toBeVisible();
 
     const lost = calls.find(({ path }) => path === SUBMIT);
     const replayed = closed.find(({ path }) => path === SUBMIT);
@@ -485,7 +485,7 @@ describe("the check", () => {
     await screen.findByText(/tidak akan tercatat dua kali/);
     editDraft(ACCOUNT.id, { childFullName: "Rafif" });
     await press("Kirim pendaftaran");
-    await screen.findByRole("heading", { name: "Menunggu pembayaran" });
+    await screen.findByRole("heading", { name: "Bayar biaya pendaftaran" });
     expect(calls.findLast(({ path }) => path === SUBMIT)?.body).toMatchObject({
       idempotencyKey: key,
       profile: { childFullName: "Rafif" },
@@ -598,7 +598,7 @@ describe("home", () => {
     open("/");
     const rows = await screen.findAllByRole("listitem");
     expect(rows.map((row) => row.textContent)).toEqual([
-      "Aisyah PutriSMP Islam Terpadu MadinaMenunggu pembayaran · Giliran kamu",
+      "Aisyah PutriSMP Islam Terpadu MadinaBayar biaya pendaftaran · Giliran kamu",
       "UmarSMA Madina Citra InsaniPanitia memeriksa dokumen · Giliran panitia",
       "ZahraSMP Islam Terpadu MadinaResmi terdaftar",
     ]);
@@ -748,7 +748,7 @@ describe("the status page", () => {
     });
     open(`/status/${APPLICATION_ID}`);
     await heading("Aisyah Putri");
-    expect(screen.getByText(/Jangan transfer lagi/)).toBeVisible();
+    expect(screen.getByText(/Baca catatan panitia, lalu unggah bukti lagi/)).toBeVisible();
     expect(screen.getAllByText("Catatan panitia: Nominal buram.")).toHaveLength(2);
   });
 
@@ -794,10 +794,10 @@ describe("the status page", () => {
       ],
     });
     open(`/status/${APPLICATION_ID}`);
-    await screen.findByRole("heading", { name: "Menunggu pembayaran" });
+    await screen.findByRole("heading", { name: "Bayar biaya pendaftaran" });
     document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
     expect(
-      await screen.findByRole("heading", { name: "Panitia memeriksa pembayaran" }),
+      await screen.findByRole("heading", { name: "Panitia memeriksa bukti transfer" }),
     ).toBeVisible();
   });
 

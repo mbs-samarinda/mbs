@@ -45,6 +45,7 @@ export async function listAttempts(tx: Reader, applicationId: string) {
       id: payments.id,
       amountDue: payments.amountDue,
       sentAt: payments.createdAt,
+      objectKey: files.objectKey,
       contentType: files.contentType,
       byteSize: files.byteSize,
       decision: paymentReviews.decision,

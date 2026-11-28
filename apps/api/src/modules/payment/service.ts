@@ -44,6 +44,7 @@ const PURPOSE = "REGISTRATION";
 
 export async function loadPaymentPage(
   db: Database,
+  files: Files,
   family: { userId: string },
   applicationId: string,
 ): Promise<PaymentPage> {
@@ -69,13 +70,16 @@ export async function loadPaymentPage(
     stage: familyStage(application.stage),
     amountDue: application.registrationFee,
     account,
-    attempts: attempts.toReversed().map((attempt) => ({
-      id: attempt.id,
-      sentAt: attempt.sentAt.toISOString(),
-      file: ProofFile.parse({ contentType: attempt.contentType, byteSize: attempt.byteSize }),
-      decision: attempt.decision,
-      reason: attempt.reason,
-    })),
+    attempts: await Promise.all(
+      attempts.toReversed().map(async (attempt) => ({
+        id: attempt.id,
+        sentAt: attempt.sentAt.toISOString(),
+        file: ProofFile.parse({ contentType: attempt.contentType, byteSize: attempt.byteSize }),
+        url: await files.signDownload(attempt),
+        decision: attempt.decision,
+        reason: attempt.reason,
+      })),
+    ),
   };
 }
 

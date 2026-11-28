@@ -2,12 +2,16 @@ import { ORPCError } from "@mbs/api-client/rpc";
 import type { FamilyApplication } from "@mbs/api-contract";
 import { finishedMilestones } from "@mbs/school-config";
 import { formatDateTime } from "@mbs/school-config/format";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { buttonVariants } from "@mbs/ui/components/button";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeftIcon } from "lucide-react";
+import { cn } from "cn";
+import { ArrowLeftIcon, FileTextIcon } from "lucide-react";
+import { useState } from "react";
 
-import { applicationQuery } from "../api.ts";
+import { applicationQuery, paymentQuery } from "../api.ts";
 import { useDraft } from "../draft.ts";
+import { formatBytes } from "../format.ts";
 import { EVENT_TITLES, newestMove, STAGE_COPY, TURNS } from "../stage-copy.ts";
 import { ApplicationHeader, NextStep, Road } from "../status-parts.tsx";
 
@@ -60,6 +64,18 @@ function Status() {
       <NextStep turn={TURNS[turn]} title={title}>
         <p className="text-pretty">{next(application)}</p>
         {newest?.reason && <Reason>{newest.reason}</Reason>}
+        {application.stage === "PAYMENT_DUE" && (
+          <Link
+            to="/bayar/$applicationId"
+            params={{ applicationId }}
+            className={cn(buttonVariants({ size: "touch" }), "mt-3 w-full justify-center")}
+          >
+            Bayar
+          </Link>
+        )}
+        {application.stage === "PAYMENT_REVIEW" && (
+          <SentProof accountId={account.id} applicationId={applicationId} />
+        )}
       </NextStep>
       <Road
         stage={application.stage}
@@ -69,6 +85,43 @@ function Status() {
       />
       <History events={application.events} />
     </>
+  );
+}
+
+/** What the family sent, so "panitia memeriksa" names a file and not a mystery. */
+function SentProof({ accountId, applicationId }: { accountId: string; applicationId: string }) {
+  const { data } = useQuery(paymentQuery(accountId, applicationId));
+  const [failed, setFailed] = useState(false);
+  const attempt = data?.attempts[0];
+  if (!attempt) return null;
+
+  const caption = `Dikirim ${formatDateTime(attempt.sentAt)}`;
+  const image = attempt.file.contentType.startsWith("image/") && !failed;
+  return (
+    <div className="mt-2 grid min-w-0 gap-2">
+      {image ? (
+        <div className="flex min-w-0 items-center gap-3">
+          <img
+            src={attempt.url}
+            alt="Bukti transfer yang kamu kirim"
+            onError={() => setFailed(true)}
+            className="h-20 w-16 shrink-0 rounded-lg border border-border bg-white object-contain"
+          />
+          <p className="min-w-0 text-sm text-muted-foreground">{caption}</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex min-w-0 items-center gap-3 rounded-lg border border-border px-3 py-2.5">
+            <FileTextIcon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">Bukti transfer</span>
+            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+              {formatBytes(attempt.file.byteSize)}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">{caption}</p>
+        </>
+      )}
+    </div>
   );
 }
 

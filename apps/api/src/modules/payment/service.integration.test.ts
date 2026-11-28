@@ -164,7 +164,7 @@ describe("a family paying", () => {
   it("shows the fee it registered with and the cycle's account", async () => {
     const application = await register();
 
-    const page = await payment.loadPaymentPage(db, { userId: "family-1" }, application.id);
+    const page = await payment.loadPaymentPage(db, files, { userId: "family-1" }, application.id);
 
     expect(page).toMatchObject({
       amountDue: FEE,
@@ -182,7 +182,7 @@ describe("a family paying", () => {
     const application = await register();
 
     await expect(
-      payment.loadPaymentPage(db, { userId: "family-2" }, application.id),
+      payment.loadPaymentPage(db, files, { userId: "family-2" }, application.id),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
@@ -204,7 +204,7 @@ describe("a family paying", () => {
 
     await upload(application.id);
 
-    const page = await payment.loadPaymentPage(db, { userId: "family-1" }, application.id);
+    const page = await payment.loadPaymentPage(db, files, { userId: "family-1" }, application.id);
     expect(page.stage).toBe("PAYMENT_REVIEW");
     expect(page.attempts).toHaveLength(1);
     expect(page.attempts[0]).toMatchObject({
@@ -365,7 +365,7 @@ describe("the committee deciding", () => {
       OUTBOX,
     );
 
-    const page = await payment.loadPaymentPage(db, { userId: "family-1" }, application.id);
+    const page = await payment.loadPaymentPage(db, files, { userId: "family-1" }, application.id);
     expect(page.stage).toBe("DOCUMENTS_DUE");
     expect(page.attempts[0]).toMatchObject({ decision: "APPROVED", reason: null });
     expect(await payment.listProofQueue(db, staff, { page: 1 })).toMatchObject({ total: 0 });
@@ -390,7 +390,7 @@ describe("the committee deciding", () => {
 
     await upload(application.id);
 
-    const page = await payment.loadPaymentPage(db, { userId: "family-1" }, application.id);
+    const page = await payment.loadPaymentPage(db, files, { userId: "family-1" }, application.id);
     expect(page.stage).toBe("PAYMENT_REVIEW");
     expect(page.attempts).toHaveLength(2);
     expect(page.attempts[0]).toMatchObject({ decision: null });
