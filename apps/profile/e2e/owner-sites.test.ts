@@ -51,9 +51,14 @@ test.describe("on a phone", () => {
   test("every page in a school's menu renders", async ({ page }) => {
     test.slow();
     await page.goto("/");
-    await page.getByRole("button", { name: "Menu" }).click();
-    const hrefs = await page
-      .getByRole("navigation", { name: "Halaman" })
+    const menu = page.getByRole("navigation", { name: "Halaman" });
+    // A tap before the page hydrates does nothing, and the list only exists
+    // while the sheet is open, so tap until it opens.
+    await expect(async () => {
+      await page.getByRole("button", { name: "Menu" }).click({ timeout: 1000 });
+      await expect(menu).toBeVisible({ timeout: 1000 });
+    }).toPass();
+    const hrefs = await menu
       .locator("a")
       .evaluateAll((links) => [...new Set(links.map((link) => link.getAttribute("href") ?? ""))]);
     // An editor can link anywhere; only this site's own pages are under test.
