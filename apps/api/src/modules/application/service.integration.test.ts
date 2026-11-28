@@ -128,6 +128,19 @@ async function eventsOf(applicationId: string) {
 }
 
 describe("submitApplication", () => {
+  it("skips the payment step where the school charges nothing", async () => {
+    const [smp] = await db.select().from(schema.schools).where(eq(schema.schools.key, "smp"));
+    await db
+      .insert(schema.schoolAdmissionSettings)
+      .values({ admissionCycleId: cycleId, schoolId: smp!.id, feeOverride: 0 });
+
+    const { application } = await submit();
+
+    expect(application).toMatchObject({ stage: "DOCUMENTS_DUE", registrationFee: 0 });
+    const [event] = await eventsOf(application.id);
+    expect(event).toMatchObject({ command: "SUBMIT", fromStage: null, toStage: "DOCUMENTS_DUE" });
+  });
+
   it("opens the application with everything it starts with", async () => {
     const [smp] = await db.select().from(schema.schools).where(eq(schema.schools.key, "smp"));
     await db.insert(schema.documentRequirements).values([

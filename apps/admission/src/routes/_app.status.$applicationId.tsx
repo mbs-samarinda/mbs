@@ -64,7 +64,7 @@ function Status() {
       <NextStep turn={TURNS[turn]} title={title}>
         <p className="text-pretty">{next(application)}</p>
         {newest?.reason && <Reason>{newest.reason}</Reason>}
-        {application.stage === "PAYMENT_DUE" && (
+        {application.stage === "PAYMENT_DUE" && application.registrationFee > 0 && (
           <Link
             to="/bayar/$applicationId"
             params={{ applicationId }}

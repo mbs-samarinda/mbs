@@ -266,10 +266,24 @@ function Actions({
   const handled = isHandled(decide.error);
 
   async function next() {
+    // The decided proof leaves the queue here, not when the server answers.
+    // Otherwise the desk re-opens it in the frame between the decision and the
+    // refetch, and opening a proof records a staff view that nobody made.
+    queryClient.setQueryData(
+      waitingProofsQuery.queryKey,
+      (old) =>
+        old && {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            rows: page.rows.filter((row) => row.paymentId !== proof.paymentId),
+          })),
+        },
+    );
+    await navigate({ to: "/pembayaran", search: {}, replace: true });
     queryClient.removeQueries({ queryKey: ["payments", "proof", proof.paymentId] });
     await queryClient.invalidateQueries({ queryKey: ["payments", "waiting"] });
     await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    await navigate({ to: "/pembayaran", search: {}, replace: true });
   }
 
   if (proof.decided) {
