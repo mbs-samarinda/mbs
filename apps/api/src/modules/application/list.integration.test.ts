@@ -448,7 +448,54 @@ describe("one application for the committee", () => {
       metadata: null,
     });
   });
+
+  it("folds a staff member's views into one a day, and leaves every other row alone", async () => {
+    const id = await register("smp");
+    const { cookie, staffId: sari } = await signIn("STAFF", ["smp"], "Bu Sari");
+    const { staffId: rudi } = await signIn("PRINCIPAL", ["smp"], "Pak Rudi");
+    const viewed = (actorId: string, at: string) => ({
+      actorType: "STAFF",
+      actorId,
+      action: "application.viewed",
+      entityType: "application",
+      entityId: id,
+      createdAt: new Date(at),
+    });
+    const checked = (at: string) => ({
+      actorType: "PUBLIC",
+      actorId: null,
+      action: "application.status_checked",
+      entityType: "application",
+      entityId: id,
+      createdAt: new Date(at),
+    });
+    await db.insert(schema.auditLogs).values([
+      // Samarinda is UTC+8, so Bu Sari's three morning reads, her 23:30 and Pak
+      // Rudi's read all fall on 27 November, and only 00:30 is the next day.
+      viewed(sari, "2026-11-27T01:00:00Z"),
+      viewed(sari, "2026-11-27T02:00:00Z"),
+      viewed(sari, "2026-11-27T03:00:00Z"),
+      viewed(sari, "2026-11-27T15:30:00Z"),
+      viewed(sari, "2026-11-27T16:30:00Z"),
+      viewed(rudi, "2026-11-27T02:30:00Z"),
+      checked("2026-11-27T04:00:00Z"),
+      checked("2026-11-27T05:00:00Z"),
+    ]);
+
+    const application = await detail(cookie, id);
+    expect(application.history.filter((item) => item.kind === "AUDIT")).toEqual([
+      { kind: "AUDIT", action: "application.viewed", actor: STAFF("Bu Sari"), at: AT("16:30") },
+      { kind: "AUDIT", action: "application.viewed", actor: STAFF("Bu Sari"), at: AT("15:30") },
+      { kind: "AUDIT", action: "application.status_checked", actor: PUBLIC, at: AT("05:00") },
+      { kind: "AUDIT", action: "application.status_checked", actor: PUBLIC, at: AT("04:00") },
+      { kind: "AUDIT", action: "application.viewed", actor: STAFF("Pak Rudi"), at: AT("02:30") },
+    ]);
+  });
 });
+
+const STAFF = (name: string) => ({ type: "STAFF", name });
+const PUBLIC = { type: "PUBLIC" };
+const AT = (time: string) => `2026-11-27T${time}:00.000Z`;
 
 describe("notes", () => {
   it("lets a principal read but not write a note", async () => {

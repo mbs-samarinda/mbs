@@ -38,8 +38,10 @@ export const AuditActor = z.discriminatedUnion("type", [
 ]);
 export type AuditActor = z.infer<typeof AuditActor>;
 
+export const VIEWED_ACTION = "application.viewed";
+
 /** The audit actions an application's history shows. A row with any other action is left out. */
-export const AUDIT_ACTIONS = ["application.viewed", "application.status_checked"] as const;
+export const AUDIT_ACTIONS = [VIEWED_ACTION, "application.status_checked"] as const;
 export const AuditAction = z.enum(AUDIT_ACTIONS);
 export type AuditAction = z.infer<typeof AuditAction>;
 
@@ -144,6 +146,7 @@ export const HistoryItem = z.discriminatedUnion("kind", [
     familyVisible: z.boolean(),
     ...EventFields,
   }),
+  /** Only views fold: one per staff member per day, at their newest view that day. */
   z.object({ kind: z.literal("AUDIT"), action: AuditAction, actor: AuditActor, at: At }),
 ]);
 export type HistoryItem = z.infer<typeof HistoryItem>;

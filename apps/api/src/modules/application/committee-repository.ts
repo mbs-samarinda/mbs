@@ -1,4 +1,9 @@
-import { AUDIT_ACTIONS, type CommitteeView, type SchoolKey } from "@mbs/api-contract";
+import {
+  AUDIT_ACTIONS,
+  VIEWED_ACTION,
+  type CommitteeView,
+  type SchoolKey,
+} from "@mbs/api-contract";
 import { schema, type Database } from "@mbs/db";
 import {
   and,
@@ -314,21 +319,23 @@ export async function listEventsWithActors(db: Database, applicationId: string) 
     .orderBy(desc(applicationEvents.seq));
 }
 
+/**
+ * Newest first. The log keeps every visit, but a child opened hundreds of times
+ * would bury its own history, so a staff member's views fold into one row per
+ * day, at their newest view that day. Every other action stays one row each,
+ * grouped by its own id. The day is Samarinda's, like every other date here.
+ */
 export async function listAuditRows(db: Database, applicationId: string) {
-  return db
+  const perRow = sql`${auditLogs.id}::text`;
+  const perDay = sql`(${auditLogs.createdAt} at time zone 'Asia/Makassar')::date::text`;
+  const folded = db
     .select({
       action: auditLogs.action,
       actorType: auditLogs.actorType,
-      staffName: staffUsers.name,
-      familyHasAccess: sql<boolean>`exists (
-        select 1 from ${applicationAccess}
-        where ${applicationAccess.applicationId} = ${applicationId}
-          and ${applicationAccess.userId} = ${auditLogs.actorId}
-      )`,
-      createdAt: auditLogs.createdAt,
+      actorId: auditLogs.actorId,
+      createdAt: sql`max(${auditLogs.createdAt})`.mapWith(auditLogs.createdAt).as("folded_at"),
     })
     .from(auditLogs)
-    .leftJoin(staffUsers, staffActor(auditLogs.actorType, auditLogs.actorId))
     .where(
       and(
         eq(auditLogs.entityType, "application"),
@@ -336,5 +343,27 @@ export async function listAuditRows(db: Database, applicationId: string) {
         inArray(auditLogs.action, [...AUDIT_ACTIONS]),
       ),
     )
-    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id));
+    .groupBy(
+      auditLogs.action,
+      auditLogs.actorType,
+      auditLogs.actorId,
+      sql`case when ${auditLogs.action} = ${VIEWED_ACTION} then ${perDay} else ${perRow} end`,
+    )
+    .as("folded");
+
+  return db
+    .select({
+      action: folded.action,
+      actorType: folded.actorType,
+      staffName: staffUsers.name,
+      familyHasAccess: sql<boolean>`exists (
+        select 1 from ${applicationAccess}
+        where ${applicationAccess.applicationId} = ${applicationId}
+          and ${applicationAccess.userId} = ${folded.actorId}
+      )`,
+      createdAt: folded.createdAt,
+    })
+    .from(folded)
+    .leftJoin(staffUsers, staffActor(folded.actorType, folded.actorId))
+    .orderBy(desc(folded.createdAt), desc(folded.actorId));
 }
