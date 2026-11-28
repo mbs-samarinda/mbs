@@ -11,6 +11,9 @@ const HISTORY_TABLES = [
   schema.applicationDocumentRequirements,
   schema.notificationAttempts,
   schema.schoolAgreementVersions,
+  schema.files,
+  schema.payments,
+  schema.paymentReviews,
 ].map((table) => getTableName(table));
 
 const db = createDatabase(

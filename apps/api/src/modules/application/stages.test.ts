@@ -182,3 +182,20 @@ describe("COMMITTEE_STAGES", () => {
     );
   });
 });
+
+describe("a school that charges nothing", () => {
+  it("sends a new application straight to documents", () => {
+    expect(transition(null, "SUBMIT", "FAMILY", null, 0)).toMatchObject({
+      ok: true,
+      to: "DOCUMENTS_DUE",
+    });
+  });
+
+  it("keeps the payment step wherever there is a fee", () => {
+    expect(transition(null, "SUBMIT", "FAMILY", null, 150_000)).toMatchObject({
+      ok: true,
+      to: "PAYMENT_DUE",
+    });
+    expect(transition(null, "SUBMIT", "FAMILY")).toMatchObject({ ok: true, to: "PAYMENT_DUE" });
+  });
+});
