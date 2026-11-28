@@ -1,7 +1,7 @@
 import { fetchAccount } from "@mbs/api-client/auth";
 import { createApiClient, ORPCError } from "@mbs/api-client/rpc";
 import type { ListApplicationsInput, SchoolKey } from "@mbs/api-contract";
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 export const api = createApiClient();
 
@@ -96,3 +96,25 @@ function isIssue(value: unknown): value is Issue {
     typeof value.message === "string"
   );
 }
+
+export const waitingProofsQuery = infiniteQueryOptions({
+  queryKey: ["payments", "waiting"],
+  queryFn: ({ pageParam }) => api.staff.payments.listWaiting({ page: pageParam }),
+  initialPageParam: 1,
+  getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
+});
+
+/**
+ * Asking for a proof records that a staff member looked at a family's file, so
+ * this must never run on a hover, a refocus or a remount. The signed URL in the
+ * answer lasts minutes; the desk asks again when it goes stale.
+ */
+export const proofQuery = (paymentId: string) =>
+  queryOptions({
+    queryKey: ["payments", "proof", paymentId],
+    queryFn: () => api.staff.payments.get({ paymentId }),
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
