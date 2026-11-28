@@ -142,11 +142,11 @@ function Account({ payment }: { payment: PaymentPage }) {
       <CopyRow label="Nomor rekening" shown={accountNumber} copied={digitsOnly(accountNumber)} />
       <div className="grid gap-0.5 border-b border-border/70 py-2.5 last:border-b-0">
         <p className="text-xs text-muted-foreground">Bank</p>
-        <p className="font-medium">{bankName}</p>
+        <p className="font-medium wrap-anywhere">{bankName}</p>
       </div>
       <div className="grid gap-0.5 py-2.5">
         <p className="text-xs text-muted-foreground">Atas nama</p>
-        <p className="font-medium text-pretty">{accountHolder}</p>
+        <p className="font-medium text-pretty wrap-anywhere">{accountHolder}</p>
       </div>
     </div>
   );

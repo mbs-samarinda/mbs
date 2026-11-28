@@ -309,7 +309,10 @@ function Actions({
               setKey(crypto.randomUUID());
             }}
             placeholder="Contoh: Nominalnya kurang Rp50.000. Transfer kekurangannya, lalu unggah bukti yang baru."
-            className="field-sizing-content min-h-20 resize-none"
+            // It grows with the text, but only so far: a reason near the
+            // 2000 the contract allows pushed its own "Tolak bukti" button
+            // off the screen.
+            className="field-sizing-content max-h-48 min-h-20 resize-none overflow-y-auto"
           />
         </div>
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

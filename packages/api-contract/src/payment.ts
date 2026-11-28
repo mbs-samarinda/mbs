@@ -2,7 +2,7 @@ import { PAYMENT_DECISIONS, PROOF_CONTENT_TYPES } from "@mbs/school-config";
 import { z } from "zod";
 
 import { COMMAND_PAYLOADS, FamilyStage } from "./application.ts";
-import { BankAccount, SchoolKey } from "./schemas.ts";
+import { SchoolKey } from "./schemas.ts";
 
 const At = z.iso.datetime();
 
@@ -27,6 +27,17 @@ export const PaymentAttempt = z.object({
 });
 export type PaymentAttempt = z.infer<typeof PaymentAttempt>;
 
+/**
+ * The account as stored, not re-run through the form's rules. A rule that
+ * tightens later must never take a family's payment page down.
+ */
+export const StoredBankAccount = z.object({
+  bankName: z.string(),
+  accountNumber: z.string(),
+  accountHolder: z.string(),
+});
+export type StoredBankAccount = z.infer<typeof StoredBankAccount>;
+
 export const PaymentPage = z.object({
   applicationId: z.uuid(),
   childName: z.string(),
@@ -36,7 +47,7 @@ export const PaymentPage = z.object({
   /** Copied at registration, so a later fee change never moves it. */
   amountDue: z.int().nonnegative(),
   /** Null while an administrator has not filled the cycle's bank account in. */
-  account: BankAccount.nullable(),
+  account: StoredBankAccount.nullable(),
   /** Newest first. */
   attempts: z.array(PaymentAttempt),
 });
