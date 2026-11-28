@@ -24,6 +24,14 @@ const EnvSchema = z
     FAMILY_APP_URL: z.url(),
     ADMIN_APP_URL: z.url(),
 
+    // The bucket that holds receipts and documents. Bytes go browser to bucket;
+    // the API only signs the URLs.
+    S3_ENDPOINT: z.url(),
+    S3_BUCKET: z.string().min(1),
+    S3_ACCESS_KEY: z.string().min(1),
+    S3_SECRET_KEY: z.string().min(1),
+    S3_REGION: optional(z.string().min(1).default("us-east-1")),
+
     SMTP_URL: z.url({ protocol: /^smtps?$/ }),
     MAIL_FROM: z
       .string()
@@ -58,6 +66,15 @@ export type Config = {
     readonly adminAppUrl: string;
     readonly google: { readonly clientId: string; readonly clientSecret: string };
   };
+  readonly storage: {
+    readonly endpoint: string;
+    readonly region: string;
+    readonly bucket: string;
+    readonly accessKey: string;
+    readonly secretKey: string;
+    readonly uploadUrlSeconds: number;
+    readonly downloadUrlSeconds: number;
+  };
   readonly mail: {
     readonly smtpUrl: string;
     readonly from: string;
@@ -90,6 +107,18 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
         clientId: parsed.data.GOOGLE_CLIENT_ID,
         clientSecret: parsed.data.GOOGLE_CLIENT_SECRET,
       },
+    },
+    storage: {
+      endpoint: parsed.data.S3_ENDPOINT,
+      region: parsed.data.S3_REGION,
+      bucket: parsed.data.S3_BUCKET,
+      accessKey: parsed.data.S3_ACCESS_KEY,
+      secretKey: parsed.data.S3_SECRET_KEY,
+      // Long enough for a slow phone upload, short enough that a copied URL in
+      // a chat message is dead by the time anyone else opens it.
+      uploadUrlSeconds: 15 * 60,
+      // One staff member looking at one receipt.
+      downloadUrlSeconds: 5 * 60,
     },
     mail: {
       smtpUrl: parsed.data.SMTP_URL,

@@ -488,12 +488,7 @@ export const paymentReviews = pgTable(
       .references(() => applicationEvents.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  () => [
-    check(
-      "payment_reviews_reason_kept",
-      sql`(reason is not null) = (decision = 'REJECTED')`,
-    ),
-  ],
+  () => [check("payment_reviews_reason_kept", sql`(reason is not null) = (decision = 'REJECTED')`)],
 );
 
 export const notificationChannel = pgEnum("notification_channel", NOTIFICATION_CHANNELS);

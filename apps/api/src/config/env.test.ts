@@ -9,6 +9,10 @@ const valid = {
   GOOGLE_CLIENT_SECRET: "client-secret",
   FAMILY_APP_URL: "http://localhost:5173",
   ADMIN_APP_URL: "http://localhost:5174",
+  S3_ENDPOINT: "http://127.0.0.1:9000",
+  S3_BUCKET: "mbss-ppdb",
+  S3_ACCESS_KEY: "test-access-key",
+  S3_SECRET_KEY: "test-secret-key",
   SMTP_URL: "smtp://localhost:1025",
   MAIL_FROM: "PPDB MBSS <ppdb@mbss.sch.id>",
 };

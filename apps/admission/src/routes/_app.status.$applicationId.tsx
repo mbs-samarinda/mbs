@@ -61,9 +61,12 @@ function Status() {
         <p className="text-pretty">{next(application)}</p>
         {newest?.reason && <Reason>{newest.reason}</Reason>}
       </NextStep>
-      <Road stage={application.stage} finished={finishedMilestones(application.events, {
+      <Road
+        stage={application.stage}
+        finished={finishedMilestones(application.events, {
           registrationFee: application.registrationFee,
-        })} />
+        })}
+      />
       <History events={application.events} />
     </>
   );

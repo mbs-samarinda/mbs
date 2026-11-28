@@ -311,6 +311,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1023.0
+        version: 3.1023.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: 3.1023.0
+        version: 3.1023.0
       '@better-auth/drizzle-adapter':
         specifier: 1.7.27
         version: 1.7.27(@better-auth/core@1.7.27(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(@opentelemetry/api@1.9.0)(better-call@1.4.6(zod@4.6.7))(jose@6.2.11)(kysely@0.29.5)(nanostores@1.5.3))(@better-auth/utils@0.5.1)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.0)(knex@3.0.1(pg@8.20.0)(supports-color@8.1.1))(kysely@0.29.5)(pg@8.20.0)(postgres@3.4.9))
