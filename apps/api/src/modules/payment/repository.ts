@@ -2,6 +2,8 @@ import { PAYMENT_QUEUE_PAGE_SIZE } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
 import { and, asc, count, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 
+import { currentCycleId } from "../application/committee-repository.ts";
+
 type Reader = Database | Transaction;
 
 const {
@@ -153,6 +155,9 @@ export async function listWaitingProofs(tx: Reader, schoolKeys: readonly string[
   const waiting = and(
     isNull(paymentReviews.id),
     inArray(schools.key, [...schoolKeys]),
+    // The desk is this cycle's work. Last year's applications are read on
+    // their own pages, never queued for a decision again.
+    eq(applications.admissionCycleId, currentCycleId),
     eq(applications.stage, "PAYMENT_REVIEW"),
   );
 

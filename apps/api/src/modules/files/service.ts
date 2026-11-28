@@ -18,7 +18,12 @@ export type UploadRequest = {
   userId: string;
   contentType: string;
   byteSize: number;
-  /** Base64, of the bytes the browser is about to send. */
+  /**
+   * Base64, as the browser computed it. The bucket is not asked to check it: a
+   * presigned PUT signs only the length and the host, and flexible checksums
+   * are not everywhere. It is a fingerprint of what the browser believed it
+   * sent, and the size at `completeUpload` is what is actually checked.
+   */
   sha256: string;
 };
 
@@ -34,7 +39,6 @@ export function createFiles(storage: Storage, secret: string, uploadUrlSeconds: 
         key,
         contentType: request.contentType,
         byteSize: request.byteSize,
-        sha256: request.sha256,
       });
       const token = signGrant(secret, {
         key,

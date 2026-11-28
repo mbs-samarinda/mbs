@@ -239,10 +239,18 @@ function Upload({ applicationId, accountId }: { applicationId: string; accountId
       });
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["applications", accountId] });
-      await navigate({ to: "/status/$applicationId", params: { applicationId } });
+      await done();
     },
+    // The proof may have landed and only its answer been lost. Ask what the
+    // server has: if it took the proof, the page redirects instead of telling
+    // the family to try again forever.
+    onError: () => void queryClient.invalidateQueries({ queryKey: ["payments", accountId] }),
   });
+
+  async function done() {
+    await queryClient.invalidateQueries({ queryKey: ["applications", accountId] });
+    await navigate({ to: "/status/$applicationId", params: { applicationId } });
+  }
 
   async function choose(file: File | undefined) {
     if (!file) return;

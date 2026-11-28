@@ -113,7 +113,9 @@ export const proofQuery = (paymentId: string) =>
   queryOptions({
     queryKey: ["payments", "proof", paymentId],
     queryFn: () => api.staff.payments.get({ paymentId }),
-    staleTime: Infinity,
+    // Under the five minutes the signed URL lasts, so a desk left open asks
+    // again rather than showing a dead link. The new ask is an honest new view.
+    staleTime: 4 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

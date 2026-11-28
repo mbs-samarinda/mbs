@@ -30,10 +30,26 @@ export const BAD_TYPE = "BAD_TYPE";
  */
 export async function prepare(file: File): Promise<ChosenFile | typeof TOO_BIG | typeof BAD_TYPE> {
   const shrunk = (await shrink(file)) ?? file;
-  const contentType = shrunk.type || file.type;
+  // Desktop Chrome hands over a .heic with no type at all, so the name decides
+  // when the browser will not.
+  const contentType = shrunk.type || file.type || typeFromName(file.name);
   if (!isProofType(contentType)) return BAD_TYPE;
   if (shrunk.size > PROOF_MAX_BYTES) return TOO_BIG;
   return { blob: shrunk, contentType, byteSize: shrunk.size, sha256: await hash(shrunk) };
+}
+
+const BY_EXTENSION: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  pdf: "application/pdf",
+};
+
+function typeFromName(name: string) {
+  return BY_EXTENSION[name.split(".").pop()?.toLowerCase() ?? ""] ?? "";
 }
 
 function isProofType(value: string): value is ProofFile["contentType"] {
@@ -72,18 +88,15 @@ async function hash(blob: Blob) {
 }
 
 /**
- * Sends the bytes to the bucket. The headers are the ones the API signed, so
- * the bucket refuses anything else, including bytes that are not the ones that
- * were hashed.
+ * Sends the bytes to the bucket. Only the length and the host are signed into
+ * the URL, so this sends no `x-amz-*` header: an unsigned one is refused by
+ * some S3-compatible buckets and ignored by the rest.
  */
 export async function putToBucket(url: string, file: ChosenFile) {
   const response = await fetch(url, {
     method: "PUT",
     body: file.blob,
-    headers: {
-      "content-type": file.contentType,
-      "x-amz-checksum-sha256": file.sha256,
-    },
+    headers: { "content-type": file.contentType },
   });
   if (!response.ok) throw new Error(`The bucket refused the upload (${response.status}).`);
 }

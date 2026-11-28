@@ -13,8 +13,8 @@
 #   stack.sh api-on  [run] start the API again and wait for /health
 #   stack.sh mail-off [run] stop Mailpit (to see the outbox retry)
 #   stack.sh mail-on  [run] start Mailpit again, empty, on the same ports
-#   stack.sh bucket-off [run] stop MinIO (to see an upload fail)
-#   stack.sh bucket-on  [run] start MinIO again, empty, on the same port
+#   stack.sh bucket-off [run] stop the bucket (to see an upload fail)
+#   stack.sh bucket-on  [run] start the bucket again, empty, on the same port
 #   stack.sh sim [run] -- <args>  run pnpm ppdb-sim with the run's API config
 #   stack.sh down   [run]  stop what this run started, keep the evidence
 #
@@ -34,12 +34,14 @@ ADMISSION_PORT=${ADMISSION_PORT:-5173}
 ADMIN_PORT=${ADMIN_PORT:-5174}
 MAIL_SMTP_PORT=${MAIL_SMTP_PORT:-51125}
 MAIL_WEB_PORT=${MAIL_WEB_PORT:-58125}
-MINIO_PORT=${MINIO_PORT:-59000}
+BUCKET_PORT=${BUCKET_PORT:-59000}
 MAILPIT_IMAGE=axllent/mailpit:v1.34.0
-MINIO_IMAGE=minio/minio:RELEASE.2025-09-07T16-13-09Z
-MINIO_BUCKET=mbss-ppdb
-MINIO_USER=mbs_verify
-MINIO_PASSWORD=mbs_verify_secret
+# SeaweedFS, not MinIO: MinIO's community server was archived in April 2026 and
+# its images are no longer pullable. Same S3 API, same flows.
+BUCKET_IMAGE=chrislusf/seaweedfs:3.97
+BUCKET_NAME=mbss-ppdb
+BUCKET_KEY=mbs_verify
+BUCKET_SECRET=mbs_verify_secret
 CMS_DB_PASSWORD=mbs_cms_verify
 CORE_DB_PASSWORD=mbs_verify
 
@@ -119,8 +121,8 @@ build_envs() {
     BETTER_AUTH_SECRET="$AUTH_SECRET"
     GOOGLE_CLIENT_ID=verify-placeholder GOOGLE_CLIENT_SECRET=verify-placeholder
     FAMILY_APP_URL="http://localhost:$ADMISSION_PORT" ADMIN_APP_URL="http://localhost:$ADMIN_PORT"
-    S3_ENDPOINT="http://127.0.0.1:$MINIO_PORT" S3_BUCKET="$MINIO_BUCKET"
-    S3_ACCESS_KEY="$MINIO_USER" S3_SECRET_KEY="$MINIO_PASSWORD" S3_REGION=us-east-1
+    S3_ENDPOINT="http://127.0.0.1:$BUCKET_PORT" S3_BUCKET="$BUCKET_NAME"
+    S3_ACCESS_KEY="$BUCKET_KEY" S3_SECRET_KEY="$BUCKET_SECRET" S3_REGION=us-east-1
     SMTP_URL="smtp://127.0.0.1:$MAIL_SMTP_PORT" MAIL_FROM="PPDB MBSS <ppdb@mbss.test>"
     NOTIFICATION_WORKER=on BOOTSTRAP_ADMIN_EMAIL=)
   CMS_ENV=(HOST=127.0.0.1 PORT="$CMS_PORT" PUBLIC_URL="http://localhost:$CMS_PORT"
@@ -164,28 +166,24 @@ cms_ready() {
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit(JSON.parse(s).data.length===4?0:1))'
 }
 mail_ready() { curl -fsS -o /dev/null "http://127.0.0.1:$MAIL_WEB_PORT/readyz"; }
-minio_ready() { curl -fsS -o /dev/null "http://127.0.0.1:$MINIO_PORT/minio/health/live"; }
-# The bucket answers a signed-out list with 403, not a connection error.
-minio_bucket_ready() {
-  [[ $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$MINIO_PORT/$MINIO_BUCKET/") == 403 ]]
+bucket_ready() { curl -fsS -o /dev/null "http://127.0.0.1:$BUCKET_PORT/"; }
+# The bucket answers an unsigned list with 403, not a connection error, which
+# also proves it is not serving families' receipts to anyone who asks.
+bucket_made() {
+  [[ $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$BUCKET_PORT/$BUCKET_NAME/") == 403 ]]
 }
-start_minio() {
-  # The browser PUTs straight to the bucket from the parent app's origin, so
-  # the bucket allows it here exactly as Biznet must in production.
-  docker run --rm -d --name "$MINIO_CONTAINER" \
-    -e MINIO_ROOT_USER="$MINIO_USER" -e MINIO_ROOT_PASSWORD="$MINIO_PASSWORD" \
-    -e MINIO_API_CORS_ALLOW_ORIGIN="http://localhost:$ADMISSION_PORT,http://localhost:$ADMIN_PORT" \
-    -p "127.0.0.1:$MINIO_PORT:9000" "$MINIO_IMAGE" server /data >/dev/null
-  wait_for 60 minio minio_ready || die "minio not ready; see docker logs $MINIO_CONTAINER"
-  docker exec "$MINIO_CONTAINER" mc alias set local http://127.0.0.1:9000 "$MINIO_USER" "$MINIO_PASSWORD" >/dev/null
-  docker exec "$MINIO_CONTAINER" mc mb --ignore-existing "local/$MINIO_BUCKET" >/dev/null
-  wait_for 30 "minio bucket $MINIO_BUCKET" minio_bucket_ready || die "bucket $MINIO_BUCKET missing"
+start_bucket() {
+  docker run --rm -d --name "$BUCKET_CONTAINER" \
+    -e AWS_ACCESS_KEY_ID="$BUCKET_KEY" -e AWS_SECRET_ACCESS_KEY="$BUCKET_SECRET" \
+    -p "127.0.0.1:$BUCKET_PORT:8333" "$BUCKET_IMAGE" \
+    server -s3 -dir=/data -ip=0.0.0.0 >/dev/null
+  wait_for 90 bucket bucket_ready || die "bucket not ready; see docker logs $BUCKET_CONTAINER"
+  # Makes the bucket and allows the two app origins, as Biznet's rule must.
+  (cd "$REPO/apps/api" && env "${API_ENV[@]}" node scripts/ensure-bucket.ts) \
+    >>"$LOGS/bucket.log" 2>&1 || die "bucket setup failed; see $LOGS/bucket.log"
+  wait_for 30 "bucket $BUCKET_NAME" bucket_made || die "bucket $BUCKET_NAME missing"
 }
-start_mail() {
-  docker run --rm -d --name "$MAIL_CONTAINER" \
-    -p "127.0.0.1:$MAIL_SMTP_PORT:1025" -p "127.0.0.1:$MAIL_WEB_PORT:8025" "$MAILPIT_IMAGE" >/dev/null
-  wait_for 30 mailpit mail_ready || die "mailpit not ready; see docker logs $MAIL_CONTAINER"
-}
+
 profile_ready() {
   [[ $(curl -fsS --max-time 120 -H "Host: smp.localhost:$PROFILE_PORT" \
     "http://127.0.0.1:$PROFILE_PORT/") == *"SMP Islam Terpadu Madina"* ]]
@@ -202,8 +200,8 @@ app_ready() {
 
 cmd_up() {
   command -v docker >/dev/null || die "docker is not installed"
-  for p in "$PG_PORT" "$API_PORT" "$CMS_PORT" "$PROFILE_PORT" "$ADMISSION_PORT" "$ADMIN_PORT" "$MAIL_SMTP_PORT" "$MAIL_WEB_PORT" "$MINIO_PORT"; do
-    port_busy "$p" && die "port $p is already in use; set PG_PORT/API_PORT/CMS_PORT/PROFILE_PORT/ADMISSION_PORT/ADMIN_PORT/MAIL_SMTP_PORT/MAIL_WEB_PORT/MINIO_PORT or stop the other stack"
+  for p in "$PG_PORT" "$API_PORT" "$CMS_PORT" "$PROFILE_PORT" "$ADMISSION_PORT" "$ADMIN_PORT" "$MAIL_SMTP_PORT" "$MAIL_WEB_PORT" "$BUCKET_PORT"; do
+    port_busy "$p" && die "port $p is already in use; set PG_PORT/API_PORT/CMS_PORT/PROFILE_PORT/ADMISSION_PORT/ADMIN_PORT/MAIL_SMTP_PORT/MAIL_WEB_PORT/BUCKET_PORT or stop the other stack"
   done
   local held
   held=$(procs_in "$REPO/apps/profile" "next" ; procs_in "$REPO/apps/cms" "strapi")
@@ -216,7 +214,7 @@ cmd_up() {
   mkdir -p "$SCRATCH/profile-cache" "$LOGS"
   CONTAINER=mbs-verify-pg-$RUN
   MAIL_CONTAINER=mbs-verify-mail-$RUN
-  MINIO_CONTAINER=mbs-verify-minio-$RUN
+  BUCKET_CONTAINER=mbs-verify-bucket-$RUN
   AUTH_SECRET=$(openssl rand -hex 32)
   REVALIDATE_SECRET=$(openssl rand -hex 24)
   CMS_READ_TOKEN=$(openssl rand -hex 32)
@@ -232,11 +230,11 @@ EVIDENCE=$dir/evidence
 LOGS=$LOGS
 CONTAINER=$CONTAINER
 MAIL_CONTAINER=$MAIL_CONTAINER
-MINIO_CONTAINER=$MINIO_CONTAINER
-MINIO_PORT=$MINIO_PORT
-MINIO_BUCKET=$MINIO_BUCKET
-MINIO_USER=$MINIO_USER
-MINIO_PASSWORD=$MINIO_PASSWORD
+BUCKET_CONTAINER=$BUCKET_CONTAINER
+BUCKET_PORT=$BUCKET_PORT
+BUCKET_NAME=$BUCKET_NAME
+BUCKET_KEY=$BUCKET_KEY
+BUCKET_SECRET=$BUCKET_SECRET
 MAIL_SMTP_PORT=$MAIL_SMTP_PORT
 MAIL_WEB_PORT=$MAIL_WEB_PORT
 PG_PORT=$PG_PORT
@@ -269,7 +267,7 @@ EOF
     -p "127.0.0.1:$PG_PORT:5432" postgres:18-alpine >/dev/null
   wait_for 90 postgres pg_ready || die "postgres not ready; see docker logs $CONTAINER"
   start_mail
-  start_minio
+  start_bucket
 
   (cd "$REPO/packages/db" && env "${API_ENV[@]}" pnpm exec drizzle-kit migrate) >"$LOGS/migrate.log" 2>&1 \
     || die "core migrations failed; see $LOGS/migrate.log"
@@ -330,8 +328,8 @@ cmd_doctor() {
   check "port $ADMIN_PORT owned by this run's committee app" port_owner "$ADMIN_PORT" admin
   check "postgres container $CONTAINER answers" pg_ready
   check "mailpit $MAIL_CONTAINER answers on $MAIL_WEB_PORT" mail_ready
-  check "minio $MINIO_CONTAINER answers on $MINIO_PORT" minio_ready
-  check "bucket $MINIO_BUCKET exists" minio_bucket_ready
+  check "bucket server $BUCKET_CONTAINER answers on $BUCKET_PORT" bucket_ready
+  check "bucket $BUCKET_NAME exists and refuses an unsigned list" bucket_made
   cms_tables() {
     docker exec -e PGPASSWORD="$CMS_DB_PASSWORD" "$CONTAINER" \
       psql -h 127.0.0.1 -U mbs_cms -d mbs_cms -tAc "select count(*) from sites" | grep -x 4
@@ -382,13 +380,13 @@ cmd_mail_on() {
 
 cmd_bucket_off() {
   load_run "${1:-}"
-  docker stop "$MINIO_CONTAINER" >/dev/null && log "stopped $MINIO_CONTAINER"
+  docker stop "$BUCKET_CONTAINER" >/dev/null && log "stopped $BUCKET_CONTAINER"
 }
 
 cmd_bucket_on() {
   load_run "${1:-}"
-  docker inspect "$MINIO_CONTAINER" >/dev/null 2>&1 && die "minio is already running"
-  start_minio
+  docker inspect "$BUCKET_CONTAINER" >/dev/null 2>&1 && die "the bucket is already running"
+  start_bucket
 }
 
 cmd_sim() {
@@ -408,10 +406,10 @@ CONTAINER=$CONTAINER
 API_URL=http://localhost:$API_PORT
 CMS_URL=http://localhost:$CMS_PORT
 PROFILE_PORT=$PROFILE_PORT
-MINIO_URL=http://127.0.0.1:$MINIO_PORT
-MINIO_BUCKET=$MINIO_BUCKET
-MINIO_USER=$MINIO_USER
-MINIO_PASSWORD=$MINIO_PASSWORD
+BUCKET_URL=http://127.0.0.1:$BUCKET_PORT
+BUCKET_NAME=$BUCKET_NAME
+BUCKET_KEY=$BUCKET_KEY
+BUCKET_SECRET=$BUCKET_SECRET
 MAIL_URL=http://localhost:$MAIL_WEB_PORT
 MAIL_SMTP=smtp://127.0.0.1:$MAIL_SMTP_PORT
 ADMISSION_URL=http://localhost:$ADMISSION_PORT
@@ -434,7 +432,7 @@ cmd_down() {
   for name in admission admin profile cms api; do stop_group "$name"; done
   docker stop "$CONTAINER" >/dev/null 2>&1 && log "stopped $CONTAINER" || true
   docker stop "${MAIL_CONTAINER:-}" >/dev/null 2>&1 && log "stopped $MAIL_CONTAINER" || true
-  docker stop "${MINIO_CONTAINER:-}" >/dev/null 2>&1 && log "stopped $MINIO_CONTAINER" || true
+  docker stop "${BUCKET_CONTAINER:-}" >/dev/null 2>&1 && log "stopped $BUCKET_CONTAINER" || true
 
   # A run must not leave tracked files changed. Report it; reverting is the
   # caller's call, since the user may have been editing at the same time.

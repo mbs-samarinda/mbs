@@ -146,7 +146,7 @@ log "Checking $ENV_FILE"
 # PROFILE_APEX is not an error — it is a 404 on every host, which reads as a
 # failed smoke check rather than as a misconfigured box. So they are asserted
 # here, once, before anything starts.
-for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET CMS_READ_TOKEN PREVIEW_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD CMS_HOST CADDY_EMAIL SMTP_URL MAIL_FROM; do
+for required in PROFILE_APEX CMS_URL MEDIA_BASE_URL REVALIDATE_SECRET CMS_READ_TOKEN PREVIEW_SECRET POSTGRES_PASSWORD CMS_DB_PASSWORD CMS_HOST CADDY_EMAIL SMTP_URL MAIL_FROM S3_ENDPOINT S3_BUCKET S3_ACCESS_KEY S3_SECRET_KEY; do
   if [[ -z ${!required:-} ]]; then
     echo "$ENV_FILE is missing $required" >&2
     exit 1

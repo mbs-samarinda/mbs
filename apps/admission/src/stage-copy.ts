@@ -50,7 +50,7 @@ export const STAGE_COPY: Record<FamilyStage, StageCopy> = {
   },
   DOCUMENTS_DUE: {
     turn: "FAMILY",
-    title: "Menunggu dokumen",
+    title: "Unggah dokumen",
     at: "DOCUMENTS",
     next: (application) =>
       sentBack(application, "REQUEST_DOCUMENT_FIX")

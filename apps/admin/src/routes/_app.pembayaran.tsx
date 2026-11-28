@@ -258,33 +258,40 @@ function Actions({
     mutationFn: (input: { decision: "APPROVED" | "REJECTED"; reason?: string }) =>
       api.staff.payments.decide({ paymentId: proof.paymentId, idempotencyKey: key, ...input }),
     onSuccess: async () => {
-      await after();
+      await next();
     },
-    onError: async (error) => {
-      // Someone else got there first. The queue is wrong, not the committee.
-      if (error instanceof ORPCError && error.code === "ALREADY_HANDLED") await after();
+    onError: (error) => {
       // A fresh key, so a retry after a network failure is a new decision.
-      else setKey(crypto.randomUUID());
+      // An already-handled proof is not retried at all.
+      if (!isHandled(error)) setKey(crypto.randomUUID());
     },
   });
+  const handled = isHandled(decide.error);
 
-  /** Back to the queue, which opens the next proof on its own. */
-  async function after() {
-    await queryClient.invalidateQueries({ queryKey: ["payments"] });
+  /**
+   * Back to the queue, which opens the next proof on its own. Only the queue is
+   * invalidated: `["payments"]` would also refetch the proof still on screen,
+   * and asking for a proof records a staff view that nobody made.
+   */
+  async function next() {
+    queryClient.removeQueries({ queryKey: ["payments", "proof", proof.paymentId] });
+    await queryClient.invalidateQueries({ queryKey: ["payments", "waiting"] });
     await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     await navigate({ to: "/pembayaran", search: {}, replace: true });
   }
 
-  const handled = decide.error instanceof ORPCError && decide.error.code === "ALREADY_HANDLED";
-  if (handled || !proof.canDecide) {
+  if (!proof.canDecide) {
+    return <Notice>Kamu bisa membaca bukti ini, tapi tidak memutuskannya.</Notice>;
+  }
+  // Someone else got there first. It stays on screen until the committee moves
+  // on, so the answer is read rather than flashed past.
+  if (handled) {
     return (
-      <div className="flex items-start gap-2.5 rounded-md bg-info-tint p-3 text-sm text-pretty text-info">
-        <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-        <p>
-          {proof.canDecide
-            ? "Bukti ini sudah ditangani staf lain. Membuka bukti berikutnya."
-            : "Kamu bisa membaca bukti ini, tapi tidak memutuskannya."}
-        </p>
+      <div className="grid gap-2">
+        <Notice>Bukti ini sudah ditangani staf lain.</Notice>
+        <Button variant="outline" size="sm" onClick={() => void next()}>
+          Buka bukti berikutnya
+        </Button>
       </div>
     );
   }
@@ -348,6 +355,19 @@ function Actions({
         </p>
       )}
       {decide.isError && <Failed />}
+    </div>
+  );
+}
+
+function isHandled(error: unknown) {
+  return error instanceof ORPCError && error.code === "ALREADY_HANDLED";
+}
+
+function Notice({ children }: { children: string }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-md bg-info-tint p-3 text-sm text-pretty text-info">
+      <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+      <p>{children}</p>
     </div>
   );
 }

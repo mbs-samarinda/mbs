@@ -10,12 +10,7 @@ import type { Config } from "../../config/env.ts";
 
 export type Storage = {
   /** The browser PUTs the bytes here. The API never holds them. */
-  signUpload(object: {
-    key: string;
-    contentType: string;
-    byteSize: number;
-    sha256: string;
-  }): Promise<string>;
+  signUpload(object: { key: string; contentType: string; byteSize: number }): Promise<string>;
   signDownload(object: { key: string; contentType: string }): Promise<string>;
   /** What the bucket says is there, or null if the upload never landed. */
   head(key: string): Promise<{ byteSize: number } | null>;
@@ -35,7 +30,10 @@ export function createStorage(config: Config["storage"]): Storage {
   });
 
   return {
-    signUpload: ({ key, contentType, byteSize, sha256 }) =>
+    // A presigned URL signs `content-length;host` and nothing else, so the size
+    // is bound but the type is not. That is why the stored type comes from the
+    // grant and the download below names it, rather than trusting the object's.
+    signUpload: ({ key, contentType, byteSize }) =>
       getSignedUrl(
         client,
         new PutObjectCommand({
@@ -43,9 +41,6 @@ export function createStorage(config: Config["storage"]): Storage {
           Key: key,
           ContentType: contentType,
           ContentLength: byteSize,
-          // Signed in, so the bucket itself refuses bytes that are not the ones
-          // the browser hashed. That is what makes the stored hash worth having.
-          ChecksumSHA256: sha256,
         }),
         { expiresIn: config.uploadUrlSeconds },
       ),
