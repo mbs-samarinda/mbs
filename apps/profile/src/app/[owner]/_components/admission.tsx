@@ -77,7 +77,7 @@ function AdmissionBand({
             <BandFact label="Status">{open ? "Dibuka" : "Ditutup"}</BandFact>
             <BandFact label="Dibuka">{formatDate(cycle.registrationOpenAt)}</BandFact>
             <BandFact label="Ditutup">{formatDate(cycle.registrationCloseAt)}</BandFact>
-            <BandFact label="Biaya sekolah">{formatFee(cycle.effectiveFee)}</BandFact>
+            <BandFact label="Biaya pendaftaran">{formatFee(cycle.effectiveFee)}</BandFact>
             <BandFact label="Hasil diumumkan">{formatDate(cycle.resultPublishAt)}</BandFact>
           </dl>
         )}

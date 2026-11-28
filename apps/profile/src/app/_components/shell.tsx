@@ -295,7 +295,7 @@ export function Footer({ owner, site }: { owner: Owner; site: Site }) {
             <h2 className="text-xs font-bold">Hubungi</h2>
             {site.contacts.map((contact) => (
               <a
-                key={contact.href}
+                key={`${contact.label}:${contact.href}`}
                 href={contact.href}
                 className="flex min-h-11 flex-col justify-center gap-0.5"
               >
