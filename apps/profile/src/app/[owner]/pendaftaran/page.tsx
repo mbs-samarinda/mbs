@@ -146,7 +146,7 @@ function StatusPanel({ facts, admissionCta }: { facts: CycleFacts | null; admiss
           <FactStrip>
             <Fact label="Dibuka">{formatDate(cycle.registrationOpenAt)}</Fact>
             <Fact label="Ditutup">{formatDate(cycle.registrationCloseAt)}</Fact>
-            <Fact label="Biaya sekolah">{formatFee(cycle.effectiveFee)}</Fact>
+            <Fact label="Biaya pendaftaran">{formatFee(cycle.effectiveFee)}</Fact>
             <Fact label="Hasil diumumkan">{formatDate(cycle.resultPublishAt)}</Fact>
           </FactStrip>
         )}
@@ -268,12 +268,11 @@ function DocumentsSection({ facts }: { facts: CycleFacts | null }) {
           <div className="flex flex-col gap-4">
             {cycle && (
               <FactStrip>
-                <Fact label="Biaya sekolah">{formatFee(cycle.effectiveFee)}</Fact>
+                <Fact label="Biaya pendaftaran">{formatFee(cycle.effectiveFee)}</Fact>
               </FactStrip>
             )}
             <p className="max-w-[65ch] text-[13px] text-pretty text-muted-foreground">
-              Pembayaran yang berhasil bukan berarti aplikasi sudah terkirim. Pengiriman dilakukan
-              terpisah oleh orang tua/wali.
+              Dibayar lewat transfer setelah anak didaftarkan. Rekening dan jumlahnya ada di akunmu.
             </p>
           </div>
         </div>
@@ -305,11 +304,14 @@ function DocumentList({ heading, items }: { heading: string; items: readonly str
  * moment a step changes, and no editor would know it had.
  */
 const SCHOOL_STEPS = [
-  ["Isi data anak", "Pilih sekolah dan isi data dasar calon santri."],
-  ["Masuk akun", "Masuk dengan Google atau kode dari email."],
-  ["Lengkapi berkas", "Unggah dokumen wajib dari galeri atau kamera."],
-  ["Bayar", "Bayar lewat Midtrans; status dibaca dari sistem."],
-  ["Kirim", "Kirim aplikasi, lalu ikuti wawancara."],
+  ["Masuk", "Masuk dengan Google atau kode dari email."],
+  ["Daftarkan anak", "Pilih sekolah dan isi data anak. Kamu langsung dapat nomor pendaftaran."],
+  ["Bayar", "Transfer biaya pendaftaran, lalu unggah foto atau PDF bukti transfernya."],
+  ["Lengkapi berkas", "Unggah dokumen wajib, lalu pilih wawancara tatap muka atau daring."],
+  [
+    "Wawancara dan hasil",
+    "Ikuti wawancara. Hasil diumumkan pada tanggal yang ditetapkan. Yang diterima lalu daftar ulang.",
+  ],
 ] as const;
 
 const Steps = () => (
@@ -318,8 +320,7 @@ const Steps = () => (
       <SectionHeading
         head={{
           heading: "Alur pendaftaran",
-          description:
-            "Lima langkah. Data yang sudah diisi tidak hilang bila berhenti di tengah jalan.",
+          description: "Lima langkah, dari daftar sampai hasil.",
           linkLabel: null,
           linkHref: null,
         }}
@@ -436,7 +437,7 @@ const Contacts = ({ site }: { site: Site }) =>
             const Icon = contactIcon(contact.href);
             return (
               <a
-                key={contact.href}
+                key={`${contact.label}:${contact.href}`}
                 href={contact.href}
                 className="flex min-h-11 flex-col gap-1 rounded-xl border border-border p-4 hover:border-primary"
               >

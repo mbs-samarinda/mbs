@@ -879,7 +879,7 @@ async function HeroFacts({ schoolKey }: { schoolKey: SchoolKey }) {
           isOpen(facts.cycle) ? facts.cycle.registrationCloseAt : facts.cycle.registrationOpenAt,
         )}
       </Fact>
-      <Fact label="Biaya sekolah">{formatFee(facts.cycle.effectiveFee)}</Fact>
+      <Fact label="Biaya pendaftaran">{formatFee(facts.cycle.effectiveFee)}</Fact>
       <Fact label="Hasil diumumkan">{formatDate(facts.cycle.resultPublishAt)}</Fact>
     </FactStrip>
   );
