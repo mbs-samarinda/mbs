@@ -1,11 +1,3 @@
-/**
- * Creates the bucket and allows the two app origins to upload to it straight
- * from a browser. Run against a local or verify bucket, never production:
- * Biznet's bucket and its CORS rule are set by hand, once, by the operator.
- *
- *   node apps/api/scripts/ensure-bucket.ts
- *   node apps/api/scripts/ensure-bucket.ts --check   # is it there?
- */
 import {
   CreateBucketCommand,
   HeadBucketCommand,
@@ -26,8 +18,6 @@ const client = new S3Client({
   credentials: { accessKeyId: storage.accessKey, secretAccessKey: storage.secretKey },
 });
 
-// `--check` asks only whether the bucket is there and the keys work, so a
-// readiness probe never writes.
 if (process.argv.includes("--check")) {
   await client.send(new HeadBucketCommand({ Bucket: storage.bucket }));
   process.exit(0);

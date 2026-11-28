@@ -18,21 +18,17 @@ export type UploadRequest = {
   userId: string;
   contentType: string;
   byteSize: number;
-  /**
-   * Base64, as the browser computed it. The bucket is not asked to check it: a
-   * presigned PUT signs only the length and the host, and flexible checksums
-   * are not everywhere. It is a fingerprint of what the browser believed it
-   * sent, and the size at `completeUpload` is what is actually checked.
-   */
   sha256: string;
 };
 
-export function createFiles(storage: Storage, secret: string, uploadUrlSeconds: number) {
+export function createFiles(
+  storage: Storage,
+  secret: string,
+  lifetimes: { uploadUrlSeconds: number; downloadUrlSeconds: number },
+) {
+  const { uploadUrlSeconds, downloadUrlSeconds } = lifetimes;
   return {
-    /**
-     * Signs one upload. The caller has already checked that this account may act
-     * on this application; what is checked here is the file itself.
-     */
+    downloadUrlSeconds,
     async beginUpload(request: UploadRequest, now = new Date()) {
       const key = newObjectKey(request.prefix);
       const uploadUrl = await storage.signUpload({
@@ -52,10 +48,6 @@ export function createFiles(storage: Storage, secret: string, uploadUrlSeconds: 
       return { uploadUrl, token, expiresInSeconds: uploadUrlSeconds };
     },
 
-    /**
-     * Writes the `files` row once the bytes have landed. The size comes from the
-     * bucket, not from the browser, so the row describes what is actually there.
-     */
     async completeUpload(
       tx: Transaction,
       claim: { token: string; applicationId: string; userId: string },
@@ -87,7 +79,6 @@ export function createFiles(storage: Storage, secret: string, uploadUrlSeconds: 
   };
 }
 
-/** What a receipt may be. Refused here rather than at the bucket, so the family reads why. */
 export function proofProblem(file: { contentType: string; byteSize: number }) {
   if (!(PROOF_CONTENT_TYPES as readonly string[]).includes(file.contentType)) {
     return "TYPE" as const;

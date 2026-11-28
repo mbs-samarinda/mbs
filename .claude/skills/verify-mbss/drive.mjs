@@ -205,8 +205,6 @@ for (const [n, step] of args.entries()) {
     } else if (cmd === "click") await byRole(rest).click();
     else if (cmd === "upload") {
       const [target, file] = split(rest, "=");
-      // The button is a label over a hidden input, so the click is what names
-      // which input to fill: exactly how a person reaches it.
       const [chooser] = await Promise.all([
         page.waitForEvent("filechooser", { timeout: 30_000 }),
         byRole(target).click(),
@@ -220,8 +218,6 @@ for (const [n, step] of args.entries()) {
       await context.setOffline(rest === "on");
       log(`  network ${rest === "on" ? "cut" : "back"}`);
     } else if (cmd === "abort") {
-      // The request reaches the server and only its answer is lost, which is
-      // the failure a retry has to survive.
       await page.route(
         (url) => url.href.includes(rest),
         async (route) => {
@@ -246,8 +242,6 @@ for (const [n, step] of args.entries()) {
       await byRole(target).fill(value);
     } else if (cmd === "code") {
       const [target, address] = split(rest, "=");
-      // Read after the request, never before: asking for a code ends the one
-      // before it, so a code fetched earlier is already dead.
       if (!mail) throw new Error("the code step needs --mail <mailpit url>");
       const { messages } = await fetch(`${mail}/api/v1/messages?limit=200`).then((r) => r.json());
       const newest = messages.find((m) => m.To.some((t) => t.Address === address));

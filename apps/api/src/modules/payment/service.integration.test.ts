@@ -21,10 +21,6 @@ const db: Database = createDatabase(
 
 afterAll(() => db.$client.end());
 
-/**
- * The bucket, as far as this module can see it: a map of key to size. The real
- * one is MinIO in the verify stack; bytes never pass through the API either way.
- */
 function fakeStorage() {
   const objects = new Map<string, number>();
   const storage: Storage = {
@@ -119,7 +115,7 @@ beforeEach(async () => {
 
   const fake = fakeStorage();
   objects = fake.objects;
-  files = createFiles(fake.storage, SECRET, 900);
+  files = createFiles(fake.storage, SECRET, { uploadUrlSeconds: 900, downloadUrlSeconds: 300 });
 });
 
 async function register(options: { userId?: string; schoolKey?: SchoolKey } = {}) {
@@ -314,7 +310,6 @@ describe("the committee deciding", () => {
 
     expect(open.url).toContain("?get");
     expect(open.canDecide).toBe(true);
-    // A proof always counts itself, whatever precision its stored time has.
     expect(open.attempt).toBe(1);
     const viewed = await db
       .select()

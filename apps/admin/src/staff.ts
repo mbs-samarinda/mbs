@@ -104,17 +104,10 @@ export const waitingProofsQuery = infiniteQueryOptions({
   getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
 });
 
-/**
- * Asking for a proof records that a staff member looked at a family's file, so
- * this must never run on a hover, a refocus or a remount. The signed URL in the
- * answer lasts minutes; the desk asks again when it goes stale.
- */
 export const proofQuery = (paymentId: string) =>
   queryOptions({
     queryKey: ["payments", "proof", paymentId],
-    queryFn: () => api.staff.payments.get({ paymentId }),
-    // Under the five minutes the signed URL lasts, so a desk left open asks
-    // again rather than showing a dead link. The new ask is an honest new view.
+    queryFn: () => api.staff.payments.open({ paymentId }),
     staleTime: 4 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,

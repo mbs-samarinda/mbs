@@ -36,8 +36,6 @@ MAIL_SMTP_PORT=${MAIL_SMTP_PORT:-51125}
 MAIL_WEB_PORT=${MAIL_WEB_PORT:-58125}
 BUCKET_PORT=${BUCKET_PORT:-59000}
 MAILPIT_IMAGE=axllent/mailpit:v1.34.0
-# SeaweedFS, not MinIO: MinIO's community server was archived in April 2026 and
-# its images are no longer pullable. Same S3 API, same flows.
 BUCKET_IMAGE=chrislusf/seaweedfs:3.97
 BUCKET_NAME=mbss-ppdb
 BUCKET_KEY=mbs_verify
@@ -172,13 +170,10 @@ start_mail() {
   wait_for 30 mailpit mail_ready || die "mailpit not ready; see docker logs $MAIL_CONTAINER"
 }
 
-# Any HTTP answer means the server is up. It refuses an unsigned request with
-# 403, which is the point: it is not serving families' receipts to anyone.
 bucket_ready() { curl -s -o /dev/null --max-time 5 "http://127.0.0.1:$BUCKET_PORT/"; }
 bucket_closed() {
   [[ $(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$BUCKET_PORT/$BUCKET_NAME/") == 403 ]]
 }
-# Signed, so it proves the bucket is really there and the keys work.
 bucket_made() {
   (cd "$REPO/apps/api" && env "${API_ENV[@]}" node scripts/ensure-bucket.ts --check)
 }
@@ -188,7 +183,6 @@ start_bucket() {
     -p "127.0.0.1:$BUCKET_PORT:8333" "$BUCKET_IMAGE" \
     server -s3 -dir=/data -ip=0.0.0.0 >/dev/null
   wait_for 90 bucket bucket_ready || die "bucket not ready; see docker logs $BUCKET_CONTAINER"
-  # Makes the bucket and allows the two app origins, as Biznet's rule must.
   (cd "$REPO/apps/api" && env "${API_ENV[@]}" node scripts/ensure-bucket.ts) \
     >>"$LOGS/bucket.log" 2>&1 || die "bucket setup failed; see $LOGS/bucket.log"
   wait_for 30 "bucket $BUCKET_NAME" bucket_made || die "bucket $BUCKET_NAME missing"

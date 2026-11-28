@@ -9,10 +9,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Config } from "../../config/env.ts";
 
 export type Storage = {
-  /** The browser PUTs the bytes here. The API never holds them. */
   signUpload(object: { key: string; contentType: string; byteSize: number }): Promise<string>;
   signDownload(object: { key: string; contentType: string }): Promise<string>;
-  /** What the bucket says is there, or null if the upload never landed. */
   head(key: string): Promise<{ byteSize: number } | null>;
 };
 
@@ -51,8 +49,6 @@ export function createStorage(config: Config["storage"]): Storage {
         new GetObjectCommand({
           Bucket: config.bucket,
           Key: key,
-          // A receipt is shown, never downloaded as an attachment, and the type
-          // is the one we recorded rather than whatever the bucket guesses.
           ResponseContentType: contentType,
           ResponseContentDisposition: "inline",
         }),

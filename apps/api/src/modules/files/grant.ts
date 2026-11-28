@@ -2,14 +2,6 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { z } from "zod";
 
-/**
- * What the API promised about one upload before it happened. The browser carries
- * it back when the bytes have landed, so the row written then is for the file
- * this account was allowed to send, at the size and type that were checked.
- *
- * It is signed rather than stored, because a stored row would have to be edited
- * or deleted once the upload finished, and nothing here is ever edited.
- */
 const UploadGrant = z.object({
   key: z.string(),
   applicationId: z.string(),
@@ -23,7 +15,6 @@ export type UploadGrant = z.infer<typeof UploadGrant>;
 
 const SEPARATOR = "\u0000";
 
-/** Its own key, so a leak here can never stand in for a session cookie. */
 function signingKey(secret: string) {
   return createHmac("sha256", secret).update("mbs/file-upload-grant/v1").digest();
 }

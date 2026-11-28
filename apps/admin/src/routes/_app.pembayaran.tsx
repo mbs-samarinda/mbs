@@ -19,10 +19,15 @@ import {
 import { useId, useState } from "react";
 
 import { SchoolMark } from "../committee-ui.tsx";
-import { formatCount, formatRupiah, formatShortDateTime, formatWaited } from "../format.ts";
+import {
+  formatBytes,
+  formatCount,
+  formatRupiah,
+  formatShortDateTime,
+  formatWaited,
+} from "../format.ts";
 import { api, proofQuery, waitingProofsQuery } from "../staff.ts";
 
-/** Which proof is open. In the address bar, so a reload opens the same one. */
 type DeskSearch = { bukti?: string | undefined };
 
 export const Route = createFileRoute("/_app/pembayaran")({
@@ -39,9 +44,6 @@ function Desk() {
   const queue = useInfiniteQuery(waitingProofsQuery);
   const rows = queue.data?.pages.flatMap((page) => page.rows) ?? [];
   const total = queue.data?.pages[0]?.total ?? 0;
-  // A proof named in the address bar wins, so the desk stays where it was told
-  // to be, even when it sits past the pages the queue has loaded. Otherwise the
-  // longest wait is next.
   const open = bukti ?? rows[0]?.paymentId;
 
   return (
@@ -60,10 +62,6 @@ function Desk() {
       {open === undefined ? (
         <NothingToCheck />
       ) : (
-        /*
-          Each column scrolls on its own above `lg`, so the proof and its buttons
-          stay put however long the queue is. Below `lg` the page scrolls as one.
-        */
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-5.5rem)] lg:grid-cols-[21rem_minmax(0,1fr)]">
           <Queue
             rows={rows}
@@ -79,10 +77,6 @@ function Desk() {
   );
 }
 
-/**
- * Nothing left to check. The end of a review session, not an error, so it says
- * so plainly instead of leaving the screen blank.
- */
 function NothingToCheck() {
   return (
     <div className="grid place-items-center gap-3 p-[min(2rem,5vw)] py-24 text-center">
@@ -120,8 +114,6 @@ function Queue({
               search={{ bukti: proof.paymentId }}
               aria-current={proof.paymentId === openId ? "true" : undefined}
               className={cn(
-                // `minmax(0,1fr)` at both levels: without it the row's own
-                // auto width wins and a long name pushes the page sideways.
                 "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5 border-b border-border px-4 py-3 hover:bg-muted/50",
                 proof.paymentId === openId && "bg-muted",
               )}
@@ -134,11 +126,6 @@ function Queue({
                   {formatRupiah(proof.amountDue)}
                 </span>
               </div>
-              {/*
-                The number keeps its own line. Sharing a line with the school
-                mark, it was the first thing a long name squeezed out, and it
-                is the only thing telling two same-named children apart.
-              */}
               <div className="flex min-w-0 items-center justify-between gap-3 text-sm text-muted-foreground">
                 <span className="tabular-nums">{proof.registrationNumber}</span>
                 <span className="shrink-0">{formatWaited(proof.sentAt)}</span>
@@ -164,16 +151,10 @@ function Queue({
   );
 }
 
-/**
- * Afief picked the top bar (28 November 2026): the facts and the decision sit
- * in one row above the proof, so the proof gets the full width for sideways
- * photos and long phone screenshots.
- */
 function Pane({ paymentId }: { paymentId: string }) {
   const { data: proof, isPending, isError } = useQuery(proofQuery(paymentId));
   const [shown, setShown] = useState(false);
 
-  // A link to a proof that was decided, or never existed, lands here.
   if (isError) {
     return (
       <div className="grid justify-items-start gap-3 p-[min(2rem,5vw)]">
@@ -249,10 +230,6 @@ function TopBar({ proof, canApprove }: { proof: ProofToReview; canApprove: boole
   );
 }
 
-/**
- * `canApprove` is false while the proof has not rendered. Approving a payment
- * you were never shown is the one mistake this screen must not make easy.
- */
 function Actions({
   proof,
   canApprove,
@@ -277,18 +254,11 @@ function Actions({
       await next();
     },
     onError: (error) => {
-      // A fresh key, so a retry after a network failure is a new decision.
-      // An already-handled proof is not retried at all.
       if (!isHandled(error)) setKey(crypto.randomUUID());
     },
   });
   const handled = isHandled(decide.error);
 
-  /**
-   * Back to the queue, which opens the next proof on its own. Only the queue is
-   * invalidated: `["payments"]` would also refetch the proof still on screen,
-   * and asking for a proof records a staff view that nobody made.
-   */
   async function next() {
     queryClient.removeQueries({ queryKey: ["payments", "proof", proof.paymentId] });
     await queryClient.invalidateQueries({ queryKey: ["payments", "waiting"] });
@@ -299,8 +269,6 @@ function Actions({
   if (!proof.canDecide) {
     return <Notice>Kamu bisa membaca bukti ini, tapi tidak memutuskannya.</Notice>;
   }
-  // Someone else got there first. It stays on screen until the committee moves
-  // on, so the answer is read rather than flashed past.
   if (handled) {
     return (
       <div className="grid gap-2">
@@ -392,11 +360,6 @@ function Failed() {
   return <p className="text-xs text-pretty text-destructive">Belum tersimpan. Coba lagi.</p>;
 }
 
-/**
- * The proof itself. Zoom and rotate are real state, because a photo taken
- * sideways is the common case and the nominal is unreadable until the committee
- * can turn it and enlarge it.
- */
 function ProofViewer({
   proof,
   onShown,
@@ -462,11 +425,6 @@ function ProofViewer({
   );
 }
 
-/**
- * A PDF, or a photo this browser will not decode, such as an iPhone HEIC. It
- * opens in its own tab, and opening it is what unlocks Setujui: the committee
- * has seen the file by then.
- */
 function OpenFile({
   proof,
   onShown,
@@ -497,11 +455,4 @@ function OpenFile({
       </Button>
     </div>
   );
-}
-
-const oneDecimal = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 });
-
-function formatBytes(bytes: number) {
-  const mb = bytes / 1024 / 1024;
-  return mb >= 1 ? `${oneDecimal.format(mb)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }

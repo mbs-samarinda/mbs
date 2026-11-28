@@ -78,12 +78,10 @@ export class LastAdministratorError extends ConflictError {
   override readonly code = "LAST_ADMINISTRATOR";
 }
 
-/** The bytes never landed in the bucket, or landed at another size. */
 export class UploadIncompleteError extends ConflictError {
   override readonly code = "UPLOAD_INCOMPLETE";
 }
 
-/** Someone else already decided this proof. */
 export class AlreadyHandledError extends ConflictError {
   override readonly code = "ALREADY_HANDLED";
 }

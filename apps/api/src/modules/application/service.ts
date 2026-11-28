@@ -111,8 +111,6 @@ function reasonForFamily(actorType: ActorType, payload: CommandPayload<Applicati
   return actorType === "STAFF" && "reason" in payload ? (payload.reason ?? null) : null;
 }
 
-export type { ApplicationRow } from "./repository.ts";
-
 export type Actor =
   | { type: "FAMILY"; userId: string }
   | { type: "STAFF"; staff: StaffContext }
@@ -365,11 +363,6 @@ export async function addNote(
   });
 }
 
-/**
- * The one place an event is written. A module with its own rows to write, such
- * as payments, passes a `write` step that runs inside the same transaction, so
- * its rows and the event commit together or not at all.
- */
 export async function runCommand(
   db: Database,
   input: Omit<CommandContext, "expectedSeq"> & { expectedSeq: number | null },

@@ -24,8 +24,6 @@ const EnvSchema = z
     FAMILY_APP_URL: z.url(),
     ADMIN_APP_URL: z.url(),
 
-    // The bucket that holds receipts and documents. Bytes go browser to bucket;
-    // the API only signs the URLs.
     S3_ENDPOINT: z.url(),
     S3_BUCKET: z.string().min(1),
     S3_ACCESS_KEY: z.string().min(1),
@@ -114,10 +112,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
       bucket: parsed.data.S3_BUCKET,
       accessKey: parsed.data.S3_ACCESS_KEY,
       secretKey: parsed.data.S3_SECRET_KEY,
-      // Long enough for a slow phone upload, short enough that a copied URL in
-      // a chat message is dead by the time anyone else opens it.
       uploadUrlSeconds: 15 * 60,
-      // One staff member looking at one receipt.
       downloadUrlSeconds: 5 * 60,
     },
     mail: {

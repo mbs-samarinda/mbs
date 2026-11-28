@@ -68,7 +68,7 @@ export const router = {
     },
     payments: {
       listWaiting: listWaitingProofsProcedure,
-      get: openProofProcedure,
+      open: openProofProcedure,
       decide: decideProofProcedure,
     },
   },

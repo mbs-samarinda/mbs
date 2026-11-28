@@ -32,8 +32,6 @@ export const TRANSITIONS = {
   SUBMIT: {
     from: "NONE",
     to: "PAYMENT_DUE",
-    // A school that charges nothing has nothing to review, so the family lands
-    // on documents and the payment step never exists for this application.
     whenFree: "DOCUMENTS_DUE",
     actors: FAMILY,
     familyVisible: true,

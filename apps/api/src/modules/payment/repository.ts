@@ -1,6 +1,6 @@
 import { PAYMENT_QUEUE_PAGE_SIZE } from "@mbs/api-contract";
 import { schema, type Database, type Transaction } from "@mbs/db";
-import { and, asc, count, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { currentCycleId } from "../application/committee-repository.ts";
 
@@ -18,7 +18,6 @@ const {
 
 export type PaymentRow = typeof payments.$inferSelect;
 
-/** The newest saved form of one application, as a subquery for one child's name. */
 const newestProfile = (column: string) =>
   sql<string>`(
     select ${applicantProfileVersions.data}->>${sql.raw(`'${column}'`)}
@@ -40,7 +39,6 @@ export async function insertReview(tx: Transaction, row: typeof paymentReviews.$
   await tx.insert(paymentReviews).values(row);
 }
 
-/** One application's attempts, oldest first, each with its file and its decision. */
 export async function listAttempts(tx: Reader, applicationId: string) {
   return tx
     .select({
@@ -72,7 +70,6 @@ const PAYMENT_FOR_STAFF = {
   )`,
 };
 
-/** One proof, limited to the caller's schools. Anything else is NOT_FOUND. */
 export async function findPaymentForStaff(
   tx: Reader,
   paymentId: string,
@@ -89,7 +86,6 @@ export async function findPaymentForStaff(
   return found ?? null;
 }
 
-/** The application a family may pay for. One that is not theirs does not exist. */
 export async function loadApplicationForPayment(tx: Reader, applicationId: string, userId: string) {
   const [found] = await tx
     .select({
@@ -115,10 +111,6 @@ export async function loadApplicationForPayment(tx: Reader, applicationId: strin
   return found ?? null;
 }
 
-/**
- * The attempt the desk is deciding on, locked, with everything a decision
- * needs. Locking the row is what makes two staff deciding at once take turns.
- */
 export async function lockPaymentForReview(tx: Transaction, paymentId: string) {
   const [found] = await tx
     .select(PAYMENT_FOR_STAFF)
@@ -155,16 +147,10 @@ export async function countAttemptsUpTo(tx: Reader, payment: PaymentRow) {
   return row?.attempt ?? 1;
 }
 
-/**
- * Every proof still waiting in the caller's schools, oldest first: the family
- * that has waited longest is the one the committee should open next.
- */
 export async function listWaitingProofs(tx: Reader, schoolKeys: readonly string[], page: number) {
   const waiting = and(
     isNull(paymentReviews.id),
     inArray(schools.key, [...schoolKeys]),
-    // The desk is this cycle's work. Last year's applications are read on
-    // their own pages, never queued for a decision again.
     eq(applications.admissionCycleId, currentCycleId),
     eq(applications.stage, "PAYMENT_REVIEW"),
   );
@@ -206,7 +192,6 @@ export async function listWaitingProofs(tx: Reader, schoolKeys: readonly string[
   return { rows, total: total?.total ?? 0 };
 }
 
-/** The newest attempt on one application, whether or not it was decided. */
 export async function findNewestPayment(tx: Reader, applicationId: string) {
   const [found] = await tx
     .select()

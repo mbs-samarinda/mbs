@@ -26,7 +26,7 @@ export const listWaitingProofsProcedure = staffProcedure.staff.payments.listWait
   ({ input, context }) => listProofQueue(context.db, context.staff, input),
 );
 
-export const openProofProcedure = staffProcedure.staff.payments.get.handler(({ input, context }) =>
+export const openProofProcedure = staffProcedure.staff.payments.open.handler(({ input, context }) =>
   openProof(context.db, context.files, context.staff, input.paymentId, context.meta),
 );
 

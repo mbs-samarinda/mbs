@@ -65,6 +65,13 @@ export function formatWaited(since: string, now = serverNow()) {
   return hours < 24 ? `${hours} jam` : `${Math.floor(hours / 24)} hari`;
 }
 
+const oneDecimal = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 });
+
+export function formatBytes(bytes: number) {
+  const mb = bytes / 1024 / 1024;
+  return mb >= 1 ? `${oneDecimal.format(mb)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 const rupiah = new Intl.NumberFormat("id-ID");
 /** "Rp250.000", the way the school writes it. */
 export const formatRupiah = (value: number) => `Rp${rupiah.format(value)}`;

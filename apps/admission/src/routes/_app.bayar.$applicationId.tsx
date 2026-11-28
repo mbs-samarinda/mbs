@@ -23,7 +23,6 @@ export const Route = createFileRoute("/_app/bayar/$applicationId")({
     try {
       await queryClient.ensureQueryData(paymentQuery(account.id, params.applicationId));
     } catch (error) {
-      // Not theirs, not there and not an id at all are the same answer.
       if (error instanceof ORPCError && ["NOT_FOUND", "BAD_REQUEST"].includes(error.code)) {
         throw notFound();
       }
@@ -43,7 +42,6 @@ function Pay() {
     refetchOnMount: "always",
   });
 
-  // The committee has it, or the step is over. Either way this page is not it.
   useEffect(() => {
     if (payment.stage !== "PAYMENT_DUE") {
       void navigate({ to: "/status/$applicationId", params: { applicationId }, replace: true });
@@ -61,11 +59,6 @@ function Pay() {
         <ArrowLeftIcon aria-hidden className="size-4" />
         Status pendaftaran
       </Link>
-      {/*
-        The number sits on its own line. Joined to the name with a middot, a long
-        name pushed it to the end of a six-line grey block, and the number is
-        what a family has to quote on the phone.
-      */}
       <div className="grid gap-1">
         <h1 tabIndex={-1} className="text-xl font-semibold outline-none">
           Pembayaran
@@ -96,10 +89,8 @@ function Rejected({ reason }: { reason: string }) {
   );
 }
 
-/** A long reason stays out of the way until the family asks for the rest of it. */
 function Reason({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
-  // Four lines is where a reason stops being a sentence and starts being a wall.
   const long = text.length > 180;
   return (
     <div className="grid justify-items-start gap-1">
@@ -177,17 +168,12 @@ function CopyRow({
 }) {
   const [done, setDone] = useState(false);
   return (
-    // Wrapping lets the button drop under the value when a zoomed-in phone
-    // leaves them no room to share a line, instead of widening the card.
     <div className="flex flex-wrap items-start gap-3 border-b border-border/70 py-2.5 last:border-b-0">
       <div className="min-w-0 flex-[1_1_8rem]">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p
           className={cn(
             "min-w-0 font-medium tabular-nums",
-            // An amount never breaks: a family reading "Rp1 / 5.75 / 0.00 / 0"
-            // across four lines copies the wrong number. Where a twelve-digit
-            // rupiah will not fit whole, the type gets smaller, not the number.
             big ? "text-2xl font-semibold tracking-tight max-[28rem]:text-xl" : "wrap-anywhere",
           )}
         >
@@ -220,7 +206,6 @@ function Upload({ applicationId, accountId }: { applicationId: string; accountId
     null,
   );
   const [problem, setProblem] = useState<string | null>(null);
-  // One key per chosen file, so a retry after a cut network sends one proof.
   const [key, setKey] = useState(() => crypto.randomUUID());
 
   const send = useMutation({
@@ -241,9 +226,6 @@ function Upload({ applicationId, accountId }: { applicationId: string; accountId
     onSuccess: async () => {
       await done();
     },
-    // The proof may have landed and only its answer been lost. Ask what the
-    // server has: if it took the proof, the page redirects instead of telling
-    // the family to try again forever.
     onError: () => void queryClient.invalidateQueries({ queryKey: ["payments", accountId] }),
   });
 
@@ -352,8 +334,6 @@ function Upload({ applicationId, accountId }: { applicationId: string; accountId
   );
 }
 
-/** The file the family just picked. A HEIC a browser will not decode still has
- * to look like a chosen file, not like a broken page. */
 function Thumb({ url }: { url: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) {

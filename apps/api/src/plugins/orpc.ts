@@ -25,7 +25,6 @@ export type ApiContext = {
   /** This request's logger, so a log line carries the request id. */
   log: FastifyBaseLogger;
   meta: RequestMeta;
-  /** Signs the browser's uploads and the committee's views. Bytes never pass through here. */
   files: Files;
   outbox: OutboxSettings;
 };

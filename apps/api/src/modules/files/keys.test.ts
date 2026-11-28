@@ -20,8 +20,6 @@ describe("an object key", () => {
       for (const secret of Object.values(SECRETS)) {
         expect(key).not.toContain(secret);
         expect(key).not.toContain(secret.toLowerCase());
-        // A key built from a NIK or a number would keep its digits even if the
-        // separators were dropped.
         expect(key.replaceAll(/\W/g, "")).not.toContain(secret.replaceAll(/\W/g, ""));
       }
     }

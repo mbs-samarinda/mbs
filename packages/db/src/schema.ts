@@ -414,15 +414,8 @@ export const paymentPurpose = pgEnum("payment_purpose", PAYMENT_PURPOSES);
 export const paymentMethod = pgEnum("payment_method", PAYMENT_METHODS);
 export const paymentDecision = pgEnum("payment_decision", PAYMENT_DECISIONS);
 
-/**
- * One object in the bucket. The row is written after the browser's upload
- * lands, so `byteSize` is what the bucket reports, not what the browser
- * promised. Bytes never pass through the API.
- */
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().defaultRandom(),
-  // Random, and never built from a name, NIK or registration number: the key
-  // travels in URLs and bucket listings.
   objectKey: text("object_key").notNull().unique(),
   byteSize: integer("byte_size").notNull(),
   contentType: text("content_type").notNull(),
@@ -433,13 +426,6 @@ export const files = pgTable("files", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/**
- * One attempt to pay. A second proof after a rejection is a new row, so the
- * rejected attempt keeps its proof and its reason forever.
- *
- * `amountDue` is copied from the application's own fee snapshot, because a
- * later fee change must not rewrite what this family was asked for.
- */
 export const payments = pgTable(
   "payments",
   {
@@ -450,7 +436,6 @@ export const payments = pgTable(
     purpose: paymentPurpose("purpose").notNull(),
     amountDue: integer("amount_due").notNull(),
     method: paymentMethod("method").notNull(),
-    // One file per attempt, and a file is never reused by a second attempt.
     fileId: uuid("file_id")
       .notNull()
       .unique()
@@ -460,16 +445,9 @@ export const payments = pgTable(
       .references(() => user.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  // The desk reads one application's attempts newest first.
   (table) => [index("payments_application").on(table.applicationId, table.createdAt)],
 );
 
-/**
- * The committee's decision on one proof. Its own table rather than columns on
- * `payments`, because a decision is never edited and the history trigger
- * forbids the update that storing it in place would need. `paymentId` is unique,
- * so two staff deciding at once end with one decision and one refusal.
- */
 export const paymentReviews = pgTable(
   "payment_reviews",
   {

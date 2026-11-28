@@ -157,8 +157,6 @@ export function finishedMilestones(
   for (const { command, at } of events) {
     const milestone = FINISHES[command];
     if (milestone) finished[milestone] = at;
-    // Nothing to pay means no payment step at all, so registering finishes it.
-    // Without this the family would watch one step wait forever.
     if (command === "SUBMIT" && options.registrationFee === 0) finished.PAYMENT = at;
   }
   return finished;
@@ -190,7 +188,6 @@ export const PROOF_CONTENT_TYPES = [
   "application/pdf",
 ] as const;
 
-/** A phone photo is far under this. The cap is for a PDF scan. */
 export const PROOF_MAX_BYTES = 10 * 1024 * 1024;
 
 export const NOTIFICATION_CHANNELS = ["EMAIL"] as const;

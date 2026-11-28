@@ -39,7 +39,6 @@ import {
   loadApplicationForPayment,
 } from "./repository.ts";
 
-/** Registration is the only thing a family pays for until P11 adds daftar ulang. */
 const PURPOSE = "REGISTRATION";
 
 export async function loadPaymentPage(
@@ -83,10 +82,6 @@ export async function loadPaymentPage(
   };
 }
 
-/**
- * Signs the PUT the browser is about to make. The file is checked here and not
- * only at the bucket, so a family reads why a file was refused.
- */
 export async function beginProofUpload(
   db: Database,
   files: Files,
@@ -110,14 +105,6 @@ export async function beginProofUpload(
   });
 }
 
-/**
- * Records the proof once its bytes have landed. The `files` row, the `payments`
- * row and the event are one transaction, so a family never ends up with a
- * stored file that nothing points at.
- *
- * A retry after a cut network carries the same idempotency key, so one proof
- * exists however many times the browser tries.
- */
 export async function sendProof(
   db: Database,
   files: Files,
@@ -138,7 +125,6 @@ export async function sendProof(
     "UPLOAD_PAYMENT_PROOF",
     outbox,
     {
-      // One key is one chosen file, whatever the browser sent in between.
       isRetry: async (earlier) => earlier.command === "UPLOAD_PAYMENT_PROOF",
       write: async (tx, application) => {
         const file = await files.completeUpload(tx, {
@@ -183,11 +169,6 @@ export async function listProofQueue(
   };
 }
 
-/**
- * Opens one proof on the desk. Asking for it is a staff view of a family's
- * file, so it records one audit row of ids and signs a URL that dies in
- * minutes. Nothing may preload it.
- */
 export async function openProof(
   db: Database,
   files: Files,
@@ -205,7 +186,6 @@ export async function openProof(
       action: "file.viewed",
       entityType: "application",
       entityId: row.payment.applicationId,
-      // Ids only. Never the object key, which is what opens the file.
       metadata: { paymentId: row.payment.id, fileId: row.payment.fileId },
       ...meta,
     });
@@ -225,18 +205,11 @@ export async function openProof(
     attempt,
     file: ProofFile.parse(row.file),
     url: await files.signDownload(row.file),
+    urlExpiresInSeconds: files.downloadUrlSeconds,
     canDecide: staff.role !== "PRINCIPAL" && !row.decided,
   };
 }
 
-/**
- * Approves or rejects one proof.
- *
- * Two staff deciding at once take turns on the application's own lock. The
- * second one finds the stage already moved, so its command is refused; it is
- * told the proof was handled rather than that the stage is wrong, because that
- * is what happened.
- */
 export async function decideProof(
   db: Database,
   staff: StaffContext,
@@ -272,8 +245,6 @@ export async function decideProof(
           if (!locked || locked.decided) {
             throw new AlreadyHandledError("This proof was already decided.");
           }
-          // A proof that is no longer the newest was replaced while this desk
-          // held it open, so deciding it would answer about the wrong file.
           const newest = await findNewestPayment(tx, locked.payment.applicationId);
           if (newest?.id !== input.paymentId) {
             throw new AlreadyHandledError("A newer proof replaced this one.");

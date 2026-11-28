@@ -1,14 +1,7 @@
 import type { ProofFile } from "@mbs/api-contract";
 import { PROOF_CONTENT_TYPES, PROOF_MAX_BYTES } from "@mbs/school-config";
 
-/**
- * How a receipt leaves the browser. Bytes go straight to the bucket, so a slow
- * phone upload never holds an API connection open.
- */
-
-/** About this big after shrinking: readable on a desk, small on a phone plan. */
 const TARGET_BYTES = 500_000;
-/** A receipt is read, not printed. Beyond this the extra pixels say nothing. */
 const MAX_EDGE = 1600;
 
 export type ChosenFile = {
@@ -21,13 +14,6 @@ export type ChosenFile = {
 export const TOO_BIG = "TOO_BIG";
 export const BAD_TYPE = "BAD_TYPE";
 
-/**
- * Shrinks a photo and hashes what will actually be sent. A PDF travels as it
- * is: it is already small, and re-encoding it would lose the text.
- *
- * A HEIC from an iPhone is left alone too, because Chrome cannot decode it.
- * That is why the cap is 10 MB rather than 1 MB.
- */
 export async function prepare(file: File): Promise<ChosenFile | typeof TOO_BIG | typeof BAD_TYPE> {
   const shrunk = (await shrink(file)) ?? file;
   // Desktop Chrome hands over a .heic with no type at all, so the name decides
@@ -81,7 +67,6 @@ async function shrink(file: File): Promise<Blob | null> {
   }
 }
 
-/** Base64, which is what S3 wants in the checksum it signs. */
 async function hash(blob: Blob) {
   const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
   return btoa(String.fromCharCode(...new Uint8Array(digest)));

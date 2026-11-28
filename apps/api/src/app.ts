@@ -68,11 +68,7 @@ export async function buildApp(config: Config, deps: AppDeps = {}): Promise<Fast
 
   const db = createDatabase(config.databaseUrl);
   app.decorate("db", db);
-  const files = createFiles(
-    createStorage(config.storage),
-    config.auth.secret,
-    config.storage.uploadUrlSeconds,
-  );
+  const files = createFiles(createStorage(config.storage), config.auth.secret, config.storage);
 
   const notifications = createNotificationWorker({
     db,

@@ -58,7 +58,7 @@ It checks that each process group is alive, and that each port is owned by this 
 ## Drive
 
 ```bash
-node $S/drive.mjs --out "$EVIDENCE/<feature-id>" [--state <file>] [--mobile] <step>...
+node $S/drive.mjs --out "$EVIDENCE/<feature-id>" [--state <file>] [--mobile | --width <px>] [--dark] [--mail <url>] [--video <dir>] <step>...
 ```
 
 | Step | Does |
@@ -67,8 +67,14 @@ node $S/drive.mjs --out "$EVIDENCE/<feature-id>" [--state <file>] [--mobile] <st
 | `click:<role>:<name>` | click the first element with that ARIA role and exact accessible name |
 | `tryclick:<role>:<name>` | the same, but skip it if it does not show within 5 s (popups that come only sometimes) |
 | `fill:<role>:<name>=<value>` | type into a textbox or searchbox |
+| `code:<role>:<name>=<address>` | type the newest sign-in code Mailpit holds for that address; needs `--mail <url>` |
+| `upload:<role>:<name>=<path>` | give a file to the input that button opens |
 | `select:<role>:<name>=<label>` | choose an option of a native select |
 | `press:<key>` | press a key |
+| `offline:on` / `offline:off` | cut the network and bring it back |
+| `slow4g:on` / `slow4g:off` | throttle to a phone on a bad signal; turn it on after the page has loaded |
+| `abort:<substring>` | let the next matching request reach the server and drop only its answer, once |
+| `wait:<ms>` | sit still, for a sampler or an expiry |
 | `see:<role>:<name>` | wait up to 30 s for that element |
 | `text:<text>` | wait up to 30 s for that text anywhere |
 | `shot:<label>` | save `<label>.png` (full page), `<label>.aria.txt` (accessibility tree) and `<label>.url` |

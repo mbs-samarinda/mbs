@@ -26,19 +26,12 @@ services:
       timeout: 3s
       retries: 10
 
-  # The bucket for receipts and documents. Production uses Biznet's
-  # S3-compatible storage; this is the same API on this machine.
-  #
-  # Not MinIO: its community server was archived in April 2026 and its images
-  # are no longer pullable. SeaweedFS speaks the same S3 API.
   bucket:
     image: chrislusf/seaweedfs:3.97
     container_name: mbs-bucket
     restart: unless-stopped
     command: server -s3 -dir=/data -ip=0.0.0.0
     environment:
-      # The only credentials it accepts. Without them it would serve the bucket
-      # to anyone who could reach the port.
       AWS_ACCESS_KEY_ID: mbs_local_dev
       AWS_SECRET_ACCESS_KEY: mbs_local_dev_secret
     ports:

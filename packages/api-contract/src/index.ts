@@ -103,10 +103,6 @@ export const contract = {
           IDEMPOTENCY_KEY_REUSED: { status: 409, data: ReusedKey },
         }),
     },
-    /**
-     * Bytes go from the browser to the bucket. `beginUpload` signs that PUT,
-     * `sendProof` records what landed.
-     */
     payments: {
       get: oc.input(z.object({ applicationId: z.uuid() })).output(PaymentPage),
       beginUpload: oc.input(BeginUploadInput).output(SignedUpload),
@@ -136,13 +132,9 @@ export const contract = {
       recordView: oc.input(ApplicationRef).output(z.void()),
       addNote: oc.input(AddNoteInput).output(AddedNote),
     },
-    /**
-     * The payment desk. `get` is what records a staff view of a family's file,
-     * so nothing may preload it.
-     */
     payments: {
       listWaiting: oc.input(ListWaitingProofsInput).output(WaitingProofPage),
-      get: oc.input(PaymentRef).output(ProofToReview),
+      open: oc.input(PaymentRef).output(ProofToReview),
       decide: oc
         .input(DecideProofInput)
         .output(z.void())

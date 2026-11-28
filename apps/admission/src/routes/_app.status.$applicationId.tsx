@@ -88,7 +88,6 @@ function Status() {
   );
 }
 
-/** What the family sent, so "panitia memeriksa" names a file and not a mystery. */
 function SentProof({ accountId, applicationId }: { accountId: string; applicationId: string }) {
   const { data } = useQuery(paymentQuery(accountId, applicationId));
   const [failed, setFailed] = useState(false);
